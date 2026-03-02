@@ -24,6 +24,8 @@ import { formatTime } from "@/shared/utils/dateUtils";
 import GroupInfoScreen from "../components/GroupInfoScreen";
 import ChatOptionsScreen from "./ChatOptionsScreen";
 import { useChatStore } from "@/shared/store/useChatStore";
+import { useFriendStore } from "@/shared/store/friendStore";
+import friendService from "@/shared/services/friendService";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -33,7 +35,9 @@ export default function ChatScreen() {
     const { id, name, type } = route.params || {};
     const roomId = typeof id === "string" ? id : "";
     const displayName = typeof name === "string" ? name : "Người dùng";
-    const roomType = typeof type === "string" ? type : "DIRECT";
+    // Chuẩn hóa: mọi loại không phải GROUP đều xem như chat 1-1 (DIRECT)
+    const rawType = typeof type === "string" ? type : "DIRECT";
+    const roomType = rawType === "GROUP" ? "GROUP" : "DIRECT";
 
     const [messages, setMessages] = useState<MessageDynamo[]>([]);
     const [sending, setSending] = useState(false);
@@ -89,6 +93,23 @@ export default function ChatScreen() {
     };
 
     const currentUserId = useUserStore((s) => s.profile?.id);
+    const rooms = useChatStore((s) => s.rooms);
+    const unblockUser = useFriendStore((s) => s.unblockUser);
+    const blockedUsers = useFriendStore((s) => s.blockedUsers);
+
+    const [blockStatus, setBlockStatus] = useState<{
+        blockedByYou: boolean;
+        blockedByOther: boolean;
+        blockerName: string | null;
+    } | null>(null);
+
+    const partnerId = useMemo(() => {
+        if (roomType !== "DIRECT" || !roomId) return null;
+        const room = rooms.find((r) => r.id === roomId);
+        const participants = room?.participants || [];
+        const partner = participants.find((p: any) => p.id !== currentUserId);
+        return partner?.id ?? null;
+    }, [rooms, roomId, roomType, currentUserId]);
 
     // ─── Load chat history ───
     const fetchMessages = useCallback(async () => {
@@ -105,6 +126,59 @@ export default function ChatScreen() {
             setLoaded(true);
         }
     }, [roomId]);
+
+    // ─── Check block status for DIRECT chats ───
+    useEffect(() => {
+        if (!roomId || roomType !== "DIRECT" || !partnerId) {
+            setBlockStatus(null);
+            return;
+        }
+        let cancelled = false;
+        const load = async () => {
+            try {
+                const status = await friendService.checkBlockStatus(partnerId);
+                if (!cancelled) {
+                    setBlockStatus({
+                        blockedByYou: !!status.blockedByYou,
+                        blockedByOther: !!status.blockedByOther,
+                        blockerName: status.blockerName ?? null,
+                    });
+                }
+            } catch (err) {
+                console.log("Failed to check block status:", err);
+            }
+        };
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [roomId, roomType, partnerId]);
+
+    // Re-check when global blockedUsers list changes (chặn/bỏ chặn từ nơi khác)
+    useEffect(() => {
+        if (!roomId || roomType !== "DIRECT" || !partnerId) return;
+        let cancelled = false;
+        const load = async () => {
+            try {
+                const status = await friendService.checkBlockStatus(partnerId);
+                if (!cancelled) {
+                    setBlockStatus({
+                        blockedByYou: !!status.blockedByYou,
+                        blockedByOther: !!status.blockedByOther,
+                        blockerName: status.blockerName ?? null,
+                    });
+                }
+            } catch (err) {
+                console.log("Failed to re-check block status:", err);
+            }
+        };
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [blockedUsers, roomId, roomType, partnerId]);
 
     // ─── Reset Unread Count via Store ───
     useEffect(() => {
@@ -250,6 +324,19 @@ export default function ChatScreen() {
     // ─── Send message ───
     const handleSend = async (content: string) => {
         if (!roomId || sending || !content.trim()) return;
+        if (
+            roomType === "DIRECT" &&
+            blockStatus &&
+            (blockStatus.blockedByYou || blockStatus.blockedByOther)
+        ) {
+            Alert.alert(
+                "Không thể gửi tin nhắn",
+                blockStatus.blockedByYou
+                    ? "Bạn đang chặn tin nhắn với người này. Hãy bỏ chặn để tiếp tục nhắn tin."
+                    : "Bạn đã bị chặn tin nhắn trong cuộc trò chuyện này."
+            );
+            return;
+        }
         setSending(true);
 
         // Optimistic UI
@@ -583,12 +670,77 @@ export default function ChatScreen() {
                         </View>
                     )}
                 />
-
-                <ChatFooter
-                    onSend={handleSend}
-                    replyTo={replyTo}
-                    onCancelReply={() => setReplyTo(null)}
-                />
+                {roomType === "DIRECT" &&
+                blockStatus &&
+                (blockStatus.blockedByYou || blockStatus.blockedByOther) ? (
+                    <View
+                        style={{
+                            paddingHorizontal: 16,
+                            paddingVertical: 16,
+                            borderTopWidth: 0.5,
+                            borderTopColor: "#1f2933",
+                            backgroundColor: "#111827",
+                            alignItems: "center",
+                        }}
+                    >
+                        <Text
+                            style={{
+                                color: "#e5e7eb",
+                                fontSize: 13,
+                                marginBottom: blockStatus.blockedByYou ? 10 : 0,
+                                textAlign: "center",
+                            }}
+                        >
+                            {blockStatus.blockedByYou
+                                ? "Bạn đã chặn tin nhắn"
+                                : "Bạn đã bị chặn tin nhắn"}
+                        </Text>
+                        {blockStatus.blockedByYou && partnerId && (
+                            <TouchableOpacity
+                                activeOpacity={0.8}
+                                onPress={async () => {
+                                    try {
+                                        await unblockUser(partnerId);
+                                        setBlockStatus({
+                                            blockedByYou: false,
+                                            blockedByOther: false,
+                                            blockerName: null,
+                                        });
+                                    } catch {
+                                        Alert.alert(
+                                            "Lỗi",
+                                            "Không bỏ chặn được người này. Vui lòng thử lại."
+                                        );
+                                    }
+                                }}
+                                style={{
+                                    marginTop: 8,
+                                    alignSelf: "center",
+                                    paddingHorizontal: 16,
+                                    paddingVertical: 8,
+                                    borderRadius: 999,
+                                    backgroundColor: "#2563eb",
+                                }}
+                            >
+                                <Text
+                                    style={{
+                                        color: "#ffffff",
+                                        fontSize: 14,
+                                        fontWeight: "600",
+                                    }}
+                                >
+                                    Bỏ chặn
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                ) : (
+                    <ChatFooter
+                        onSend={handleSend}
+                        replyTo={replyTo}
+                        onCancelReply={() => setReplyTo(null)}
+                    />
+                )}
             </KeyboardAvoidingView>
 
             {/* Action sheet khi nhấn giữ tin nhắn */}

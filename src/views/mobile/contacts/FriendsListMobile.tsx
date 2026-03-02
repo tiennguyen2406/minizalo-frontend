@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
@@ -39,8 +39,17 @@ const CLOSE_FRIEND_CATEGORY_NAME = "Bạn thân";
 
 export default function FriendsListMobile({ searchText = "" }: FriendsListMobileProps) {
     const router = useRouter();
-    const { friends, loading, error, fetchFriends, removeFriend, clearError } =
-        useFriendStore();
+    const {
+        friends,
+        loading,
+        error,
+        fetchFriends,
+        removeFriend,
+        clearError,
+        blockedUsers,
+        blockUser,
+        unblockUser,
+    } = useFriendStore();
     const { rooms } = useChatStore();
     const currentUser = useUserStore((s) => s.profile);
 
@@ -56,12 +65,16 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
         user: UserProfile;
         displayName: string;
     } | null>(null);
-    const swipeableRefsMap = useRef<Record<string, Swipeable | null>>({});
     const [blockSheetFriend, setBlockSheetFriend] = useState<{
         userId: string;
         displayName: string;
     } | null>(null);
-    const [blockOptions, setBlockOptions] = useState({ blockMessages: false, blockCalls: false, blockTimeline: false });
+    const [blockOptions, setBlockOptions] = useState({
+        blockMessages: false,
+        blockCalls: false,
+        blockTimeline: false,
+    });
+    const [initialBlockedByYou, setInitialBlockedByYou] = useState<boolean | null>(null);
     const [addToCloseFriendsVisible, setAddToCloseFriendsVisible] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState("");
     const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
@@ -86,6 +99,46 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         fetchFriends();
     }, [fetchFriends]);
+
+    // Đồng bộ trạng thái blockMessages theo backend khi mở sheet Quản lý chặn
+    useEffect(() => {
+        if (!blockSheetFriend) {
+            setBlockOptions({ blockMessages: false, blockCalls: false, blockTimeline: false });
+            setInitialBlockedByYou(null);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                // Ưu tiên dùng danh sách blockedUsers trong store nếu đã có
+                const isBlockedFromStore = blockedUsers.some(
+                    (f) => f.friend.id === blockSheetFriend.userId
+                );
+                let isBlocked = isBlockedFromStore;
+                if (!isBlockedFromStore) {
+                    // Fallback: gọi trực tiếp API checkBlockStatus để chắc chắn
+                    const status = await friendService.checkBlockStatus(blockSheetFriend.userId);
+                    isBlocked = !!status.blockedByYou;
+                }
+                if (!cancelled) {
+                    setInitialBlockedByYou(isBlocked);
+                    setBlockOptions((prev) => ({
+                        ...prev,
+                        blockMessages: isBlocked,
+                    }));
+                }
+            } catch {
+                if (!cancelled) {
+                    setInitialBlockedByYou(null);
+                    // giữ nguyên blockOptions mặc định
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [blockSheetFriend]);
 
     useEffect(() => {
         let cancelled = false;
@@ -361,6 +414,9 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
         const initial =
             (displayName.charAt(0).toUpperCase() || "?").toUpperCase();
 
+        // Dùng biến cục bộ cho từng hàng, tránh trùng ref giữa danh sách Bạn thân và danh sách chữ cái
+        let swipeableInstance: Swipeable | null = null;
+
         const rowContent = (
             <TouchableOpacity
                 activeOpacity={0.8}
@@ -432,10 +488,12 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
             <Swipeable
                 key={item.id}
                 ref={(r) => {
-                    if (r) swipeableRefsMap.current[u.id] = r;
+                    swipeableInstance = r;
                 }}
                 renderRightActions={() =>
-                    renderSwipeLeftActions(u.id, displayName, item, u, () => swipeableRefsMap.current[u.id]?.close?.())
+                    renderSwipeLeftActions(u.id, displayName, item, u, () =>
+                        swipeableInstance?.close?.()
+                    )
                 }
                 friction={2}
             >
@@ -736,46 +794,105 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                 {blockOptions.blockMessages ? <Ionicons name="checkmark-circle" size={22} color={PROFILE_COLORS.primary} /> : <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />}
                             </TouchableOpacity>
                             <TouchableOpacity
-                                onPress={() => setBlockOptions((o) => ({ ...o, blockCalls: !o.blockCalls }))}
-                                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: "#27272a" }}
+                                activeOpacity={1}
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    paddingVertical: 12,
+                                    borderBottomWidth: 0.5,
+                                    borderBottomColor: "#27272a",
+                                    opacity: 0.4,
+                                }}
                             >
                                 <Ionicons name="call-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
                                 <View style={{ flex: 1 }}>
                                     <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn cuộc gọi</Text>
                                     <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 12, marginTop: 2 }}>Cả hai sẽ không thể gọi điện cho nhau</Text>
                                 </View>
-                                {blockOptions.blockCalls ? <Ionicons name="checkmark-circle" size={22} color={PROFILE_COLORS.primary} /> : <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />}
+                                <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />
                             </TouchableOpacity>
                             <TouchableOpacity
-                                onPress={() => setBlockOptions((o) => ({ ...o, blockTimeline: !o.blockTimeline }))}
-                                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: "#27272a" }}
+                                activeOpacity={1}
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    paddingVertical: 12,
+                                    borderBottomWidth: 0.5,
+                                    borderBottomColor: "#27272a",
+                                    opacity: 0.4,
+                                }}
                             >
                                 <Ionicons name="time-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
                                 <View style={{ flex: 1 }}>
                                     <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn và ẩn khỏi nhật ký</Text>
                                 </View>
-                                {blockOptions.blockTimeline ? <Ionicons name="checkmark-circle" size={22} color={PROFILE_COLORS.primary} /> : <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />}
+                                <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />
                             </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={async () => {
-                                    const any = blockOptions.blockMessages || blockOptions.blockCalls || blockOptions.blockTimeline;
-                                    if (!any) return;
-                                    try {
-                                        await friendService.blockUser(blockSheetFriend.userId);
-                                        useFriendStore.setState((prev) => ({
-                                            friends: prev.friends.filter((f) => f.user.id !== blockSheetFriend.userId && f.friend.id !== blockSheetFriend.userId),
-                                        }));
-                                        setBlockSheetFriend(null);
-                                        setActionSheetFriend(null);
-                                        Alert.alert("Đã chặn", "Người này đã bị chặn và ẩn khỏi danh sách bạn.");
-                                    } catch {
-                                        Alert.alert("Lỗi", "Không chặn được người này.");
-                                    }
-                                }}
-                                style={{ marginTop: 16, backgroundColor: (blockOptions.blockMessages || blockOptions.blockCalls || blockOptions.blockTimeline) ? "#374151" : "#27272a", paddingVertical: 14, borderRadius: 10, alignItems: "center" }}
-                            >
-                                <Text style={{ color: (blockOptions.blockMessages || blockOptions.blockCalls || blockOptions.blockTimeline) ? PROFILE_COLORS.text : PROFILE_COLORS.textSecondary, fontSize: 15, fontWeight: "500" }}>Áp dụng</Text>
-                            </TouchableOpacity>
+                            {(() => {
+                                // Nút Áp dụng chỉ active khi có thay đổi trạng thái "Chặn tin nhắn"
+                                const initialBlockMessages = initialBlockedByYou ?? false;
+                                const hasChange = blockOptions.blockMessages !== initialBlockMessages;
+                                const isBlockedNow = !!initialBlockedByYou;
+                                return (
+                                    <TouchableOpacity
+                                        onPress={async () => {
+                                            if (!hasChange) {
+                                                return;
+                                            }
+                                            try {
+                                                const wantBlock = blockOptions.blockMessages;
+                                                // Nếu hiện tại chưa chặn và user chỉ bật các tùy chọn khác (call/timeline)
+                                                // mà KHÔNG bật "Chặn tin nhắn" -> không hỗ trợ, báo lỗi.
+                                                if (!isBlockedNow && !wantBlock) {
+                                                    Alert.alert(
+                                                        "Thông báo",
+                                                        "Hiện tại chỉ hỗ trợ chặn tin nhắn."
+                                                    );
+                                                    return;
+                                                }
+                                                if (wantBlock && !isBlockedNow) {
+                                                    // Chuyển từ chưa chặn -> chặn tin nhắn
+                                                    await blockUser(blockSheetFriend.userId);
+                                                    Alert.alert(
+                                                        "Đã chặn",
+                                                        "Người này đã bị chặn tin nhắn."
+                                                    );
+                                                } else if (!wantBlock && isBlockedNow) {
+                                                    // Chuyển từ đang chặn -> bỏ chặn tin nhắn
+                                                    await unblockUser(blockSheetFriend.userId);
+                                                }
+                                                setBlockSheetFriend(null);
+                                                setActionSheetFriend(null);
+                                            } catch (e) {
+                                                console.log("Error applying block:", e);
+                                                Alert.alert("Lỗi", "Không cập nhật được trạng thái chặn.");
+                                            }
+                                        }}
+                                        activeOpacity={hasChange ? 0.8 : 1}
+                                        style={{
+                                            marginTop: 16,
+                                            backgroundColor: hasChange
+                                                ? PROFILE_COLORS.primary
+                                                : "#27272a",
+                                            paddingVertical: 14,
+                                            borderRadius: 10,
+                                            alignItems: "center",
+                                        }}
+                                    >
+                                        <Text
+                                            style={{
+                                                color: hasChange
+                                                    ? PROFILE_COLORS.text
+                                                    : PROFILE_COLORS.textSecondary,
+                                                fontSize: 15,
+                                                fontWeight: "500",
+                                            }}
+                                        >
+                                            Áp dụng
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })()}
                         </TouchableOpacity>
                     </TouchableOpacity>
                 </Modal>

@@ -79,7 +79,7 @@ export default function SettingsScreen() {
                 <Text style={headerStyles.title}>Cài đặt</Text>
             </View>
 
-            {/* Danh sách chặn */}
+            {/* Danh sách chặn tin nhắn */}
             <TouchableOpacity
                 style={[headerStyles.row, { marginTop: 24 }]}
                 onPress={() => router.push("/(tabs)/blocked")}
@@ -90,7 +90,7 @@ export default function SettingsScreen() {
                     size={24}
                     color={PROFILE_COLORS.textSecondary}
                 />
-                <Text style={headerStyles.rowText}>Danh sách chặn</Text>
+                <Text style={headerStyles.rowText}>Danh sách chặn tin nhắn</Text>
             </TouchableOpacity>
 
             {/* Đăng xuất */}

@@ -112,7 +112,7 @@ export default function ContactsScreen() {
               },
               {
                 id: "blocked" as const,
-                label: "Danh sách chặn",
+                label: "Danh sách chặn tin nhắn",
                 icon: "🚫",
               },
             ].map((item) => {
