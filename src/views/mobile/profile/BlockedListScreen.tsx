@@ -171,7 +171,7 @@ export default function BlockedListScreen() {
                         fontWeight: "600",
                     }}
                 >
-                    Danh sách chặn
+                    Danh sách chặn tin nhắn
                 </Text>
             </View>
 
@@ -208,7 +208,7 @@ export default function BlockedListScreen() {
                             fontSize: 13,
                         }}
                     >
-                        Đang tải danh sách chặn...
+                        Đang tải danh sách chặn tin nhắn...
                     </Text>
                 </View>
             ) : !blocked.length ? (
@@ -227,7 +227,7 @@ export default function BlockedListScreen() {
                             textAlign: "center",
                         }}
                     >
-                        Bạn chưa chặn ai.
+                        Bạn chưa chặn tin nhắn với ai.
                     </Text>
                 </View>
             ) : (

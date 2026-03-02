@@ -390,7 +390,9 @@ export default function ContactsMobileScreen() {
                                     fontWeight: "500",
                                 }}
                             >
-                                Lời mời kết bạn
+                                {requests.length > 0
+                                    ? `Lời mời kết bạn(${requests.length})`
+                                    : "Lời mời kết bạn"}
                             </Text>
                             <Text
                                 style={{
@@ -543,9 +545,7 @@ function BirthdaySection({ birthdayFriends }: BirthdaySectionProps) {
                             marginTop: 2,
                         }}
                     >
-                        {birthdayFriends.length > 0
-                            ? `${birthdayFriends.length} bạn có sinh nhật`
-                            : "Chưa có sinh nhật nào trong danh sách"}
+                        Xem sinh nhật bạn bè của bạn
                     </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={PROFILE_COLORS.textSecondary} />
