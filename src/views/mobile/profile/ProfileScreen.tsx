@@ -111,51 +111,51 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                 </TouchableOpacity>
             </View>
 
-            {/* Profile block */}
+            {/* Profile block - nền xám nhạt hơn background */}
             <TouchableOpacity
-                style={profileStyles.profileSection}
+                style={[profileStyles.profileSection, { backgroundColor: '#1a1a1e' }]}
                 activeOpacity={0.8}
-                onPress={() => router.push("/(tabs)/account-edit")}
+                onPress={() => router.push("/(tabs)/personal-profile")}
             >
-                <View>
-                    {avatarUrl ? (
-                        <Image
-                            source={{ uri: avatarUrl }}
-                            style={profileStyles.avatar}
-                        />
-                    ) : (
-                        <View
-                            style={[
-                                profileStyles.avatar,
-                                {
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                },
-                            ]}
+                {avatarUrl ? (
+                    <Image
+                        source={{ uri: avatarUrl }}
+                        style={[profileStyles.avatar, { borderWidth: 2, borderColor: '#fff' }]}
+                    />
+                ) : (
+                    <View
+                        style={[
+                            profileStyles.avatar,
+                            {
+                                alignItems: "center",
+                                justifyContent: "center",
+                                borderWidth: 2,
+                                borderColor: '#fff',
+                            },
+                        ]}
+                    >
+                        <Text
+                            style={{
+                                color: PROFILE_COLORS.text,
+                                fontSize: 28,
+                                fontWeight: "600",
+                            }}
                         >
-                            <Text
-                                style={{
-                                    color: PROFILE_COLORS.text,
-                                    fontSize: 28,
-                                    fontWeight: "600",
-                                }}
-                            >
-                                {avatarInitial}
-                            </Text>
-                        </View>
-                    )}
-                    <View style={profileStyles.avatarBadge}>
-                        <Ionicons name="add" size={18} color={PROFILE_COLORS.text} />
+                            {avatarInitial}
+                        </Text>
                     </View>
-                </View>
+                )}
                 <View style={profileStyles.nameRow}>
                     <Text style={profileStyles.displayName}>{displayName}</Text>
-                    <Ionicons name="time-outline" size={20} color={PROFILE_COLORS.textSecondary} />
                 </View>
             </TouchableOpacity>
 
-            {/* Menu list - bấm vào không chuyển màn (để sau xử lý chức năng riêng từng mục) */}
+            {/* Menu list - grouped with gray separators like Zalo */}
             <ScrollView style={profileStyles.list} showsVerticalScrollIndicator={false}>
+                {/* Thanh phân tách sau profile */}
+                <View style={{ height: 8, backgroundColor: '#1c1c1e' }} />
+
+                {/* Nhóm 1: Cloud & Style */}
                 <MenuItem
                     icon="cloud"
                     title="zCloud"
@@ -166,6 +166,11 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                     title="zStyle – Nổi bật trên Zalo"
                     subtitle="Hình nền và nhạc cho cuộc gọi Zalo"
                 />
+
+                {/* Thanh phân tách */}
+                <View style={{ height: 8, backgroundColor: '#1c1c1e' }} />
+
+                {/* Nhóm 2: Documents & Data */}
                 <MenuItem
                     icon="folder"
                     title="My Documents"
@@ -181,6 +186,11 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                     title="Ví QR"
                     subtitle="Lưu trữ và xuất trình các mã QR quan trọng"
                 />
+
+                {/* Thanh phân tách */}
+                <View style={{ height: 8, backgroundColor: '#1c1c1e' }} />
+
+                {/* Nhóm 3: Bảo mật & Riêng tư */}
                 <MenuItem
                     icon="shield-checkmark"
                     title="Tài khoản và bảo mật"
@@ -189,6 +199,9 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                     icon="lock-closed"
                     title="Quyền riêng tư"
                 />
+
+                {/* Padding bottom */}
+                <View style={{ height: 24 }} />
             </ScrollView>
         </SafeAreaView>
     );

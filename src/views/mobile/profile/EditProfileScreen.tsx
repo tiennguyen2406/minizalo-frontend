@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { profileStyles, PROFILE_COLORS } from "./styles";
 import type { UserProfile, UserProfileUpdateRequest } from "@/shared/services/types";
+import type { DimensionValue } from "react-native";
 
 const editStyles = {
     header: {
@@ -126,7 +127,7 @@ const editStyles = {
         alignItems: "center" as const,
     },
     modalContent: {
-        width: "86%",
+        width: "86%" as DimensionValue,
         borderRadius: 16,
         backgroundColor: "#18181b",
         padding: 16,
@@ -169,7 +170,7 @@ const editStyles = {
         flexDirection: "row" as const,
         justifyContent: "space-between" as const,
         marginTop: 8,
-        width: "100%",
+        width: "100%" as DimensionValue,
     },
     dobAdjustButton: {
         flex: 1,
@@ -267,7 +268,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                 });
             }
             Alert.alert("Thành công", "Đã lưu thông tin.");
-            router.replace("/(tabs)/account");
+            router.navigate("/(tabs)/personal-profile" as any);
         } catch (e: unknown) {
             const msg = e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "Không thể lưu.";
             Alert.alert("Lỗi", msg);
@@ -283,7 +284,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
             <View style={editStyles.header}>
                 <TouchableOpacity
                     style={editStyles.backButton}
-                    onPress={() => router.replace("/(tabs)/account")}
+                    onPress={() => router.navigate("/(tabs)/profile-settings" as any)}
                 >
                     <Text style={{ color: PROFILE_COLORS.text, fontSize: 20 }}>←</Text>
                 </TouchableOpacity>
