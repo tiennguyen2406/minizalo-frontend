@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Message, User } from '@/shared/types';
 import clsx from 'clsx';
+import { LazyImage } from './MessageList';
 
 interface MessageBubbleProps {
     message: Message;
@@ -174,6 +175,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 ? (message.isRecall ? 'bg-gray-100 text-gray-500 italic border border-transparent' : 'bg-[#e5f1ff] text-gray-900 border border-blue-100')
                                 : (message.isRecall ? 'bg-gray-100 text-gray-500 italic border border-transparent' : 'bg-white text-gray-900 shadow-sm border border-gray-100')
                         )}
+                        onContextMenu={(e) => {
+                            if (!message.isRecall) {
+                                e.preventDefault();
+                                setShowMoreMenu(true);
+                            }
+                        }}
                     >
                         {/* Hành động tin nhắn (hiện khi hover): Reply + ⋯ */}
                         {!message.isRecall && (
@@ -216,7 +223,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                             <div className={clsx(
                                                 "absolute z-50 bg-white rounded-xl shadow-lg border border-gray-200 py-1.5 min-w-[180px]",
                                                 isMine ? "right-0" : "left-0",
-                                                "top-full mt-2"
+                                                "bottom-full mb-2"
                                             )}>
                                                 {/* Copy */}
                                                 <button
@@ -310,10 +317,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             <span className="text-sm italic opacity-80">{message.content}</span>
                         ) : effectiveType === 'IMAGE' && effectiveFileUrl ? (
                             <div className="flex flex-col gap-1">
-                                <img
+                                <LazyImage
                                     src={effectiveFileUrl}
-                                    alt={effectiveFileName || "Ảnh"}
-                                    className="max-w-[280px] max-h-[300px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                    alt={effectiveFileName || 'Ảnh'}
+                                    style={{
+                                        maxWidth: 280, maxHeight: 300, borderRadius: 8,
+                                        objectFit: 'cover', cursor: 'pointer',
+                                    }}
                                     onClick={() => window.open(effectiveFileUrl, '_blank')}
                                 />
                             </div>

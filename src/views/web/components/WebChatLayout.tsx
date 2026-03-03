@@ -1,14 +1,13 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Box } from 'zmp-ui';
 import ChatRoomList from './ChatRoomList';
 import CreateGroupModal from './CreateGroupModal';
+import GlobalSearchBar from './GlobalSearchBar';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { useGroupStore } from '@/shared/store/useGroupStore';
-import { ChatRoom } from '@/shared/types';
-import { chatService, ChatRoomResponse } from '@/shared/services/chatService';
-import { useAuthStore } from '@/shared/store/authStore';
-import { webSocketService } from '@/shared/services/WebSocketService';
 import { useThemeStore } from '@/shared/store/themeStore';
+
+type FilterTab = 'all' | 'unread';
 
 interface WebChatLayoutProps {
     children: React.ReactNode;
@@ -17,108 +16,39 @@ interface WebChatLayoutProps {
 }
 
 const WebChatLayout: React.FC<WebChatLayoutProps> = ({ children, selectedRoomId, onSelectRoom }) => {
-    const { rooms, setRooms } = useChatStore();
-    const { accessToken } = useAuthStore();
+    const rooms = useChatStore((s) => s.rooms);
     const { openCreateGroup } = useGroupStore();
     const theme = useThemeStore((s) => s.theme);
     const isDark = theme === 'dark';
 
-    // Track which room IDs we've already subscribed to, to avoid re-subscribing
-    const subscribedRoomIds = useRef<Set<string>>(new Set());
+    const [filterTab, setFilterTab] = useState<FilterTab>('all');
 
-    // Load danh sách phòng chat từ backend
-    useEffect(() => {
-        const fetchData = async () => {
-            if (!accessToken) return;
-            try {
-                const data: ChatRoomResponse[] = await chatService.getChatRooms();
-                const existingRooms = useChatStore.getState().rooms;
-                const allRooms: ChatRoom[] = data.map((r) => {
-                    const existing = existingRooms.find(er => er.id === r.id);
-                    return {
-                        id: r.id,
-                        name: r.name || 'Người dùng',
-                        avatarUrl: r.avatarUrl || undefined,
-                        type: r.type === 'DIRECT' ? 'PRIVATE' : 'GROUP',
-                        lastMessage: r.lastMessage
-                            ? {
-                                id: r.lastMessage.messageId,
-                                senderId: r.lastMessage.senderId,
-                                roomId: r.id,
-                                content: r.lastMessage.content,
-                                type: (r.lastMessage.type as any) || 'TEXT',
-                                createdAt: r.lastMessage.createdAt,
-                            }
-                            : undefined,
-                        unreadCount: Math.max(existing ? existing.unreadCount : 0, r.unreadCount || 0),
-                        participants: (r.members || []).map((m: any) => ({
-                            id: m.user?.id || m.id || '',
-                            username: m.user?.username || m.username || '',
-                            fullName: m.user?.displayName || m.user?.fullName || m.displayName || m.fullName || '',
-                            avatarUrl: m.user?.avatarUrl || m.avatarUrl || undefined,
-                        })),
-                        updatedAt: r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
-                    };
-                });
-                allRooms.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-                setRooms(allRooms);
-            } catch (error) {
-                console.error('Failed to fetch chat rooms', error);
-            }
-        };
-        fetchData();
-    }, [accessToken]);
+    const filteredRooms = useMemo(
+        () => filterTab === 'unread' ? rooms.filter((r) => (r.unreadCount ?? 0) > 0) : rooms,
+        [rooms, filterTab]
+    );
 
-    // Activate WebSocket khi có token
-    useEffect(() => {
-        if (!accessToken) return;
-        webSocketService.activate(accessToken);
-    }, [accessToken]);
+    const getTabStyle = (tab: FilterTab): React.CSSProperties => ({
+        flex: 1,
+        padding: '6px 0',
+        fontSize: 13,
+        fontWeight: filterTab === tab ? 600 : 400,
+        color: filterTab === tab
+            ? (isDark ? '#60a5fa' : '#0068ff')
+            : 'var(--text-muted)',
+        background: 'transparent',
+        border: 'none',
+        borderBottom: filterTab === tab
+            ? `2px solid ${isDark ? '#60a5fa' : '#0068ff'}`
+            : '2px solid transparent',
+        cursor: 'pointer',
+        transition: 'color 0.2s ease, border-color 0.2s ease',
+    });
 
-    // Subscribe tới các phòng mới (chỉ subscribe 1 lần mỗi phòng)
-    useEffect(() => {
-        if (rooms.length === 0) return;
-
-        rooms.forEach((room) => {
-            if (subscribedRoomIds.current.has(room.id)) return;
-
-            const topic = `/topic/chat/${room.id}`;
-            const roomId = room.id;
-
-            webSocketService.subscribe(topic, (stompMsg) => {
-                try {
-                    const dynamo = JSON.parse(stompMsg.body);
-                    const incoming = {
-                        id: dynamo.messageId,
-                        senderId: dynamo.senderId,
-                        senderName: dynamo.senderName || undefined,
-                        roomId: roomId,
-                        content: dynamo.recalled ? '[Tin nhắn đã thu hồi]' : dynamo.content,
-                        type: (dynamo.type as any) || 'TEXT',
-                        createdAt: dynamo.createdAt,
-                        readBy: dynamo.readBy,
-                    };
-                    useChatStore.getState().addMessage(roomId, incoming);
-                } catch (err) {
-                    console.error('Lỗi parse tin nhắn global WS:', err);
-                }
-            });
-
-            subscribedRoomIds.current.add(room.id);
-        });
-
-        return () => { };
-    }, [rooms.length]);
-
-    // Cleanup khi unmount hoàn toàn
-    useEffect(() => {
-        return () => {
-            subscribedRoomIds.current.forEach(roomId => {
-                webSocketService.unsubscribe(`/topic/chat/${roomId}`);
-            });
-            subscribedRoomIds.current.clear();
-        };
-    }, []);
+    // Handler cho search: chọn phòng và cũng gọi onSelectRoom nếu có
+    const handleSelectRoom = (roomId: string) => {
+        if (onSelectRoom) onSelectRoom(roomId);
+    };
 
     return (
         <div
@@ -138,7 +68,7 @@ const WebChatLayout: React.FC<WebChatLayoutProps> = ({ children, selectedRoomId,
                     transition: 'background-color 0.3s ease, border-color 0.3s ease',
                 }}
             >
-                {/* Header sidebar */}
+                {/* ── Header ── */}
                 <div
                     className="h-12 flex items-center justify-between px-4 shrink-0"
                     style={{
@@ -148,14 +78,10 @@ const WebChatLayout: React.FC<WebChatLayoutProps> = ({ children, selectedRoomId,
                         transition: 'background-color 0.3s ease',
                     }}
                 >
-                    <span
-                        className="font-bold text-lg"
-                        style={{ color: 'var(--text-primary)' }}
-                    >
+                    <span className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>
                         Tin nhắn
                     </span>
 
-                    {/* Nút tạo nhóm */}
                     <button
                         onClick={openCreateGroup}
                         title="Tạo nhóm mới"
@@ -177,11 +103,44 @@ const WebChatLayout: React.FC<WebChatLayoutProps> = ({ children, selectedRoomId,
                     </button>
                 </div>
 
+                {/* ── Global Search Bar ── */}
+                <div
+                    style={{
+                        padding: '8px 10px',
+                        borderBottom: `1px solid var(--border-primary)`,
+                        backgroundColor: 'var(--bg-primary)',
+                        flexShrink: 0,
+                        position: 'relative',
+                        zIndex: 10,
+                    }}
+                >
+                    <GlobalSearchBar onSelectRoom={handleSelectRoom} />
+                </div>
+
+                {/* ── Filter Tabs: Tất cả / Chưa đọc ── */}
+                <div
+                    style={{
+                        display: 'flex',
+                        borderBottom: `1px solid var(--border-primary)`,
+                        backgroundColor: 'var(--bg-primary)',
+                        flexShrink: 0,
+                    }}
+                >
+                    <button style={getTabStyle('all')} onClick={() => setFilterTab('all')}>
+                        Tất cả
+                    </button>
+                    <button style={getTabStyle('unread')} onClick={() => setFilterTab('unread')}>
+                        Chưa đọc
+                    </button>
+                </div>
+
+                {/* ── Danh sách phòng chat ── */}
                 <Box className="flex-1 overflow-hidden">
                     <ChatRoomList
-                        rooms={rooms}
+                        rooms={filteredRooms}
                         selectedRoomId={selectedRoomId}
                         onSelectRoom={onSelectRoom}
+                        filterTab={filterTab}
                     />
                 </Box>
             </div>
@@ -197,7 +156,6 @@ const WebChatLayout: React.FC<WebChatLayoutProps> = ({ children, selectedRoomId,
                 {children}
             </div>
 
-            {/* Create Group Modal — global, luôn render */}
             <CreateGroupModal />
         </div>
     );

@@ -7,9 +7,14 @@ interface ChatRoomListProps {
     rooms: ChatRoom[];
     selectedRoomId?: string | null;
     onSelectRoom?: (roomId: string) => void;
+    filterTab?: 'all' | 'unread';
 }
 
-const ChatRoomList: React.FC<ChatRoomListProps> = ({ rooms, selectedRoomId, onSelectRoom }) => {
+const ChatRoomList: React.FC<ChatRoomListProps> = React.memo(({ rooms, selectedRoomId, onSelectRoom, filterTab }) => {
+    const emptyMessage = filterTab === 'unread'
+        ? 'Không có cuộc trò chuyện chưa đọc'
+        : 'Chưa có cuộc trò chuyện nào';
+
     return (
         <List
             className="h-full overflow-y-auto"
@@ -20,7 +25,7 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({ rooms, selectedRoomId, onSe
         >
             {rooms.length === 0 ? (
                 <div className="p-4 text-center" style={{ color: 'var(--text-muted)' }}>
-                    Chưa có cuộc trò chuyện nào
+                    {emptyMessage}
                 </div>
             ) : (
                 rooms.map((room) => (
@@ -34,6 +39,8 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({ rooms, selectedRoomId, onSe
             )}
         </List>
     );
-};
+});
+
+ChatRoomList.displayName = 'ChatRoomList';
 
 export default ChatRoomList;

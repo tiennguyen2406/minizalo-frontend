@@ -40,6 +40,7 @@ interface ChatState {
     updateMessage: (roomId: string, messageId: string, updates: Partial<Message>) => void;
     setTyping: (roomId: string, userId: string, isTyping: boolean) => void;
     clearTyping: (roomId: string) => void;
+    markRoomAsRead: (roomId: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -175,4 +176,13 @@ export const useChatStore = create<ChatState>((set) => ({
             [roomId]: [],
         },
     })),
+
+    markRoomAsRead: (roomId) => set((state) => {
+        const room = state.rooms.find(r => r.id === roomId);
+        if (!room || room.unreadCount === 0) return state;
+        const newRooms = state.rooms.map(r =>
+            r.id === roomId ? { ...r, unreadCount: 0 } : r
+        );
+        return { rooms: newRooms };
+    }),
 }));
