@@ -4,6 +4,7 @@ import { Tabs } from "expo-router/tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { AuthGuard } from "@/shared/guards/AuthGuard";
 import WebSidebar from "@/views/web/components/WebSidebar";
+import { useWebSocketManager } from "@/shared/hooks/useWebSocketManager";
 
 // Icon tab bar (mobile) - giống Zalo: Tin nhắn (chat), Danh bạ (people), Khám phá (grid), Tường nhà (newspaper), Cá nhân (person)
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -27,6 +28,9 @@ const TabIcon = ({
 
 export default function TabsLayout() {
     const isWeb = Platform.OS === "web";
+
+    // Quản lý WebSocket toàn cục — luôn active dù đang ở tab nào
+    useWebSocketManager();
 
     if (isWeb) {
         return (
