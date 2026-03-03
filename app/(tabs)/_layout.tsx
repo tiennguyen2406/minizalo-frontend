@@ -117,6 +117,9 @@ export default function TabsLayout() {
                 <Tabs.Screen name="support" options={{ href: null }} />
                 <Tabs.Screen name="zalo-cloud" options={{ href: null }} />
                 <Tabs.Screen name="create-group" options={{ href: null }} />
+                <Tabs.Screen name="personal-profile" options={{ href: null }} />
+                <Tabs.Screen name="profile-settings" options={{ href: null }} />
+                <Tabs.Screen name="friend-profile" options={{ href: null }} />
             </Tabs>
         </AuthGuard>
     );

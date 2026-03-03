@@ -474,10 +474,10 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                     ) : null}
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <TouchableOpacity style={{ padding: 6 }} onPress={() => {}}>
+                    <TouchableOpacity style={{ padding: 6 }} onPress={() => { }}>
                         <Ionicons name="call-outline" size={22} color={PROFILE_COLORS.text} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={{ padding: 6, marginLeft: 4 }} onPress={() => {}}>
+                    <TouchableOpacity style={{ padding: 6, marginLeft: 4 }} onPress={() => { }}>
                         <Ionicons name="videocam-outline" size={22} color={PROFILE_COLORS.text} />
                     </TouchableOpacity>
                 </View>
@@ -576,656 +576,670 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-        <View
-            style={{
-                flex: 1,
-                backgroundColor: PROFILE_COLORS.background,
-            }}
-        >
-            {error ? (
-                <TouchableOpacity
-                    onPress={clearError}
-                    style={{
-                        paddingHorizontal: 16,
-                        paddingVertical: 8,
-                        backgroundColor: "#7f1d1d",
-                    }}
-                >
-                    <Text
-                        style={{
-                            color: "#fee2e2",
-                            fontSize: 12,
-                        }}
-                    >
-                        {error} (chạm để ẩn)
-                    </Text>
-                </TouchableOpacity>
-            ) : null}
-
-            <View style={{ height: 6, backgroundColor: "#374151" }} />
-
-            {renderCloseFriendsBar()}
-
-            <View style={{ height: 1, backgroundColor: "#374151" }} />
-
-            {loading && friends.length === 0 ? (
-                <View
-                    style={{
-                        flex: 1,
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
-                >
-                    <ActivityIndicator color={PROFILE_COLORS.primary} />
-                    <Text
-                        style={{
-                            marginTop: 8,
-                            color: PROFILE_COLORS.textSecondary,
-                            fontSize: 13,
-                        }}
-                    >
-                        Đang tải danh sách bạn bè...
-                    </Text>
-                </View>
-            ) : friends.length === 0 ? (
-                <View
-                    style={{
-                        flex: 1,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        paddingHorizontal: 32,
-                    }}
-                >
-                    <Ionicons
-                        name="people-outline"
-                        size={40}
-                        color={PROFILE_COLORS.textSecondary}
-                    />
-                    <Text
-                        style={{
-                            marginTop: 12,
-                            color: PROFILE_COLORS.text,
-                            fontSize: 16,
-                            fontWeight: "500",
-                            textAlign: "center",
-                        }}
-                    >
-                        Bạn chưa có bạn bè nào
-                    </Text>
-                    <Text
-                        style={{
-                            marginTop: 4,
-                            color: PROFILE_COLORS.textSecondary,
-                            fontSize: 13,
-                            textAlign: "center",
-                        }}
-                    >
-                        Hãy chuyển sang tab “Tìm bạn” để gửi lời mời kết bạn.
-                    </Text>
-                </View>
-            ) : (
-                <FlatList
-                    data={groupedFriends}
-                    keyExtractor={(item) => item.key}
-                    renderItem={renderSection}
-                    contentContainerStyle={{ paddingBottom: 24 }}
-                />
-            )}
-            {/* Modal Thêm (từ swipe): avatar, toggle Bạn thân, Xem trang cá nhân, Quản lý chặn, Xóa bạn, Nhắn tin */}
-            {actionSheetFriend && (
-                <Modal
-                    transparent
-                    visible
-                    animationType="slide"
-                    onRequestClose={() => setActionSheetFriend(null)}
-                >
+            <View
+                style={{
+                    flex: 1,
+                    backgroundColor: PROFILE_COLORS.background,
+                }}
+            >
+                {error ? (
                     <TouchableOpacity
-                        activeOpacity={1}
-                        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
-                        onPress={() => setActionSheetFriend(null)}
+                        onPress={clearError}
+                        style={{
+                            paddingHorizontal: 16,
+                            paddingVertical: 8,
+                            backgroundColor: "#7f1d1d",
+                        }}
                     >
-                        <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: "#18181b", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
-                            <View style={{ alignItems: "center", marginBottom: 12 }}>
-                                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#2f3134", alignItems: "center", justifyContent: "center" }}>
-                                    <Text style={{ color: PROFILE_COLORS.text, fontSize: 24, fontWeight: "600" }}>
-                                        {(actionSheetFriend.displayName.charAt(0).toUpperCase() || "?").toUpperCase()}
-                                    </Text>
-                                </View>
-                                <Text style={{ color: PROFILE_COLORS.text, fontSize: 17, fontWeight: "600", marginTop: 8 }}>
-                                    {actionSheetFriend.displayName}
-                                </Text>
-                            </View>
-                            <View style={{ flexDirection: "row", marginBottom: 12 }}>
-                                <TouchableOpacity
-                                    onPress={() => { setActionSheetFriend(null); router.push({ pathname: "/(tabs)/account", params: { userId: actionSheetFriend.user.id } } as any); }}
-                                    style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#27272a", paddingVertical: 12, marginRight: 6, borderRadius: 10 }}
-                                >
-                                    <Ionicons name="person-outline" size={18} color={PROFILE_COLORS.text} style={{ marginRight: 6 }} />
-                                    <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Xem trang cá nhân</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        setBlockOptions({ blockMessages: false, blockCalls: false, blockTimeline: false });
-                                        setBlockSheetFriend({ userId: actionSheetFriend.user.id, displayName: actionSheetFriend.displayName });
-                                    }}
-                                    style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#27272a", paddingVertical: 12, marginLeft: 6, borderRadius: 10 }}
-                                >
-                                    <Ionicons name="ban-outline" size={18} color={PROFILE_COLORS.text} style={{ marginRight: 6 }} />
-                                    <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Quản lý chặn</Text>
-                                </TouchableOpacity>
-                            </View>
-                            <View style={{ borderTopWidth: 0.5, borderTopColor: "#27272a", paddingTop: 8 }}>
-                                <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8 }}>
-                                    <Ionicons name="person-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
-                                    <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 13 }}>Đã kết bạn</Text>
-                                </View>
-                                <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8 }}>
-                                    <Ionicons name="people-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
-                                    <Text style={{ flex: 1, color: PROFILE_COLORS.text, fontSize: 14 }}>Xem nhóm chung (0)</Text>
-                                    <Ionicons name="chevron-forward" size={16} color={PROFILE_COLORS.textSecondary} />
-                                </TouchableOpacity>
-                                <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8 }}>
-                                    <Ionicons name="time-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
-                                    <Text style={{ flex: 1, color: PROFILE_COLORS.text, fontSize: 14 }}>Xem nhật ký chung</Text>
-                                    <Ionicons name="chevron-forward" size={16} color={PROFILE_COLORS.textSecondary} />
-                                </TouchableOpacity>
-                                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 }}>
-                                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                                        <Ionicons name="star-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
-                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Đánh dấu bạn thân</Text>
-                                    </View>
-                                    <Switch
-                                        value={!!(closeFriendCategoryId && friendCategoryMap[actionSheetFriend.user.id] === closeFriendCategoryId)}
-                                        onValueChange={async (v) => {
-                                            if (!closeFriendCategoryId) return;
-                                            if (v) await handleAssignCategory(actionSheetFriend.user.id, closeFriendCategoryId);
-                                            else await handleClearCategory(actionSheetFriend.user.id);
-                                        }}
-                                        trackColor={{ false: "#374151", true: PROFILE_COLORS.primary }}
-                                        thumbColor="#fff"
-                                    />
-                                </View>
-                            </View>
-                            <View style={{ flexDirection: "row", marginTop: 16 }}>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        setActionSheetFriend(null);
-                                        handleRemoveFriend(actionSheetFriend.user.id, actionSheetFriend.displayName);
-                                    }}
-                                    style={{ flex: 1, backgroundColor: "#27272a", paddingVertical: 12, borderRadius: 10, alignItems: "center", marginRight: 8 }}
-                                >
-                                    <Text style={{ color: "#f97373", fontSize: 14, fontWeight: "500" }}>Xóa bạn</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        const room = rooms.find((r) => r.type === "PRIVATE" && r.participants?.some((p) => p.id === actionSheetFriend.user.id));
-                                        setActionSheetFriend(null);
-                                        if (room) {
-                                            router.push(`/chat/${room.id}?name=${encodeURIComponent(actionSheetFriend.displayName)}&type=DIRECT` as any);
-                                        }
-                                    }}
-                                    style={{ flex: 1, backgroundColor: PROFILE_COLORS.primary, paddingVertical: 12, borderRadius: 10, alignItems: "center" }}
-                                >
-                                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>Nhắn tin</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </TouchableOpacity>
+                        <Text
+                            style={{
+                                color: "#fee2e2",
+                                fontSize: 12,
+                            }}
+                        >
+                            {error} (chạm để ẩn)
+                        </Text>
                     </TouchableOpacity>
-                </Modal>
-            )}
+                ) : null}
 
-            {/* Sheet Quản lý chặn */}
-            {blockSheetFriend && (
-                <Modal transparent visible animationType="slide" onRequestClose={() => setBlockSheetFriend(null)}>
-                    <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setBlockSheetFriend(null)}>
-                        <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: "#18181b", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
-                            <Text style={{ color: PROFILE_COLORS.text, fontSize: 17, fontWeight: "600", marginBottom: 16 }}>
-                                Quản lý chặn {blockSheetFriend.displayName}
-                            </Text>
-                            <TouchableOpacity
-                                onPress={() => setBlockOptions((o) => ({ ...o, blockMessages: !o.blockMessages }))}
-                                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: "#27272a" }}
-                            >
-                                <Ionicons name="chatbubble-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn tin nhắn</Text>
-                                    <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 12, marginTop: 2 }}>Cả hai sẽ không thể nhắn tin cho nhau</Text>
-                                </View>
-                                {blockOptions.blockMessages ? <Ionicons name="checkmark-circle" size={22} color={PROFILE_COLORS.primary} /> : <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                activeOpacity={1}
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    paddingVertical: 12,
-                                    borderBottomWidth: 0.5,
-                                    borderBottomColor: "#27272a",
-                                    opacity: 0.4,
-                                }}
-                            >
-                                <Ionicons name="call-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn cuộc gọi</Text>
-                                    <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 12, marginTop: 2 }}>Cả hai sẽ không thể gọi điện cho nhau</Text>
-                                </View>
-                                <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                activeOpacity={1}
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    paddingVertical: 12,
-                                    borderBottomWidth: 0.5,
-                                    borderBottomColor: "#27272a",
-                                    opacity: 0.4,
-                                }}
-                            >
-                                <Ionicons name="time-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn và ẩn khỏi nhật ký</Text>
-                                </View>
-                                <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />
-                            </TouchableOpacity>
-                            {(() => {
-                                // Nút Áp dụng chỉ active khi có thay đổi trạng thái "Chặn tin nhắn"
-                                const initialBlockMessages = initialBlockedByYou ?? false;
-                                const hasChange = blockOptions.blockMessages !== initialBlockMessages;
-                                const isBlockedNow = !!initialBlockedByYou;
-                                return (
-                                    <TouchableOpacity
-                                        onPress={async () => {
-                                            if (!hasChange) {
-                                                return;
-                                            }
-                                            try {
-                                                const wantBlock = blockOptions.blockMessages;
-                                                // Nếu hiện tại chưa chặn và user chỉ bật các tùy chọn khác (call/timeline)
-                                                // mà KHÔNG bật "Chặn tin nhắn" -> không hỗ trợ, báo lỗi.
-                                                if (!isBlockedNow && !wantBlock) {
-                                                    Alert.alert(
-                                                        "Thông báo",
-                                                        "Hiện tại chỉ hỗ trợ chặn tin nhắn."
-                                                    );
-                                                    return;
-                                                }
-                                                if (wantBlock && !isBlockedNow) {
-                                                    // Chuyển từ chưa chặn -> chặn tin nhắn
-                                                    await blockUser(blockSheetFriend.userId);
-                                                    Alert.alert(
-                                                        "Đã chặn",
-                                                        "Người này đã bị chặn tin nhắn."
-                                                    );
-                                                } else if (!wantBlock && isBlockedNow) {
-                                                    // Chuyển từ đang chặn -> bỏ chặn tin nhắn
-                                                    await unblockUser(blockSheetFriend.userId);
-                                                }
-                                                setBlockSheetFriend(null);
-                                                setActionSheetFriend(null);
-                                            } catch (e) {
-                                                console.log("Error applying block:", e);
-                                                Alert.alert("Lỗi", "Không cập nhật được trạng thái chặn.");
-                                            }
-                                        }}
-                                        activeOpacity={hasChange ? 0.8 : 1}
-                                        style={{
-                                            marginTop: 16,
-                                            backgroundColor: hasChange
-                                                ? PROFILE_COLORS.primary
-                                                : "#27272a",
-                                            paddingVertical: 14,
-                                            borderRadius: 10,
-                                            alignItems: "center",
-                                        }}
-                                    >
-                                        <Text
-                                            style={{
-                                                color: hasChange
-                                                    ? PROFILE_COLORS.text
-                                                    : PROFILE_COLORS.textSecondary,
-                                                fontSize: 15,
-                                                fontWeight: "500",
-                                            }}
-                                        >
-                                            Áp dụng
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })()}
-                        </TouchableOpacity>
-                    </TouchableOpacity>
-                </Modal>
-            )}
+                <View style={{ height: 6, backgroundColor: "#374151" }} />
 
-            {/* Modal + Thêm (thêm vào Bạn thân) */}
-            {addToCloseFriendsVisible && closeFriendCategoryId && (
-                <Modal transparent visible animationType="slide" onRequestClose={() => setAddToCloseFriendsVisible(false)}>
-                    <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setAddToCloseFriendsVisible(false)}>
-                        <View style={{ backgroundColor: "#18181b", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, maxHeight: "60%" }}>
-                            <Text style={{ color: PROFILE_COLORS.text, fontSize: 16, fontWeight: "600", marginBottom: 12 }}>Thêm vào Bạn thân</Text>
-                            <ScrollView style={{ maxHeight: 320 }}>
-                                {friends
-                                    .map((f) => getFriendUser(f, currentUser?.id))
-                                    .filter((u) => friendCategoryMap[u.id] !== closeFriendCategoryId)
-                                    .sort((a, b) => (a.displayName || a.username || "").localeCompare(b.displayName || b.username || "", "vi"))
-                                    .map((u) => (
-                                        <TouchableOpacity
-                                            key={u.id}
-                                            onPress={async () => {
-                                                await handleAssignCategory(u.id, closeFriendCategoryId);
-                                                setAddToCloseFriendsVisible(false);
-                                            }}
-                                            style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: "#27272a" }}
-                                        >
-                                            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#2f3134", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
-                                                <Text style={{ color: PROFILE_COLORS.text, fontWeight: "600", fontSize: 16 }}>
-                                                    {((u.displayName || u.username || "?").charAt(0).toUpperCase() || "?").toUpperCase()}
-                                                </Text>
-                                            </View>
-                                            <Text style={{ color: PROFILE_COLORS.text, fontSize: 15 }} numberOfLines={1}>{u.displayName || u.username || "Người dùng"}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                            </ScrollView>
-                            <TouchableOpacity onPress={() => setAddToCloseFriendsVisible(false)} style={{ marginTop: 12, paddingVertical: 10 }}>
-                                <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 14, textAlign: "center" }}>Đóng</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </TouchableOpacity>
-                </Modal>
-            )}
+                {renderCloseFriendsBar()}
 
-            {/* Modal quản lý thẻ phân loại */}
-            {manageCategoriesVisible && (
-                <Modal
-                    transparent
-                    visible
-                    animationType="fade"
-                    onRequestClose={() => setManageCategoriesVisible(false)}
-                >
+                <View style={{ height: 1, backgroundColor: "#374151" }} />
+
+                {loading && friends.length === 0 ? (
                     <View
                         style={{
                             flex: 1,
-                            backgroundColor: "rgba(0,0,0,0.6)",
-                            justifyContent: "center",
                             alignItems: "center",
-                            paddingHorizontal: 16,
+                            justifyContent: "center",
                         }}
+                    >
+                        <ActivityIndicator color={PROFILE_COLORS.primary} />
+                        <Text
+                            style={{
+                                marginTop: 8,
+                                color: PROFILE_COLORS.textSecondary,
+                                fontSize: 13,
+                            }}
+                        >
+                            Đang tải danh sách bạn bè...
+                        </Text>
+                    </View>
+                ) : friends.length === 0 ? (
+                    <View
+                        style={{
+                            flex: 1,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            paddingHorizontal: 32,
+                        }}
+                    >
+                        <Ionicons
+                            name="people-outline"
+                            size={40}
+                            color={PROFILE_COLORS.textSecondary}
+                        />
+                        <Text
+                            style={{
+                                marginTop: 12,
+                                color: PROFILE_COLORS.text,
+                                fontSize: 16,
+                                fontWeight: "500",
+                                textAlign: "center",
+                            }}
+                        >
+                            Bạn chưa có bạn bè nào
+                        </Text>
+                        <Text
+                            style={{
+                                marginTop: 4,
+                                color: PROFILE_COLORS.textSecondary,
+                                fontSize: 13,
+                                textAlign: "center",
+                            }}
+                        >
+                            Hãy chuyển sang tab “Tìm bạn” để gửi lời mời kết bạn.
+                        </Text>
+                    </View>
+                ) : (
+                    <FlatList
+                        data={groupedFriends}
+                        keyExtractor={(item) => item.key}
+                        renderItem={renderSection}
+                        contentContainerStyle={{ paddingBottom: 24 }}
+                    />
+                )}
+                {/* Modal Thêm (từ swipe): avatar, toggle Bạn thân, Xem trang cá nhân, Quản lý chặn, Xóa bạn, Nhắn tin */}
+                {actionSheetFriend && (
+                    <Modal
+                        transparent
+                        visible
+                        animationType="slide"
+                        onRequestClose={() => setActionSheetFriend(null)}
+                    >
+                        <TouchableOpacity
+                            activeOpacity={1}
+                            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
+                            onPress={() => setActionSheetFriend(null)}
+                        >
+                            <TouchableOpacity activeOpacity={1} onPress={() => { }} style={{ backgroundColor: "#18181b", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
+                                <View style={{ alignItems: "center", marginBottom: 12 }}>
+                                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#2f3134", alignItems: "center", justifyContent: "center" }}>
+                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 24, fontWeight: "600" }}>
+                                            {(actionSheetFriend.displayName.charAt(0).toUpperCase() || "?").toUpperCase()}
+                                        </Text>
+                                    </View>
+                                    <Text style={{ color: PROFILE_COLORS.text, fontSize: 17, fontWeight: "600", marginTop: 8 }}>
+                                        {actionSheetFriend.displayName}
+                                    </Text>
+                                </View>
+                                <View style={{ flexDirection: "row", marginBottom: 12 }}>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            const friend = actionSheetFriend;
+                                            setActionSheetFriend(null);
+                                            router.push({
+                                                pathname: "/(tabs)/friend-profile",
+                                                params: {
+                                                    userId: friend.user.id,
+                                                    displayName: friend.displayName,
+                                                    avatarUrl: friend.user.avatarUrl || "",
+                                                    businessDescription: friend.user.businessDescription || "",
+                                                    statusMessage: friend.user.statusMessage || "",
+                                                    phone: friend.user.phone || "",
+                                                },
+                                            } as any);
+                                        }}
+                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#27272a", paddingVertical: 12, marginRight: 6, borderRadius: 10 }}
+                                    >
+                                        <Ionicons name="person-outline" size={18} color={PROFILE_COLORS.text} style={{ marginRight: 6 }} />
+                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Xem trang cá nhân</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            setBlockOptions({ blockMessages: false, blockCalls: false, blockTimeline: false });
+                                            setBlockSheetFriend({ userId: actionSheetFriend.user.id, displayName: actionSheetFriend.displayName });
+                                        }}
+                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#27272a", paddingVertical: 12, marginLeft: 6, borderRadius: 10 }}
+                                    >
+                                        <Ionicons name="ban-outline" size={18} color={PROFILE_COLORS.text} style={{ marginRight: 6 }} />
+                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Quản lý chặn</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                <View style={{ borderTopWidth: 0.5, borderTopColor: "#27272a", paddingTop: 8 }}>
+                                    <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8 }}>
+                                        <Ionicons name="person-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
+                                        <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 13 }}>Đã kết bạn</Text>
+                                    </View>
+                                    <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8 }}>
+                                        <Ionicons name="people-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
+                                        <Text style={{ flex: 1, color: PROFILE_COLORS.text, fontSize: 14 }}>Xem nhóm chung (0)</Text>
+                                        <Ionicons name="chevron-forward" size={16} color={PROFILE_COLORS.textSecondary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8 }}>
+                                        <Ionicons name="time-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
+                                        <Text style={{ flex: 1, color: PROFILE_COLORS.text, fontSize: 14 }}>Xem nhật ký chung</Text>
+                                        <Ionicons name="chevron-forward" size={16} color={PROFILE_COLORS.textSecondary} />
+                                    </TouchableOpacity>
+                                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 }}>
+                                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                            <Ionicons name="star-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
+                                            <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Đánh dấu bạn thân</Text>
+                                        </View>
+                                        <Switch
+                                            value={!!(closeFriendCategoryId && friendCategoryMap[actionSheetFriend.user.id] === closeFriendCategoryId)}
+                                            onValueChange={async (v) => {
+                                                if (!closeFriendCategoryId) return;
+                                                if (v) await handleAssignCategory(actionSheetFriend.user.id, closeFriendCategoryId);
+                                                else await handleClearCategory(actionSheetFriend.user.id);
+                                            }}
+                                            trackColor={{ false: "#374151", true: PROFILE_COLORS.primary }}
+                                            thumbColor="#fff"
+                                        />
+                                    </View>
+                                </View>
+                                <View style={{ flexDirection: "row", marginTop: 16 }}>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            setActionSheetFriend(null);
+                                            handleRemoveFriend(actionSheetFriend.user.id, actionSheetFriend.displayName);
+                                        }}
+                                        style={{ flex: 1, backgroundColor: "#27272a", paddingVertical: 12, borderRadius: 10, alignItems: "center", marginRight: 8 }}
+                                    >
+                                        <Text style={{ color: "#f97373", fontSize: 14, fontWeight: "500" }}>Xóa bạn</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            const room = rooms.find((r) => r.type === "PRIVATE" && r.participants?.some((p) => p.id === actionSheetFriend.user.id));
+                                            setActionSheetFriend(null);
+                                            if (room) {
+                                                router.push(`/chat/${room.id}?name=${encodeURIComponent(actionSheetFriend.displayName)}&type=DIRECT` as any);
+                                            }
+                                        }}
+                                        style={{ flex: 1, backgroundColor: PROFILE_COLORS.primary, paddingVertical: 12, borderRadius: 10, alignItems: "center" }}
+                                    >
+                                        <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>Nhắn tin</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </TouchableOpacity>
+                        </TouchableOpacity>
+                    </Modal>
+                )}
+
+                {/* Sheet Quản lý chặn */}
+                {blockSheetFriend && (
+                    <Modal transparent visible animationType="slide" onRequestClose={() => setBlockSheetFriend(null)}>
+                        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setBlockSheetFriend(null)}>
+                            <TouchableOpacity activeOpacity={1} onPress={() => { }} style={{ backgroundColor: "#18181b", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
+                                <Text style={{ color: PROFILE_COLORS.text, fontSize: 17, fontWeight: "600", marginBottom: 16 }}>
+                                    Quản lý chặn {blockSheetFriend.displayName}
+                                </Text>
+                                <TouchableOpacity
+                                    onPress={() => setBlockOptions((o) => ({ ...o, blockMessages: !o.blockMessages }))}
+                                    style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: "#27272a" }}
+                                >
+                                    <Ionicons name="chatbubble-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn tin nhắn</Text>
+                                        <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 12, marginTop: 2 }}>Cả hai sẽ không thể nhắn tin cho nhau</Text>
+                                    </View>
+                                    {blockOptions.blockMessages ? <Ionicons name="checkmark-circle" size={22} color={PROFILE_COLORS.primary} /> : <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    activeOpacity={1}
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        paddingVertical: 12,
+                                        borderBottomWidth: 0.5,
+                                        borderBottomColor: "#27272a",
+                                        opacity: 0.4,
+                                    }}
+                                >
+                                    <Ionicons name="call-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn cuộc gọi</Text>
+                                        <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 12, marginTop: 2 }}>Cả hai sẽ không thể gọi điện cho nhau</Text>
+                                    </View>
+                                    <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    activeOpacity={1}
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        paddingVertical: 12,
+                                        borderBottomWidth: 0.5,
+                                        borderBottomColor: "#27272a",
+                                        opacity: 0.4,
+                                    }}
+                                >
+                                    <Ionicons name="time-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn và ẩn khỏi nhật ký</Text>
+                                    </View>
+                                    <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />
+                                </TouchableOpacity>
+                                {(() => {
+                                    // Nút Áp dụng chỉ active khi có thay đổi trạng thái "Chặn tin nhắn"
+                                    const initialBlockMessages = initialBlockedByYou ?? false;
+                                    const hasChange = blockOptions.blockMessages !== initialBlockMessages;
+                                    const isBlockedNow = !!initialBlockedByYou;
+                                    return (
+                                        <TouchableOpacity
+                                            onPress={async () => {
+                                                if (!hasChange) {
+                                                    return;
+                                                }
+                                                try {
+                                                    const wantBlock = blockOptions.blockMessages;
+                                                    // Nếu hiện tại chưa chặn và user chỉ bật các tùy chọn khác (call/timeline)
+                                                    // mà KHÔNG bật "Chặn tin nhắn" -> không hỗ trợ, báo lỗi.
+                                                    if (!isBlockedNow && !wantBlock) {
+                                                        Alert.alert(
+                                                            "Thông báo",
+                                                            "Hiện tại chỉ hỗ trợ chặn tin nhắn."
+                                                        );
+                                                        return;
+                                                    }
+                                                    if (wantBlock && !isBlockedNow) {
+                                                        // Chuyển từ chưa chặn -> chặn tin nhắn
+                                                        await blockUser(blockSheetFriend.userId);
+                                                        Alert.alert(
+                                                            "Đã chặn",
+                                                            "Người này đã bị chặn tin nhắn."
+                                                        );
+                                                    } else if (!wantBlock && isBlockedNow) {
+                                                        // Chuyển từ đang chặn -> bỏ chặn tin nhắn
+                                                        await unblockUser(blockSheetFriend.userId);
+                                                    }
+                                                    setBlockSheetFriend(null);
+                                                    setActionSheetFriend(null);
+                                                } catch (e) {
+                                                    console.log("Error applying block:", e);
+                                                    Alert.alert("Lỗi", "Không cập nhật được trạng thái chặn.");
+                                                }
+                                            }}
+                                            activeOpacity={hasChange ? 0.8 : 1}
+                                            style={{
+                                                marginTop: 16,
+                                                backgroundColor: hasChange
+                                                    ? PROFILE_COLORS.primary
+                                                    : "#27272a",
+                                                paddingVertical: 14,
+                                                borderRadius: 10,
+                                                alignItems: "center",
+                                            }}
+                                        >
+                                            <Text
+                                                style={{
+                                                    color: hasChange
+                                                        ? PROFILE_COLORS.text
+                                                        : PROFILE_COLORS.textSecondary,
+                                                    fontSize: 15,
+                                                    fontWeight: "500",
+                                                }}
+                                            >
+                                                Áp dụng
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })()}
+                            </TouchableOpacity>
+                        </TouchableOpacity>
+                    </Modal>
+                )}
+
+                {/* Modal + Thêm (thêm vào Bạn thân) */}
+                {addToCloseFriendsVisible && closeFriendCategoryId && (
+                    <Modal transparent visible animationType="slide" onRequestClose={() => setAddToCloseFriendsVisible(false)}>
+                        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setAddToCloseFriendsVisible(false)}>
+                            <View style={{ backgroundColor: "#18181b", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, maxHeight: "60%" }}>
+                                <Text style={{ color: PROFILE_COLORS.text, fontSize: 16, fontWeight: "600", marginBottom: 12 }}>Thêm vào Bạn thân</Text>
+                                <ScrollView style={{ maxHeight: 320 }}>
+                                    {friends
+                                        .map((f) => getFriendUser(f, currentUser?.id))
+                                        .filter((u) => friendCategoryMap[u.id] !== closeFriendCategoryId)
+                                        .sort((a, b) => (a.displayName || a.username || "").localeCompare(b.displayName || b.username || "", "vi"))
+                                        .map((u) => (
+                                            <TouchableOpacity
+                                                key={u.id}
+                                                onPress={async () => {
+                                                    await handleAssignCategory(u.id, closeFriendCategoryId);
+                                                    setAddToCloseFriendsVisible(false);
+                                                }}
+                                                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: "#27272a" }}
+                                            >
+                                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#2f3134", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                                                    <Text style={{ color: PROFILE_COLORS.text, fontWeight: "600", fontSize: 16 }}>
+                                                        {((u.displayName || u.username || "?").charAt(0).toUpperCase() || "?").toUpperCase()}
+                                                    </Text>
+                                                </View>
+                                                <Text style={{ color: PROFILE_COLORS.text, fontSize: 15 }} numberOfLines={1}>{u.displayName || u.username || "Người dùng"}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                </ScrollView>
+                                <TouchableOpacity onPress={() => setAddToCloseFriendsVisible(false)} style={{ marginTop: 12, paddingVertical: 10 }}>
+                                    <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 14, textAlign: "center" }}>Đóng</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableOpacity>
+                    </Modal>
+                )}
+
+                {/* Modal quản lý thẻ phân loại */}
+                {manageCategoriesVisible && (
+                    <Modal
+                        transparent
+                        visible
+                        animationType="fade"
+                        onRequestClose={() => setManageCategoriesVisible(false)}
                     >
                         <View
                             style={{
-                                width: "100%",
-                                maxWidth: 420,
-                                backgroundColor: "#18181b",
-                                borderRadius: 16,
+                                flex: 1,
+                                backgroundColor: "rgba(0,0,0,0.6)",
+                                justifyContent: "center",
+                                alignItems: "center",
                                 paddingHorizontal: 16,
-                                paddingVertical: 14,
                             }}
                         >
                             <View
                                 style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    marginBottom: 10,
+                                    width: "100%",
+                                    maxWidth: 420,
+                                    backgroundColor: "#18181b",
+                                    borderRadius: 16,
+                                    paddingHorizontal: 16,
+                                    paddingVertical: 14,
                                 }}
                             >
-                                <Text
+                                <View
                                     style={{
-                                        color: PROFILE_COLORS.text,
-                                        fontSize: 16,
-                                        fontWeight: "600",
-                                    }}
-                                >
-                                    Quản lý thẻ phân loại
-                                </Text>
-                                <TouchableOpacity
-                                    onPress={() =>
-                                        setManageCategoriesVisible(false)
-                                    }
-                                >
-                                    <Ionicons
-                                        name="close"
-                                        size={20}
-                                        color={PROFILE_COLORS.textSecondary}
-                                    />
-                                </TouchableOpacity>
-                            </View>
-
-                            <View
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    marginBottom: 12,
-                                }}
-                            >
-                                <TextInput
-                                    placeholder="Thêm thẻ mới..."
-                                    placeholderTextColor={
-                                        PROFILE_COLORS.textSecondary
-                                    }
-                                    value={newCategoryName}
-                                    onChangeText={setNewCategoryName}
-                                    style={{
-                                        flex: 1,
-                                        height: 40,
-                                        borderRadius: 999,
-                                        borderWidth: 1,
-                                        borderColor: "#27272a",
-                                        paddingHorizontal: 12,
-                                        color: PROFILE_COLORS.text,
-                                        fontSize: 14,
-                                        marginRight: 8,
-                                    }}
-                                />
-                                <TouchableOpacity
-                                    onPress={handleAddCategory}
-                                    style={{
-                                        paddingHorizontal: 14,
-                                        paddingVertical: 8,
-                                        borderRadius: 999,
-                                        backgroundColor: PROFILE_COLORS.primary,
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        marginBottom: 10,
                                     }}
                                 >
                                     <Text
                                         style={{
-                                            color: "#fff",
-                                            fontSize: 14,
-                                            fontWeight: "500",
+                                            color: PROFILE_COLORS.text,
+                                            fontSize: 16,
+                                            fontWeight: "600",
                                         }}
                                     >
-                                        Thêm
+                                        Quản lý thẻ phân loại
+                                    </Text>
+                                    <TouchableOpacity
+                                        onPress={() =>
+                                            setManageCategoriesVisible(false)
+                                        }
+                                    >
+                                        <Ionicons
+                                            name="close"
+                                            size={20}
+                                            color={PROFILE_COLORS.textSecondary}
+                                        />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        marginBottom: 12,
+                                    }}
+                                >
+                                    <TextInput
+                                        placeholder="Thêm thẻ mới..."
+                                        placeholderTextColor={
+                                            PROFILE_COLORS.textSecondary
+                                        }
+                                        value={newCategoryName}
+                                        onChangeText={setNewCategoryName}
+                                        style={{
+                                            flex: 1,
+                                            height: 40,
+                                            borderRadius: 999,
+                                            borderWidth: 1,
+                                            borderColor: "#27272a",
+                                            paddingHorizontal: 12,
+                                            color: PROFILE_COLORS.text,
+                                            fontSize: 14,
+                                            marginRight: 8,
+                                        }}
+                                    />
+                                    <TouchableOpacity
+                                        onPress={handleAddCategory}
+                                        style={{
+                                            paddingHorizontal: 14,
+                                            paddingVertical: 8,
+                                            borderRadius: 999,
+                                            backgroundColor: PROFILE_COLORS.primary,
+                                        }}
+                                    >
+                                        <Text
+                                            style={{
+                                                color: "#fff",
+                                                fontSize: 14,
+                                                fontWeight: "500",
+                                            }}
+                                        >
+                                            Thêm
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <ScrollView
+                                    style={{ maxHeight: 260 }}
+                                    contentContainerStyle={{ paddingBottom: 4 }}
+                                >
+                                    {categories.map((c) => (
+                                        <View
+                                            key={c.id}
+                                            style={{
+                                                flexDirection: "row",
+                                                alignItems: "center",
+                                                paddingVertical: 8,
+                                                borderBottomWidth: 0.5,
+                                                borderBottomColor: "#27272a",
+                                            }}
+                                        >
+                                            <View
+                                                style={{
+                                                    width: 18,
+                                                    height: 12,
+                                                    borderRadius: 999,
+                                                    backgroundColor: c.color,
+                                                    marginRight: 10,
+                                                }}
+                                            />
+                                            {editingCategoryId === c.id ? (
+                                                <TextInput
+                                                    value={editingCategoryName}
+                                                    onChangeText={
+                                                        setEditingCategoryName
+                                                    }
+                                                    style={{
+                                                        flex: 1,
+                                                        height: 36,
+                                                        borderRadius: 8,
+                                                        borderWidth: 1,
+                                                        borderColor: "#27272a",
+                                                        paddingHorizontal: 10,
+                                                        color: PROFILE_COLORS.text,
+                                                        fontSize: 14,
+                                                    }}
+                                                />
+                                            ) : (
+                                                <Text
+                                                    style={{
+                                                        flex: 1,
+                                                        color: PROFILE_COLORS.text,
+                                                        fontSize: 14,
+                                                    }}
+                                                >
+                                                    {c.name}
+                                                </Text>
+                                            )}
+
+                                            {editingCategoryId === c.id ? (
+                                                <>
+                                                    <TouchableOpacity
+                                                        onPress={
+                                                            handleSaveEditCategory
+                                                        }
+                                                        style={{
+                                                            paddingHorizontal: 10,
+                                                            paddingVertical: 6,
+                                                            borderRadius: 8,
+                                                            backgroundColor:
+                                                                "#22c55e",
+                                                            marginLeft: 6,
+                                                        }}
+                                                    >
+                                                        <Text
+                                                            style={{
+                                                                color: "#fff",
+                                                                fontSize: 12,
+                                                            }}
+                                                        >
+                                                            Lưu
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        onPress={() => {
+                                                            setEditingCategoryId(
+                                                                null
+                                                            );
+                                                            setEditingCategoryName(
+                                                                ""
+                                                            );
+                                                        }}
+                                                        style={{
+                                                            paddingHorizontal: 10,
+                                                            paddingVertical: 6,
+                                                            borderRadius: 8,
+                                                            borderWidth: 1,
+                                                            borderColor: "#27272a",
+                                                            marginLeft: 6,
+                                                        }}
+                                                    >
+                                                        <Text
+                                                            style={{
+                                                                color: PROFILE_COLORS.textSecondary,
+                                                                fontSize: 12,
+                                                            }}
+                                                        >
+                                                            Hủy
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <TouchableOpacity
+                                                        onPress={() => {
+                                                            setEditingCategoryId(
+                                                                c.id
+                                                            );
+                                                            setEditingCategoryName(
+                                                                c.name
+                                                            );
+                                                        }}
+                                                        style={{
+                                                            paddingHorizontal: 10,
+                                                            paddingVertical: 6,
+                                                            borderRadius: 8,
+                                                            borderWidth: 1,
+                                                            borderColor: "#27272a",
+                                                            marginLeft: 6,
+                                                        }}
+                                                    >
+                                                        <Text
+                                                            style={{
+                                                                color: PROFILE_COLORS.textSecondary,
+                                                                fontSize: 12,
+                                                            }}
+                                                        >
+                                                            Sửa
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        onPress={() =>
+                                                            handleDeleteCategory(
+                                                                c.id,
+                                                                c.name
+                                                            )
+                                                        }
+                                                        style={{
+                                                            paddingHorizontal: 10,
+                                                            paddingVertical: 6,
+                                                            borderRadius: 8,
+                                                            borderWidth: 1,
+                                                            borderColor: "#fecaca",
+                                                            marginLeft: 6,
+                                                        }}
+                                                    >
+                                                        <Text
+                                                            style={{
+                                                                color: "#f97373",
+                                                                fontSize: 12,
+                                                            }}
+                                                        >
+                                                            Xóa
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                </>
+                                            )}
+                                        </View>
+                                    ))}
+                                </ScrollView>
+
+                                <TouchableOpacity
+                                    onPress={() => setManageCategoriesVisible(false)}
+                                    style={{
+                                        marginTop: 10,
+                                        paddingVertical: 10,
+                                    }}
+                                >
+                                    <Text
+                                        style={{
+                                            color: PROFILE_COLORS.textSecondary,
+                                            fontSize: 14,
+                                            textAlign: "center",
+                                        }}
+                                    >
+                                        Đóng
                                     </Text>
                                 </TouchableOpacity>
                             </View>
-
-                            <ScrollView
-                                style={{ maxHeight: 260 }}
-                                contentContainerStyle={{ paddingBottom: 4 }}
-                            >
-                                {categories.map((c) => (
-                                    <View
-                                        key={c.id}
-                                        style={{
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            paddingVertical: 8,
-                                            borderBottomWidth: 0.5,
-                                            borderBottomColor: "#27272a",
-                                        }}
-                                    >
-                                        <View
-                                            style={{
-                                                width: 18,
-                                                height: 12,
-                                                borderRadius: 999,
-                                                backgroundColor: c.color,
-                                                marginRight: 10,
-                                            }}
-                                        />
-                                        {editingCategoryId === c.id ? (
-                                            <TextInput
-                                                value={editingCategoryName}
-                                                onChangeText={
-                                                    setEditingCategoryName
-                                                }
-                                                style={{
-                                                    flex: 1,
-                                                    height: 36,
-                                                    borderRadius: 8,
-                                                    borderWidth: 1,
-                                                    borderColor: "#27272a",
-                                                    paddingHorizontal: 10,
-                                                    color: PROFILE_COLORS.text,
-                                                    fontSize: 14,
-                                                }}
-                                            />
-                                        ) : (
-                                            <Text
-                                                style={{
-                                                    flex: 1,
-                                                    color: PROFILE_COLORS.text,
-                                                    fontSize: 14,
-                                                }}
-                                            >
-                                                {c.name}
-                                            </Text>
-                                        )}
-
-                                        {editingCategoryId === c.id ? (
-                                            <>
-                                                <TouchableOpacity
-                                                    onPress={
-                                                        handleSaveEditCategory
-                                                    }
-                                                    style={{
-                                                        paddingHorizontal: 10,
-                                                        paddingVertical: 6,
-                                                        borderRadius: 8,
-                                                        backgroundColor:
-                                                            "#22c55e",
-                                                        marginLeft: 6,
-                                                    }}
-                                                >
-                                                    <Text
-                                                        style={{
-                                                            color: "#fff",
-                                                            fontSize: 12,
-                                                        }}
-                                                    >
-                                                        Lưu
-                                                    </Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    onPress={() => {
-                                                        setEditingCategoryId(
-                                                            null
-                                                        );
-                                                        setEditingCategoryName(
-                                                            ""
-                                                        );
-                                                    }}
-                                                    style={{
-                                                        paddingHorizontal: 10,
-                                                        paddingVertical: 6,
-                                                        borderRadius: 8,
-                                                        borderWidth: 1,
-                                                        borderColor: "#27272a",
-                                                        marginLeft: 6,
-                                                    }}
-                                                >
-                                                    <Text
-                                                        style={{
-                                                            color: PROFILE_COLORS.textSecondary,
-                                                            fontSize: 12,
-                                                        }}
-                                                    >
-                                                        Hủy
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <TouchableOpacity
-                                                    onPress={() => {
-                                                        setEditingCategoryId(
-                                                            c.id
-                                                        );
-                                                        setEditingCategoryName(
-                                                            c.name
-                                                        );
-                                                    }}
-                                                    style={{
-                                                        paddingHorizontal: 10,
-                                                        paddingVertical: 6,
-                                                        borderRadius: 8,
-                                                        borderWidth: 1,
-                                                        borderColor: "#27272a",
-                                                        marginLeft: 6,
-                                                    }}
-                                                >
-                                                    <Text
-                                                        style={{
-                                                            color: PROFILE_COLORS.textSecondary,
-                                                            fontSize: 12,
-                                                        }}
-                                                    >
-                                                        Sửa
-                                                    </Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    onPress={() =>
-                                                        handleDeleteCategory(
-                                                            c.id,
-                                                            c.name
-                                                        )
-                                                    }
-                                                    style={{
-                                                        paddingHorizontal: 10,
-                                                        paddingVertical: 6,
-                                                        borderRadius: 8,
-                                                        borderWidth: 1,
-                                                        borderColor: "#fecaca",
-                                                        marginLeft: 6,
-                                                    }}
-                                                >
-                                                    <Text
-                                                        style={{
-                                                            color: "#f97373",
-                                                            fontSize: 12,
-                                                        }}
-                                                    >
-                                                        Xóa
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            </>
-                                        )}
-                                    </View>
-                                ))}
-                            </ScrollView>
-
-                            <TouchableOpacity
-                                onPress={() => setManageCategoriesVisible(false)}
-                                style={{
-                                    marginTop: 10,
-                                    paddingVertical: 10,
-                                }}
-                            >
-                                <Text
-                                    style={{
-                                        color: PROFILE_COLORS.textSecondary,
-                                        fontSize: 14,
-                                        textAlign: "center",
-                                    }}
-                                >
-                                    Đóng
-                                </Text>
-                            </TouchableOpacity>
                         </View>
-                    </View>
-                </Modal>
-            )}
-        </View>
+                    </Modal>
+                )}
+            </View>
         </GestureHandlerRootView>
     );
 }
