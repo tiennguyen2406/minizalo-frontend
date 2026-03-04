@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Message, User } from '@/shared/types';
 import clsx from 'clsx';
 import { LazyImage } from './MessageList';
@@ -20,6 +20,7 @@ interface MessageBubbleProps {
     onDeleteForMe?: (messageId: string) => void;
     onForward?: (message: Message) => void;
     onScrollToMessage?: (messageId: string) => void;
+    onImageLoad?: () => void;
     repliedMessage?: Message;
     isLatestMessage?: boolean;
     participants?: User[];
@@ -49,6 +50,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     onDeleteForMe,
     onForward,
     onScrollToMessage,
+    onImageLoad,
     repliedMessage,
     isLatestMessage,
     participants = [],
@@ -58,7 +60,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const [showReactionDetail, setShowReactionDetail] = useState(false);
     const [selectedEmojiTab, setSelectedEmojiTab] = useState<string | null>(null);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [menuPos, setMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
     const [showMessageDetail, setShowMessageDetail] = useState(false);
+    const moreButtonRef = useRef<HTMLButtonElement>(null);
 
     // Keep picker open if hovered over button OR the picker itself
     const isPickerVisible = showReactPicker || isHoveringReactions;
@@ -204,7 +208,27 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 {/* Nút ⋯ (More) */}
                                 <div className="relative">
                                     <button
-                                        onClick={() => setShowMoreMenu(!showMoreMenu)}
+                                        ref={moreButtonRef}
+                                        onClick={() => {
+                                            const btn = moreButtonRef.current;
+                                            if (!btn) return;
+                                            const rect = btn.getBoundingClientRect();
+                                            const spaceBelow = window.innerHeight - rect.bottom;
+                                            const menuHeight = 260; // approx
+                                            const openUpward = spaceBelow < menuHeight;
+                                            if (openUpward) {
+                                                setMenuPos({
+                                                    top: rect.top - menuHeight,
+                                                    ...(isMine ? { right: window.innerWidth - rect.right } : { left: rect.left }),
+                                                });
+                                            } else {
+                                                setMenuPos({
+                                                    top: rect.bottom + 4,
+                                                    ...(isMine ? { right: window.innerWidth - rect.right } : { left: rect.left }),
+                                                });
+                                            }
+                                            setShowMoreMenu(true);
+                                        }}
                                         className="bg-white text-gray-500 shadow-sm border border-gray-100 rounded-full w-7 h-7 flex items-center justify-center hover:bg-gray-50 focus:outline-none"
                                         title="Thêm"
                                     >
@@ -214,88 +238,96 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                             <circle cx="19" cy="12" r="2" />
                                         </svg>
                                     </button>
-
-                                    {/* Dropdown menu */}
-                                    {showMoreMenu && (
-                                        <>
-                                            {/* Backdrop */}
-                                            <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
-                                            <div className={clsx(
-                                                "absolute z-50 bg-white rounded-xl shadow-lg border border-gray-200 py-1.5 min-w-[180px]",
-                                                isMine ? "right-0" : "left-0",
-                                                "bottom-full mb-2"
-                                            )}>
-                                                {/* Copy */}
-                                                <button
-                                                    onClick={() => { navigator.clipboard.writeText(message.content || ''); setShowMoreMenu(false); }}
-                                                    className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                                >
-                                                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                                                    Copy tin nhắn
-                                                </button>
-                                                {/* Pin */}
-                                                {onTogglePin && (
-                                                    <button
-                                                        onClick={() => { onTogglePin(message.id, !!message.pinned); setShowMoreMenu(false); }}
-                                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                                    >
-                                                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
-                                                        {message.pinned ? 'Bỏ ghim' : 'Ghim tin nhắn'}
-                                                    </button>
-                                                )}
-                                                {/* Reply */}
-                                                {onReply && (
-                                                    <button
-                                                        onClick={() => { onReply(message); setShowMoreMenu(false); }}
-                                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                                    >
-                                                        <svg className="w-4 h-4 text-gray-400 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                                                        Trả lời
-                                                    </button>
-                                                )}
-                                                {/* Share / Forward */}
-                                                <button
-                                                    onClick={() => { onForward?.(message); setShowMoreMenu(false); }}
-                                                    className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                                >
-                                                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-                                                    Chia sẻ
-                                                </button>
-                                                {/* View Detail */}
-                                                <button
-                                                    onClick={() => { setShowMessageDetail(true); setShowMoreMenu(false); }}
-                                                    className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                                >
-                                                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                    Xem chi tiết
-                                                </button>
-                                                <div className="border-t border-gray-100 my-1" />
-                                                {/* Recall (both sides) - own messages only */}
-                                                {isMine && onRecall && (
-                                                    <button
-                                                        onClick={() => { onRecall(message.id); setShowMoreMenu(false); }}
-                                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                                                        Thu hồi
-                                                    </button>
-                                                )}
-                                                {/* Delete for me */}
-                                                <button
-                                                    onClick={() => { onDeleteForMe?.(message.id); setShowMoreMenu(false); }}
-                                                    className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                    Xoá ở phía tôi
-                                                </button>
-                                            </div>
-                                        </>
-                                    )}
                                 </div>
                             </div>
                         )}
 
-                        {/* Tin nhắn gốc (nếu là reply) */}
+                        {/* Fixed-position menu — position:fixed escapes any overflow:hidden ancestor */}
+                        {showMoreMenu && menuPos && (
+                            <>
+                                {/* Backdrop */}
+                                <div
+                                    style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+                                    onClick={() => { setShowMoreMenu(false); setMenuPos(null); }}
+                                />
+                                <div
+                                    style={{
+                                        position: 'fixed',
+                                        top: menuPos.top,
+                                        left: menuPos.left,
+                                        right: menuPos.right,
+                                        zIndex: 9999,
+                                        minWidth: 180,
+                                    }}
+                                    className="bg-white rounded-xl shadow-lg border border-gray-200 py-1.5"
+                                >
+                                    {/* Copy */}
+                                    <button
+                                        onClick={() => { navigator.clipboard.writeText(message.content || ''); setShowMoreMenu(false); setMenuPos(null); }}
+                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                        Copy tin nhắn
+                                    </button>
+                                    {/* Pin */}
+                                    {onTogglePin && (
+                                        <button
+                                            onClick={() => { onTogglePin(message.id, !!message.pinned); setShowMoreMenu(false); setMenuPos(null); }}
+                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
+                                            {message.pinned ? 'Bỏ ghim' : 'Ghim tin nhắn'}
+                                        </button>
+                                    )}
+                                    {/* Reply */}
+                                    {onReply && (
+                                        <button
+                                            onClick={() => { onReply(message); setShowMoreMenu(false); setMenuPos(null); }}
+                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4 text-gray-400 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                            Trả lời
+                                        </button>
+                                    )}
+                                    {/* Share / Forward */}
+                                    <button
+                                        onClick={() => { onForward?.(message); setShowMoreMenu(false); setMenuPos(null); }}
+                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                                        Chia sẻ
+                                    </button>
+                                    {/* View Detail */}
+                                    <button
+                                        onClick={() => { setShowMessageDetail(true); setShowMoreMenu(false); setMenuPos(null); }}
+                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        Xem chi tiết
+                                    </button>
+                                    <div className="border-t border-gray-100 my-1" />
+                                    {/* Recall - own messages only */}
+                                    {isMine && onRecall && (
+                                        <button
+                                            onClick={() => { onRecall(message.id); setShowMoreMenu(false); setMenuPos(null); }}
+                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                            Thu hồi
+                                        </button>
+                                    )}
+                                    {/* Delete for me */}
+                                    <button
+                                        onClick={() => { onDeleteForMe?.(message.id); setShowMoreMenu(false); setMenuPos(null); }}
+                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        Xoá ở phía tôi
+                                    </button>
+                                </div>
+                            </>
+                        )}
+
                         {repliedMessage && !message.isRecall && (
                             <div
                                 className={clsx(
@@ -325,6 +357,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         objectFit: 'cover', cursor: 'pointer',
                                     }}
                                     onClick={() => window.open(effectiveFileUrl, '_blank')}
+                                    onLoad={onImageLoad}
                                 />
                             </div>
                         ) : effectiveType === 'VIDEO' && effectiveFileUrl ? (
