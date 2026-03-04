@@ -518,6 +518,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 {/* Messages + Input */}
                 <Box className="flex-1 overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--bg-primary)', transition: 'background-color 0.3s ease' }}>
                     <MessageList
+                        roomId={roomId}
                         messages={messagesState}
                         currentUserId={currentUserId}
                         participants={currentRoom?.participants || []}

@@ -5,6 +5,7 @@ import { Message, User } from '@/shared/types';
 interface MessageListProps {
     messages: Message[];
     currentUserId: string;
+    roomId?: string;
     participants?: User[];
     onRecall?: (messageId: string) => void;
     onReact?: (messageId: string, emoji: string) => void;
@@ -40,8 +41,7 @@ function SkeletonBubble({ align }: { align: 'left' | 'right' }) {
     );
 }
 
-// ── Image with blur/skeleton placeholder ─────────────────────────────────────
-function LazyImage({ src, alt, style, onClick }: { src: string; alt: string; style?: React.CSSProperties; onClick?: () => void }) {
+function LazyImage({ src, alt, style, onClick, onLoad }: { src: string; alt: string; style?: React.CSSProperties; onClick?: () => void; onLoad?: () => void }) {
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
 
@@ -61,7 +61,7 @@ function LazyImage({ src, alt, style, onClick }: { src: string; alt: string; sty
             <img
                 src={src}
                 alt={alt}
-                onLoad={() => setLoaded(true)}
+                onLoad={() => { setLoaded(true); onLoad?.(); }}
                 onError={() => setError(true)}
                 onClick={onClick}
                 style={{
@@ -143,6 +143,7 @@ const OVERSCAN = 10; // items above/below viewport to render
 const MessageList: React.FC<MessageListProps> = ({
     messages,
     currentUserId,
+    roomId,
     participants = [],
     onRecall,
     onReact,
@@ -153,15 +154,27 @@ const MessageList: React.FC<MessageListProps> = ({
     onForward,
 }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
-    const bottomRef = useRef<HTMLDivElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
     const isNearBottom = useRef(true);
     const prevCount = useRef(0);
+    const prevRoomId = useRef<string | undefined>(undefined);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const scheduledScroll = useRef(false);
 
-    // ── Scroll to bottom ──────────────────────────────────────────────────────
-    const scrollToBottom = useCallback((smooth = false) => {
-        bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+    // Reliable scroll: both scrollTop (for container) and scrollIntoView (fallback)
+    const doScroll = useCallback(() => {
+        const el = scrollRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+        messagesEndRef.current?.scrollIntoView({ block: 'end' });
+        scheduledScroll.current = false;
     }, []);
+
+    const scheduleScroll = useCallback(() => {
+        if (scheduledScroll.current) return;
+        scheduledScroll.current = true;
+        // Double RAF: first ensures layout is committed, second ensures paint
+        requestAnimationFrame(() => requestAnimationFrame(doScroll));
+    }, [doScroll]);
 
     const handleScroll = useCallback(() => {
         const el = scrollRef.current;
@@ -169,30 +182,29 @@ const MessageList: React.FC<MessageListProps> = ({
         isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
     }, []);
 
-    // Initial load: instant scroll
+    // Main scroll effect - fires on roomId change OR new messages
     useEffect(() => {
-        requestAnimationFrame(() => {
-            scrollToBottom(false);
-            setIsInitialLoad(false);
-        });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // New messages: smooth scroll only if near bottom
-    useEffect(() => {
-        if (isInitialLoad) return;
+        if (messages.length === 0) return;
+        const roomChanged = roomId !== prevRoomId.current;
         const isNew = messages.length > prevCount.current;
-        prevCount.current = messages.length;
-        if (isNew && isNearBottom.current) {
-            requestAnimationFrame(() => scrollToBottom(true));
-        }
-    }, [messages, isInitialLoad, scrollToBottom]);
 
-    // Build participant lookup
-    const participantMap = participants.reduce((acc, p) => {
-        acc[p.id] = p;
-        return acc;
-    }, {} as Record<string, User>);
+        if (roomChanged) {
+            // New room: always scroll, reset tracking
+            prevRoomId.current = roomId;
+            prevCount.current = messages.length;
+            isNearBottom.current = true;
+            setIsInitialLoad(true);
+            scheduleScroll();
+            // Extra scroll after images might load
+            setTimeout(doScroll, 300);
+            setTimeout(() => setIsInitialLoad(false), 100);
+        } else if (isNew) {
+            // New message: only scroll if near bottom
+            prevCount.current = messages.length;
+            if (isNearBottom.current) scheduleScroll();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [messages, roomId]);
 
     // Show skeleton on first load (no messages yet)
     if (isInitialLoad && messages.length === 0) {
@@ -206,12 +218,18 @@ const MessageList: React.FC<MessageListProps> = ({
         );
     }
 
+    // Build participant lookup
+    const participantMap = participants.reduce((acc, p) => {
+        acc[p.id] = p;
+        return acc;
+    }, {} as Record<string, User>);
+
     return (
         <div
             ref={scrollRef}
             className="flex-1 overflow-y-auto bg-gray-50"
             onScroll={handleScroll}
-            style={{ scrollBehavior: 'auto' }}
+            style={{ scrollBehavior: 'auto', minHeight: 0 }}
         >
             <style>{animationCSS}</style>
             <div className="flex flex-col justify-end min-h-full px-4 pt-4 pb-2">
@@ -298,8 +316,7 @@ const MessageList: React.FC<MessageListProps> = ({
                         );
                     })
                 )}
-                {/* Scroll anchor */}
-                <div ref={bottomRef} />
+                <div ref={messagesEndRef} style={{ height: 1, flexShrink: 0 }} />
             </div>
         </div>
     );
