@@ -1,9 +1,13 @@
 import React, { useState } from "react";
-import { View, TextInput, TouchableOpacity, Text } from "react-native";
+import { View, TextInput, TouchableOpacity, Text, Platform, Alert } from "react-native";
 import { Ionicons, MaterialIcons, SimpleLineIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 
 interface ChatFooterProps {
     onSend?: (message: string) => void;
+    onSendImage?: (assets: ImagePicker.ImagePickerAsset[]) => void;
+    onSendFile?: (file: DocumentPicker.DocumentPickerAsset) => void;
     replyTo?: {
         senderName?: string;
         content: string;
@@ -11,7 +15,7 @@ interface ChatFooterProps {
     onCancelReply?: () => void;
 }
 
-export default function ChatFooter({ onSend, replyTo, onCancelReply }: ChatFooterProps) {
+export default function ChatFooter({ onSend, onSendImage, onSendFile, replyTo, onCancelReply }: ChatFooterProps) {
     const [message, setMessage] = useState("");
 
     const handleSend = () => {
@@ -19,6 +23,67 @@ export default function ChatFooter({ onSend, replyTo, onCancelReply }: ChatFoote
         if (trimmed.length === 0) return;
         onSend?.(trimmed);
         setMessage("");
+    };
+
+    const requestPermission = async (type: "camera" | "library") => {
+        if (type === "camera") {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") {
+                Alert.alert("Cần quyền truy cập", "Vui lòng cho phép truy cập camera để chụp ảnh.");
+                return false;
+            }
+        } else {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") {
+                Alert.alert("Cần quyền truy cập", "Vui lòng cho phép truy cập thư viện ảnh.");
+                return false;
+            }
+        }
+        return true;
+    };
+
+    const pickImage = async () => {
+        const ok = await requestPermission("library");
+        if (!ok) return;
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            quality: 0.8,
+            allowsMultipleSelection: true,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+            onSendImage?.(result.assets);
+        }
+    };
+
+    const takePhoto = async () => {
+        const ok = await requestPermission("camera");
+        if (!ok) return;
+
+        const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ["images"],
+            quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets?.[0]) {
+            onSendImage?.([result.assets[0]]);
+        }
+    };
+
+    const pickFile = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: "*/*",
+                copyToCacheDirectory: true,
+            });
+
+            if (!result.canceled && result.assets?.[0]) {
+                onSendFile?.(result.assets[0]);
+            }
+        } catch (err) {
+            console.log("Error picking file:", err);
+        }
     };
 
     return (
@@ -102,15 +167,15 @@ export default function ChatFooter({ onSend, replyTo, onCancelReply }: ChatFoote
                         </TouchableOpacity>
                     ) : (
                         <>
-                            <TouchableOpacity>
+                            <TouchableOpacity onPress={pickFile}>
                                 <SimpleLineIcons name="options" size={22} color="#888" />
                             </TouchableOpacity>
 
-                            <TouchableOpacity>
-                                <Ionicons name="mic-outline" size={26} color="#888" />
+                            <TouchableOpacity onPress={takePhoto} style={{ marginLeft: 12 }}>
+                                <Ionicons name="camera-outline" size={26} color="#888" />
                             </TouchableOpacity>
 
-                            <TouchableOpacity>
+                            <TouchableOpacity onPress={pickImage} style={{ marginLeft: 12 }}>
                                 <Ionicons name="image-outline" size={26} color="#888" />
                             </TouchableOpacity>
                         </>

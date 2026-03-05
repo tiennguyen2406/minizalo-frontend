@@ -10,6 +10,7 @@ import {
     Modal,
     TouchableOpacity,
     Alert,
+    Image,
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -26,6 +27,9 @@ import ChatOptionsScreen from "./ChatOptionsScreen";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import friendService from "@/shared/services/friendService";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import { Ionicons } from "@expo/vector-icons";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -43,6 +47,9 @@ export default function ChatScreen() {
     const [sending, setSending] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const flatListRef = useRef<FlatList>(null);
+    const galleryRef = useRef<FlatList>(null);
+    const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+    const [galleryCurrentIndex, setGalleryCurrentIndex] = useState(0);
     const [showGroupInfo, setShowGroupInfo] = useState(false);
     const [showChatOptions, setShowChatOptions] = useState(false);
     const slideAnim = useRef(new Animated.Value(SCREEN_WIDTH)).current;
@@ -118,7 +125,8 @@ export default function ChatScreen() {
             const result = await chatService.getChatHistory(roomId);
             console.log("📜 History result:", result?.messages?.length ?? 0, "messages");
             if (result?.messages && result.messages.length > 0) {
-                setMessages(result.messages.reverse());
+                // Keep newest-first order for inverted FlatList
+                setMessages(result.messages);
             }
         } catch (err) {
             console.log("Error fetching messages:", err);
@@ -212,15 +220,15 @@ export default function ChatScreen() {
                     if (prev.some((m) => m.messageId === newMsg.messageId)) {
                         return prev;
                     }
-                    // Remove optimistic temp messages
+                    // Remove optimistic temp messages, add new msg at beginning (newest-first)
                     const filtered = prev.filter(
                         (m) => !m.messageId.startsWith("temp-")
                     );
-                    return [...filtered, newMsg];
+                    return [newMsg, ...filtered];
                 });
 
                 setTimeout(() => {
-                    flatListRef.current?.scrollToEnd({ animated: true });
+                    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
                 }, 150);
             } catch (err) {
                 console.log("Error parsing WS message:", err);
@@ -240,10 +248,10 @@ export default function ChatScreen() {
                     prev.map((m) =>
                         m.messageId === payload.messageId
                             ? {
-                                  ...m,
-                                  recalled: true,
-                                  recalledAt: payload.recalledAt || new Date().toISOString(),
-                              }
+                                ...m,
+                                recalled: true,
+                                recalledAt: payload.recalledAt || new Date().toISOString(),
+                            }
                             : m
                     )
                 );
@@ -358,9 +366,9 @@ export default function ChatScreen() {
             pinned: false,
         };
 
-        setMessages((prev) => [...prev, optimisticMsg]);
+        setMessages((prev) => [optimisticMsg, ...prev]);
         setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
         }, 100);
 
         try {
@@ -381,6 +389,175 @@ export default function ChatScreen() {
         } finally {
             setSending(false);
             setReplyTo(null);
+        }
+    };
+
+    // ─── Send image(s) ───
+    const handleSendImage = async (assets: ImagePicker.ImagePickerAsset[]) => {
+        if (!roomId || sending || assets.length === 0) return;
+        setSending(true);
+
+        // Optimistic UI with local images
+        const tempId = `temp-img-${Date.now()}`;
+        const optimisticMsg: MessageDynamo = {
+            messageId: tempId,
+            chatRoomId: roomId,
+            senderId: currentUserId || "",
+            senderName: "Tôi",
+            content: "",
+            attachments: assets.map((a, i) => ({
+                id: "",
+                url: a.uri,
+                type: "IMAGE",
+                name: a.fileName || `image_${i}.jpg`,
+                size: a.fileSize || 0,
+            })),
+            type: "IMAGE",
+            createdAt: new Date().toISOString(),
+            replyToMessageId: "",
+            read: false,
+            readBy: [],
+            reactions: [],
+            recalled: false,
+            recalledAt: "",
+            pinned: false,
+        };
+        setMessages((prev) => [optimisticMsg, ...prev]);
+        setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
+
+        try {
+            const token = (await import("@/shared/store/authStore")).useAuthStore.getState().accessToken;
+            const rawBase = process.env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8080/api";
+            const apiBase = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
+
+            // Upload all images in parallel
+            const uploadPromises = assets.map(async (asset, i) => {
+                const uri = asset.uri;
+                const filename = asset.fileName || `photo_${Date.now()}_${i}.jpg`;
+                const type = asset.mimeType || "image/jpeg";
+
+                const formData = new FormData();
+                formData.append("file", { uri, name: filename, type } as any);
+
+                const uploadRes = await fetch(`${apiBase}/files/upload`, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${token}` },
+                    body: formData,
+                });
+
+                if (!uploadRes.ok) throw new Error(`Upload failed for image ${i}`);
+                const uploadData = await uploadRes.json();
+
+                return {
+                    url: uploadData.fileUrl,
+                    type: uploadData.fileType || "image/jpeg",
+                    filename: uploadData.fileName || filename,
+                    size: uploadData.size || asset.fileSize || 0,
+                };
+            });
+
+            const uploadedAttachments = await Promise.all(uploadPromises);
+
+            // Send message with all attachments via WebSocket
+            const sentViaWs = webSocketService.sendChatMessage(
+                roomId,
+                "",
+                "IMAGE",
+                undefined,
+                uploadedAttachments
+            );
+            if (!sentViaWs) {
+                console.log("WS not connected for image, fallback needed");
+                await fetchMessages();
+            }
+        } catch (err) {
+            console.log("Error sending image:", err);
+            Alert.alert("Lỗi", "Gửi ảnh thất bại, vui lòng thử lại.");
+            setMessages((prev) => prev.filter((m) => m.messageId !== tempId));
+        } finally {
+            setSending(false);
+        }
+    };
+
+    // ─── Send file ───
+    const handleSendFile = async (file: DocumentPicker.DocumentPickerAsset) => {
+        if (!roomId || sending) return;
+        setSending(true);
+
+        const tempId = `temp-file-${Date.now()}`;
+        const optimisticMsg: MessageDynamo = {
+            messageId: tempId,
+            chatRoomId: roomId,
+            senderId: currentUserId || "",
+            senderName: "Tôi",
+            content: "",
+            attachments: [{
+                id: "",
+                url: file.uri,
+                type: file.mimeType || "application/octet-stream",
+                name: file.name || "file",
+                size: file.size || 0,
+            }],
+            type: "FILE",
+            createdAt: new Date().toISOString(),
+            replyToMessageId: "",
+            read: false,
+            readBy: [],
+            reactions: [],
+            recalled: false,
+            recalledAt: "",
+            pinned: false,
+        };
+        setMessages((prev) => [optimisticMsg, ...prev]);
+        setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
+
+        try {
+            const uri = file.uri;
+            const filename = file.name || `file_${Date.now()}`;
+            const type = file.mimeType || "application/octet-stream";
+
+            const formData = new FormData();
+            formData.append("file", { uri, name: filename, type } as any);
+
+            const token = (await import("@/shared/store/authStore")).useAuthStore.getState().accessToken;
+            const rawBase = process.env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8080/api";
+            const apiBase = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
+
+            const uploadRes = await fetch(`${apiBase}/files/upload`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                },
+                body: formData,
+            });
+
+            if (!uploadRes.ok) throw new Error("Upload failed");
+            const uploadData = await uploadRes.json();
+
+            const attachment = {
+                url: uploadData.fileUrl,
+                type: uploadData.fileType || type,
+                filename: uploadData.fileName || filename,
+                size: uploadData.size || file.size || 0,
+            };
+
+            const sentViaWs = webSocketService.sendChatMessage(
+                roomId,
+                "",
+                "FILE",
+                undefined,
+                [attachment]
+            );
+            if (!sentViaWs) {
+                console.log("WS not connected for file, fallback needed");
+                await fetchMessages();
+            }
+        } catch (err) {
+            console.log("Error sending file:", err);
+            Alert.alert("Lỗi", "Gửi file thất bại, vui lòng thử lại.");
+            setMessages((prev) => prev.filter((m) => m.messageId !== tempId));
+        } finally {
+            setSending(false);
         }
     };
 
@@ -421,10 +598,10 @@ export default function ChatScreen() {
                                 prev.map((m) =>
                                     m.messageId === selectedMessage.messageId
                                         ? {
-                                              ...m,
-                                              recalled: true,
-                                              recalledAt: new Date().toISOString(),
-                                          }
+                                            ...m,
+                                            recalled: true,
+                                            recalledAt: new Date().toISOString(),
+                                        }
                                         : m
                                 )
                             );
@@ -482,6 +659,40 @@ export default function ChatScreen() {
         return map;
     }, [messages, currentUserId]);
 
+    // Collect all image URLs across all messages for the gallery
+    const getImageUrl = (url: string) => {
+        if (!url) return url;
+        if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
+            const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+            if (match && match[1]) {
+                return url.replace("localhost", match[1]);
+            }
+        }
+        return url;
+    };
+
+    const allImages = useMemo(() => {
+        const imgs: string[] = [];
+        // messages are newest-first (inverted), reverse to get chronological
+        const chronological = [...messages].reverse();
+        chronological.forEach((m) => {
+            if (m.recalled) return;
+            (m.attachments || []).forEach((a) => {
+                if (a.type?.startsWith("image") || a.type === "IMAGE") {
+                    imgs.push(getImageUrl(a.url));
+                }
+            });
+        });
+        return imgs;
+    }, [messages]);
+
+    const handleGalleryOpen = useCallback((imageUrl: string) => {
+        const idx = allImages.indexOf(imageUrl);
+        const safeIdx = idx >= 0 ? idx : 0;
+        setGalleryIndex(safeIdx);
+        setGalleryCurrentIndex(safeIdx);
+    }, [allImages]);
+
     // ─── Render ───
     const renderMessage = ({ item }: { item: MessageDynamo }) => {
         const isMe = item.senderId === currentUserId;
@@ -501,12 +712,13 @@ export default function ChatScreen() {
                 onPress={handleMessagePress}
                 onLongPress={handleMessageLongPress}
                 onPressReactions={(msg) => setReactionListMessage(msg)}
+                onImagePress={handleGalleryOpen}
                 replyPreview={
                     replySource
                         ? {
-                              senderName: replySource.senderName,
-                              content: replySource.content || "[Tin nhắn]",
-                          }
+                            senderName: replySource.senderName,
+                            content: replySource.content || "[Tin nhắn]",
+                        }
                         : null
                 }
             />
@@ -564,6 +776,7 @@ export default function ChatScreen() {
                         roomId={roomId}
                         name={displayName}
                         avatarUrl={useChatStore.getState().rooms.find(r => r.id === roomId)?.avatarUrl || undefined}
+                        partnerId={partnerId ?? undefined}
                         onClose={closeChatOptions}
                     />
                 </Animated.View>
@@ -576,71 +789,71 @@ export default function ChatScreen() {
                     const latest = pinned[pinned.length - 1];
                     if (!latest) return null;
                     return (
-                <View
-                    style={{
-                        paddingHorizontal: 12,
-                        paddingTop: 4,
-                    }}
-                >
-                        <TouchableOpacity
-                            activeOpacity={0.8}
+                        <View
                             style={{
-                                backgroundColor: "#111827",
-                                borderRadius: 10,
                                 paddingHorizontal: 12,
-                                paddingVertical: 8,
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                            }}
-                            onPress={() => {
-                                // Mở danh sách tin nhắn đã ghim dạng overlay (Modal)
-                                setShowPinnedList(true);
+                                paddingTop: 4,
                             }}
                         >
-                            <View
+                            <TouchableOpacity
+                                activeOpacity={0.8}
                                 style={{
+                                    backgroundColor: "#111827",
+                                    borderRadius: 10,
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 8,
                                     flexDirection: "row",
                                     alignItems: "center",
-                                    flex: 1,
+                                    justifyContent: "space-between",
+                                }}
+                                onPress={() => {
+                                    // Mở danh sách tin nhắn đã ghim dạng overlay (Modal)
+                                    setShowPinnedList(true);
                                 }}
                             >
-                                <Text style={{ color: "#facc15", marginRight: 6 }}>📌</Text>
-                                <Text
-                                    numberOfLines={1}
+                                <View
                                     style={{
-                                        color: "#e5e7eb",
-                                        fontSize: 12,
+                                        flexDirection: "row",
+                                        alignItems: "center",
                                         flex: 1,
                                     }}
                                 >
-                                    {latest.content || "[Tin nhắn đã ghim]"}
-                                </Text>
-                            </View>
-
-                            {/* Số lượng + icon mở rộng danh sách */}
-                            <View
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    marginLeft: 8,
-                                }}
-                            >
-                                {pinned.length > 1 && (
+                                    <Text style={{ color: "#facc15", marginRight: 6 }}>📌</Text>
                                     <Text
+                                        numberOfLines={1}
                                         style={{
-                                            color: "#9ca3af",
-                                            fontSize: 11,
-                                            marginRight: 6,
+                                            color: "#e5e7eb",
+                                            fontSize: 12,
+                                            flex: 1,
                                         }}
                                     >
-                                        +{pinned.length - 1}
+                                        {latest.content || "[Tin nhắn đã ghim]"}
                                     </Text>
-                                )}
-                                <Text style={{ color: "#9ca3af", fontSize: 14 }}>▾</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
+                                </View>
+
+                                {/* Số lượng + icon mở rộng danh sách */}
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        marginLeft: 8,
+                                    }}
+                                >
+                                    {pinned.length > 1 && (
+                                        <Text
+                                            style={{
+                                                color: "#9ca3af",
+                                                fontSize: 11,
+                                                marginRight: 6,
+                                            }}
+                                        >
+                                            +{pinned.length - 1}
+                                        </Text>
+                                    )}
+                                    <Text style={{ color: "#9ca3af", fontSize: 14 }}>▾</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
                     );
                 })()
             )}
@@ -653,17 +866,13 @@ export default function ChatScreen() {
                 <FlatList
                     ref={flatListRef}
                     data={messages}
+                    inverted
                     keyExtractor={(item) => item.messageId}
                     renderItem={renderMessage}
                     contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
                     showsVerticalScrollIndicator={false}
-                    onContentSizeChange={() => {
-                        if (messages.length > 0) {
-                            flatListRef.current?.scrollToEnd({ animated: false });
-                        }
-                    }}
                     ListEmptyComponent={() => (
-                        <View className="flex-1 justify-center items-center">
+                        <View className="flex-1 justify-center items-center" style={{ transform: [{ scaleY: -1 }] }}>
                             <Text className="text-gray-500">
                                 {loaded ? "Hãy gửi tin nhắn đầu tiên! 👋" : "Đang tải tin nhắn..."}
                             </Text>
@@ -671,8 +880,8 @@ export default function ChatScreen() {
                     )}
                 />
                 {roomType === "DIRECT" &&
-                blockStatus &&
-                (blockStatus.blockedByYou || blockStatus.blockedByOther) ? (
+                    blockStatus &&
+                    (blockStatus.blockedByYou || blockStatus.blockedByOther) ? (
                     <View
                         style={{
                             paddingHorizontal: 16,
@@ -737,6 +946,8 @@ export default function ChatScreen() {
                 ) : (
                     <ChatFooter
                         onSend={handleSend}
+                        onSendImage={handleSendImage}
+                        onSendFile={handleSendFile}
                         replyTo={replyTo}
                         onCancelReply={() => setReplyTo(null)}
                     />
@@ -1022,7 +1233,7 @@ export default function ChatScreen() {
                 >
                     <TouchableOpacity
                         activeOpacity={1}
-                        onPress={() => {}}
+                        onPress={() => { }}
                         style={{
                             backgroundColor: "#111827",
                             paddingTop: 12,
@@ -1132,6 +1343,64 @@ export default function ChatScreen() {
                         })()}
                     </TouchableOpacity>
                 </TouchableOpacity>
+            </Modal>
+
+            {/* ─── Chat-wide swipeable image gallery ─── */}
+            <Modal
+                visible={galleryIndex !== null}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setGalleryIndex(null)}
+            >
+                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.95)" }}>
+                    <TouchableOpacity
+                        onPress={() => setGalleryIndex(null)}
+                        style={{ position: "absolute", top: 50, right: 20, zIndex: 10, padding: 8 }}
+                    >
+                        <Ionicons name="close" size={28} color="#fff" />
+                    </TouchableOpacity>
+
+                    {allImages.length > 1 && (
+                        <View style={{ position: "absolute", top: 54, left: 0, right: 0, zIndex: 10, alignItems: "center" }}>
+                            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
+                                {galleryCurrentIndex + 1} / {allImages.length}
+                            </Text>
+                        </View>
+                    )}
+
+                    <FlatList
+                        ref={galleryRef}
+                        data={allImages}
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        keyExtractor={(_, i) => `chat-gallery-${i}`}
+                        initialScrollIndex={galleryIndex ?? 0}
+                        getItemLayout={(_, index) => ({
+                            length: SCREEN_WIDTH,
+                            offset: SCREEN_WIDTH * index,
+                            index,
+                        })}
+                        onMomentumScrollEnd={(e) => {
+                            const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                            setGalleryCurrentIndex(idx);
+                        }}
+                        renderItem={({ item: url }) => (
+                            <View style={{
+                                width: SCREEN_WIDTH,
+                                flex: 1,
+                                justifyContent: "center",
+                                alignItems: "center",
+                            }}>
+                                <Image
+                                    source={{ uri: url }}
+                                    style={{ width: SCREEN_WIDTH, height: SCREEN_WIDTH }}
+                                    resizeMode="contain"
+                                />
+                            </View>
+                        )}
+                    />
+                </View>
             </Modal>
         </View>
     );
