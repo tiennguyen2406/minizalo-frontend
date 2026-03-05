@@ -71,6 +71,18 @@ export const userService = {
         });
         return data;
     },
+
+    uploadCoverPhoto: async (file: File): Promise<UserProfile> => {
+        const formData = new FormData();
+        formData.append("file", file);
+        const { data } = await api.put<UserProfile>("/users/cover-photo", formData, {
+            headers: {
+                ...getAuthHeaders(),
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return data;
+    },
 };
 
 export default userService;

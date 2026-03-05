@@ -172,7 +172,9 @@ export default function EditProfileView() {
                     <div
                         style={{
                             height: 160,
-                            background: "linear-gradient(135deg, #0068FF 0%, #00C6FF 100%)",
+                            background: profile?.coverPhotoUrl
+                                ? `url(${profile.coverPhotoUrl}) center/cover no-repeat`
+                                : "linear-gradient(135deg, #0068FF 0%, #00C6FF 100%)",
                         }}
                     />
 
