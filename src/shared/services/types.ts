@@ -38,6 +38,7 @@ export interface UserProfile {
     email: string;
     displayName: string | null;
     avatarUrl: string | null;
+    coverPhotoUrl: string | null;
     statusMessage: string | null;
     phone: string | null;
     gender: string | null;
