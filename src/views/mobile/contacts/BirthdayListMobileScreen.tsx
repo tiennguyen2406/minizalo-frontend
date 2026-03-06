@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo } from "react";
 import { View, Text, FlatList, TouchableOpacity, Image } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { PROFILE_COLORS } from "../profile/styles";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useUserStore } from "@/shared/store/userStore";
 import type { UserProfile } from "@/shared/services/types";
+import { useThemeColors } from "@/shared/theme/colors";
 
 type BirthdayItem = {
     user: UserProfile;
@@ -17,6 +18,7 @@ export default function BirthdayListMobileScreen() {
     const router = useRouter();
     const { friends, fetchFriends } = useFriendStore();
     const { profile } = useUserStore();
+    const colors = useThemeColors();
     const currentUserId = profile?.id ?? null;
 
     useEffect(() => {
@@ -74,7 +76,7 @@ export default function BirthdayListMobileScreen() {
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
+                    borderBottomColor: colors.border,
                 }}
             >
                 <View
@@ -82,7 +84,7 @@ export default function BirthdayListMobileScreen() {
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: "#27272f",
+                        backgroundColor: colors.searchBg,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
@@ -97,7 +99,7 @@ export default function BirthdayListMobileScreen() {
                     ) : (
                         <Text
                             style={{
-                                color: PROFILE_COLORS.text,
+                                color: colors.text,
                                 fontSize: 16,
                                 fontWeight: "600",
                             }}
@@ -109,7 +111,7 @@ export default function BirthdayListMobileScreen() {
                 <View style={{ flex: 1 }}>
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 15,
                             fontWeight: "500",
                         }}
@@ -119,7 +121,7 @@ export default function BirthdayListMobileScreen() {
                     </Text>
                     <Text
                         style={{
-                            color: PROFILE_COLORS.textSecondary,
+                            color: colors.textSecondary,
                             fontSize: 12,
                             marginTop: 2,
                         }}
@@ -153,34 +155,37 @@ export default function BirthdayListMobileScreen() {
 
     return (
         <SafeAreaView
-            style={{ flex: 1, backgroundColor: PROFILE_COLORS.background }}
+            style={{ flex: 1, backgroundColor: colors.background }}
             edges={["top"]}
         >
+            <StatusBar style={colors.statusBar} />
             {/* Header giống Zalo: nút back + tiêu đề Sinh nhật */}
             <View
                 style={{
+                    height: 52,
                     flexDirection: "row",
                     alignItems: "center",
                     paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
+                    borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.headerBg,
                 }}
             >
                 <TouchableOpacity
-                    onPress={() => router.replace("/(tabs)/contacts")}
+                    onPress={() => router.back()}
                     style={{ paddingRight: 8, paddingVertical: 4 }}
                     activeOpacity={0.8}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                     <Ionicons
                         name="chevron-back"
-                        size={22}
-                        color={PROFILE_COLORS.text}
+                        size={26}
+                        color={colors.headerText}
                     />
                 </TouchableOpacity>
                 <Text
                     style={{
-                        color: PROFILE_COLORS.text,
+                        color: colors.headerText,
                         fontSize: 18,
                         fontWeight: "600",
                     }}
@@ -194,12 +199,13 @@ export default function BirthdayListMobileScreen() {
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.card,
                 }}
             >
                 <Text
                     style={{
-                        color: PROFILE_COLORS.text,
+                        color: colors.text,
                         fontSize: 14,
                         fontWeight: "600",
                     }}
@@ -220,12 +226,12 @@ export default function BirthdayListMobileScreen() {
                     <Ionicons
                         name="calendar-outline"
                         size={40}
-                        color={PROFILE_COLORS.textSecondary}
+                        color={colors.textSecondary}
                     />
                     <Text
                         style={{
                             marginTop: 12,
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 16,
                             fontWeight: "500",
                             textAlign: "center",

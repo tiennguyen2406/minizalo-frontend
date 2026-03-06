@@ -1,8 +1,9 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef } from "react";
 import { View, Text, TouchableOpacity, Image, Modal, Dimensions, Linking, FlatList } from "react-native";
 import type { MessageDynamo } from "@/shared/services/chatService";
 import { formatTime } from "@/shared/utils/dateUtils";
 import { Ionicons } from "@expo/vector-icons";
+import { useThemeColors } from "@/shared/theme/colors";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -58,6 +59,7 @@ export default function MessageBubble({
     onImagePress,
     replyPreview,
 }: MessageBubbleProps) {
+    const colors = useThemeColors();
     const senderName = message.senderName;
     const isRecalled = message.recalled;
     const time =
@@ -93,8 +95,11 @@ export default function MessageBubble({
         }
     };
 
-    const bubbleBackground = isMe ? "#0091FF" : "#2a2a2a";
-    const textColor = isRecalled ? "#9ca3af" : "#ffffff";
+    const bubbleBackground = isMe ? colors.primary : colors.card;
+    const partnerTextColor = colors.text;
+    const myTextColor = "#ffffff"; // Always white for primary bg (blue)
+    const textColor = isMe ? myTextColor : partnerTextColor;
+    const recalledTextColor = colors.textSecondary;
 
     // Check for image attachments
     const imageAttachments = (message.attachments || []).filter(
@@ -125,7 +130,7 @@ export default function MessageBubble({
                 {/* Bubble */}
                 <View
                     style={{
-                        maxWidth: "75%",
+                        maxWidth: SCREEN_WIDTH * 0.75,
                         backgroundColor: (hasImages && !hasText && !hasFiles) ? "transparent" : bubbleBackground,
                         borderRadius: 16,
                         ...(isMe
@@ -133,6 +138,8 @@ export default function MessageBubble({
                             : { borderBottomLeftRadius: 4 }),
                         opacity: isRecalled ? 0.8 : 1,
                         overflow: "hidden",
+                        borderWidth: isMe ? 0 : 1,
+                        borderColor: colors.border,
                     }}
                 >
                     {/* Preview reply (nếu có) */}
@@ -145,15 +152,15 @@ export default function MessageBubble({
                                 paddingHorizontal: 8,
                                 paddingVertical: 4,
                                 borderLeftWidth: 2,
-                                borderLeftColor: "#6b7280",
-                                backgroundColor: "#111827",
+                                borderLeftColor: isMe ? "rgba(255,255,255,0.6)" : colors.primary,
+                                backgroundColor: isMe ? "rgba(255,255,255,0.1)" : colors.background,
                                 borderRadius: 6,
                             }}
                         >
                             {replyPreview.senderName && (
                                 <Text
                                     style={{
-                                        color: "#9ca3af",
+                                        color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary,
                                         fontSize: 11,
                                         fontWeight: "600",
                                         marginBottom: 2,
@@ -165,7 +172,7 @@ export default function MessageBubble({
                             <Text
                                 numberOfLines={2}
                                 style={{
-                                    color: "#e5e7eb",
+                                    color: isMe ? "rgba(255,255,255,0.9)" : colors.text,
                                     fontSize: 11,
                                 }}
                             >
@@ -276,19 +283,19 @@ export default function MessageBubble({
                                                 width: 40,
                                                 height: 40,
                                                 borderRadius: 8,
-                                                backgroundColor: isMe ? "rgba(255,255,255,0.15)" : "#3a3a3a",
+                                                backgroundColor: isMe ? "rgba(255,255,255,0.15)" : colors.background,
                                                 alignItems: "center",
                                                 justifyContent: "center",
                                                 marginRight: 10,
                                             }}
                                         >
-                                            <Ionicons name="document-text-outline" size={22} color="#fff" />
+                                            <Ionicons name="document-text-outline" size={22} color={isMe ? "#fff" : colors.primary} />
                                         </View>
                                         <View style={{ flex: 1 }}>
                                             <Text
                                                 numberOfLines={2}
                                                 style={{
-                                                    color: "#fff",
+                                                    color: textColor,
                                                     fontSize: 14,
                                                     fontWeight: "500",
                                                 }}
@@ -296,12 +303,12 @@ export default function MessageBubble({
                                                 {fileName}
                                             </Text>
                                             {fileSize ? (
-                                                <Text style={{ color: isMe ? "#b3d9ff" : "#888", fontSize: 12, marginTop: 2 }}>
+                                                <Text style={{ color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary, fontSize: 12, marginTop: 2 }}>
                                                     {fileSize}
                                                 </Text>
                                             ) : null}
                                         </View>
-                                        <Ionicons name="download-outline" size={20} color={isMe ? "#b3d9ff" : "#888"} />
+                                        <Ionicons name="download-outline" size={20} color={isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary} />
                                     </TouchableOpacity>
                                 );
                             })}
@@ -313,7 +320,7 @@ export default function MessageBubble({
                         <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
                             <Text
                                 style={{
-                                    color: textColor,
+                                    color: isRecalled ? recalledTextColor : textColor,
                                     fontSize: 15,
                                     lineHeight: 20,
                                     fontStyle: isRecalled ? "italic" : "normal",
@@ -332,7 +339,7 @@ export default function MessageBubble({
                                 paddingHorizontal: 12,
                                 paddingBottom: 6,
                                 marginTop: hasImages && !hasText ? 4 : 0,
-                                color: isMe ? "#b3d9ff" : "#888",
+                                color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary,
                                 textAlign: "right",
                             }}
                         >
@@ -352,10 +359,12 @@ export default function MessageBubble({
                             marginTop: 2,
                             marginRight: isMe ? 8 : 0,
                             marginLeft: !isMe ? 8 : 0,
-                            backgroundColor: "#111827",
+                            backgroundColor: colors.card,
                             borderRadius: 999,
                             paddingHorizontal: 6,
                             paddingVertical: 2,
+                            borderWidth: 1,
+                            borderColor: colors.border,
                         }}
                     >
                         {Object.entries(
@@ -376,7 +385,7 @@ export default function MessageBubble({
                                 <Text style={{ fontSize: 11, marginRight: 2 }}>{emoji}</Text>
                                 <Text
                                     style={{
-                                        color: "#e5e7eb",
+                                        color: colors.text,
                                         fontSize: 9,
                                         fontWeight: "600",
                                     }}
@@ -400,14 +409,14 @@ export default function MessageBubble({
                     {/* Close button */}
                     <TouchableOpacity
                         onPress={() => setPreviewIndex(null)}
-                        style={{ position: "absolute", top: 50, right: 20, zIndex: 10, padding: 8 }}
+                        style={{ position: "absolute", top: 52, right: 20, zIndex: 10, padding: 8 }}
                     >
                         <Ionicons name="close" size={28} color="#fff" />
                     </TouchableOpacity>
 
                     {/* Counter */}
                     {imageAttachments.length > 1 && (
-                        <View style={{ position: "absolute", top: 54, left: 0, right: 0, zIndex: 10, alignItems: "center" }}>
+                        <View style={{ position: "absolute", top: 56, left: 0, right: 0, zIndex: 10, alignItems: "center" }}>
                             <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
                                 {currentIndex + 1} / {imageAttachments.length}
                             </Text>

@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { PROFILE_COLORS } from "../profile/styles";
+import { useThemeColors } from "@/shared/theme/colors";
 import { searchService } from "@/shared/services/searchService";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useUserStore } from "@/shared/store/userStore";
@@ -25,6 +25,7 @@ export default function SearchUsersMobile({
     initialQuery = "",
     autoFocus = false,
 }: SearchUsersMobileProps) {
+    const colors = useThemeColors();
     const [query, setQuery] = useState(initialQuery);
     const [results, setResults] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(false);
@@ -135,7 +136,7 @@ export default function SearchUsersMobile({
                 }, 80);
                 return () => clearTimeout(id);
             }
-            return () => {};
+            return () => { };
         }, [autoFocus])
     );
 
@@ -150,10 +151,10 @@ export default function SearchUsersMobile({
         const label = isSelf
             ? ""
             : alreadyFriend
-            ? "Đã là bạn"
-            : isRequested
-            ? "Đã gửi"
-            : "Kết bạn";
+                ? "Đã là bạn"
+                : isRequested
+                    ? "Đã gửi"
+                    : "Kết bạn";
 
         return (
             <View
@@ -163,8 +164,8 @@ export default function SearchUsersMobile({
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
-                    backgroundColor: PROFILE_COLORS.background,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.background,
                 }}
             >
                 <View
@@ -172,7 +173,7 @@ export default function SearchUsersMobile({
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: "#2f3134",
+                        backgroundColor: colors.searchBg,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
@@ -180,7 +181,7 @@ export default function SearchUsersMobile({
                 >
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontWeight: "600",
                             fontSize: 16,
                         }}
@@ -192,7 +193,7 @@ export default function SearchUsersMobile({
                     <Text
                         numberOfLines={1}
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 15,
                             fontWeight: "500",
                         }}
@@ -203,7 +204,7 @@ export default function SearchUsersMobile({
                         <Text
                             numberOfLines={1}
                             style={{
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 12,
                                 marginTop: 2,
                             }}
@@ -214,7 +215,7 @@ export default function SearchUsersMobile({
                         <Text
                             numberOfLines={1}
                             style={{
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 12,
                                 marginTop: 2,
                             }}
@@ -233,17 +234,17 @@ export default function SearchUsersMobile({
                             borderRadius: 999,
                             borderWidth: 1,
                             borderColor: disabled
-                                ? "#9ca3af"
-                                : PROFILE_COLORS.primary,
-                            backgroundColor: disabled ? "#262626" : "transparent",
+                                ? colors.border
+                                : colors.primary,
+                            backgroundColor: disabled ? colors.searchBg : "transparent",
                             marginLeft: 8,
                         }}
                     >
                         <Text
                             style={{
                                 color: disabled
-                                    ? "#9ca3af"
-                                    : PROFILE_COLORS.primary,
+                                    ? colors.textSecondary
+                                    : colors.primary,
                                 fontSize: 12,
                                 fontWeight: "500",
                             }}
@@ -260,7 +261,7 @@ export default function SearchUsersMobile({
         <View
             style={{
                 flex: 1,
-                backgroundColor: PROFILE_COLORS.background,
+                backgroundColor: colors.background,
             }}
         >
             {/* Header tìm kiếm */}
@@ -269,7 +270,7 @@ export default function SearchUsersMobile({
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
+                    borderBottomColor: colors.border,
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 8,
@@ -281,7 +282,7 @@ export default function SearchUsersMobile({
                         flexDirection: "row",
                         alignItems: "center",
                         borderRadius: 999,
-                        backgroundColor: "#2c2c2e",
+                        backgroundColor: colors.searchBg,
                         paddingHorizontal: 10,
                         paddingVertical: 6,
                     }}
@@ -289,7 +290,7 @@ export default function SearchUsersMobile({
                     <Ionicons
                         name="search"
                         size={18}
-                        color={PROFILE_COLORS.textSecondary}
+                        color={colors.textSecondary}
                         style={{ marginRight: 6 }}
                     />
                     <TextInput
@@ -297,10 +298,10 @@ export default function SearchUsersMobile({
                         value={query}
                         onChangeText={setQuery}
                         placeholder="Nhập tên, số điện thoại hoặc email..."
-                        placeholderTextColor={PROFILE_COLORS.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         style={{
                             flex: 1,
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 14,
                             paddingVertical: 0,
                         }}
@@ -317,7 +318,7 @@ export default function SearchUsersMobile({
                             <Ionicons
                                 name="close-circle"
                                 size={18}
-                                color={PROFILE_COLORS.textSecondary}
+                                color={colors.textSecondary}
                             />
                         </TouchableOpacity>
                     ) : null}
@@ -329,7 +330,7 @@ export default function SearchUsersMobile({
                         paddingHorizontal: 10,
                         paddingVertical: 6,
                         borderRadius: 999,
-                        backgroundColor: PROFILE_COLORS.primary,
+                        backgroundColor: colors.primary,
                         opacity: loading ? 0.7 : 1,
                     }}
                 >
@@ -350,12 +351,12 @@ export default function SearchUsersMobile({
                     style={{
                         paddingHorizontal: 16,
                         paddingVertical: 8,
-                        backgroundColor: "#7f1d1d",
+                        backgroundColor: colors.background === "#ffffff" ? "#fee2e2" : "#7f1d1d",
                     }}
                 >
                     <Text
                         style={{
-                            color: "#fee2e2",
+                            color: colors.background === "#ffffff" ? "#b91c1c" : "#fee2e2",
                             fontSize: 12,
                         }}
                     >
@@ -372,11 +373,11 @@ export default function SearchUsersMobile({
                         justifyContent: "center",
                     }}
                 >
-                    <ActivityIndicator color={PROFILE_COLORS.primary} />
+                    <ActivityIndicator color={colors.primary} />
                     <Text
                         style={{
                             marginTop: 8,
-                            color: PROFILE_COLORS.textSecondary,
+                            color: colors.textSecondary,
                             fontSize: 13,
                         }}
                     >
@@ -395,12 +396,12 @@ export default function SearchUsersMobile({
                     <Ionicons
                         name="person-add-outline"
                         size={40}
-                        color={PROFILE_COLORS.textSecondary}
+                        color={colors.textSecondary}
                     />
                     <Text
                         style={{
                             marginTop: 12,
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 16,
                             fontWeight: "500",
                             textAlign: "center",

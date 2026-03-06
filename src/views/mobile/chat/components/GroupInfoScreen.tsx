@@ -8,18 +8,20 @@ import {
     ActivityIndicator,
     SafeAreaView,
     Platform,
-    StatusBar,
+    StatusBar as RNStatusBar,
     Alert,
     Switch,
     Modal,
     TextInput,
     FlatList,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { groupService } from "@/shared/services/groupService";
 import { friendService } from "@/shared/services/friendService";
 import { useAuthStore } from "@/shared/store/authStore";
 import { GroupDetail } from "@/shared/types";
+import { useThemeColors } from "@/shared/theme/colors";
 
 interface GroupInfoScreenProps {
     roomId: string;
@@ -47,6 +49,7 @@ function AddMemberModal({
     existingMemberIds: string[];
     onMembersAdded: (newGroup: GroupDetail) => void;
 }) {
+    const colors = useThemeColors();
     const [friends, setFriends] = useState<Friend[]>([]);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -112,8 +115,8 @@ function AddMemberModal({
             <SafeAreaView
                 style={{
                     flex: 1,
-                    backgroundColor: "#0c0c15",
-                    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+                    backgroundColor: colors.background,
+                    paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
                 }}
             >
                 {/* Header */}
@@ -121,20 +124,21 @@ function AddMemberModal({
                     style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        paddingHorizontal: 14,
-                        paddingVertical: 10,
-                        borderBottomWidth: 0.5,
-                        borderBottomColor: "#2d2d44",
+                        paddingHorizontal: 16,
+                        paddingVertical: 12,
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.border,
+                        backgroundColor: colors.headerBg,
                     }}
                 >
                     <TouchableOpacity onPress={onClose} style={{ padding: 4, marginRight: 12 }}>
-                        <Ionicons name="close" size={26} color="#b0b3b8" />
+                        <Ionicons name="close" size={26} color={colors.headerText} />
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 17, fontWeight: "600", color: "#e4e6eb" }}>
+                        <Text style={{ fontSize: 17, fontWeight: "600", color: colors.headerText }}>
                             Thêm thành viên
                         </Text>
-                        <Text style={{ fontSize: 12, color: "#7f8c8d", marginTop: 1 }}>
+                        <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 1 }}>
                             Đã chọn: {selectedIds.length}
                         </Text>
                     </View>
@@ -142,7 +146,7 @@ function AddMemberModal({
                         onPress={handleAdd}
                         disabled={selectedIds.length === 0 || submitting}
                         style={{
-                            backgroundColor: selectedIds.length > 0 ? "#0068FF" : "#1c1c2e",
+                            backgroundColor: selectedIds.length > 0 ? colors.primary : colors.separator,
                             paddingHorizontal: 16,
                             paddingVertical: 8,
                             borderRadius: 16,
@@ -153,7 +157,7 @@ function AddMemberModal({
                         ) : (
                             <Text
                                 style={{
-                                    color: selectedIds.length > 0 ? "#fff" : "#555",
+                                    color: selectedIds.length > 0 ? "#fff" : colors.textSecondary,
                                     fontWeight: "600",
                                     fontSize: 14,
                                 }}
@@ -171,29 +175,30 @@ function AddMemberModal({
                         alignItems: "center",
                         paddingHorizontal: 16,
                         paddingVertical: 8,
-                        borderBottomWidth: 0.5,
-                        borderBottomColor: "#2d2d44",
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.border,
+                        backgroundColor: colors.card,
                     }}
                 >
-                    <Ionicons name="search" size={18} color="#7f8c8d" style={{ marginRight: 8 }} />
+                    <Ionicons name="search" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
                     <TextInput
                         placeholder="Tìm tên bạn bè"
-                        placeholderTextColor="#7f8c8d"
+                        placeholderTextColor={colors.textSecondary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
-                        style={{ flex: 1, fontSize: 14, color: "#e4e6eb", paddingVertical: 4 }}
+                        style={{ flex: 1, fontSize: 14, color: colors.text, paddingVertical: 4 }}
                     />
                 </View>
 
                 {/* List */}
                 {loading ? (
                     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                        <ActivityIndicator size="large" color="#0068FF" />
+                        <ActivityIndicator size="large" color={colors.primary} />
                     </View>
                 ) : friends.length === 0 ? (
                     <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32 }}>
-                        <Ionicons name="people-outline" size={48} color="#555" />
-                        <Text style={{ color: "#7f8c8d", fontSize: 14, marginTop: 10, textAlign: "center" }}>
+                        <Ionicons name="people-outline" size={48} color={colors.textSecondary} />
+                        <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 10, textAlign: "center" }}>
                             Tất cả bạn bè đã trong nhóm
                         </Text>
                     </View>
@@ -218,6 +223,7 @@ function AddMemberModal({
                                         alignItems: "center",
                                         paddingHorizontal: 16,
                                         paddingVertical: 10,
+                                        backgroundColor: colors.background,
                                     }}
                                 >
                                     <View
@@ -226,8 +232,8 @@ function AddMemberModal({
                                             height: 22,
                                             borderRadius: 11,
                                             borderWidth: 2,
-                                            borderColor: isSelected ? "#0068FF" : "#555",
-                                            backgroundColor: isSelected ? "#0068FF" : "transparent",
+                                            borderColor: isSelected ? colors.primary : colors.textSecondary,
+                                            backgroundColor: isSelected ? colors.primary : "transparent",
                                             alignItems: "center",
                                             justifyContent: "center",
                                             marginRight: 12,
@@ -242,10 +248,10 @@ function AddMemberModal({
                                             height: 44,
                                             borderRadius: 22,
                                             marginRight: 12,
-                                            backgroundColor: "#2d2d44",
+                                            backgroundColor: colors.separator,
                                         }}
                                     />
-                                    <Text style={{ fontSize: 15, color: "#e4e6eb" }} numberOfLines={1}>
+                                    <Text style={{ fontSize: 15, color: colors.text }} numberOfLines={1}>
                                         {item.fullName || item.username}
                                     </Text>
                                 </TouchableOpacity>
@@ -276,6 +282,7 @@ function SectionRow({
     rightElement?: React.ReactNode;
     showChevron?: boolean;
 }) {
+    const colors = useThemeColors();
     return (
         <TouchableOpacity
             activeOpacity={onPress ? 0.7 : 1}
@@ -286,24 +293,25 @@ function SectionRow({
                 paddingHorizontal: 16,
                 paddingVertical: 14,
                 borderBottomWidth: 0.5,
-                borderBottomColor: "#1c1c2e",
+                borderBottomColor: colors.border,
+                backgroundColor: colors.card,
             }}
         >
             <Ionicons
                 name={icon as any}
                 size={22}
-                color={iconColor || "#8e8e93"}
+                color={iconColor || colors.textSecondary}
                 style={{ marginRight: 14, width: 24, textAlign: "center" }}
             />
             <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, color: "#e4e6eb" }}>{label}</Text>
+                <Text style={{ fontSize: 15, color: colors.text }}>{label}</Text>
                 {subtitle && (
-                    <Text style={{ fontSize: 12, color: "#7f8c8d", marginTop: 2 }}>{subtitle}</Text>
+                    <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>{subtitle}</Text>
                 )}
             </View>
             {rightElement}
             {showChevron && !rightElement && (
-                <Ionicons name="chevron-forward" size={18} color="#555" />
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             )}
         </TouchableOpacity>
     );
@@ -311,6 +319,7 @@ function SectionRow({
 
 // ─── Main GroupInfoScreen ───
 export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProps) {
+    const colors = useThemeColors();
     const [group, setGroup] = useState<GroupDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [isLeaving, setIsLeaving] = useState(false);
@@ -357,18 +366,18 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
             <SafeAreaView
                 style={{
                     flex: 1,
-                    backgroundColor: "#0c0c15",
-                    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+                    backgroundColor: colors.background,
+                    paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
                 }}
             >
                 <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
                     {loading ? (
                         <>
-                            <ActivityIndicator size="large" color="#0068FF" />
-                            <Text style={{ color: "#7f8c8d", marginTop: 8 }}>Đang tải...</Text>
+                            <ActivityIndicator size="large" color={colors.primary} />
+                            <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Đang tải...</Text>
                         </>
                     ) : (
-                        <Text style={{ color: "#7f8c8d" }}>Không tải được thông tin nhóm</Text>
+                        <Text style={{ color: colors.textSecondary }}>Không tải được thông tin nhóm</Text>
                     )}
                 </View>
             </SafeAreaView>
@@ -385,25 +394,32 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
         <SafeAreaView
             style={{
                 flex: 1,
-                backgroundColor: "#0c0c15",
-                paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+                backgroundColor: colors.background,
+                paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
             }}
         >
+            <StatusBar style={colors.statusBar} />
             {/* ── Header ── */}
             <View
                 style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    paddingHorizontal: 14,
-                    paddingVertical: 10,
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: "#2d2d44",
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.headerBg,
                 }}
             >
-                <TouchableOpacity onPress={onClose} activeOpacity={0.6} style={{ marginRight: 12 }}>
-                    <Ionicons name="chevron-back" size={26} color="#e4e6eb" />
+                <TouchableOpacity
+                    onPress={onClose}
+                    activeOpacity={0.6}
+                    style={{ paddingRight: 8, paddingVertical: 4 }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <Ionicons name="chevron-back" size={26} color={colors.headerText} />
                 </TouchableOpacity>
-                <Text style={{ fontSize: 17, fontWeight: "600", color: "#e4e6eb" }}>
+                <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
                     Tùy chọn
                 </Text>
             </View>
@@ -414,7 +430,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                 contentContainerStyle={{ paddingBottom: 40 }}
             >
                 {/* ── Avatar + Group Name ── */}
-                <View style={{ alignItems: "center", paddingVertical: 28 }}>
+                <View style={{ alignItems: "center", paddingVertical: 28, backgroundColor: colors.card }}>
                     <View style={{ position: "relative", marginBottom: 12 }}>
                         <Image
                             source={{ uri: avatarUri }}
@@ -428,22 +444,22 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                 width: 26,
                                 height: 26,
                                 borderRadius: 13,
-                                backgroundColor: "#2d2d44",
+                                backgroundColor: colors.searchBg,
                                 alignItems: "center",
                                 justifyContent: "center",
                                 borderWidth: 2,
-                                borderColor: "#0c0c15",
+                                borderColor: colors.card,
                             }}
                         >
-                            <Ionicons name="camera" size={13} color="#b0b3b8" />
+                            <Ionicons name="camera" size={13} color={colors.textSecondary} />
                         </View>
                     </View>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Text style={{ fontSize: 18, fontWeight: "700", color: "#e4e6eb" }}>
+                        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
                             {group.groupName}
                         </Text>
                         <TouchableOpacity activeOpacity={0.6}>
-                            <Ionicons name="pencil-outline" size={16} color="#8e8e93" />
+                            <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -456,7 +472,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         paddingHorizontal: 20,
                         paddingBottom: 20,
                         borderBottomWidth: 6,
-                        borderBottomColor: "#141422",
+                        borderBottomColor: colors.separator,
+                        backgroundColor: colors.card,
                     }}
                 >
                     {[
@@ -476,18 +493,18 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                     width: 44,
                                     height: 44,
                                     borderRadius: 22,
-                                    backgroundColor: "#1c1c2e",
+                                    backgroundColor: colors.searchBg,
                                     alignItems: "center",
                                     justifyContent: "center",
                                     marginBottom: 6,
                                 }}
                             >
-                                <Ionicons name={item.icon as any} size={20} color="#b0b3b8" />
+                                <Ionicons name={item.icon as any} size={20} color={colors.text} />
                             </View>
                             <Text
                                 style={{
                                     fontSize: 11,
-                                    color: "#9ca3af",
+                                    color: colors.textSecondary,
                                     textAlign: "center",
                                     lineHeight: 15,
                                 }}
@@ -506,20 +523,20 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     />
                 </View>
 
-                <View style={{ height: 6, backgroundColor: "#141422" }} />
+                <View style={{ height: 6, backgroundColor: colors.separator }} />
 
                 <SectionRow
                     icon="images-outline"
                     label="Ảnh, file, link"
                 />
 
-                <View style={{ height: 6, backgroundColor: "#141422" }} />
+                <View style={{ height: 6, backgroundColor: colors.separator }} />
 
                 <SectionRow icon="calendar-outline" label="Lịch nhóm" />
                 <SectionRow icon="pin-outline" label="Tin nhắn đã ghim" />
                 <SectionRow icon="bar-chart-outline" label="Bình chọn" />
 
-                <View style={{ height: 6, backgroundColor: "#141422" }} />
+                <View style={{ height: 6, backgroundColor: colors.separator }} />
 
                 <SectionRow
                     icon="people-outline"
@@ -532,7 +549,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     subtitle="Chưa có link nhóm"
                 />
 
-                <View style={{ height: 6, backgroundColor: "#141422" }} />
+                <View style={{ height: 6, backgroundColor: colors.separator }} />
 
                 <SectionRow
                     icon="pin-outline"
@@ -542,14 +559,14 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         <Switch
                             value={pinned}
                             onValueChange={setPinned}
-                            trackColor={{ false: "#2d2d44", true: "#0068FF" }}
+                            trackColor={{ false: colors.separator, true: colors.primary }}
                             thumbColor="#fff"
                         />
                     }
                 />
                 <SectionRow icon="eye-off-outline" label="Ẩn trò chuyện" />
 
-                <View style={{ height: 6, backgroundColor: "#141422" }} />
+                <View style={{ height: 6, backgroundColor: colors.separator }} />
 
                 {/* ── Danger zone ── */}
                 <SectionRow
@@ -565,7 +582,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         paddingHorizontal: 16,
                         paddingVertical: 14,
                         borderBottomWidth: 0.5,
-                        borderBottomColor: "#1c1c2e",
+                        borderBottomColor: colors.border,
+                        backgroundColor: colors.card,
                     }}
                 >
                     <Ionicons
@@ -585,6 +603,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         alignItems: "center",
                         paddingHorizontal: 16,
                         paddingVertical: 14,
+                        backgroundColor: colors.card,
                         opacity: isLeaving ? 0.5 : 1,
                     }}
                 >
@@ -619,8 +638,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                 <SafeAreaView
                     style={{
                         flex: 1,
-                        backgroundColor: "#0c0c15",
-                        paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+                        backgroundColor: colors.background,
+                        paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
                     }}
                 >
                     {/* Header */}
@@ -628,20 +647,22 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         style={{
                             flexDirection: "row",
                             alignItems: "center",
-                            paddingHorizontal: 14,
-                            paddingVertical: 10,
-                            borderBottomWidth: 0.5,
-                            borderBottomColor: "#2d2d44",
+                            paddingHorizontal: 16,
+                            paddingVertical: 12,
+                            borderBottomWidth: 1,
+                            borderBottomColor: colors.border,
+                            backgroundColor: colors.headerBg,
                         }}
                     >
                         <TouchableOpacity
                             onPress={() => setShowMembers(false)}
                             activeOpacity={0.6}
-                            style={{ marginRight: 12 }}
+                            style={{ paddingRight: 8, paddingVertical: 4 }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
-                            <Ionicons name="chevron-back" size={26} color="#e4e6eb" />
+                            <Ionicons name="chevron-back" size={26} color={colors.headerText} />
                         </TouchableOpacity>
-                        <Text style={{ fontSize: 17, fontWeight: "600", color: "#e4e6eb", flex: 1 }}>
+                        <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
                             Thành viên ({group.members.length})
                         </Text>
                         <TouchableOpacity
@@ -650,8 +671,9 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                 setTimeout(() => setShowAddMember(true), 200);
                             }}
                             activeOpacity={0.6}
+                            style={{ padding: 4 }}
                         >
-                            <Ionicons name="person-add-outline" size={22} color="#0068FF" />
+                            <Ionicons name="person-add-outline" size={22} color={colors.primary} />
                         </TouchableOpacity>
                     </View>
 
@@ -677,7 +699,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                         paddingHorizontal: 16,
                                         paddingVertical: 12,
                                         borderBottomWidth: 0.5,
-                                        borderBottomColor: "#1c1c2e",
+                                        borderBottomColor: colors.border,
+                                        backgroundColor: colors.card,
                                     }}
                                 >
                                     <Image
@@ -687,35 +710,35 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                             height: 48,
                                             borderRadius: 24,
                                             marginRight: 12,
-                                            backgroundColor: "#2d2d44",
+                                            backgroundColor: colors.separator,
                                         }}
                                     />
                                     <View style={{ flex: 1 }}>
                                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                                             <Text
-                                                style={{ fontSize: 15, color: "#e4e6eb", fontWeight: "500" }}
+                                                style={{ fontSize: 15, color: colors.text, fontWeight: "500" }}
                                                 numberOfLines={1}
                                             >
                                                 {member.username}
                                             </Text>
                                             {isCurrentUser && (
-                                                <Text style={{ fontSize: 12, color: "#7f8c8d" }}>(Bạn)</Text>
+                                                <Text style={{ fontSize: 12, color: colors.textSecondary }}>(Bạn)</Text>
                                             )}
                                         </View>
-                                        <Text style={{ fontSize: 12, color: "#7f8c8d", marginTop: 2 }}>
+                                        <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
                                             @{member.username}
                                         </Text>
                                     </View>
                                     {isOwnerMember && (
                                         <View
                                             style={{
-                                                backgroundColor: "#162447",
+                                                backgroundColor: colors.primary + "20",
                                                 paddingHorizontal: 10,
                                                 paddingVertical: 4,
                                                 borderRadius: 12,
                                             }}
                                         >
-                                            <Text style={{ fontSize: 11, color: "#60a5fa", fontWeight: "600" }}>
+                                            <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "600" }}>
                                                 Quản trị viên
                                             </Text>
                                         </View>

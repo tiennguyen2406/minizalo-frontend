@@ -3,6 +3,7 @@ import { View, TextInput, TouchableOpacity, Text, Platform, Alert } from "react-
 import { Ionicons, MaterialIcons, SimpleLineIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
+import { useThemeColors } from "@/shared/theme/colors";
 
 interface ChatFooterProps {
     onSend?: (message: string) => void;
@@ -17,6 +18,7 @@ interface ChatFooterProps {
 
 export default function ChatFooter({ onSend, onSendImage, onSendFile, replyTo, onCancelReply }: ChatFooterProps) {
     const [message, setMessage] = useState("");
+    const colors = useThemeColors();
 
     const handleSend = () => {
         const trimmed = message.trim();
@@ -87,31 +89,31 @@ export default function ChatFooter({ onSend, onSendImage, onSendFile, replyTo, o
     };
 
     return (
-        <View className="bg-[#1a1a1a] border-t border-[#333]" style={{ paddingBottom: 30 }}>
+        <View style={{ backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: Platform.OS === 'ios' ? 30 : 10 }}>
             {replyTo && (
                 <View
                     style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        paddingHorizontal: 20,
+                        paddingHorizontal: 16,
                         paddingTop: 8,
                         paddingBottom: 4,
                         borderBottomWidth: 1,
-                        borderBottomColor: "#374151",
+                        borderBottomColor: colors.border,
                     }}
                 >
                     <View
                         style={{
                             flex: 1,
                             borderLeftWidth: 2,
-                            borderLeftColor: "#3b82f6",
+                            borderLeftColor: colors.primary,
                             paddingLeft: 8,
                         }}
                     >
                         {replyTo.senderName && (
                             <Text
                                 style={{
-                                    color: "#93c5fd",
+                                    color: colors.primary,
                                     fontSize: 12,
                                     fontWeight: "600",
                                 }}
@@ -122,7 +124,7 @@ export default function ChatFooter({ onSend, onSendImage, onSendFile, replyTo, o
                         <Text
                             numberOfLines={1}
                             style={{
-                                color: "#e5e7eb",
+                                color: colors.text,
                                 fontSize: 12,
                             }}
                         >
@@ -134,49 +136,53 @@ export default function ChatFooter({ onSend, onSendImage, onSendFile, replyTo, o
                             onPress={onCancelReply}
                             style={{ paddingHorizontal: 8, paddingVertical: 4 }}
                         >
-                            <Ionicons name="close" size={18} color="#9ca3af" />
+                            <Ionicons name="close" size={18} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}
                 </View>
             )}
 
-            <View className="flex-row items-center px-2 py-2" style={{ paddingLeft: 20, paddingRight: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8 }}>
                 {/* Sticker Icon */}
-                <TouchableOpacity className="mr-2">
-                    <MaterialIcons name="emoji-emotions" size={26} color="#888" />
+                <TouchableOpacity style={{ marginRight: 10 }}>
+                    <MaterialIcons name="emoji-emotions" size={26} color={colors.textSecondary} />
                 </TouchableOpacity>
 
                 {/* Input Field */}
-                <View className="flex-1 mr-2">
+                <View style={{ flex: 1, marginRight: 10 }}>
                     <TextInput
                         value={message}
                         onChangeText={setMessage}
                         placeholder="Tin nhắn"
-                        placeholderTextColor="#666"
-                        className="text-base text-white py-1"
+                        placeholderTextColor={colors.textSecondary}
+                        style={{
+                            fontSize: 16,
+                            color: colors.text,
+                            paddingVertical: 6,
+                        }}
                         multiline
                         onSubmitEditing={handleSend}
                     />
                 </View>
 
                 {/* Right Icons */}
-                <View className="flex-row items-center space-x-3">
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     {message.trim().length > 0 ? (
                         <TouchableOpacity onPress={handleSend}>
-                            <Ionicons name="send" size={26} color="#0091FF" />
+                            <Ionicons name="send" size={26} color={colors.primary} />
                         </TouchableOpacity>
                     ) : (
                         <>
                             <TouchableOpacity onPress={pickFile}>
-                                <SimpleLineIcons name="options" size={22} color="#888" />
+                                <SimpleLineIcons name="options" size={22} color={colors.textSecondary} />
                             </TouchableOpacity>
 
-                            <TouchableOpacity onPress={takePhoto} style={{ marginLeft: 12 }}>
-                                <Ionicons name="camera-outline" size={26} color="#888" />
+                            <TouchableOpacity onPress={takePhoto} style={{ marginLeft: 16 }}>
+                                <Ionicons name="camera-outline" size={26} color={colors.textSecondary} />
                             </TouchableOpacity>
 
-                            <TouchableOpacity onPress={pickImage} style={{ marginLeft: 12 }}>
-                                <Ionicons name="image-outline" size={26} color="#888" />
+                            <TouchableOpacity onPress={pickImage} style={{ marginLeft: 16 }}>
+                                <Ionicons name="image-outline" size={26} color={colors.textSecondary} />
                             </TouchableOpacity>
                         </>
                     )}

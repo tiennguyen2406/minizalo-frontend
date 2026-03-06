@@ -4,13 +4,13 @@ import {
     Text,
     TouchableOpacity,
     ScrollView,
-    StatusBar,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { PROFILE_COLORS } from "./styles";
 import type { UserProfile } from "@/shared/services/types";
+import { useThemeColors, ThemeColors } from "@/shared/theme/colors";
 
 interface ProfileSettingsScreenProps {
     user?: UserProfile | null;
@@ -20,9 +20,10 @@ interface SettingsItemProps {
     label: string;
     onPress?: () => void;
     isHeader?: boolean;
+    colors: ThemeColors;
 }
 
-function SettingsItem({ label, onPress, isHeader }: SettingsItemProps) {
+function SettingsItem({ label, onPress, isHeader, colors }: SettingsItemProps) {
     if (isHeader) {
         return (
             <View
@@ -31,12 +32,12 @@ function SettingsItem({ label, onPress, isHeader }: SettingsItemProps) {
                     paddingTop: 16,
                     paddingBottom: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#2a2a2a",
+                    borderBottomColor: colors.border,
                 }}
             >
                 <Text
                     style={{
-                        color: PROFILE_COLORS.primary,
+                        color: colors.primary,
                         fontSize: 15,
                         fontWeight: "600",
                     }}
@@ -54,13 +55,14 @@ function SettingsItem({ label, onPress, isHeader }: SettingsItemProps) {
             style={{
                 paddingHorizontal: 16,
                 paddingVertical: 14,
+                backgroundColor: colors.card,
                 borderBottomWidth: 0.5,
-                borderBottomColor: "#2a2a2a",
+                borderBottomColor: colors.border,
             }}
         >
             <Text
                 style={{
-                    color: PROFILE_COLORS.text,
+                    color: colors.text,
                     fontSize: 15,
                 }}
             >
@@ -72,46 +74,53 @@ function SettingsItem({ label, onPress, isHeader }: SettingsItemProps) {
 
 export default function ProfileSettingsScreen({ user }: ProfileSettingsScreenProps) {
     const router = useRouter();
+    const colors = useThemeColors();
 
     const displayName =
         (user?.displayName?.trim() || user?.username?.trim() || "").trim() || "Người dùng";
 
     return (
-        <SafeAreaView
-            style={{ flex: 1, backgroundColor: PROFILE_COLORS.background }}
-            edges={["top"]}
-        >
-            <StatusBar barStyle="light-content" backgroundColor={PROFILE_COLORS.background} />
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
 
-            {/* Header */}
-            <View
-                style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 12,
-                    paddingVertical: 12,
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: "#2a2a2a",
-                }}
-            >
-                <TouchableOpacity
-                    onPress={() => router.navigate("/(tabs)/personal-profile" as any)}
-                    style={{ padding: 4, marginRight: 8 }}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons name="chevron-back" size={24} color={PROFILE_COLORS.text} />
-                </TouchableOpacity>
-                <Text
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
+                {/* Header */}
+                <View
                     style={{
-                        fontSize: 17,
-                        fontWeight: "600",
-                        color: PROFILE_COLORS.text,
-                        flex: 1,
+                        height: 52,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 16,
+                        backgroundColor: colors.headerBg,
+                        borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                        borderBottomColor: colors.border,
                     }}
                 >
-                    {displayName}
-                </Text>
-            </View>
+                    <TouchableOpacity
+                        onPress={() => {
+                            if (router.canGoBack()) {
+                                router.back();
+                            } else {
+                                router.replace("/(tabs)/personal-profile");
+                            }
+                        }}
+                        style={{ paddingRight: 8, paddingVertical: 4 }}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                    </TouchableOpacity>
+                    <Text
+                        style={{
+                            fontSize: 18,
+                            fontWeight: "600",
+                            color: colors.headerText,
+                            flex: 1,
+                        }}
+                    >
+                        {displayName}
+                    </Text>
+                </View>
+            </SafeAreaView>
 
             {/* Menu list */}
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -119,24 +128,25 @@ export default function ProfileSettingsScreen({ user }: ProfileSettingsScreenPro
                 <SettingsItem
                     label="Thông tin"
                     onPress={() => router.push("/(tabs)/account-edit")}
+                    colors={colors}
                 />
-                <SettingsItem label="Đổi ảnh đại diện" />
-                <SettingsItem label="Đổi ảnh bìa" />
-                <SettingsItem label="Cập nhật giới thiệu bản thân" />
-                <SettingsItem label="Ví của tôi" />
+                <SettingsItem label="Đổi ảnh đại diện" colors={colors} />
+                <SettingsItem label="Đổi ảnh bìa" colors={colors} />
+                <SettingsItem label="Cập nhật giới thiệu bản thân" colors={colors} />
+                <SettingsItem label="Ví của tôi" colors={colors} />
 
                 {/* Separator */}
-                <View style={{ height: 8, backgroundColor: "#1c1c1e" }} />
+                <View style={{ height: 8, backgroundColor: colors.separator }} />
 
                 {/* Nhóm 2: Cài đặt */}
-                <SettingsItem label="Cài đặt" isHeader />
-                <SettingsItem label="Mã QR của tôi" />
-                <SettingsItem label="Quyền riêng tư" />
-                <SettingsItem label="Quản lý tài khoản" />
-                <SettingsItem label="Cài đặt chung" />
+                <SettingsItem label="Cài đặt" isHeader colors={colors} />
+                <SettingsItem label="Mã QR của tôi" colors={colors} />
+                <SettingsItem label="Quyền riêng tư" colors={colors} />
+                <SettingsItem label="Quản lý tài khoản" colors={colors} />
+                <SettingsItem label="Cài đặt chung" colors={colors} />
 
                 <View style={{ height: 48 }} />
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 }

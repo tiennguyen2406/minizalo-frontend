@@ -4,9 +4,8 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    SafeAreaView,
     Platform,
-    StatusBar,
+    StatusBar as RNStatusBar,
     FlatList,
     Image,
     Dimensions,
@@ -14,23 +13,16 @@ import {
     Modal,
     Linking
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { chatService } from "@/shared/services/chatService";
 import type { MessageDynamo, Attachment } from "@/shared/services/chatService";
+import { useThemeColors } from "@/shared/theme/colors";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const COLUMN_COUNT = 3;
 const IMAGE_SIZE = SCREEN_WIDTH / COLUMN_COUNT;
-
-const COLORS = {
-    bg: "#1a1a1a",
-    card: "#1a1a1a",
-    text: "#fff",
-    textSecondary: "#aaa",
-    border: "#262626",
-    blue: "#3b82f6",
-    tabInactive: "#555",
-};
 
 interface MediaStorageScreenProps {
     roomId: string;
@@ -60,6 +52,7 @@ function formatBytes(bytes: number, decimals = 2) {
 }
 
 export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScreenProps) {
+    const colors = useThemeColors();
     const [tab, setTab] = useState<"IMAGE" | "FILE" | "LINK">("IMAGE");
     const [messages, setMessages] = useState<MessageDynamo[]>([]);
     const [loading, setLoading] = useState(true);
@@ -70,18 +63,11 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
         try {
             let allMessages: MessageDynamo[] = [];
             let lastKey: string | undefined = undefined;
-            // Lấy tối đa khoảng 100 tin nhắn gần nhất để phòng trường hợp quá tải,
-            // (Thực tế Zalo sẽ load dần hoặc load nhiều hơn)
+            // Lấy tối đa khoảng 100 tin nhắn gần nhất
             for (let i = 0; i < 5; i++) {
                 const res = await chatService.getChatHistory(roomId, 50, lastKey);
                 allMessages = [...allMessages, ...(res.messages || [])];
-
-                // Cập nhật lastKey (phụ thuộc vào cấu trúc trả về, ở đây giả sử lastEvaluatedKey)
-                // Nhưng API backend của bạn có vẻ không trả về lastKey rõ ràng trong response object dựa trên code.
-                // Thường ta sẽ dùng messageId hoặc createdAt của tin nhắn cuối làm lastKey. 
-                // Tạm thời để đơn giản: lấy tất cả những gì api trả về trong 1 lần nếu không phân trang.
                 if (res.lastEvaluatedKey) {
-                    // API backend thực tế serialize Object Map sang JSON, ta lấy toString hoặc stringified.
                     lastKey = typeof res.lastEvaluatedKey === "string" ? res.lastEvaluatedKey : JSON.stringify(res.lastEvaluatedKey);
                 } else {
                     break;
@@ -128,7 +114,6 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             }
         });
 
-        // Sắp xếp thời gian giảm dần (mới nhất lên đầu)
         const sortByTime = (a: any, b: any) => {
             return new Date(b.msg.createdAt).getTime() - new Date(a.msg.createdAt).getTime();
         };
@@ -141,14 +126,14 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
     }, [messages]);
 
     const renderTabHeader = () => (
-        <View style={s.tabContainer}>
+        <View style={[s.tabContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             {(["IMAGE", "FILE", "LINK"] as const).map((t) => (
                 <TouchableOpacity
                     key={t}
-                    style={[s.tabBtn, tab === t && s.tabBtnActive]}
+                    style={[s.tabBtn, tab === t && { borderBottomColor: colors.primary }]}
                     onPress={() => setTab(t)}
                 >
-                    <Text style={[s.tabText, tab === t && s.tabTextActive]}>
+                    <Text style={[s.tabText, { color: colors.textSecondary }, tab === t && { color: colors.text, fontWeight: "bold" }]}>
                         {t === "IMAGE" ? "Ảnh" : t === "FILE" ? "File" : "Link"}
                     </Text>
                 </TouchableOpacity>
@@ -176,7 +161,7 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             )}
             ListEmptyComponent={
                 <View style={s.emptyContainer}>
-                    <Text style={s.emptyText}>Chưa có ảnh nào được gửi</Text>
+                    <Text style={[s.emptyText, { color: colors.textSecondary }]}>Chưa có ảnh nào được gửi</Text>
                 </View>
             }
         />
@@ -189,21 +174,21 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             contentContainerStyle={{ padding: 16 }}
             renderItem={({ item }) => (
                 <TouchableOpacity style={s.fileRow} onPress={() => Linking.openURL(getImageUrl(item.att.url))}>
-                    <View style={s.fileIcon}>
-                        <Ionicons name="document-text-outline" size={32} color={COLORS.text} />
+                    <View style={[s.fileIcon, { backgroundColor: colors.searchBg }]}>
+                        <Ionicons name="document-text-outline" size={32} color={colors.text} />
                     </View>
                     <View style={s.fileInfo}>
-                        <Text style={s.fileName} numberOfLines={2}>
+                        <Text style={[s.fileName, { color: colors.text }]} numberOfLines={2}>
                             {item.att.filename || item.att.name || "Tệp đính kèm"}
                         </Text>
-                        <Text style={s.fileSize}>{formatBytes(item.att.size)}</Text>
+                        <Text style={[s.fileSize, { color: colors.textSecondary }]}>{formatBytes(item.att.size)}</Text>
                     </View>
-                    <Ionicons name="download-outline" size={24} color={COLORS.textSecondary} />
+                    <Ionicons name="download-outline" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
             )}
             ListEmptyComponent={
                 <View style={s.emptyContainer}>
-                    <Text style={s.emptyText}>Chưa có file nào được gửi</Text>
+                    <Text style={[s.emptyText, { color: colors.textSecondary }]}>Chưa có file nào được gửi</Text>
                 </View>
             }
         />
@@ -216,11 +201,11 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             contentContainerStyle={{ padding: 16 }}
             renderItem={({ item }) => (
                 <TouchableOpacity style={s.linkRow} onPress={() => Linking.openURL(item.url)}>
-                    <View style={s.linkIcon}>
-                        <Ionicons name="link-outline" size={24} color={COLORS.text} />
+                    <View style={[s.linkIcon, { backgroundColor: colors.searchBg }]}>
+                        <Ionicons name="link-outline" size={24} color={colors.text} />
                     </View>
                     <View style={s.linkInfo}>
-                        <Text style={s.linkText} numberOfLines={2}>
+                        <Text style={[s.linkText, { color: colors.primary }]} numberOfLines={2}>
                             {item.url}
                         </Text>
                     </View>
@@ -228,20 +213,26 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             )}
             ListEmptyComponent={
                 <View style={s.emptyContainer}>
-                    <Text style={s.emptyText}>Chưa có link nào được gửi</Text>
+                    <Text style={[s.emptyText, { color: colors.textSecondary }]}>Chưa có link nào được gửi</Text>
                 </View>
             }
         />
     );
 
     return (
-        <SafeAreaView style={s.container}>
+        <SafeAreaView style={[s.container, { backgroundColor: colors.background }]} edges={["top"]}>
+            <StatusBar style={colors.statusBar} />
             {/* Header */}
-            <View style={s.header}>
-                <TouchableOpacity onPress={onClose} style={s.backBtn}>
-                    <Ionicons name="chevron-back" size={28} color="white" />
+            <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+                <TouchableOpacity
+                    onPress={onClose}
+                    style={s.backBtn}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <Ionicons name="chevron-back" size={26} color={colors.headerText} />
                 </TouchableOpacity>
-                <Text style={s.headerTitle}>Ảnh, file, link</Text>
+                <Text style={[s.headerTitle, { color: colors.headerText }]}>Ảnh, file, link</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -249,7 +240,7 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
 
             {loading ? (
                 <View style={[s.emptyContainer, { flex: 1 }]}>
-                    <ActivityIndicator size="large" color={COLORS.blue} />
+                    <ActivityIndicator size="large" color={colors.primary} />
                 </View>
             ) : (
                 <View style={{ flex: 1 }}>
@@ -259,7 +250,6 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                 </View>
             )}
 
-            {/* Preview ảnh full màn hình (Tái sử dụng code của MessageBubble, đơn giản hóa) */}
             <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
                 <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center" }}>
                     <TouchableOpacity
@@ -284,26 +274,20 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
 const s = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.bg,
-        paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
     },
     header: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        height: 50,
+        height: 52,
         paddingHorizontal: 8,
-        backgroundColor: COLORS.card,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
     backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-    headerTitle: { color: "white", fontSize: 18, fontWeight: "600" },
+    headerTitle: { fontSize: 18, fontWeight: "600" },
     tabContainer: {
         flexDirection: "row",
-        backgroundColor: COLORS.card,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
     tabBtn: {
         flex: 1,
@@ -312,17 +296,9 @@ const s = StyleSheet.create({
         borderBottomWidth: 2,
         borderBottomColor: "transparent",
     },
-    tabBtnActive: {
-        borderBottomColor: COLORS.blue,
-    },
     tabText: {
         fontSize: 16,
-        color: COLORS.tabInactive,
         fontWeight: "500",
-    },
-    tabTextActive: {
-        color: COLORS.text,
-        fontWeight: "bold",
     },
     emptyContainer: {
         padding: 40,
@@ -330,21 +306,17 @@ const s = StyleSheet.create({
         justifyContent: "center",
     },
     emptyText: {
-        color: COLORS.textSecondary,
         fontSize: 15,
     },
     fileRow: {
         flexDirection: "row",
         alignItems: "center",
         paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
     fileIcon: {
         width: 50,
         height: 50,
         borderRadius: 8,
-        backgroundColor: "#2c2c2e",
         alignItems: "center",
         justifyContent: "center",
         marginRight: 12,
@@ -355,25 +327,20 @@ const s = StyleSheet.create({
     },
     fileName: {
         fontSize: 16,
-        color: COLORS.text,
         marginBottom: 4,
     },
     fileSize: {
         fontSize: 13,
-        color: COLORS.textSecondary,
     },
     linkRow: {
         flexDirection: "row",
         alignItems: "center",
         paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
     linkIcon: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: "#2c2c2e",
         alignItems: "center",
         justifyContent: "center",
         marginRight: 12,
@@ -383,7 +350,6 @@ const s = StyleSheet.create({
     },
     linkText: {
         fontSize: 15,
-        color: COLORS.blue,
         textDecorationLine: "underline",
     },
 });

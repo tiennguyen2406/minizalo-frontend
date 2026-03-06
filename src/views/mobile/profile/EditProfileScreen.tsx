@@ -6,55 +6,61 @@ import {
     Image,
     TouchableOpacity,
     ScrollView,
-    StatusBar,
+    Platform,
     Alert,
     Modal,
+    StyleSheet,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { profileStyles, PROFILE_COLORS } from "./styles";
+import { Ionicons } from "@expo/vector-icons";
+import { profileStyles } from "./styles";
 import type { UserProfile, UserProfileUpdateRequest } from "@/shared/services/types";
 import type { DimensionValue } from "react-native";
+import { useThemeColors, ThemeColors } from "@/shared/theme/colors";
 
-const editStyles = {
+const createEditStyles = (colors: ThemeColors) => StyleSheet.create({
     header: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        justifyContent: "space-between" as const,
+        height: 52,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         paddingHorizontal: 16,
-        paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: PROFILE_COLORS.border,
+        borderBottomColor: colors.border,
+        backgroundColor: colors.headerBg,
     },
     backButton: {
-        padding: 8,
+        paddingVertical: 8,
+        paddingRight: 8,
     },
     headerTitle: {
         fontSize: 18,
-        fontWeight: "600" as const,
-        color: PROFILE_COLORS.text,
+        fontWeight: "600",
+        color: colors.headerText,
     },
     saveButton: {
         padding: 8,
     },
     saveButtonText: {
         fontSize: 16,
-        fontWeight: "600" as const,
-        color: PROFILE_COLORS.primary,
+        fontWeight: "600",
+        color: colors.headerText,
     },
     formContent: {
         padding: 16,
         paddingBottom: 24,
     },
     avatarSection: {
-        alignItems: "center" as const,
+        alignItems: "center",
         marginBottom: 24,
     },
     avatarLarge: {
         width: 96,
         height: 96,
         borderRadius: 48,
-        backgroundColor: PROFILE_COLORS.card,
+        backgroundColor: colors.card,
     },
     changeAvatar: {
         marginTop: 12,
@@ -63,27 +69,27 @@ const editStyles = {
     },
     changeAvatarText: {
         fontSize: 14,
-        color: PROFILE_COLORS.primary,
-        fontWeight: "500" as const,
+        color: colors.primary,
+        fontWeight: "500",
     },
     field: {
         marginBottom: 20,
     },
     label: {
         fontSize: 14,
-        color: PROFILE_COLORS.textSecondary,
+        color: colors.textSecondary,
         marginBottom: 8,
     },
     input: {
-        backgroundColor: PROFILE_COLORS.searchBg,
+        backgroundColor: colors.searchBg,
         borderRadius: 10,
         paddingHorizontal: 14,
         paddingVertical: 12,
         fontSize: 16,
-        color: PROFILE_COLORS.text,
+        color: colors.text,
     },
     genderRow: {
-        flexDirection: "row" as const,
+        flexDirection: "row",
         gap: 12,
     },
     genderOption: {
@@ -91,84 +97,83 @@ const editStyles = {
         paddingVertical: 10,
         borderRadius: 999,
         borderWidth: 1,
-        borderColor: PROFILE_COLORS.border,
-        alignItems: "center" as const,
-        justifyContent: "center" as const,
+        borderColor: colors.border,
+        alignItems: "center",
+        justifyContent: "center",
     },
     genderOptionActive: {
-        borderColor: PROFILE_COLORS.primary,
-        backgroundColor: "#1d283a",
+        borderColor: "#0068FF", // primary
     },
     genderText: {
         fontSize: 14,
-        color: PROFILE_COLORS.textSecondary,
-        fontWeight: "500" as const,
+        color: colors.textSecondary,
+        fontWeight: "500",
     },
     genderTextActive: {
-        color: PROFILE_COLORS.text,
+        color: colors.primary,
     },
     dobDisplay: {
-        backgroundColor: PROFILE_COLORS.searchBg,
+        backgroundColor: colors.searchBg,
         borderRadius: 10,
         paddingHorizontal: 14,
         paddingVertical: 12,
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        justifyContent: "space-between" as const,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
     },
     dobText: {
         fontSize: 16,
-        color: PROFILE_COLORS.text,
+        color: colors.text,
     },
     modalBackdrop: {
         flex: 1,
         backgroundColor: "rgba(0,0,0,0.6)",
-        justifyContent: "center" as const,
-        alignItems: "center" as const,
+        justifyContent: "center",
+        alignItems: "center",
     },
     modalContent: {
         width: "86%" as DimensionValue,
         borderRadius: 16,
-        backgroundColor: "#18181b",
+        backgroundColor: colors.card,
         padding: 16,
     },
     modalTitle: {
         fontSize: 16,
-        fontWeight: "600" as const,
-        color: PROFILE_COLORS.text,
+        fontWeight: "600",
+        color: colors.text,
         marginBottom: 12,
-        textAlign: "center" as const,
+        textAlign: "center",
     },
     dobRow: {
-        flexDirection: "row" as const,
-        justifyContent: "space-between" as const,
+        flexDirection: "row",
+        justifyContent: "space-between",
         marginBottom: 16,
     },
     dobColumn: {
         flex: 1,
-        alignItems: "center" as const,
+        alignItems: "center",
     },
     dobLabel: {
         fontSize: 12,
-        color: PROFILE_COLORS.textSecondary,
+        color: colors.textSecondary,
         marginBottom: 4,
     },
     dobValueBox: {
         paddingVertical: 8,
         paddingHorizontal: 10,
         borderRadius: 10,
-        backgroundColor: PROFILE_COLORS.searchBg,
+        backgroundColor: colors.searchBg,
         minWidth: 64,
-        alignItems: "center" as const,
+        alignItems: "center",
     },
     dobValueText: {
         fontSize: 16,
-        color: PROFILE_COLORS.text,
-        fontWeight: "500" as const,
+        color: colors.text,
+        fontWeight: "500",
     },
     dobAdjustRow: {
-        flexDirection: "row" as const,
-        justifyContent: "space-between" as const,
+        flexDirection: "row",
+        justifyContent: "space-between",
         marginTop: 8,
         width: "100%" as DimensionValue,
     },
@@ -177,12 +182,12 @@ const editStyles = {
         paddingVertical: 6,
         marginHorizontal: 4,
         borderRadius: 999,
-        backgroundColor: "#27272f",
-        alignItems: "center" as const,
+        backgroundColor: colors.background === "#ffffff" ? "#f3f4f6" : "#27272f",
+        alignItems: "center",
     },
     modalActions: {
-        flexDirection: "row" as const,
-        justifyContent: "flex-end" as const,
+        flexDirection: "row",
+        justifyContent: "flex-end",
         gap: 8,
     },
     modalButton: {
@@ -190,21 +195,21 @@ const editStyles = {
         paddingHorizontal: 14,
         borderRadius: 999,
         borderWidth: 1,
-        borderColor: PROFILE_COLORS.border,
+        borderColor: colors.border,
     },
     modalButtonPrimary: {
-        borderColor: PROFILE_COLORS.primary,
-        backgroundColor: "#1d283a",
+        borderColor: colors.primary,
+        backgroundColor: colors.primary,
     },
     modalButtonText: {
         fontSize: 14,
-        color: PROFILE_COLORS.textSecondary,
+        color: colors.textSecondary,
     },
     modalButtonTextPrimary: {
-        color: PROFILE_COLORS.text,
-        fontWeight: "600" as const,
+        color: "#fff",
+        fontWeight: "600",
     },
-};
+});
 
 interface EditProfileScreenProps {
     user?: UserProfile | null;
@@ -213,6 +218,9 @@ interface EditProfileScreenProps {
 
 export default function EditProfileScreen({ user, onSave }: EditProfileScreenProps) {
     const router = useRouter();
+    const colors = useThemeColors();
+    const editStyles = createEditStyles(colors);
+
     const [displayName, setDisplayName] = useState(user?.displayName ?? user?.username ?? "");
     const [statusMessage, setStatusMessage] = useState(user?.statusMessage ?? "");
     const [phone, setPhone] = useState(user?.phone ?? "");
@@ -278,27 +286,30 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
     };
 
     return (
-        <SafeAreaView style={profileStyles.container} edges={["top"]}>
-            <StatusBar barStyle="light-content" backgroundColor={PROFILE_COLORS.background} />
-
-            <View style={editStyles.header}>
-                <TouchableOpacity
-                    style={editStyles.backButton}
-                    onPress={() => router.navigate("/(tabs)/profile-settings" as any)}
-                >
-                    <Text style={{ color: PROFILE_COLORS.text, fontSize: 20 }}>←</Text>
-                </TouchableOpacity>
-                <Text style={editStyles.headerTitle}>Chỉnh sửa thông tin</Text>
-                <TouchableOpacity
-                    style={editStyles.saveButton}
-                    onPress={handleSave}
-                    disabled={saving}
-                >
-                    <Text style={editStyles.saveButtonText}>
-                        {saving ? "..." : "Lưu"}
-                    </Text>
-                </TouchableOpacity>
-            </View>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
+                <View style={editStyles.header}>
+                    <TouchableOpacity
+                        style={editStyles.backButton}
+                        onPress={() => router.back()}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                    </TouchableOpacity>
+                    <Text style={editStyles.headerTitle}>Chỉnh sửa thông tin</Text>
+                    <TouchableOpacity
+                        style={editStyles.saveButton}
+                        onPress={handleSave}
+                        disabled={saving}
+                    >
+                        <Text style={editStyles.saveButtonText}>
+                            {saving ? "..." : "Lưu"}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
 
             <ScrollView
                 style={{ flex: 1 }}
@@ -308,7 +319,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                 <View style={editStyles.avatarSection}>
                     {user?.avatarUrl ? (
                         <Image
-                            source={{ uri: user.avatarUrl }}
+                            source={{ uri: user.avatarUrl as string }}
                             style={editStyles.avatarLarge}
                         />
                     ) : (
@@ -318,12 +329,13 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                 {
                                     alignItems: "center",
                                     justifyContent: "center",
+                                    backgroundColor: colors.searchBg,
                                 },
                             ]}
                         >
                             <Text
                                 style={{
-                                    color: PROFILE_COLORS.text,
+                                    color: colors.text,
                                     fontSize: 32,
                                     fontWeight: "600",
                                 }}
@@ -344,7 +356,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                         value={displayName}
                         onChangeText={setDisplayName}
                         placeholder="Nhập tên hiển thị"
-                        placeholderTextColor={PROFILE_COLORS.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                     />
                 </View>
 
@@ -355,7 +367,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                         value={statusMessage}
                         onChangeText={setStatusMessage}
                         placeholder="Tin nhắn trạng thái"
-                        placeholderTextColor={PROFILE_COLORS.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                     />
                 </View>
 
@@ -366,7 +378,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                         value={phone}
                         onChangeText={setPhone}
                         placeholder="Số điện thoại"
-                        placeholderTextColor={PROFILE_COLORS.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         keyboardType="phone-pad"
                     />
                 </View>
@@ -382,6 +394,9 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                     style={[
                                         editStyles.genderOption,
                                         active && editStyles.genderOptionActive,
+                                        active && {
+                                            backgroundColor: colors.background === "#000000" ? "#1d283a" : "#eef2ff"
+                                        }
                                     ]}
                                     onPress={() => setGender(value)}
                                     activeOpacity={0.8}
@@ -410,7 +425,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                         <Text style={editStyles.dobText}>
                             {dateOfBirth || "Chọn ngày sinh"}
                         </Text>
-                        <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 12 }}>
+                        <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "500" }}>
                             Thay đổi
                         </Text>
                     </TouchableOpacity>
@@ -423,7 +438,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                         value={businessDescription}
                         onChangeText={setBusinessDescription}
                         placeholder="Giới thiệu ngắn gọn về bạn"
-                        placeholderTextColor={PROFILE_COLORS.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         multiline
                         numberOfLines={4}
                     />
@@ -457,7 +472,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                             setDobDay((d) => (d > 1 ? d - 1 : 1))
                                         }
                                     >
-                                        <Text style={editStyles.modalButtonText}>-</Text>
+                                        <Text style={{ color: colors.text, fontSize: 18 }}>-</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={editStyles.dobAdjustButton}
@@ -467,7 +482,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                             )
                                         }
                                     >
-                                        <Text style={editStyles.modalButtonText}>+</Text>
+                                        <Text style={{ color: colors.text, fontSize: 18 }}>+</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -487,7 +502,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                             setDobMonth((m) => (m > 1 ? m - 1 : 1))
                                         }
                                     >
-                                        <Text style={editStyles.modalButtonText}>-</Text>
+                                        <Text style={{ color: colors.text, fontSize: 18 }}>-</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={editStyles.dobAdjustButton}
@@ -497,7 +512,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                             )
                                         }
                                     >
-                                        <Text style={editStyles.modalButtonText}>+</Text>
+                                        <Text style={{ color: colors.text, fontSize: 18 }}>+</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -517,7 +532,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                             setDobYear((y) => Math.max(1900, y - 1))
                                         }
                                     >
-                                        <Text style={editStyles.modalButtonText}>-</Text>
+                                        <Text style={{ color: colors.text, fontSize: 18 }}>-</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={editStyles.dobAdjustButton}
@@ -527,7 +542,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                             )
                                         }
                                     >
-                                        <Text style={editStyles.modalButtonText}>+</Text>
+                                        <Text style={{ color: colors.text, fontSize: 18 }}>+</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -566,6 +581,6 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                     </View>
                 </View>
             </Modal>
-        </SafeAreaView>
+        </View>
     );
 }

@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, FlatList, Alert } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { PROFILE_COLORS } from "./styles";
 import friendService from "@/shared/services/friendService";
 import type { FriendResponseDto } from "@/shared/services/types";
+import { useThemeColors } from "@/shared/theme/colors";
 
 export default function BlockedListScreen() {
     const router = useRouter();
+    const colors = useThemeColors();
     const [blocked, setBlocked] = useState<FriendResponseDto[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export default function BlockedListScreen() {
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
+                    borderBottomColor: colors.border,
                 }}
             >
                 <View
@@ -84,7 +86,7 @@ export default function BlockedListScreen() {
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: "#27272f",
+                        backgroundColor: colors.searchBg,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
@@ -92,7 +94,7 @@ export default function BlockedListScreen() {
                 >
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 16,
                             fontWeight: "600",
                         }}
@@ -103,7 +105,7 @@ export default function BlockedListScreen() {
                 <View style={{ flex: 1 }}>
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 15,
                             fontWeight: "500",
                         }}
@@ -120,12 +122,12 @@ export default function BlockedListScreen() {
                         paddingVertical: 6,
                         borderRadius: 999,
                         borderWidth: 1,
-                        borderColor: PROFILE_COLORS.primary,
+                        borderColor: colors.primary,
                     }}
                 >
                     <Text
                         style={{
-                            color: PROFILE_COLORS.primary,
+                            color: colors.primary,
                             fontSize: 12,
                             fontWeight: "500",
                         }}
@@ -138,42 +140,51 @@ export default function BlockedListScreen() {
     };
 
     return (
-        <SafeAreaView
-            style={{ flex: 1, backgroundColor: PROFILE_COLORS.background }}
-            edges={["top"]}
-        >
-            {/* Header */}
-            <View
-                style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: "#262626",
-                }}
-            >
-                <TouchableOpacity
-                    onPress={() => router.replace("/(tabs)/account")}
-                    style={{ paddingRight: 8, paddingVertical: 4 }}
-                    activeOpacity={0.8}
-                >
-                    <Ionicons
-                        name="chevron-back"
-                        size={22}
-                        color={PROFILE_COLORS.text}
-                    />
-                </TouchableOpacity>
-                <Text
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
+                {/* Header */}
+                <View
                     style={{
-                        color: PROFILE_COLORS.text,
-                        fontSize: 18,
-                        fontWeight: "600",
+                        height: 52,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 16,
+                        borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                        borderBottomColor: colors.border,
+                        backgroundColor: colors.headerBg,
+                        gap: 12,
                     }}
                 >
-                    Danh sách chặn tin nhắn
-                </Text>
-            </View>
+                    <TouchableOpacity
+                        onPress={() => {
+                            if (router.canGoBack()) {
+                                router.back();
+                            } else {
+                                router.replace("/(tabs)/settings");
+                            }
+                        }}
+                        style={{ paddingRight: 8, paddingVertical: 4 }}
+                        activeOpacity={0.8}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <Ionicons
+                            name="chevron-back"
+                            size={26}
+                            color={colors.headerText}
+                        />
+                    </TouchableOpacity>
+                    <Text
+                        style={{
+                            color: colors.headerText,
+                            fontSize: 18,
+                            fontWeight: "600",
+                        }}
+                    >
+                        Danh sách chặn tin nhắn
+                    </Text>
+                </View>
+            </SafeAreaView>
 
             {error && (
                 <View
@@ -204,7 +215,7 @@ export default function BlockedListScreen() {
                 >
                     <Text
                         style={{
-                            color: PROFILE_COLORS.textSecondary,
+                            color: colors.textSecondary,
                             fontSize: 13,
                         }}
                     >
@@ -222,7 +233,7 @@ export default function BlockedListScreen() {
                 >
                     <Text
                         style={{
-                            color: PROFILE_COLORS.textSecondary,
+                            color: colors.textSecondary,
                             fontSize: 14,
                             textAlign: "center",
                         }}
@@ -237,7 +248,7 @@ export default function BlockedListScreen() {
                     renderItem={renderItem}
                 />
             )}
-        </SafeAreaView>
+        </View>
     );
 }
 

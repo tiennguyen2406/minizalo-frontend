@@ -5,18 +5,19 @@ import {
     Image,
     TouchableOpacity,
     ScrollView,
-    StatusBar,
     Dimensions,
     Modal,
     TextInput,
     Alert,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { PROFILE_COLORS } from "./styles";
+
 import type { UserProfile } from "@/shared/services/types";
 import { useUserStore } from "@/shared/store/userStore";
+import { useThemeColors } from "@/shared/theme/colors";
 
 const COVER_HEIGHT = 240;
 const AVATAR_SIZE = 100;
@@ -28,6 +29,7 @@ interface PersonalProfileScreenProps {
 export default function PersonalProfileScreen({ user }: PersonalProfileScreenProps) {
     const router = useRouter();
     const { updateProfile } = useUserStore();
+    const colors = useThemeColors();
 
     const displayName =
         (user?.displayName?.trim() || user?.username?.trim() || "").trim() || "Người dùng";
@@ -58,8 +60,8 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: PROFILE_COLORS.background }}>
-            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style="light" />
 
             <ScrollView
                 style={{ flex: 1 }}
@@ -104,18 +106,19 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                     >
                         <View
                             style={{
+                                height: 52,
                                 flexDirection: "row",
                                 alignItems: "center",
                                 justifyContent: "space-between",
                                 paddingHorizontal: 8,
-                                paddingVertical: 6,
                             }}
                         >
                             {/* Left: Back button */}
                             <TouchableOpacity
-                                onPress={() => router.replace("/(tabs)/account")}
+                                onPress={() => router.back()}
                                 style={{ padding: 8 }}
                                 activeOpacity={0.7}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                             >
                                 <Ionicons name="chevron-back" size={26} color="#fff" />
                             </TouchableOpacity>
@@ -171,8 +174,8 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                     height: AVATAR_SIZE,
                                     borderRadius: AVATAR_SIZE / 2,
                                     borderWidth: 3,
-                                    borderColor: PROFILE_COLORS.background,
-                                    backgroundColor: PROFILE_COLORS.card,
+                                    borderColor: colors.background,
+                                    backgroundColor: colors.card,
                                 }}
                             />
                         ) : (
@@ -182,15 +185,15 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                     height: AVATAR_SIZE,
                                     borderRadius: AVATAR_SIZE / 2,
                                     borderWidth: 3,
-                                    borderColor: PROFILE_COLORS.background,
-                                    backgroundColor: PROFILE_COLORS.card,
+                                    borderColor: colors.background,
+                                    backgroundColor: colors.card,
                                     alignItems: "center",
                                     justifyContent: "center",
                                 }}
                             >
                                 <Text
                                     style={{
-                                        color: PROFILE_COLORS.text,
+                                        color: colors.text,
                                         fontSize: 38,
                                         fontWeight: "600",
                                     }}
@@ -208,7 +211,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                         style={{
                             fontSize: 22,
                             fontWeight: "700",
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             textAlign: "center",
                         }}
                     >
@@ -218,7 +221,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                         <Text
                             style={{
                                 fontSize: 14,
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 marginTop: 6,
                                 textAlign: "center",
                             }}
@@ -237,7 +240,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                             <Text
                                 style={{
                                     fontSize: 14,
-                                    color: PROFILE_COLORS.textSecondary,
+                                    color: colors.textSecondary,
                                     textAlign: "center",
                                     lineHeight: 20,
                                 }}
@@ -254,7 +257,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                             <Text
                                 style={{
                                     fontSize: 14,
-                                    color: PROFILE_COLORS.primary,
+                                    color: colors.primary,
                                     textAlign: "center",
                                     fontWeight: "500",
                                 }}
@@ -288,17 +291,17 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                             style={{
                                 flexDirection: "row",
                                 alignItems: "center",
-                                backgroundColor: "#1c1c1e",
+                                backgroundColor: colors.searchBg,
                                 borderRadius: 20,
                                 paddingHorizontal: 14,
                                 paddingVertical: 10,
                                 gap: 6,
                             }}
                         >
-                            <Ionicons name={item.icon} size={18} color={PROFILE_COLORS.primary} />
+                            <Ionicons name={item.icon} size={18} color={colors.primary} />
                             <Text
                                 style={{
-                                    color: PROFILE_COLORS.text,
+                                    color: colors.text,
                                     fontSize: 13,
                                     fontWeight: "500",
                                 }}
@@ -310,7 +313,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                 </ScrollView>
 
                 {/* Separator */}
-                <View style={{ height: 8, backgroundColor: "#1c1c1e", marginTop: 16 }} />
+                <View style={{ height: 8, backgroundColor: colors.separator, marginTop: 16 }} />
 
                 {/* Diary section */}
                 <View
@@ -348,7 +351,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                 width: 50,
                                 height: 50,
                                 borderRadius: 25,
-                                backgroundColor: PROFILE_COLORS.primary,
+                                backgroundColor: colors.primary,
                                 alignItems: "center",
                                 justifyContent: "center",
                                 zIndex: 2,
@@ -376,7 +379,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                         style={{
                             fontSize: 16,
                             fontWeight: "600",
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             textAlign: "center",
                             marginBottom: 8,
                         }}
@@ -386,7 +389,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                     <Text
                         style={{
                             fontSize: 13,
-                            color: PROFILE_COLORS.textSecondary,
+                            color: colors.textSecondary,
                             textAlign: "center",
                             lineHeight: 20,
                             marginBottom: 24,
@@ -400,7 +403,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                         activeOpacity={0.7}
                         onPress={() => { }}
                         style={{
-                            backgroundColor: PROFILE_COLORS.primary,
+                            backgroundColor: colors.primary,
                             borderRadius: 22,
                             paddingHorizontal: 28,
                             paddingVertical: 11,
@@ -439,7 +442,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                     <View
                         style={{
                             width: "88%",
-                            backgroundColor: "#18181b",
+                            backgroundColor: colors.card,
                             borderRadius: 16,
                             padding: 20,
                         }}
@@ -448,7 +451,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                             style={{
                                 fontSize: 17,
                                 fontWeight: "600",
-                                color: PROFILE_COLORS.text,
+                                color: colors.text,
                                 textAlign: "center",
                                 marginBottom: 16,
                             }}
@@ -458,19 +461,19 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
 
                         <TextInput
                             style={{
-                                backgroundColor: PROFILE_COLORS.searchBg,
+                                backgroundColor: colors.searchBg,
                                 borderRadius: 10,
                                 paddingHorizontal: 14,
                                 paddingVertical: 12,
                                 fontSize: 15,
-                                color: PROFILE_COLORS.text,
+                                color: colors.text,
                                 height: 100,
                                 textAlignVertical: "top",
                             }}
                             value={introText}
                             onChangeText={setIntroText}
                             placeholder="Giới thiệu ngắn gọn về bạn..."
-                            placeholderTextColor={PROFILE_COLORS.textSecondary}
+                            placeholderTextColor={colors.textSecondary}
                             multiline
                             numberOfLines={4}
                             autoFocus
@@ -491,11 +494,11 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                     paddingHorizontal: 18,
                                     borderRadius: 20,
                                     borderWidth: 1,
-                                    borderColor: "#3a3a3c",
+                                    borderColor: colors.border,
                                 }}
                                 activeOpacity={0.7}
                             >
-                                <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 14 }}>
+                                <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
                                     Hủy
                                 </Text>
                             </TouchableOpacity>
@@ -506,7 +509,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                     paddingVertical: 9,
                                     paddingHorizontal: 18,
                                     borderRadius: 20,
-                                    backgroundColor: PROFILE_COLORS.primary,
+                                    backgroundColor: colors.primary,
                                     opacity: saving ? 0.6 : 1,
                                 }}
                                 activeOpacity={0.7}

@@ -5,13 +5,13 @@ import {
     Image,
     TouchableOpacity,
     ScrollView,
-    StatusBar,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { PROFILE_COLORS } from "../profile/styles";
 import { useChatStore } from "@/shared/store/useChatStore";
+import { useThemeColors } from "@/shared/theme/colors";
 
 const COVER_HEIGHT = 240;
 const AVATAR_SIZE = 100;
@@ -35,6 +35,7 @@ export default function FriendProfileScreen({
 }: FriendProfileScreenProps) {
     const router = useRouter();
     const { rooms } = useChatStore();
+    const colors = useThemeColors();
     const avatarInitial = (displayName || "?").charAt(0).toUpperCase();
 
     const handleMessage = () => {
@@ -49,8 +50,8 @@ export default function FriendProfileScreen({
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: PROFILE_COLORS.background }}>
-            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
 
             <ScrollView
                 style={{ flex: 1 }}
@@ -93,17 +94,18 @@ export default function FriendProfileScreen({
                     >
                         <View
                             style={{
+                                height: 52,
                                 flexDirection: "row",
                                 alignItems: "center",
                                 justifyContent: "space-between",
                                 paddingHorizontal: 8,
-                                paddingVertical: 6,
                             }}
                         >
                             <TouchableOpacity
-                                onPress={() => router.navigate("/(tabs)/contacts" as any)}
+                                onPress={() => router.back()}
                                 style={{ padding: 8 }}
                                 activeOpacity={0.7}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                             >
                                 <Ionicons name="chevron-back" size={26} color="#fff" />
                             </TouchableOpacity>
@@ -135,8 +137,8 @@ export default function FriendProfileScreen({
                                     height: AVATAR_SIZE,
                                     borderRadius: AVATAR_SIZE / 2,
                                     borderWidth: 3,
-                                    borderColor: PROFILE_COLORS.background,
-                                    backgroundColor: PROFILE_COLORS.card,
+                                    borderColor: colors.background,
+                                    backgroundColor: colors.card,
                                 }}
                             />
                         ) : (
@@ -146,15 +148,15 @@ export default function FriendProfileScreen({
                                     height: AVATAR_SIZE,
                                     borderRadius: AVATAR_SIZE / 2,
                                     borderWidth: 3,
-                                    borderColor: PROFILE_COLORS.background,
-                                    backgroundColor: PROFILE_COLORS.card,
+                                    borderColor: colors.background,
+                                    backgroundColor: colors.card,
                                     alignItems: "center",
                                     justifyContent: "center",
                                 }}
                             >
                                 <Text
                                     style={{
-                                        color: PROFILE_COLORS.text,
+                                        color: colors.text,
                                         fontSize: 38,
                                         fontWeight: "600",
                                     }}
@@ -172,7 +174,7 @@ export default function FriendProfileScreen({
                         style={{
                             fontSize: 22,
                             fontWeight: "700",
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             textAlign: "center",
                         }}
                     >
@@ -183,7 +185,7 @@ export default function FriendProfileScreen({
                         <Text
                             style={{
                                 fontSize: 14,
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 marginTop: 6,
                                 textAlign: "center",
                                 lineHeight: 20,
@@ -202,8 +204,8 @@ export default function FriendProfileScreen({
                                 gap: 4,
                             }}
                         >
-                            <Ionicons name="call-outline" size={14} color={PROFILE_COLORS.textSecondary} />
-                            <Text style={{ fontSize: 13, color: PROFILE_COLORS.textSecondary }}>
+                            <Ionicons name="call-outline" size={14} color={colors.textSecondary} />
+                            <Text style={{ fontSize: 13, color: colors.textSecondary }}>
                                 {phone}
                             </Text>
                         </View>
@@ -211,7 +213,7 @@ export default function FriendProfileScreen({
                 </View>
 
                 {/* Separator */}
-                <View style={{ height: 8, backgroundColor: "#1c1c1e", marginTop: 20 }} />
+                <View style={{ height: 8, backgroundColor: colors.separator, marginTop: 20 }} />
 
                 {/* Info section */}
                 <View style={{ paddingHorizontal: 16, paddingVertical: 16 }}>
@@ -219,7 +221,7 @@ export default function FriendProfileScreen({
                         style={{
                             fontSize: 15,
                             fontWeight: "600",
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             marginBottom: 12,
                         }}
                     >
@@ -235,8 +237,8 @@ export default function FriendProfileScreen({
                                 gap: 10,
                             }}
                         >
-                            <Ionicons name="chatbubble-outline" size={16} color={PROFILE_COLORS.textSecondary} />
-                            <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 14, flex: 1 }}>
+                            <Ionicons name="chatbubble-outline" size={16} color={colors.textSecondary} />
+                            <Text style={{ color: colors.textSecondary, fontSize: 14, flex: 1 }}>
                                 {statusMessage}
                             </Text>
                         </View>
@@ -250,8 +252,8 @@ export default function FriendProfileScreen({
                             gap: 10,
                         }}
                     >
-                        <Ionicons name="person-outline" size={16} color={PROFILE_COLORS.textSecondary} />
-                        <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 14 }}>
+                        <Ionicons name="person-outline" size={16} color={colors.textSecondary} />
+                        <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
                             Đã kết bạn
                         </Text>
                     </View>
@@ -266,11 +268,11 @@ export default function FriendProfileScreen({
                             gap: 10,
                         }}
                     >
-                        <Ionicons name="people-outline" size={16} color={PROFILE_COLORS.textSecondary} />
-                        <Text style={{ flex: 1, color: PROFILE_COLORS.text, fontSize: 14 }}>
+                        <Ionicons name="people-outline" size={16} color={colors.textSecondary} />
+                        <Text style={{ flex: 1, color: colors.text, fontSize: 14 }}>
                             Xem nhóm chung (0)
                         </Text>
-                        <Ionicons name="chevron-forward" size={16} color={PROFILE_COLORS.textSecondary} />
+                        <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -283,11 +285,11 @@ export default function FriendProfileScreen({
                             gap: 10,
                         }}
                     >
-                        <Ionicons name="time-outline" size={16} color={PROFILE_COLORS.textSecondary} />
-                        <Text style={{ flex: 1, color: PROFILE_COLORS.text, fontSize: 14 }}>
+                        <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+                        <Text style={{ flex: 1, color: colors.text, fontSize: 14 }}>
                             Xem nhật ký chung
                         </Text>
-                        <Ionicons name="chevron-forward" size={16} color={PROFILE_COLORS.textSecondary} />
+                        <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
@@ -302,9 +304,9 @@ export default function FriendProfileScreen({
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    backgroundColor: PROFILE_COLORS.background,
+                    backgroundColor: colors.background,
                     borderTopWidth: 0.5,
-                    borderTopColor: "#2a2a2a",
+                    borderTopColor: colors.border,
                 }}
             >
                 <View
@@ -322,17 +324,17 @@ export default function FriendProfileScreen({
                         style={{
                             flexDirection: "row",
                             alignItems: "center",
-                            backgroundColor: "#27272a",
+                            backgroundColor: colors.searchBg,
                             borderRadius: 20,
                             paddingHorizontal: 18,
                             paddingVertical: 10,
                             gap: 8,
                         }}
                     >
-                        <Ionicons name="chatbubble-ellipses-outline" size={18} color={PROFILE_COLORS.text} />
+                        <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.text} />
                         <Text
                             style={{
-                                color: PROFILE_COLORS.text,
+                                color: colors.text,
                                 fontSize: 14,
                                 fontWeight: "500",
                             }}

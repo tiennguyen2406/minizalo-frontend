@@ -1,13 +1,17 @@
 import React, { useState } from "react";
-import { View, StatusBar, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useUserStore } from "@/shared/store/userStore";
-import { authStyles } from "../styles";
+import { createAuthStyles } from "../styles";
 import { AuthHeader, AuthTitle, AuthInput, AuthButton, AuthLink } from "../components";
+import { useThemeColors } from "@/shared/theme/colors";
 
 export default function LoginFormScreen() {
     const router = useRouter();
+    const colors = useThemeColors();
+    const authStyles = createAuthStyles(colors);
     const login = useAuthStore((s) => s.login);
     const [phone, setPhone] = useState("");
     const [password, setPassword] = useState("");
@@ -77,8 +81,6 @@ export default function LoginFormScreen() {
             // Set error for both fields to indicate login failure visually
             setPhoneError(" ");
             setPasswordError(message);
-            // Also show modal for clarity if needed, or just rely on inline error
-            // keeping modal for detailed message if it's long, or just setting passwordError
         } finally {
             setLoading(false);
         }
@@ -86,7 +88,7 @@ export default function LoginFormScreen() {
 
     return (
         <View style={authStyles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+            <StatusBar style={colors.background === "#000000" ? "light" : "dark"} />
 
             <AuthHeader onBack={() => router.back()} />
 
@@ -130,13 +132,13 @@ export default function LoginFormScreen() {
                 animationType="fade"
                 onRequestClose={hideError}
             >
-                <View style={modalStyles.overlay}>
-                    <View style={modalStyles.container}>
+                <View style={[modalStyles.overlay]}>
+                    <View style={[modalStyles.container, { backgroundColor: colors.card }]}>
                         <View style={modalStyles.iconContainer}>
                             <Text style={modalStyles.icon}>⚠️</Text>
                         </View>
-                        <Text style={modalStyles.title}>{errorModal.title}</Text>
-                        <Text style={modalStyles.message}>{errorModal.message}</Text>
+                        <Text style={[modalStyles.title, { color: colors.text }]}>{errorModal.title}</Text>
+                        <Text style={[modalStyles.message, { color: colors.textSecondary }]}>{errorModal.message}</Text>
                         <TouchableOpacity style={modalStyles.button} onPress={hideError}>
                             <Text style={modalStyles.buttonText}>OK</Text>
                         </TouchableOpacity>

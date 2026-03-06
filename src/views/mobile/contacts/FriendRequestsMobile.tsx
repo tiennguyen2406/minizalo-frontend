@@ -10,8 +10,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFriendStore } from "@/shared/store/friendStore";
 import type { FriendResponseDto } from "@/shared/services/types";
-import { PROFILE_COLORS } from "../profile/styles";
+import { useThemeColors } from "@/shared/theme/colors";
 import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 
 export default function FriendRequestsMobile() {
     const {
@@ -27,6 +28,7 @@ export default function FriendRequestsMobile() {
         clearError,
     } = useFriendStore();
     const router = useRouter();
+    const colors = useThemeColors();
     const [tab, setTab] = useState<"received" | "sent">("received");
 
     useEffect(() => {
@@ -74,8 +76,8 @@ export default function FriendRequestsMobile() {
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
-                    backgroundColor: PROFILE_COLORS.background,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.background,
                 }}
             >
                 <View
@@ -83,7 +85,7 @@ export default function FriendRequestsMobile() {
                         width: 42,
                         height: 42,
                         borderRadius: 21,
-                        backgroundColor: "#2f3134",
+                        backgroundColor: colors.searchBg,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
@@ -91,7 +93,7 @@ export default function FriendRequestsMobile() {
                 >
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontWeight: "600",
                             fontSize: 16,
                         }}
@@ -103,7 +105,7 @@ export default function FriendRequestsMobile() {
                     <Text
                         numberOfLines={1}
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 15,
                             fontWeight: "500",
                         }}
@@ -112,7 +114,7 @@ export default function FriendRequestsMobile() {
                     </Text>
                     <Text
                         style={{
-                            color: PROFILE_COLORS.textSecondary,
+                            color: colors.textSecondary,
                             fontSize: 12,
                             marginTop: 2,
                         }}
@@ -133,7 +135,7 @@ export default function FriendRequestsMobile() {
                     >
                         <Text
                             style={{
-                                color: "#fca5a5",
+                                color: "#f97373",
                                 fontSize: 12,
                                 fontWeight: "500",
                             }}
@@ -147,7 +149,7 @@ export default function FriendRequestsMobile() {
                             paddingHorizontal: 12,
                             paddingVertical: 6,
                             borderRadius: 999,
-                            backgroundColor: PROFILE_COLORS.primary,
+                            backgroundColor: colors.primary,
                         }}
                     >
                         <Text
@@ -179,8 +181,8 @@ export default function FriendRequestsMobile() {
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
-                    backgroundColor: PROFILE_COLORS.background,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.background,
                 }}
             >
                 <View
@@ -188,7 +190,7 @@ export default function FriendRequestsMobile() {
                         width: 42,
                         height: 42,
                         borderRadius: 21,
-                        backgroundColor: "#2f3134",
+                        backgroundColor: colors.searchBg,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
@@ -196,7 +198,7 @@ export default function FriendRequestsMobile() {
                 >
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontWeight: "600",
                             fontSize: 16,
                         }}
@@ -208,7 +210,7 @@ export default function FriendRequestsMobile() {
                     <Text
                         numberOfLines={1}
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 15,
                             fontWeight: "500",
                         }}
@@ -217,7 +219,7 @@ export default function FriendRequestsMobile() {
                     </Text>
                     <Text
                         style={{
-                            color: PROFILE_COLORS.textSecondary,
+                            color: colors.textSecondary,
                             fontSize: 12,
                             marginTop: 2,
                         }}
@@ -237,7 +239,7 @@ export default function FriendRequestsMobile() {
                 >
                     <Text
                         style={{
-                            color: "#fca5a5",
+                            color: "#f97373",
                             fontSize: 12,
                             fontWeight: "500",
                         }}
@@ -255,174 +257,184 @@ export default function FriendRequestsMobile() {
         <SafeAreaView
             style={{
                 flex: 1,
-                backgroundColor: PROFILE_COLORS.background,
+                backgroundColor: colors.background,
             }}
             edges={["top"]}
         >
+            <StatusBar style={colors.statusBar} />
             {/* Header: nút back + tiêu đề giống Zalo */}
             <View
                 style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
+                    backgroundColor: colors.headerBg,
+                    borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                    borderBottomColor: colors.border,
                 }}
             >
                 <View
                     style={{
+                        height: 52,
+                        paddingHorizontal: 16,
                         flexDirection: "row",
                         alignItems: "center",
                     }}
                 >
                     <TouchableOpacity
-                        onPress={() => router.replace("/(tabs)/contacts")}
+                        onPress={() => router.back()}
                         style={{ paddingRight: 8, paddingVertical: 4 }}
                         activeOpacity={0.8}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                         <Ionicons
                             name="chevron-back"
-                            size={22}
-                            color={PROFILE_COLORS.text}
+                            size={26}
+                            color={colors.headerText}
                         />
                     </TouchableOpacity>
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
-                            fontSize: 16,
+                            color: colors.headerText,
+                            fontSize: 18,
                             fontWeight: "600",
                         }}
                     >
                         Lời mời kết bạn
                     </Text>
                 </View>
-                {/* Tabs Đã nhận / Đã gửi với số lượng, kiểu gạch chân giống Zalo */}
-                <View
-                    style={{
-                        flexDirection: "row",
-                        marginTop: 8,
-                        justifyContent: "space-between",
-                    }}
-                >
-                    {[
-                        {
-                            key: "received" as const,
-                            label: `Đã nhận ${requests.length}`,
-                        },
-                        {
-                            key: "sent" as const,
-                            label: `Đã gửi ${sentRequests.length}`,
-                        },
-                    ].map((item) => {
-                        const active = tab === item.key;
-                        return (
-                            <TouchableOpacity
-                                key={item.key}
-                                onPress={() =>
-                                    setTab(item.key as "received" | "sent")
-                                }
+            </View>
+            {/* Tabs Đã nhận / Đã gửi với số lượng, kiểu gạch chân giống Zalo */}
+            <View
+                style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    backgroundColor: colors.card,
+                    borderBottomWidth: 0.5,
+                    borderBottomColor: colors.border,
+                }}
+            >
+                {[
+                    {
+                        key: "received" as const,
+                        label: `Đã nhận ${requests.length}`,
+                    },
+                    {
+                        key: "sent" as const,
+                        label: `Đã gửi ${sentRequests.length}`,
+                    },
+                ].map((item) => {
+                    const active = tab === item.key;
+                    return (
+                        <TouchableOpacity
+                            key={item.key}
+                            onPress={() =>
+                                setTab(item.key as "received" | "sent")
+                            }
+                            style={{
+                                flex: 1,
+                                alignItems: "center",
+                                paddingBottom: 6,
+                                borderBottomWidth: active ? 2 : 0,
+                                borderBottomColor: active
+                                    ? colors.primary
+                                    : "transparent",
+                            }}
+                        >
+                            <Text
                                 style={{
-                                    flex: 1,
-                                    alignItems: "center",
-                                    paddingBottom: 6,
-                                    borderBottomWidth: active ? 2 : 0,
-                                    borderBottomColor: active
-                                        ? PROFILE_COLORS.primary
-                                        : "transparent",
+                                    color: active
+                                        ? colors.text
+                                        : colors.textSecondary,
+                                    fontSize: 14,
+                                    fontWeight: active ? "600" : "500",
+                                    paddingTop: 8,
                                 }}
                             >
-                                <Text
-                                    style={{
-                                        color: active
-                                            ? PROFILE_COLORS.text
-                                            : PROFILE_COLORS.textSecondary,
-                                        fontSize: 13,
-                                        fontWeight: active ? "600" : "500",
-                                    }}
-                                >
-                                    {item.label}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
+                                {item.label}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
             </View>
 
-            {error ? (
-                <TouchableOpacity
-                    onPress={clearError}
-                    style={{
-                        paddingHorizontal: 16,
-                        paddingVertical: 8,
-                        backgroundColor: "#7f1d1d",
-                    }}
-                >
-                    <Text
+            {
+                error ? (
+                    <TouchableOpacity
+                        onPress={clearError}
                         style={{
-                            color: "#fee2e2",
-                            fontSize: 12,
+                            paddingHorizontal: 16,
+                            paddingVertical: 8,
+                            backgroundColor: "#7f1d1d",
                         }}
                     >
-                        {error} (chạm để ẩn)
-                    </Text>
-                </TouchableOpacity>
-            ) : null}
+                        <Text
+                            style={{
+                                color: "#fee2e2",
+                                fontSize: 12,
+                            }}
+                        >
+                            {error} (chạm để ẩn)
+                        </Text>
+                    </TouchableOpacity>
+                ) : null
+            }
 
-            {loading && currentList.length === 0 ? (
-                <View
-                    style={{
-                        flex: 1,
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
-                >
-                    <ActivityIndicator color={PROFILE_COLORS.primary} />
-                    <Text
+            {
+                loading && currentList.length === 0 ? (
+                    <View
                         style={{
-                            marginTop: 8,
-                            color: PROFILE_COLORS.textSecondary,
-                            fontSize: 13,
+                            flex: 1,
+                            alignItems: "center",
+                            justifyContent: "center",
                         }}
                     >
-                        Đang tải lời mời kết bạn...
-                    </Text>
-                </View>
-            ) : currentList.length === 0 ? (
-                <View
-                    style={{
-                        flex: 1,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        paddingHorizontal: 32,
-                    }}
-                >
-                    <Ionicons
-                        name="mail-open-outline"
-                        size={40}
-                        color={PROFILE_COLORS.textSecondary}
+                        <ActivityIndicator color={colors.primary} />
+                        <Text
+                            style={{
+                                marginTop: 8,
+                                color: colors.textSecondary,
+                                fontSize: 13,
+                            }}
+                        >
+                            Đang tải lời mời kết bạn...
+                        </Text>
+                    </View>
+                ) : currentList.length === 0 ? (
+                    <View
+                        style={{
+                            flex: 1,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            paddingHorizontal: 32,
+                        }}
+                    >
+                        <Ionicons
+                            name="mail-open-outline"
+                            size={40}
+                            color={colors.textSecondary}
+                        />
+                        <Text
+                            style={{
+                                marginTop: 12,
+                                color: colors.text,
+                                fontSize: 16,
+                                fontWeight: "500",
+                                textAlign: "center",
+                            }}
+                        >
+                            {tab === "received"
+                                ? "Chưa có lời mời kết bạn nào"
+                                : "Bạn chưa gửi lời mời kết bạn nào"}
+                        </Text>
+                    </View>
+                ) : (
+                    <FlatList
+                        data={currentList}
+                        keyExtractor={(item) => item.id}
+                        renderItem={tab === "received" ? renderReceivedItem : renderSentItem}
+                        contentContainerStyle={{ paddingBottom: 24 }}
                     />
-                    <Text
-                        style={{
-                            marginTop: 12,
-                            color: PROFILE_COLORS.text,
-                            fontSize: 16,
-                            fontWeight: "500",
-                            textAlign: "center",
-                        }}
-                    >
-                        {tab === "received"
-                            ? "Chưa có lời mời kết bạn nào"
-                            : "Bạn chưa gửi lời mời kết bạn nào"}
-                    </Text>
-                </View>
-            ) : (
-                <FlatList
-                    data={currentList}
-                    keyExtractor={(item) => item.id}
-                    renderItem={tab === "received" ? renderReceivedItem : renderSentItem}
-                    contentContainerStyle={{ paddingBottom: 24 }}
-                />
-            )}
-        </SafeAreaView>
+                )
+            }
+        </SafeAreaView >
     );
 }
 
