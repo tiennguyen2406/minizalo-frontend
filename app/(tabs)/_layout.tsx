@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { AuthGuard } from "@/shared/guards/AuthGuard";
 import WebSidebar from "@/views/web/components/WebSidebar";
 import { useWebSocketManager } from "@/shared/hooks/useWebSocketManager";
+import { useThemeColors } from "@/shared/theme/colors";
 
 // Icon tab bar (mobile) - giống Zalo: Tin nhắn (chat), Danh bạ (people), Khám phá (grid), Tường nhà (newspaper), Cá nhân (person)
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -28,6 +29,7 @@ const TabIcon = ({
 
 export default function TabsLayout() {
     const isWeb = Platform.OS === "web";
+    const colors = useThemeColors();
 
     // Quản lý WebSocket toàn cục — luôn active dù đang ở tab nào
     useWebSocketManager();
@@ -48,11 +50,20 @@ export default function TabsLayout() {
     return (
         <AuthGuard mode="requireAuth">
             <Tabs
+                backBehavior="history"
                 screenOptions={{
                     headerShown: false,
-                    tabBarActiveTintColor: "#0068FF",
-                    tabBarInactiveTintColor: "#8e8e93",
-                    tabBarStyle: { backgroundColor: "#0d0d0d", borderTopColor: "#2a2a2a" },
+                    tabBarActiveTintColor: colors.tabBarActive,
+                    tabBarInactiveTintColor: colors.tabBarInactive,
+                    tabBarStyle: {
+                        backgroundColor: colors.tabBarBg,
+                        borderTopColor: colors.tabBarBorder,
+                        borderTopWidth: 1,
+                        height: Platform.OS === "ios" ? 88 : 60,
+                        paddingBottom: Platform.OS === "ios" ? 30 : 10,
+                        elevation: 0, // Remove shadow on Android
+                        shadowOpacity: 0, // Remove shadow on iOS
+                    },
                     tabBarLabelStyle: { fontSize: 11 },
                     // Khi bàn phím ảo mở, ẩn thanh tab để tránh bị "đẩy" lên
                     tabBarHideOnKeyboard: true,
@@ -120,6 +131,7 @@ export default function TabsLayout() {
                 <Tabs.Screen name="personal-profile" options={{ href: null }} />
                 <Tabs.Screen name="profile-settings" options={{ href: null }} />
                 <Tabs.Screen name="friend-profile" options={{ href: null }} />
+                <Tabs.Screen name="appearance" options={{ href: null }} />
             </Tabs>
         </AuthGuard>
     );

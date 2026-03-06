@@ -1,51 +1,56 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StatusBar, Alert } from "react-native";
+import { View, Text, TouchableOpacity, Alert, StyleSheet } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { profileStyles, PROFILE_COLORS } from "./styles";
+import { profileStyles } from "./styles";
 import { useAuthStore } from "@/shared/store/authStore";
+import { useThemeColors, ThemeColors } from "@/shared/theme/colors";
 
-const headerStyles = {
+const createHeaderStyles = (colors: ThemeColors) => StyleSheet.create({
     header: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
+        height: 52,
+        flexDirection: "row",
+        alignItems: "center",
         paddingHorizontal: 16,
-        paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: PROFILE_COLORS.border,
+        borderBottomColor: colors.border,
+        backgroundColor: colors.headerBg,
         gap: 12,
     },
     title: {
         fontSize: 18,
-        fontWeight: "600" as const,
-        color: PROFILE_COLORS.text,
+        fontWeight: "600",
+        color: colors.headerText,
     },
     row: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
+        flexDirection: "row",
+        alignItems: "center",
         paddingHorizontal: 16,
         paddingVertical: 16,
-        backgroundColor: PROFILE_COLORS.card,
+        backgroundColor: colors.card,
         marginHorizontal: 16,
         borderRadius: 12,
         gap: 12,
     },
     logoutText: {
         fontSize: 16,
-        fontWeight: "500" as const,
+        fontWeight: "500",
         color: "#ff3b30",
     },
     rowText: {
         fontSize: 16,
-        fontWeight: "500" as const,
-        color: PROFILE_COLORS.text,
+        fontWeight: "500",
+        color: colors.text,
     },
-};
+});
 
 export default function SettingsScreen() {
     const router = useRouter();
     const logout = useAuthStore((s) => s.logout);
+    const colors = useThemeColors();
+    const headerStyles = createHeaderStyles(colors);
 
     const handleLogout = () => {
         Alert.alert(
@@ -66,29 +71,46 @@ export default function SettingsScreen() {
     };
 
     return (
-        <SafeAreaView style={profileStyles.container} edges={["top"]}>
-            <StatusBar barStyle="light-content" backgroundColor={PROFILE_COLORS.background} />
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
+                <View style={[headerStyles.header, { borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5 }]}>
+                    <TouchableOpacity
+                        onPress={() => router.back()}
+                        style={{ paddingVertical: 8, paddingRight: 8 }}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                    </TouchableOpacity>
+                    <Text style={headerStyles.title}>Cài đặt</Text>
+                </View>
+            </SafeAreaView>
 
-            <View style={headerStyles.header}>
-                <TouchableOpacity
-                    onPress={() => router.replace("/(tabs)/account")}
-                    style={{ padding: 8 }}
-                >
-                    <Ionicons name="arrow-back" size={24} color={PROFILE_COLORS.text} />
-                </TouchableOpacity>
-                <Text style={headerStyles.title}>Cài đặt</Text>
-            </View>
+            {/* Giao diện */}
+            <TouchableOpacity
+                style={[headerStyles.row, { marginTop: 24 }]}
+                onPress={() => router.push("/(tabs)/appearance")}
+                activeOpacity={0.7}
+            >
+                <Ionicons
+                    name="color-palette-outline"
+                    size={24}
+                    color={colors.textSecondary}
+                />
+                <Text style={headerStyles.rowText}>Giao diện</Text>
+            </TouchableOpacity>
 
             {/* Danh sách chặn tin nhắn */}
             <TouchableOpacity
-                style={[headerStyles.row, { marginTop: 24 }]}
+                style={[headerStyles.row, { marginTop: 16 }]}
                 onPress={() => router.push("/(tabs)/blocked")}
                 activeOpacity={0.7}
             >
                 <Ionicons
                     name="ban-outline"
                     size={24}
-                    color={PROFILE_COLORS.textSecondary}
+                    color={colors.textSecondary}
                 />
                 <Text style={headerStyles.rowText}>Danh sách chặn tin nhắn</Text>
             </TouchableOpacity>
@@ -102,6 +124,6 @@ export default function SettingsScreen() {
                 <Ionicons name="log-out-outline" size={24} color="#ff3b30" />
                 <Text style={headerStyles.logoutText}>Đăng xuất</Text>
             </TouchableOpacity>
-        </SafeAreaView>
+        </View>
     );
 }

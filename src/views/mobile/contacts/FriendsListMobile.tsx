@@ -19,7 +19,7 @@ import { useChatStore } from "@/shared/store/useChatStore";
 import { useUserStore } from "@/shared/store/userStore";
 import type { FriendResponseDto } from "@/shared/services/types";
 import type { UserProfile } from "@/shared/services/types";
-import { PROFILE_COLORS } from "../profile/styles";
+import { useThemeColors } from "@/shared/theme/colors";
 import friendCategoryService, {
     type FriendCategory,
 } from "@/shared/services/friendCategoryService";
@@ -39,6 +39,7 @@ const CLOSE_FRIEND_CATEGORY_NAME = "Bạn thân";
 
 export default function FriendsListMobile({ searchText = "" }: FriendsListMobileProps) {
     const router = useRouter();
+    const colors = useThemeColors();
     const {
         friends,
         loading,
@@ -425,7 +426,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                     alignItems: "center",
                     paddingHorizontal: 16,
                     paddingVertical: 10,
-                    backgroundColor: PROFILE_COLORS.background,
+                    backgroundColor: colors.background,
                 }}
             >
                 <View
@@ -433,7 +434,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: "#2f3134",
+                        backgroundColor: colors.searchBg,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
@@ -441,7 +442,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                 >
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontWeight: "600",
                             fontSize: 16,
                         }}
@@ -453,7 +454,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                     <Text
                         numberOfLines={1}
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 15,
                             fontWeight: "500",
                         }}
@@ -464,7 +465,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                         <Text
                             numberOfLines={1}
                             style={{
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 12,
                                 marginTop: 2,
                             }}
@@ -475,10 +476,10 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <TouchableOpacity style={{ padding: 6 }} onPress={() => { }}>
-                        <Ionicons name="call-outline" size={22} color={PROFILE_COLORS.text} />
+                        <Ionicons name="call-outline" size={22} color={colors.text} />
                     </TouchableOpacity>
                     <TouchableOpacity style={{ padding: 6, marginLeft: 4 }} onPress={() => { }}>
-                        <Ionicons name="videocam-outline" size={22} color={PROFILE_COLORS.text} />
+                        <Ionicons name="videocam-outline" size={22} color={colors.text} />
                     </TouchableOpacity>
                 </View>
             </TouchableOpacity>
@@ -522,17 +523,17 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                         style={{
                             paddingHorizontal: 16,
                             paddingVertical: 6,
-                            backgroundColor: "#111111",
+                            backgroundColor: colors.background, // Match Zalo standard
                         }}
                     >
                         <Text
                             style={{
-                                color: PROFILE_COLORS.textSecondary,
-                                fontSize: 12,
+                                color: colors.text,
+                                fontSize: 13,
                                 fontWeight: "600",
                             }}
                         >
-                            {item.key}
+                            {item.key.toUpperCase()}
                         </Text>
                     </View>
                 )}
@@ -552,13 +553,13 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
-                    backgroundColor: PROFILE_COLORS.background,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.background,
                 }}
             >
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Ionicons name="star" size={18} color={"yellow"} style={{ marginRight: 6 }} />
-                    <Text style={{ color: PROFILE_COLORS.text, fontSize: 15, fontWeight: "600" }}>
+                    <Ionicons name="star" size={18} color={"#eab308"} style={{ marginRight: 6 }} />
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
                         Bạn thân
                     </Text>
                 </View>
@@ -566,7 +567,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                     onPress={() => setAddToCloseFriendsVisible(true)}
                     style={{ paddingVertical: 4, paddingHorizontal: 8 }}
                 >
-                    <Text style={{ color: PROFILE_COLORS.primary, fontSize: 14, fontWeight: "500" }}>
+                    <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "500" }}>
                         + Thêm
                     </Text>
                 </TouchableOpacity>
@@ -579,7 +580,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
             <View
                 style={{
                     flex: 1,
-                    backgroundColor: PROFILE_COLORS.background,
+                    backgroundColor: colors.background,
                 }}
             >
                 {error ? (
@@ -602,11 +603,11 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                     </TouchableOpacity>
                 ) : null}
 
-                <View style={{ height: 6, backgroundColor: "#374151" }} />
+                <View style={{ height: 6, backgroundColor: colors.separator }} />
 
                 {renderCloseFriendsBar()}
 
-                <View style={{ height: 1, backgroundColor: "#374151" }} />
+                <View style={{ height: 1, backgroundColor: colors.separator }} />
 
                 {loading && friends.length === 0 ? (
                     <View
@@ -616,11 +617,11 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                             justifyContent: "center",
                         }}
                     >
-                        <ActivityIndicator color={PROFILE_COLORS.primary} />
+                        <ActivityIndicator color={colors.primary} />
                         <Text
                             style={{
                                 marginTop: 8,
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 13,
                             }}
                         >
@@ -639,12 +640,12 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                         <Ionicons
                             name="people-outline"
                             size={40}
-                            color={PROFILE_COLORS.textSecondary}
+                            color={colors.textSecondary}
                         />
                         <Text
                             style={{
                                 marginTop: 12,
-                                color: PROFILE_COLORS.text,
+                                color: colors.text,
                                 fontSize: 16,
                                 fontWeight: "500",
                                 textAlign: "center",
@@ -655,7 +656,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                         <Text
                             style={{
                                 marginTop: 4,
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 13,
                                 textAlign: "center",
                             }}
@@ -684,14 +685,14 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                             style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
                             onPress={() => setActionSheetFriend(null)}
                         >
-                            <TouchableOpacity activeOpacity={1} onPress={() => { }} style={{ backgroundColor: "#18181b", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
+                            <TouchableOpacity activeOpacity={1} onPress={() => { }} style={{ backgroundColor: colors.modalBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
                                 <View style={{ alignItems: "center", marginBottom: 12 }}>
-                                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#2f3134", alignItems: "center", justifyContent: "center" }}>
-                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 24, fontWeight: "600" }}>
+                                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, alignItems: "center", justifyContent: "center" }}>
+                                        <Text style={{ color: colors.text, fontSize: 24, fontWeight: "600" }}>
                                             {(actionSheetFriend.displayName.charAt(0).toUpperCase() || "?").toUpperCase()}
                                         </Text>
                                     </View>
-                                    <Text style={{ color: PROFILE_COLORS.text, fontSize: 17, fontWeight: "600", marginTop: 8 }}>
+                                    <Text style={{ color: colors.text, fontSize: 17, fontWeight: "600", marginTop: 8 }}>
                                         {actionSheetFriend.displayName}
                                     </Text>
                                 </View>
@@ -712,41 +713,41 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                 },
                                             } as any);
                                         }}
-                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#27272a", paddingVertical: 12, marginRight: 6, borderRadius: 10 }}
+                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, paddingVertical: 12, marginRight: 6, borderRadius: 10 }}
                                     >
-                                        <Ionicons name="person-outline" size={18} color={PROFILE_COLORS.text} style={{ marginRight: 6 }} />
-                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Xem trang cá nhân</Text>
+                                        <Ionicons name="person-outline" size={18} color={colors.text} style={{ marginRight: 6 }} />
+                                        <Text style={{ color: colors.text, fontSize: 14 }}>Xem trang cá nhân</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         onPress={() => {
                                             setBlockOptions({ blockMessages: false, blockCalls: false, blockTimeline: false });
                                             setBlockSheetFriend({ userId: actionSheetFriend.user.id, displayName: actionSheetFriend.displayName });
                                         }}
-                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#27272a", paddingVertical: 12, marginLeft: 6, borderRadius: 10 }}
+                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, paddingVertical: 12, marginLeft: 6, borderRadius: 10 }}
                                     >
-                                        <Ionicons name="ban-outline" size={18} color={PROFILE_COLORS.text} style={{ marginRight: 6 }} />
-                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Quản lý chặn</Text>
+                                        <Ionicons name="ban-outline" size={18} color={colors.text} style={{ marginRight: 6 }} />
+                                        <Text style={{ color: colors.text, fontSize: 14 }}>Quản lý chặn</Text>
                                     </TouchableOpacity>
                                 </View>
-                                <View style={{ borderTopWidth: 0.5, borderTopColor: "#27272a", paddingTop: 8 }}>
+                                <View style={{ borderTopWidth: 0.5, borderTopColor: colors.border, paddingTop: 8 }}>
                                     <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8 }}>
-                                        <Ionicons name="person-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
-                                        <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 13 }}>Đã kết bạn</Text>
+                                        <Ionicons name="person-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                                        <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Đã kết bạn</Text>
                                     </View>
                                     <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8 }}>
-                                        <Ionicons name="people-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
-                                        <Text style={{ flex: 1, color: PROFILE_COLORS.text, fontSize: 14 }}>Xem nhóm chung (0)</Text>
-                                        <Ionicons name="chevron-forward" size={16} color={PROFILE_COLORS.textSecondary} />
+                                        <Ionicons name="people-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                                        <Text style={{ flex: 1, color: colors.text, fontSize: 14 }}>Xem nhóm chung (0)</Text>
+                                        <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                                     </TouchableOpacity>
                                     <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8 }}>
-                                        <Ionicons name="time-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
-                                        <Text style={{ flex: 1, color: PROFILE_COLORS.text, fontSize: 14 }}>Xem nhật ký chung</Text>
-                                        <Ionicons name="chevron-forward" size={16} color={PROFILE_COLORS.textSecondary} />
+                                        <Ionicons name="time-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                                        <Text style={{ flex: 1, color: colors.text, fontSize: 14 }}>Xem nhật ký chung</Text>
+                                        <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                                     </TouchableOpacity>
                                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 }}>
                                         <View style={{ flexDirection: "row", alignItems: "center" }}>
-                                            <Ionicons name="star-outline" size={18} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 10 }} />
-                                            <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Đánh dấu bạn thân</Text>
+                                            <Ionicons name="star-outline" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                                            <Text style={{ color: colors.text, fontSize: 14 }}>Đánh dấu bạn thân</Text>
                                         </View>
                                         <Switch
                                             value={!!(closeFriendCategoryId && friendCategoryMap[actionSheetFriend.user.id] === closeFriendCategoryId)}
@@ -755,7 +756,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                 if (v) await handleAssignCategory(actionSheetFriend.user.id, closeFriendCategoryId);
                                                 else await handleClearCategory(actionSheetFriend.user.id);
                                             }}
-                                            trackColor={{ false: "#374151", true: PROFILE_COLORS.primary }}
+                                            trackColor={{ false: colors.searchBg, true: colors.primary }}
                                             thumbColor="#fff"
                                         />
                                     </View>
@@ -766,7 +767,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                             setActionSheetFriend(null);
                                             handleRemoveFriend(actionSheetFriend.user.id, actionSheetFriend.displayName);
                                         }}
-                                        style={{ flex: 1, backgroundColor: "#27272a", paddingVertical: 12, borderRadius: 10, alignItems: "center", marginRight: 8 }}
+                                        style={{ flex: 1, backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, paddingVertical: 12, borderRadius: 10, alignItems: "center", marginRight: 8 }}
                                     >
                                         <Text style={{ color: "#f97373", fontSize: 14, fontWeight: "500" }}>Xóa bạn</Text>
                                     </TouchableOpacity>
@@ -778,7 +779,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                 router.push(`/chat/${room.id}?name=${encodeURIComponent(actionSheetFriend.displayName)}&type=DIRECT` as any);
                                             }
                                         }}
-                                        style={{ flex: 1, backgroundColor: PROFILE_COLORS.primary, paddingVertical: 12, borderRadius: 10, alignItems: "center" }}
+                                        style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 10, alignItems: "center" }}
                                     >
                                         <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>Nhắn tin</Text>
                                     </TouchableOpacity>
@@ -792,20 +793,20 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                 {blockSheetFriend && (
                     <Modal transparent visible animationType="slide" onRequestClose={() => setBlockSheetFriend(null)}>
                         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setBlockSheetFriend(null)}>
-                            <TouchableOpacity activeOpacity={1} onPress={() => { }} style={{ backgroundColor: "#18181b", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
-                                <Text style={{ color: PROFILE_COLORS.text, fontSize: 17, fontWeight: "600", marginBottom: 16 }}>
+                            <TouchableOpacity activeOpacity={1} onPress={() => { }} style={{ backgroundColor: colors.modalBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
+                                <Text style={{ color: colors.text, fontSize: 17, fontWeight: "600", marginBottom: 16 }}>
                                     Quản lý chặn {blockSheetFriend.displayName}
                                 </Text>
                                 <TouchableOpacity
                                     onPress={() => setBlockOptions((o) => ({ ...o, blockMessages: !o.blockMessages }))}
-                                    style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: "#27272a" }}
+                                    style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border }}
                                 >
-                                    <Ionicons name="chatbubble-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
+                                    <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} style={{ marginRight: 12 }} />
                                     <View style={{ flex: 1 }}>
-                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn tin nhắn</Text>
-                                        <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 12, marginTop: 2 }}>Cả hai sẽ không thể nhắn tin cho nhau</Text>
+                                        <Text style={{ color: colors.text, fontSize: 14 }}>Chặn tin nhắn</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>Cả hai sẽ không thể nhắn tin cho nhau</Text>
                                     </View>
-                                    {blockOptions.blockMessages ? <Ionicons name="checkmark-circle" size={22} color={PROFILE_COLORS.primary} /> : <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />}
+                                    {blockOptions.blockMessages ? <Ionicons name="checkmark-circle" size={22} color={colors.primary} /> : <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.border }} />}
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     activeOpacity={1}
@@ -814,16 +815,16 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                         alignItems: "center",
                                         paddingVertical: 12,
                                         borderBottomWidth: 0.5,
-                                        borderBottomColor: "#27272a",
+                                        borderBottomColor: colors.border,
                                         opacity: 0.4,
                                     }}
                                 >
-                                    <Ionicons name="call-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
+                                    <Ionicons name="call-outline" size={20} color={colors.textSecondary} style={{ marginRight: 12 }} />
                                     <View style={{ flex: 1 }}>
-                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn cuộc gọi</Text>
-                                        <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 12, marginTop: 2 }}>Cả hai sẽ không thể gọi điện cho nhau</Text>
+                                        <Text style={{ color: colors.text, fontSize: 14 }}>Chặn cuộc gọi</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>Cả hai sẽ không thể gọi điện cho nhau</Text>
                                     </View>
-                                    <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />
+                                    <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.border }} />
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     activeOpacity={1}
@@ -832,15 +833,15 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                         alignItems: "center",
                                         paddingVertical: 12,
                                         borderBottomWidth: 0.5,
-                                        borderBottomColor: "#27272a",
+                                        borderBottomColor: colors.border,
                                         opacity: 0.4,
                                     }}
                                 >
-                                    <Ionicons name="time-outline" size={20} color={PROFILE_COLORS.textSecondary} style={{ marginRight: 12 }} />
+                                    <Ionicons name="time-outline" size={20} color={colors.textSecondary} style={{ marginRight: 12 }} />
                                     <View style={{ flex: 1 }}>
-                                        <Text style={{ color: PROFILE_COLORS.text, fontSize: 14 }}>Chặn và ẩn khỏi nhật ký</Text>
+                                        <Text style={{ color: colors.text, fontSize: 14 }}>Chặn và ẩn khỏi nhật ký</Text>
                                     </View>
-                                    <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#4b5563" }} />
+                                    <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.border }} />
                                 </TouchableOpacity>
                                 {(() => {
                                     // Nút Áp dụng chỉ active khi có thay đổi trạng thái "Chặn tin nhắn"
@@ -886,8 +887,8 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                             style={{
                                                 marginTop: 16,
                                                 backgroundColor: hasChange
-                                                    ? PROFILE_COLORS.primary
-                                                    : "#27272a",
+                                                    ? colors.primary
+                                                    : colors.searchBg,
                                                 paddingVertical: 14,
                                                 borderRadius: 10,
                                                 alignItems: "center",
@@ -896,8 +897,8 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                             <Text
                                                 style={{
                                                     color: hasChange
-                                                        ? PROFILE_COLORS.text
-                                                        : PROFILE_COLORS.textSecondary,
+                                                        ? colors.text
+                                                        : colors.textSecondary,
                                                     fontSize: 15,
                                                     fontWeight: "500",
                                                 }}
@@ -916,8 +917,8 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                 {addToCloseFriendsVisible && closeFriendCategoryId && (
                     <Modal transparent visible animationType="slide" onRequestClose={() => setAddToCloseFriendsVisible(false)}>
                         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setAddToCloseFriendsVisible(false)}>
-                            <View style={{ backgroundColor: "#18181b", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, maxHeight: "60%" }}>
-                                <Text style={{ color: PROFILE_COLORS.text, fontSize: 16, fontWeight: "600", marginBottom: 12 }}>Thêm vào Bạn thân</Text>
+                            <View style={{ backgroundColor: colors.modalBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, maxHeight: "60%" }}>
+                                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "600", marginBottom: 12 }}>Thêm vào Bạn thân</Text>
                                 <ScrollView style={{ maxHeight: 320 }}>
                                     {friends
                                         .map((f) => getFriendUser(f, currentUser?.id))
@@ -930,19 +931,19 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                     await handleAssignCategory(u.id, closeFriendCategoryId);
                                                     setAddToCloseFriendsVisible(false);
                                                 }}
-                                                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: "#27272a" }}
+                                                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border }}
                                             >
-                                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#2f3134", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
-                                                    <Text style={{ color: PROFILE_COLORS.text, fontWeight: "600", fontSize: 16 }}>
+                                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                                                    <Text style={{ color: colors.text, fontWeight: "600", fontSize: 16 }}>
                                                         {((u.displayName || u.username || "?").charAt(0).toUpperCase() || "?").toUpperCase()}
                                                     </Text>
                                                 </View>
-                                                <Text style={{ color: PROFILE_COLORS.text, fontSize: 15 }} numberOfLines={1}>{u.displayName || u.username || "Người dùng"}</Text>
+                                                <Text style={{ color: colors.text, fontSize: 15 }} numberOfLines={1}>{u.displayName || u.username || "Người dùng"}</Text>
                                             </TouchableOpacity>
                                         ))}
                                 </ScrollView>
                                 <TouchableOpacity onPress={() => setAddToCloseFriendsVisible(false)} style={{ marginTop: 12, paddingVertical: 10 }}>
-                                    <Text style={{ color: PROFILE_COLORS.textSecondary, fontSize: 14, textAlign: "center" }}>Đóng</Text>
+                                    <Text style={{ color: colors.textSecondary, fontSize: 14, textAlign: "center" }}>Đóng</Text>
                                 </TouchableOpacity>
                             </View>
                         </TouchableOpacity>
@@ -970,7 +971,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                 style={{
                                     width: "100%",
                                     maxWidth: 420,
-                                    backgroundColor: "#18181b",
+                                    backgroundColor: colors.background,
                                     borderRadius: 16,
                                     paddingHorizontal: 16,
                                     paddingVertical: 14,
@@ -986,7 +987,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                 >
                                     <Text
                                         style={{
-                                            color: PROFILE_COLORS.text,
+                                            color: colors.text,
                                             fontSize: 16,
                                             fontWeight: "600",
                                         }}
@@ -1001,7 +1002,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                         <Ionicons
                                             name="close"
                                             size={20}
-                                            color={PROFILE_COLORS.textSecondary}
+                                            color={colors.textSecondary}
                                         />
                                     </TouchableOpacity>
                                 </View>
@@ -1016,7 +1017,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                     <TextInput
                                         placeholder="Thêm thẻ mới..."
                                         placeholderTextColor={
-                                            PROFILE_COLORS.textSecondary
+                                            colors.textSecondary
                                         }
                                         value={newCategoryName}
                                         onChangeText={setNewCategoryName}
@@ -1025,9 +1026,9 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                             height: 40,
                                             borderRadius: 999,
                                             borderWidth: 1,
-                                            borderColor: "#27272a",
+                                            borderColor: colors.border,
                                             paddingHorizontal: 12,
-                                            color: PROFILE_COLORS.text,
+                                            color: colors.text,
                                             fontSize: 14,
                                             marginRight: 8,
                                         }}
@@ -1038,7 +1039,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                             paddingHorizontal: 14,
                                             paddingVertical: 8,
                                             borderRadius: 999,
-                                            backgroundColor: PROFILE_COLORS.primary,
+                                            backgroundColor: colors.primary,
                                         }}
                                     >
                                         <Text
@@ -1065,7 +1066,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                 alignItems: "center",
                                                 paddingVertical: 8,
                                                 borderBottomWidth: 0.5,
-                                                borderBottomColor: "#27272a",
+                                                borderBottomColor: colors.border,
                                             }}
                                         >
                                             <View
@@ -1088,9 +1089,9 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                         height: 36,
                                                         borderRadius: 8,
                                                         borderWidth: 1,
-                                                        borderColor: "#27272a",
+                                                        borderColor: colors.border,
                                                         paddingHorizontal: 10,
-                                                        color: PROFILE_COLORS.text,
+                                                        color: colors.text,
                                                         fontSize: 14,
                                                     }}
                                                 />
@@ -1098,7 +1099,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                 <Text
                                                     style={{
                                                         flex: 1,
-                                                        color: PROFILE_COLORS.text,
+                                                        color: colors.text,
                                                         fontSize: 14,
                                                     }}
                                                 >
@@ -1144,13 +1145,13 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                             paddingVertical: 6,
                                                             borderRadius: 8,
                                                             borderWidth: 1,
-                                                            borderColor: "#27272a",
+                                                            borderColor: colors.border,
                                                             marginLeft: 6,
                                                         }}
                                                     >
                                                         <Text
                                                             style={{
-                                                                color: PROFILE_COLORS.textSecondary,
+                                                                color: colors.textSecondary,
                                                                 fontSize: 12,
                                                             }}
                                                         >
@@ -1174,13 +1175,13 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                             paddingVertical: 6,
                                                             borderRadius: 8,
                                                             borderWidth: 1,
-                                                            borderColor: "#27272a",
+                                                            borderColor: colors.border,
                                                             marginLeft: 6,
                                                         }}
                                                     >
                                                         <Text
                                                             style={{
-                                                                color: PROFILE_COLORS.textSecondary,
+                                                                color: colors.textSecondary,
                                                                 fontSize: 12,
                                                             }}
                                                         >
@@ -1227,7 +1228,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                 >
                                     <Text
                                         style={{
-                                            color: PROFILE_COLORS.textSecondary,
+                                            color: colors.textSecondary,
                                             fontSize: 14,
                                             textAlign: "center",
                                         }}

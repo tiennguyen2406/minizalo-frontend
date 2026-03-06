@@ -30,10 +30,14 @@ import friendService from "@/shared/services/friendService";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
+import { useThemeColors } from "@/shared/theme/colors";
+import { useAuthStore } from "@/shared/store/authStore";
+import { useLocalSearchParams } from "expo-router";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
 export default function ChatScreen() {
+    const colors = useThemeColors();
     const route = useRoute<any>();
     const router = useRouter();
     const { id, name, type } = route.params || {};
@@ -726,7 +730,7 @@ export default function ChatScreen() {
     };
 
     return (
-        <View className="flex-1 bg-[#0e0e0e]">
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
             <ChatHeader
                 name={displayName}
                 roomType={roomType}
@@ -792,22 +796,26 @@ export default function ChatScreen() {
                         <View
                             style={{
                                 paddingHorizontal: 12,
-                                paddingTop: 4,
+                                paddingVertical: 8,
+                                borderBottomWidth: 1,
+                                borderBottomColor: colors.border,
+                                backgroundColor: colors.card,
                             }}
                         >
                             <TouchableOpacity
                                 activeOpacity={0.8}
                                 style={{
-                                    backgroundColor: "#111827",
+                                    backgroundColor: colors.background,
                                     borderRadius: 10,
                                     paddingHorizontal: 12,
                                     paddingVertical: 8,
                                     flexDirection: "row",
                                     alignItems: "center",
                                     justifyContent: "space-between",
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
                                 }}
                                 onPress={() => {
-                                    // Mở danh sách tin nhắn đã ghim dạng overlay (Modal)
                                     setShowPinnedList(true);
                                 }}
                             >
@@ -822,7 +830,7 @@ export default function ChatScreen() {
                                     <Text
                                         numberOfLines={1}
                                         style={{
-                                            color: "#e5e7eb",
+                                            color: colors.text,
                                             fontSize: 12,
                                             flex: 1,
                                         }}
@@ -842,7 +850,7 @@ export default function ChatScreen() {
                                     {pinned.length > 1 && (
                                         <Text
                                             style={{
-                                                color: "#9ca3af",
+                                                color: colors.textSecondary,
                                                 fontSize: 11,
                                                 marginRight: 6,
                                             }}
@@ -850,7 +858,7 @@ export default function ChatScreen() {
                                             +{pinned.length - 1}
                                         </Text>
                                     )}
-                                    <Text style={{ color: "#9ca3af", fontSize: 14 }}>▾</Text>
+                                    <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
                                 </View>
                             </TouchableOpacity>
                         </View>
@@ -861,7 +869,7 @@ export default function ChatScreen() {
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
                 keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-                className="flex-1"
+                style={{ flex: 1 }}
             >
                 <FlatList
                     ref={flatListRef}
@@ -872,8 +880,8 @@ export default function ChatScreen() {
                     contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={() => (
-                        <View className="flex-1 justify-center items-center" style={{ transform: [{ scaleY: -1 }] }}>
-                            <Text className="text-gray-500">
+                        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", transform: [{ scaleY: -1 }] }}>
+                            <Text style={{ color: colors.textSecondary }}>
                                 {loaded ? "Hãy gửi tin nhắn đầu tiên! 👋" : "Đang tải tin nhắn..."}
                             </Text>
                         </View>
@@ -886,15 +894,15 @@ export default function ChatScreen() {
                         style={{
                             paddingHorizontal: 16,
                             paddingVertical: 16,
-                            borderTopWidth: 0.5,
-                            borderTopColor: "#1f2933",
-                            backgroundColor: "#111827",
+                            borderTopWidth: 1,
+                            borderTopColor: colors.border,
+                            backgroundColor: colors.card,
                             alignItems: "center",
                         }}
                     >
                         <Text
                             style={{
-                                color: "#e5e7eb",
+                                color: colors.text,
                                 fontSize: 13,
                                 marginBottom: blockStatus.blockedByYou ? 10 : 0,
                                 textAlign: "center",
@@ -928,7 +936,7 @@ export default function ChatScreen() {
                                     paddingHorizontal: 16,
                                     paddingVertical: 8,
                                     borderRadius: 999,
-                                    backgroundColor: "#2563eb",
+                                    backgroundColor: colors.primary,
                                 }}
                             >
                                 <Text
@@ -965,28 +973,30 @@ export default function ChatScreen() {
                     activeOpacity={1}
                     style={{
                         flex: 1,
-                        backgroundColor: "rgba(0,0,0,0.4)",
+                        backgroundColor: "rgba(0,0,0,0.5)",
                         justifyContent: "flex-end",
                     }}
                     onPress={closeActionSheet}
                 >
                     <View
                         style={{
-                            backgroundColor: "#1f2933",
-                            paddingBottom: 24,
-                            paddingTop: 8,
-                            borderTopLeftRadius: 16,
-                            borderTopRightRadius: 16,
+                            backgroundColor: colors.background,
+                            paddingBottom: 32,
+                            paddingTop: 12,
+                            borderTopLeftRadius: 20,
+                            borderTopRightRadius: 20,
+                            borderWidth: 1,
+                            borderColor: colors.border,
                         }}
                     >
                         <View
                             style={{
                                 alignSelf: "center",
-                                width: 40,
-                                height: 4,
+                                width: 36,
+                                height: 5,
                                 borderRadius: 999,
-                                backgroundColor: "#4b5563",
-                                marginBottom: 12,
+                                backgroundColor: colors.border,
+                                marginBottom: 20,
                             }}
                         />
 
@@ -1018,12 +1028,14 @@ export default function ChatScreen() {
                                             }
                                         }}
                                         style={{
-                                            width: 44,
-                                            height: 44,
-                                            borderRadius: 22,
-                                            backgroundColor: "#111827",
+                                            width: 48,
+                                            height: 48,
+                                            borderRadius: 24,
+                                            backgroundColor: colors.card,
                                             alignItems: "center",
                                             justifyContent: "center",
+                                            borderWidth: 1,
+                                            borderColor: colors.border,
                                         }}
                                     >
                                         <Text style={{ fontSize: 24 }}>{emoji}</Text>
@@ -1032,11 +1044,11 @@ export default function ChatScreen() {
                             </View>
                         )}
 
-                        {selectedMessage?.senderId === currentUserId && !selectedMessage.recalled && (
+                        {selectedMessage?.senderId === currentUserId && !selectedMessage?.recalled && (
                             <TouchableOpacity
                                 onPress={handleRecall}
                                 style={{
-                                    paddingVertical: 12,
+                                    paddingVertical: 14,
                                     paddingHorizontal: 20,
                                 }}
                             >
@@ -1077,11 +1089,11 @@ export default function ChatScreen() {
                         <TouchableOpacity
                             onPress={closeActionSheet}
                             style={{
-                                paddingVertical: 12,
+                                paddingVertical: 14,
                                 paddingHorizontal: 20,
                             }}
                         >
-                            <Text style={{ color: "#e5e7eb", fontSize: 16 }}>Đóng</Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 16 }}>Đóng</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
@@ -1098,28 +1110,30 @@ export default function ChatScreen() {
                     activeOpacity={1}
                     style={{
                         flex: 1,
-                        backgroundColor: "rgba(0,0,0,0.4)",
+                        backgroundColor: "rgba(0,0,0,0.5)",
                         justifyContent: "flex-end",
                     }}
                     onPress={() => setShowPinnedList(false)}
                 >
                     <View
                         style={{
-                            backgroundColor: "#111827",
-                            paddingTop: 12,
-                            paddingBottom: 24,
-                            borderTopLeftRadius: 16,
-                            borderTopRightRadius: 16,
-                            maxHeight: "60%",
+                            backgroundColor: colors.background,
+                            paddingTop: 16,
+                            paddingBottom: 32,
+                            borderTopLeftRadius: 20,
+                            borderTopRightRadius: 20,
+                            maxHeight: "70%",
+                            borderWidth: 1,
+                            borderColor: colors.border,
                         }}
                     >
                         <Text
                             style={{
-                                color: "#e5e7eb",
-                                fontSize: 16,
-                                fontWeight: "600",
+                                color: colors.text,
+                                fontSize: 17,
+                                fontWeight: "700",
                                 textAlign: "center",
-                                marginBottom: 8,
+                                marginBottom: 12,
                             }}
                         >
                             Tin nhắn đã ghim
@@ -1133,9 +1147,9 @@ export default function ChatScreen() {
                             {messages.filter((m) => m.pinned).length === 0 ? (
                                 <Text
                                     style={{
-                                        color: "#9ca3af",
+                                        color: colors.textSecondary,
                                         textAlign: "center",
-                                        paddingVertical: 12,
+                                        paddingVertical: 40,
                                     }}
                                 >
                                     Chưa có tin nhắn nào được ghim.
@@ -1149,10 +1163,10 @@ export default function ChatScreen() {
                                             style={{
                                                 flexDirection: "row",
                                                 alignItems: "center",
-                                                paddingVertical: 10,
+                                                paddingVertical: 12,
                                                 paddingHorizontal: 16,
-                                                borderBottomWidth: 0.5,
-                                                borderBottomColor: "#374151",
+                                                borderBottomWidth: 1,
+                                                borderBottomColor: colors.border,
                                             }}
                                         >
                                             <TouchableOpacity
@@ -1172,8 +1186,8 @@ export default function ChatScreen() {
                                             >
                                                 <Text
                                                     style={{
-                                                        color: "#e5e7eb",
-                                                        fontSize: 14,
+                                                        color: colors.text,
+                                                        fontSize: 15,
                                                         marginBottom: 4,
                                                     }}
                                                     numberOfLines={2}
@@ -1182,7 +1196,7 @@ export default function ChatScreen() {
                                                 </Text>
                                                 <Text
                                                     style={{
-                                                        color: "#9ca3af",
+                                                        color: colors.textSecondary,
                                                         fontSize: 12,
                                                     }}
                                                 >
@@ -1205,7 +1219,7 @@ export default function ChatScreen() {
                                                     marginLeft: 8,
                                                 }}
                                             >
-                                                <Text style={{ color: "#9ca3af", fontSize: 18 }}>×</Text>
+                                                <Ionicons name="close-circle" size={24} color={colors.textSecondary} />
                                             </TouchableOpacity>
                                         </View>
                                     ))
@@ -1226,7 +1240,7 @@ export default function ChatScreen() {
                     activeOpacity={1}
                     style={{
                         flex: 1,
-                        backgroundColor: "rgba(0,0,0,0.4)",
+                        backgroundColor: "rgba(0,0,0,0.5)",
                         justifyContent: "flex-end",
                     }}
                     onPress={() => setReactionListMessage(null)}
@@ -1235,12 +1249,14 @@ export default function ChatScreen() {
                         activeOpacity={1}
                         onPress={() => { }}
                         style={{
-                            backgroundColor: "#111827",
-                            paddingTop: 12,
-                            paddingBottom: 24,
-                            borderTopLeftRadius: 16,
-                            borderTopRightRadius: 16,
-                            maxHeight: "60%",
+                            backgroundColor: colors.background,
+                            paddingTop: 16,
+                            paddingBottom: 32,
+                            borderTopLeftRadius: 20,
+                            borderTopRightRadius: 20,
+                            maxHeight: "70%",
+                            borderWidth: 1,
+                            borderColor: colors.border,
                         }}
                     >
                         {reactionListMessage && (() => {
@@ -1266,15 +1282,15 @@ export default function ChatScreen() {
                                             flexDirection: "row",
                                             alignItems: "center",
                                             justifyContent: "space-between",
-                                            paddingHorizontal: 16,
-                                            marginBottom: 12,
+                                            paddingHorizontal: 20,
+                                            marginBottom: 16,
                                         }}
                                     >
                                         <Text
                                             style={{
-                                                color: "#e5e7eb",
-                                                fontSize: 16,
-                                                fontWeight: "600",
+                                                color: colors.text,
+                                                fontSize: 17,
+                                                fontWeight: "700",
                                             }}
                                         >
                                             Tất cả {total}
@@ -1283,7 +1299,7 @@ export default function ChatScreen() {
                                             {Object.entries(byEmoji).map(([emoji, count]) => (
                                                 <Text
                                                     key={emoji}
-                                                    style={{ color: "#e5e7eb", fontSize: 14, marginLeft: 12 }}
+                                                    style={{ color: colors.text, fontSize: 14, marginLeft: 12 }}
                                                 >
                                                     {emoji} {count}
                                                 </Text>
@@ -1297,32 +1313,34 @@ export default function ChatScreen() {
                                                 style={{
                                                     flexDirection: "row",
                                                     alignItems: "center",
-                                                    paddingHorizontal: 16,
-                                                    paddingVertical: 10,
-                                                    borderBottomWidth: 0.5,
-                                                    borderBottomColor: "#374151",
+                                                    paddingHorizontal: 20,
+                                                    paddingVertical: 12,
+                                                    borderBottomWidth: 1,
+                                                    borderBottomColor: colors.border,
                                                 }}
                                             >
                                                 <View
                                                     style={{
-                                                        width: 36,
-                                                        height: 36,
-                                                        borderRadius: 18,
-                                                        backgroundColor: "#374151",
+                                                        width: 40,
+                                                        height: 40,
+                                                        borderRadius: 20,
+                                                        backgroundColor: colors.card,
                                                         alignItems: "center",
                                                         justifyContent: "center",
-                                                        marginRight: 10,
+                                                        marginRight: 12,
+                                                        borderWidth: 1,
+                                                        borderColor: colors.border,
                                                     }}
                                                 >
-                                                    <Text style={{ color: "#e5e7eb", fontSize: 14 }}>
-                                                        {(reactionUserNameMap[uid] || uid).charAt(0)}
+                                                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>
+                                                        {(reactionUserNameMap[uid] || uid).charAt(0).toUpperCase()}
                                                     </Text>
                                                 </View>
                                                 <Text
                                                     style={{
                                                         flex: 1,
-                                                        color: "#e5e7eb",
-                                                        fontSize: 14,
+                                                        color: colors.text,
+                                                        fontSize: 15,
                                                     }}
                                                     numberOfLines={1}
                                                 >
@@ -1330,7 +1348,7 @@ export default function ChatScreen() {
                                                 </Text>
                                                 <View style={{ flexDirection: "row" }}>
                                                     {(Array.isArray(byUser[uid]) ? byUser[uid] : []).map((emoji) => (
-                                                        <Text key={emoji} style={{ fontSize: 16, marginLeft: 4 }}>
+                                                        <Text key={emoji} style={{ fontSize: 18, marginLeft: 8 }}>
                                                             {emoji}
                                                         </Text>
                                                     ))}
@@ -1352,17 +1370,17 @@ export default function ChatScreen() {
                 animationType="fade"
                 onRequestClose={() => setGalleryIndex(null)}
             >
-                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.95)" }}>
+                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.98)" }}>
                     <TouchableOpacity
                         onPress={() => setGalleryIndex(null)}
-                        style={{ position: "absolute", top: 50, right: 20, zIndex: 10, padding: 8 }}
+                        style={{ position: "absolute", top: 52, right: 20, zIndex: 10, padding: 8 }}
                     >
-                        <Ionicons name="close" size={28} color="#fff" />
+                        <Ionicons name="close" size={32} color="#fff" />
                     </TouchableOpacity>
 
                     {allImages.length > 1 && (
-                        <View style={{ position: "absolute", top: 54, left: 0, right: 0, zIndex: 10, alignItems: "center" }}>
-                            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
+                        <View style={{ position: "absolute", top: 56, left: 0, right: 0, zIndex: 10, alignItems: "center" }}>
+                            <Text style={{ color: "#fff", fontSize: 18, fontWeight: "600" }}>
                                 {galleryCurrentIndex + 1} / {allImages.length}
                             </Text>
                         </View>

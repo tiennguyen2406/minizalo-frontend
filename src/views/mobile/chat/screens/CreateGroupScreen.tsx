@@ -7,12 +7,12 @@ import {
     FlatList,
     Image,
     ActivityIndicator,
-    SafeAreaView,
     Platform,
     StatusBar,
     Alert,
     KeyboardAvoidingView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -227,9 +227,8 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
             style={{
                 flex: 1,
                 backgroundColor: COLORS.bg,
-                paddingTop:
-                    Platform.OS === "android" ? StatusBar.currentHeight : 0,
             }}
+            edges={["top"]}
         >
             <KeyboardAvoidingView
                 style={{ flex: 1 }}

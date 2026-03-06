@@ -4,19 +4,21 @@ import {
     Text,
     TouchableOpacity,
     Platform,
-    StatusBar,
+    StatusBar as RNStatusBar,
     Modal,
     TouchableWithoutFeedback,
     Animated,
     TextInput,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { PROFILE_COLORS } from "../../profile/styles";
+import { useThemeColors } from "@/shared/theme/colors";
 
 export const ChatListHeader = () => {
     const router = useRouter();
+    const colors = useThemeColors();
     const [searchText, setSearchText] = useState("");
     const [menuVisible, setMenuVisible] = useState(false);
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -47,99 +49,96 @@ export const ChatListHeader = () => {
 
     return (
         <SafeAreaView
-            style={{ backgroundColor: PROFILE_COLORS.background }}
+            style={{ backgroundColor: colors.headerBg }}
             edges={["top"]}
         >
+            <StatusBar style={colors.statusBar} />
             <View
                 style={{
-                    paddingTop: Platform.OS === "android" ? 8 : 16,
-                    paddingBottom: 8,
+                    height: 52,
+                    flexDirection: "row",
+                    alignItems: "center",
                     paddingHorizontal: 16,
-                    backgroundColor: PROFILE_COLORS.background,
+                    backgroundColor: colors.headerBg,
+                    borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                    borderBottomColor: colors.border,
+                    gap: 12,
                 }}
             >
+                {/* Search bar */}
                 <View
                     style={{
+                        flex: 1,
                         flexDirection: "row",
                         alignItems: "center",
-                        gap: 12,
+                        borderRadius: 10,
+                        backgroundColor: colors.headerSearchBg,
+                        paddingHorizontal: 10,
+                        height: 36,
                     }}
                 >
-                    {/* Search bar */}
-                    <View
+                    <Ionicons
+                        name="search"
+                        size={18}
+                        color={colors.headerIcon}
+                        style={{ marginRight: 6 }}
+                    />
+                    <TextInput
+                        value={searchText}
+                        onChangeText={setSearchText}
+                        placeholder="Tìm kiếm"
+                        placeholderTextColor={colors.headerIcon}
                         style={{
                             flex: 1,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            borderRadius: 10,
-                            backgroundColor: "#2c2c2e",
-                            paddingHorizontal: 10,
-                            paddingVertical: 8,
+                            color: colors.headerText,
+                            fontSize: 15,
+                            paddingVertical: 0,
                         }}
-                    >
-                        <Ionicons
-                            name="search"
-                            size={18}
-                            color={PROFILE_COLORS.textSecondary}
-                            style={{ marginRight: 6 }}
-                        />
-                        <TextInput
-                            value={searchText}
-                            onChangeText={setSearchText}
-                            placeholder="Tìm kiếm"
-                            placeholderTextColor={PROFILE_COLORS.textSecondary}
-                            style={{
-                                flex: 1,
-                                color: PROFILE_COLORS.text,
-                                fontSize: 14,
-                                paddingVertical: 0,
-                            }}
-                            showSoftInputOnFocus={false}
-                            onFocus={(e) => {
-                                e.target.blur();
-                                setSearchText("");
-                                router.push({
-                                    pathname: "/(tabs)/contacts-search",
-                                    params: { from: "chat", t: Date.now() },
-                                });
-                            }}
-                        />
-                        {searchText ? (
-                            <TouchableOpacity
-                                onPress={() => setSearchText("")}
-                                style={{ paddingLeft: 6 }}
-                                activeOpacity={0.7}
-                            >
-                                <Ionicons
-                                    name="close-circle"
-                                    size={18}
-                                    color={PROFILE_COLORS.textSecondary}
-                                />
-                            </TouchableOpacity>
-                        ) : null}
-                    </View>
-
-                    {/* QR Code button */}
-                    <TouchableOpacity
-                        activeOpacity={0.6}
-                        style={{ padding: 4 }}
-                    >
-                        <Ionicons
-                            name="qr-code-outline"
-                            size={22}
-                            color={PROFILE_COLORS.text}
-                        />
-                    </TouchableOpacity>
-
-                    {/* "+" button */}
-                    <TouchableOpacity
-                        activeOpacity={0.6}
-                        style={{ padding: 4 }}
-                        onPress={openMenu}
-                    >
-                        <Ionicons name="add" size={28} color={PROFILE_COLORS.text} />
-                    </TouchableOpacity>
+                        showSoftInputOnFocus={false}
+                        onFocus={(e) => {
+                            e.target.blur();
+                            setSearchText("");
+                            router.push({
+                                pathname: "/(tabs)/contacts-search",
+                                params: { from: "chat", t: Date.now() },
+                            });
+                        }}
+                    />
+                    {searchText ? (
+                        <TouchableOpacity
+                            onPress={() => setSearchText("")}
+                            style={{ paddingLeft: 6 }}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons
+                                name="close-circle"
+                                size={18}
+                                color={colors.headerIcon}
+                            />
+                        </TouchableOpacity>
+                    ) : null}
                 </View>
+
+                {/* QR Code button */}
+                <TouchableOpacity
+                    activeOpacity={0.6}
+                    style={{ padding: 4 }}
+                >
+                    <Ionicons
+                        name="qr-code-outline"
+                        size={22}
+                        color={colors.headerIcon}
+                    />
+                </TouchableOpacity>
+
+                {/* "+" button */}
+                <TouchableOpacity
+                    activeOpacity={0.6}
+                    style={{ padding: 4 }}
+                    onPress={openMenu}
+                >
+                    <Ionicons name="add" size={28} color={colors.headerIcon} />
+                </TouchableOpacity>
             </View>
 
             {/* ── Dropdown Menu ── */}
@@ -155,10 +154,10 @@ export const ChatListHeader = () => {
                             style={{
                                 position: "absolute",
                                 top: Platform.OS === "android"
-                                    ? (StatusBar.currentHeight || 0) + 48
+                                    ? (RNStatusBar.currentHeight || 0) + 48
                                     : 90,
                                 right: 12,
-                                backgroundColor: "#1c1c2e",
+                                backgroundColor: colors.card,
                                 borderRadius: 12,
                                 paddingVertical: 4,
                                 minWidth: 200,
@@ -177,6 +176,8 @@ export const ChatListHeader = () => {
                                 shadowOpacity: 0.3,
                                 shadowRadius: 8,
                                 elevation: 8,
+                                borderWidth: 1,
+                                borderColor: colors.border,
                             }}
                         >
                             {/* Tạo nhóm */}
@@ -193,13 +194,13 @@ export const ChatListHeader = () => {
                                 <Ionicons
                                     name="people-outline"
                                     size={20}
-                                    color={PROFILE_COLORS.textSecondary}
+                                    color={colors.textSecondary}
                                     style={{ marginRight: 12 }}
                                 />
                                 <Text
                                     style={{
                                         fontSize: 15,
-                                        color: PROFILE_COLORS.text,
+                                        color: colors.text,
                                     }}
                                 >
                                     Tạo nhóm
@@ -210,7 +211,7 @@ export const ChatListHeader = () => {
                             <View
                                 style={{
                                     height: 0.5,
-                                    backgroundColor: "#27272a",
+                                    backgroundColor: colors.border,
                                     marginHorizontal: 12,
                                 }}
                             />
@@ -232,13 +233,13 @@ export const ChatListHeader = () => {
                                 <Ionicons
                                     name="person-add-outline"
                                     size={20}
-                                    color={PROFILE_COLORS.textSecondary}
+                                    color={colors.textSecondary}
                                     style={{ marginRight: 12 }}
                                 />
                                 <Text
                                     style={{
                                         fontSize: 15,
-                                        color: PROFILE_COLORS.text,
+                                        color: colors.text,
                                     }}
                                 >
                                     Thêm bạn

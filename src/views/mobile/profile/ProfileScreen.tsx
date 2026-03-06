@@ -6,23 +6,28 @@ import {
     Image,
     TouchableOpacity,
     ScrollView,
-    StatusBar,
+    Platform,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
-import { profileStyles, PROFILE_COLORS } from "./styles";
+import { profileStyles } from "./styles";
 import type { UserProfile } from "@/shared/services/types";
+import { useThemeColors } from "@/shared/theme/colors";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
 // Icon trong ô vuông xanh (giống Zalo): cloud, sparkles, folder, time, qr-code, shield, lock
-const ListIcon = ({ name }: { name: IconName }) => (
-    <View style={profileStyles.listItemIcon}>
-        <Ionicons name={name} size={18} color="#fff" />
-    </View>
-);
+const ListIcon = ({ name }: { name: IconName }) => {
+    const colors = useThemeColors();
+    return (
+        <View style={[profileStyles.listItemIcon, { backgroundColor: colors.primary }]}>
+            <Ionicons name={name} size={18} color="#fff" />
+        </View>
+    );
+};
 
 interface MenuItemProps {
     icon: IconName;
@@ -32,22 +37,29 @@ interface MenuItemProps {
 }
 
 function MenuItem({ icon, title, subtitle, onPress }: MenuItemProps) {
+    const colors = useThemeColors();
     return (
         <TouchableOpacity
-            style={profileStyles.listItem}
+            style={[
+                profileStyles.listItem,
+                {
+                    backgroundColor: colors.card,
+                    borderBottomColor: colors.border
+                }
+            ]}
             onPress={onPress}
             activeOpacity={0.7}
         >
             <ListIcon name={icon} />
             <View style={profileStyles.listItemContent}>
-                <Text style={profileStyles.listItemTitle}>{title}</Text>
+                <Text style={[profileStyles.listItemTitle, { color: colors.text }]}>{title}</Text>
                 {subtitle ? (
-                    <Text style={profileStyles.listItemSubtitle} numberOfLines={1}>
+                    <Text style={[profileStyles.listItemSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
                         {subtitle}
                     </Text>
                 ) : null}
             </View>
-            <Text style={profileStyles.listItemArrow}>›</Text>
+            <Text style={[profileStyles.listItemArrow, { color: colors.textSecondary }]}>›</Text>
         </TouchableOpacity>
     );
 }
@@ -58,6 +70,7 @@ interface ProfileScreenProps {
 
 export default function ProfileScreen({ user }: ProfileScreenProps) {
     const router = useRouter();
+    const colors = useThemeColors();
     const [searchQuery, setSearchQuery] = useState("");
 
     // Tên tài khoản vừa đăng nhập: ưu tiên displayName, rồi username (SĐT/email)
@@ -67,60 +80,88 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
     const avatarInitial = displayName.charAt(0).toUpperCase() || "U";
 
     return (
-        <SafeAreaView style={profileStyles.container} edges={["top"]}>
-            <StatusBar barStyle="light-content" backgroundColor={PROFILE_COLORS.background} />
-
-            {/* Search + Settings */}
-            <View style={profileStyles.searchRow}>
-                <View style={profileStyles.searchBox}>
-                    <Ionicons name="search" size={20} color={PROFILE_COLORS.textSecondary} />
-                    <TextInput
-                        style={profileStyles.searchInput}
-                        placeholder="Tìm kiếm"
-                        placeholderTextColor={PROFILE_COLORS.textSecondary}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        showSoftInputOnFocus={false}
-                        onFocus={() => {
-                            setSearchQuery("");
-                            router.push({
-                                pathname: "/(tabs)/contacts-search",
-                                params: { from: "account", t: Date.now() },
-                            });
-                        }}
-                    />
-                    {searchQuery ? (
-                        <TouchableOpacity
-                            onPress={() => setSearchQuery("")}
-                            style={{ paddingLeft: 4 }}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name="close-circle"
-                                size={18}
-                                color={PROFILE_COLORS.textSecondary}
-                            />
-                        </TouchableOpacity>
-                    ) : null}
-                </View>
-                <TouchableOpacity
-                    style={profileStyles.settingsButton}
-                    onPress={() => router.push("/(tabs)/settings")}
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
+                {/* Search + Settings */}
+                <View
+                    style={{
+                        height: 52,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 16,
+                        backgroundColor: colors.headerBg,
+                        borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                        borderBottomColor: colors.border,
+                        gap: 12,
+                    }}
                 >
-                    <Ionicons name="settings-outline" size={24} color={PROFILE_COLORS.text} />
-                </TouchableOpacity>
-            </View>
+                    <View
+                        style={{
+                            flex: 1,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            borderRadius: 10,
+                            backgroundColor: colors.headerSearchBg,
+                            paddingHorizontal: 10,
+                            height: 36,
+                        }}
+                    >
+                        <Ionicons name="search" size={18} color={colors.headerIcon} />
+                        <TextInput
+                            style={{
+                                flex: 1,
+                                fontSize: 15,
+                                color: colors.headerText,
+                                marginLeft: 8,
+                                paddingVertical: 0,
+                            }}
+                            placeholder="Tìm kiếm"
+                            placeholderTextColor={colors.headerIcon}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            showSoftInputOnFocus={false}
+                            onFocus={() => {
+                                setSearchQuery("");
+                                router.push({
+                                    pathname: "/(tabs)/contacts-search",
+                                    params: { from: "account", t: Date.now() },
+                                });
+                            }}
+                        />
+                        {searchQuery ? (
+                            <TouchableOpacity
+                                onPress={() => setSearchQuery("")}
+                                style={{ paddingLeft: 4 }}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons
+                                    name="close-circle"
+                                    size={18}
+                                    color={colors.headerIcon}
+                                />
+                            </TouchableOpacity>
+                        ) : null}
+                    </View>
+                    <TouchableOpacity
+                        style={{ padding: 4 }}
+                        onPress={() => router.push("/(tabs)/settings")}
+                    >
+                        <Ionicons name="settings-outline" size={24} color={colors.headerIcon} />
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
 
-            {/* Profile block - nền xám nhạt hơn background */}
+            {/* Profile block */}
             <TouchableOpacity
-                style={[profileStyles.profileSection, { backgroundColor: '#1a1a1e' }]}
+                style={[profileStyles.profileSection, { backgroundColor: colors.card }]}
                 activeOpacity={0.8}
                 onPress={() => router.push("/(tabs)/personal-profile")}
             >
                 {avatarUrl ? (
                     <Image
-                        source={{ uri: avatarUrl }}
-                        style={[profileStyles.avatar, { borderWidth: 2, borderColor: '#fff' }]}
+                        source={{ uri: avatarUrl as string }}
+                        style={[profileStyles.avatar, { borderWidth: 2, borderColor: colors.background }]}
                     />
                 ) : (
                     <View
@@ -130,13 +171,14 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                                 alignItems: "center",
                                 justifyContent: "center",
                                 borderWidth: 2,
-                                borderColor: '#fff',
+                                borderColor: colors.background,
+                                backgroundColor: colors.searchBg
                             },
                         ]}
                     >
                         <Text
                             style={{
-                                color: PROFILE_COLORS.text,
+                                color: colors.text,
                                 fontSize: 28,
                                 fontWeight: "600",
                             }}
@@ -146,14 +188,14 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                     </View>
                 )}
                 <View style={profileStyles.nameRow}>
-                    <Text style={profileStyles.displayName}>{displayName}</Text>
+                    <Text style={[profileStyles.displayName, { color: colors.text }]}>{displayName}</Text>
                 </View>
             </TouchableOpacity>
 
-            {/* Menu list - grouped with gray separators like Zalo */}
-            <ScrollView style={profileStyles.list} showsVerticalScrollIndicator={false}>
+            {/* Menu list - grouped with separators */}
+            <ScrollView style={[profileStyles.list, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
                 {/* Thanh phân tách sau profile */}
-                <View style={{ height: 8, backgroundColor: '#1c1c1e' }} />
+                <View style={{ height: 8, backgroundColor: colors.separator }} />
 
                 {/* Nhóm 1: Cloud & Style */}
                 <MenuItem
@@ -168,7 +210,7 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                 />
 
                 {/* Thanh phân tách */}
-                <View style={{ height: 8, backgroundColor: '#1c1c1e' }} />
+                <View style={{ height: 8, backgroundColor: colors.separator }} />
 
                 {/* Nhóm 2: Documents & Data */}
                 <MenuItem
@@ -188,7 +230,7 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                 />
 
                 {/* Thanh phân tách */}
-                <View style={{ height: 8, backgroundColor: '#1c1c1e' }} />
+                <View style={{ height: 8, backgroundColor: colors.separator }} />
 
                 {/* Nhóm 3: Bảo mật & Riêng tư */}
                 <MenuItem
@@ -203,6 +245,6 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                 {/* Padding bottom */}
                 <View style={{ height: 24 }} />
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 }

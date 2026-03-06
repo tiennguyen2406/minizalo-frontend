@@ -1,12 +1,16 @@
 import React, { useState } from "react";
-import { View, StatusBar, KeyboardAvoidingView, Platform, ScrollView, Alert, TouchableOpacity, Text } from "react-native";
+import { View, KeyboardAvoidingView, Platform, ScrollView, Alert, TouchableOpacity, Text } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import authService from "@/shared/services/authService";
-import { authStyles } from "../styles";
+import { createAuthStyles } from "../styles";
 import { AuthHeader, AuthTitle, AuthInput, AuthButton } from "../components";
+import { useThemeColors } from "@/shared/theme/colors";
 
 export default function RegisterFormScreen() {
     const router = useRouter();
+    const colors = useThemeColors();
+    const authStyles = createAuthStyles(colors);
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
@@ -99,7 +103,7 @@ export default function RegisterFormScreen() {
 
     return (
         <View style={authStyles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+            <StatusBar style={colors.background === "#000000" ? "light" : "dark"} />
 
             <AuthHeader onBack={() => router.back()} />
 

@@ -6,17 +6,18 @@ import {
     ScrollView,
     StyleSheet,
     Image,
-    SafeAreaView,
     Platform,
-    StatusBar,
     Animated,
     Dimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import CreateGroupScreen from "./CreateGroupScreen";
 import AddToGroupModal from "../components/AddToGroupModal";
 import MediaStorageScreen from "./MediaStorageScreen";
 import { chatService } from "@/shared/services/chatService";
+import { useThemeColors } from "@/shared/theme/colors";
 
 const getImageUrl = (url: string) => {
     if (!url) return url;
@@ -31,17 +32,6 @@ const getImageUrl = (url: string) => {
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
-const COLORS = {
-    bg: "#1a1a1a",
-    card: "#1a1a1a",
-    text: "#fff",
-    textSecondary: "#aaa",
-    border: "#262626",
-    blue: "#3b82f6",
-    trackOff: "#3f3f46",
-    red: "#ef4444",
-};
-
 interface ChatOptionsScreenProps {
     roomId: string;
     name: string;
@@ -50,71 +40,9 @@ interface ChatOptionsScreenProps {
     onClose: () => void;
 }
 
-/* ────── Custom Switch ────── */
-const CustomSwitch = ({ value, onToggle }: { value: boolean; onToggle: () => void }) => (
-    <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={onToggle}
-        style={[
-            sw.track,
-            { backgroundColor: value ? COLORS.blue : COLORS.trackOff },
-        ]}
-    >
-        <View style={[sw.thumb, { marginLeft: value ? 20 : 2 }]} />
-    </TouchableOpacity>
-);
-
-const sw = StyleSheet.create({
-    track: { width: 44, height: 24, borderRadius: 12, justifyContent: "center" },
-    thumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
-});
-
-/* ────── Option Row ────── */
-const OptionRow = ({
-    icon,
-    label,
-    right,
-    onPress,
-    color = COLORS.text,
-    desc,
-    first,
-}: {
-    icon: string;
-    label: string;
-    right?: React.ReactNode;
-    onPress?: () => void;
-    color?: string;
-    desc?: string;
-    first?: boolean;
-}) => (
-    <TouchableOpacity
-        activeOpacity={onPress ? 0.7 : 1}
-        onPress={onPress}
-        style={[
-            s.row,
-            !first && { borderTopWidth: 0.5, borderTopColor: COLORS.border },
-        ]}
-    >
-        <Ionicons name={icon as any} size={24} color={color} style={{ width: 32 }} />
-        <View style={{ flex: 1 }}>
-            <Text style={[s.rowLabel, { color }]}>{label}</Text>
-            {desc ? <Text style={s.rowDesc}>{desc}</Text> : null}
-        </View>
-        {right ?? null}
-    </TouchableOpacity>
-);
-
-const Arrow = () => (
-    <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-);
-
-/* ────── Section ────── */
-const Section = ({ children }: { children: React.ReactNode }) => (
-    <View style={s.section}>{children}</View>
-);
-
 /* ══════════════════════════ MAIN ══════════════════════════ */
 export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, onClose }: ChatOptionsScreenProps) {
+    const colors = useThemeColors();
     const avatar = avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
 
     const [bestFriend, setBestFriend] = useState(false);
@@ -207,22 +135,100 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     // ── Modal: Thêm vào nhóm ──
     const [showAddToGroup, setShowAddToGroup] = useState(false);
 
+    /* ────── Custom Sub-components that depend on `colors` ────── */
+    const CustomSwitch = ({ value, onToggle }: { value: boolean; onToggle: () => void }) => (
+        <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={onToggle}
+            style={[
+                { width: 44, height: 24, borderRadius: 12, justifyContent: "center" },
+                { backgroundColor: value ? colors.primary : colors.separator },
+            ]}
+        >
+            <View style={[
+                { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
+                { marginLeft: value ? 20 : 2 }
+            ]} />
+        </TouchableOpacity>
+    );
+
+    const OptionRow = ({
+        icon,
+        label,
+        right,
+        onPress,
+        color = colors.text,
+        desc,
+        first,
+    }: {
+        icon: string;
+        label: string;
+        right?: React.ReactNode;
+        onPress?: () => void;
+        color?: string;
+        desc?: string;
+        first?: boolean;
+    }) => (
+        <TouchableOpacity
+            activeOpacity={onPress ? 0.7 : 1}
+            onPress={onPress}
+            style={[
+                { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingRight: 16 },
+                !first && { borderTopWidth: 0.5, borderTopColor: colors.border },
+            ]}
+        >
+            <Ionicons name={icon as any} size={24} color={color} style={{ width: 32 }} />
+            <View style={{ flex: 1 }}>
+                <Text style={[{ fontSize: 16 }, { color }]}>{label}</Text>
+                {desc ? <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 2 }}>{desc}</Text> : null}
+            </View>
+            {right ?? null}
+        </TouchableOpacity>
+    );
+
+    const Arrow = () => (
+        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+    );
+
+    const Section = ({ children }: { children: React.ReactNode }) => (
+        <View style={{ backgroundColor: colors.card, borderTopWidth: 8, borderTopColor: colors.separator, paddingLeft: 16 }}>
+            {children}
+        </View>
+    );
+
     return (
-        <SafeAreaView style={s.container}>
+        <SafeAreaView style={[s.container, { backgroundColor: colors.background }]} edges={["top"]}>
+            <StatusBar style={colors.statusBar} />
             {/* Header */}
-            <View style={s.header}>
-                <TouchableOpacity onPress={onClose} style={s.backBtn}>
-                    <Ionicons name="chevron-back" size={28} color="white" />
+            <View
+                style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.headerBg,
+                }}
+            >
+                <TouchableOpacity
+                    onPress={onClose}
+                    style={{ paddingRight: 8, paddingVertical: 4 }}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <Ionicons name="chevron-back" size={26} color={colors.headerText} />
                 </TouchableOpacity>
-                <Text style={s.headerTitle}>Tuỳ chọn</Text>
-                <View style={{ width: 40 }} />
+                <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
+                    Tuỳ chọn
+                </Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Profile */}
-                <View style={s.profile}>
+                <View style={[s.profile, { backgroundColor: colors.card }]}>
                     <Image source={{ uri: avatar }} style={s.avatar} />
-                    <Text style={s.nameText}>{name}</Text>
+                    <Text style={[s.nameText, { color: colors.text }]}>{name}</Text>
 
                     {/* 4 Action Buttons */}
                     <View style={s.actions}>
@@ -233,10 +239,10 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                             { icon: "notifications-off-outline", text: "Tắt\nthông báo" },
                         ].map((btn, i) => (
                             <TouchableOpacity key={i} style={s.actionBtn}>
-                                <View style={s.actionCircle}>
-                                    <Ionicons name={btn.icon as any} size={22} color={COLORS.text} />
+                                <View style={[s.actionCircle, { backgroundColor: colors.searchBg }]}>
+                                    <Ionicons name={btn.icon as any} size={22} color={colors.text} />
                                 </View>
-                                <Text style={s.actionLabel}>{btn.text}</Text>
+                                <Text style={[s.actionLabel, { color: colors.textSecondary }]}>{btn.text}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -259,24 +265,24 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingBottom: 16, paddingRight: 16 }}>
                         {recentMedia.length > 0 ? (
                             recentMedia.map((m, i) => (
-                                <View key={i} style={s.mediaPH}>
+                                <View key={i} style={[s.mediaPH, { backgroundColor: colors.searchBg }]}>
                                     {m.type === 'image' ? (
                                         <Image source={{ uri: getImageUrl(m.url) }} style={{ width: 70, height: 70, borderRadius: 8 }} />
                                     ) : m.type === 'file' ? (
-                                        <Ionicons name="document-text-outline" size={32} color={COLORS.text} />
+                                        <Ionicons name="document-text-outline" size={32} color={colors.text} />
                                     ) : (
-                                        <Ionicons name="link-outline" size={32} color={COLORS.text} />
+                                        <Ionicons name="link-outline" size={32} color={colors.text} />
                                     )}
                                 </View>
                             ))
                         ) : (
-                            <View style={[s.mediaPH, { justifyContent: 'center', alignItems: 'center' }]}>
-                                <Text style={{ color: COLORS.textSecondary, fontSize: 13 }}>Trống</Text>
+                            <View style={[s.mediaPH, { backgroundColor: colors.searchBg, justifyContent: 'center', alignItems: 'center' }]}>
+                                <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Trống</Text>
                             </View>
                         )}
                         {recentMedia.length >= 4 && (
-                            <TouchableOpacity style={s.mediaPH} onPress={openMediaStorage}>
-                                <Ionicons name="arrow-forward" size={24} color={COLORS.text} />
+                            <TouchableOpacity style={[s.mediaPH, { backgroundColor: colors.searchBg }]} onPress={openMediaStorage}>
+                                <Ionicons name="arrow-forward" size={24} color={colors.text} />
                             </TouchableOpacity>
                         )}
                     </ScrollView>
@@ -314,7 +320,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     <OptionRow icon="alert-circle-outline" label="Báo xấu" first />
                     <OptionRow icon="ban-outline" label="Quản lý chặn" right={<Arrow />} />
                     <OptionRow icon="pie-chart-outline" label="Dung lượng trò chuyện" />
-                    <OptionRow icon="trash-outline" label="Xóa lịch sử trò chuyện" color={COLORS.red} />
+                    <OptionRow icon="trash-outline" label="Xóa lịch sử trò chuyện" color="#ef4444" />
                 </Section>
 
                 <View style={{ height: 40 }} />
@@ -370,35 +376,19 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
 const s = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.bg,
-        paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
     },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        height: 50,
-        paddingHorizontal: 8,
-        backgroundColor: COLORS.card,
-    },
-    backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-    headerTitle: { color: "white", fontSize: 18, fontWeight: "600" },
-    profile: { alignItems: "center", paddingVertical: 20, backgroundColor: COLORS.card },
+    profile: { alignItems: "center", paddingVertical: 20 },
     avatar: { width: 90, height: 90, borderRadius: 45, marginBottom: 12 },
-    nameText: { color: COLORS.text, fontSize: 20, fontWeight: "bold", marginBottom: 20 },
+    nameText: { fontSize: 20, fontWeight: "bold", marginBottom: 20 },
     actions: { flexDirection: "row", justifyContent: "center", gap: 24, paddingHorizontal: 20 },
     actionBtn: { alignItems: "center" },
     actionCircle: {
         width: 48, height: 48, borderRadius: 24,
-        backgroundColor: "#2c2c2e", justifyContent: "center", alignItems: "center", marginBottom: 8,
+        justifyContent: "center", alignItems: "center", marginBottom: 8,
     },
-    actionLabel: { color: COLORS.textSecondary, fontSize: 12, textAlign: "center", lineHeight: 16 },
-    section: { backgroundColor: COLORS.card, borderTopWidth: 8, borderTopColor: "#000", paddingLeft: 16 },
-    row: { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingRight: 16 },
-    rowLabel: { fontSize: 16 },
-    rowDesc: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
+    actionLabel: { fontSize: 12, textAlign: "center", lineHeight: 16 },
     mediaPH: {
         width: 70, height: 70, borderRadius: 8,
-        backgroundColor: "#2c2c2e", marginRight: 8, justifyContent: "center", alignItems: "center",
+        marginRight: 8, justifyContent: "center", alignItems: "center",
     },
 });

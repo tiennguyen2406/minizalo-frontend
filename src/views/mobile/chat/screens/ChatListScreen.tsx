@@ -8,13 +8,14 @@ import { ChatItem } from "../components/ChatItem";
 import { chatService, ChatRoomResponse } from "@/shared/services/chatService";
 import { formatTime } from "@/shared/utils/dateUtils";
 import { Ionicons } from "@expo/vector-icons";
-import { PROFILE_COLORS } from "../../profile/styles";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import { useChatStore } from "@/shared/store/useChatStore";
+import { useThemeColors } from "@/shared/theme/colors";
 
 export default function ChatListScreen() {
     const router = useRouter();
     const { rooms, setRooms, addMessage } = useChatStore();
+    const colors = useThemeColors();
     const [refreshing, setRefreshing] = useState(false);
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const subscribedRooms = useRef<Set<string>>(new Set());
@@ -169,15 +170,15 @@ export default function ChatListScreen() {
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: PROFILE_COLORS.background }}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
             <ChatListHeader />
             {loading && rooms.length === 0 ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: PROFILE_COLORS.background }}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
                     <ActivityIndicator size="large" color="#0068FF" />
                     <Text style={{ color: '#7f8c8d', marginTop: 12, fontSize: 13 }}>Đang tải tin nhắn...</Text>
                 </View>
             ) : error && rooms.length === 0 ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: PROFILE_COLORS.background, paddingHorizontal: 32 }}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, paddingHorizontal: 32 }}>
                     <Ionicons name="cloud-offline-outline" size={48} color="#555" />
                     <Text style={{ color: '#e74c3c', marginTop: 12, fontSize: 15, fontWeight: '500' }}>Không thể tải danh sách tin nhắn</Text>
                     <Text style={{ color: '#7f8c8d', fontSize: 12, marginTop: 4 }}>{error}</Text>
@@ -185,7 +186,7 @@ export default function ChatListScreen() {
                 </View>
             ) : rooms.length === 0 ? (
                 <FlatList
-                    contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: PROFILE_COLORS.background }}
+                    contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}

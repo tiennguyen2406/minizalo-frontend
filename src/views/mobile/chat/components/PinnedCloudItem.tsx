@@ -1,19 +1,21 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useThemeColors } from "@/shared/theme/colors";
 
 export const PinnedCloudItem = () => {
+    const colors = useThemeColors();
     return (
         <TouchableOpacity
             activeOpacity={0.7}
             style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: '#0d0d0d',
+                backgroundColor: colors.background,
                 paddingHorizontal: 16,
                 paddingVertical: 10,
                 borderBottomWidth: 0.5,
-                borderBottomColor: '#27272a',
+                borderBottomColor: colors.border,
             }}
         >
             <View style={{ position: 'relative', marginRight: 12 }}>
@@ -32,7 +34,7 @@ export const PinnedCloudItem = () => {
 
             <View style={{ flex: 1, justifyContent: 'center', height: 52 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 16, color: '#e4e6eb' }}>Cloud của tôi</Text>
+                    <Text style={{ fontSize: 16, color: colors.text }}>Cloud của tôi</Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
                     <Text style={{ fontSize: 14, color: '#3498db' }} numberOfLines={1}>Cuộc trò chuyện này đang được ghim</Text>

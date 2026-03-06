@@ -8,15 +8,17 @@ import {
     FlatList,
     Animated,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import FriendsListMobile from "./FriendsListMobile";
-import { PROFILE_COLORS, profileStyles } from "../profile/styles";
 import { useRouter } from "expo-router";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useUserStore } from "@/shared/store/userStore";
 import type { UserProfile } from "@/shared/services/types";
 import { useFocusEffect } from "@react-navigation/native";
+
+import { useThemeColors } from "@/shared/theme/colors";
 
 type TabKey = "friends" | "groups";
 
@@ -26,6 +28,7 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 export default function ContactsMobileScreen() {
+    const colors = useThemeColors();
     const [activeTab, setActiveTab] = useState<TabKey>("friends");
     const [searchText, setSearchText] = useState("");
     const [showRequestBanner, setShowRequestBanner] = useState(false);
@@ -150,7 +153,7 @@ export default function ContactsMobileScreen() {
                     >
                         <Text
                             style={{
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 14,
                             }}
                         >
@@ -164,264 +167,267 @@ export default function ContactsMobileScreen() {
     };
 
     return (
-        <SafeAreaView
-            style={{
-                flex: 1,
-                backgroundColor: PROFILE_COLORS.background,
-            }}
-            edges={["top"]}
-        >
-            {/* Banner thông báo lời mời kết bạn mới (đổ từ trên xuống, tự ẩn) */}
-            {showRequestBanner && (
-                <Animated.View
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
+                {/* Banner thông báo lời mời kết bạn mới (đổ từ trên xuống, tự ẩn) */}
+                {showRequestBanner && (
+                    <Animated.View
+                        style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            top: insets.top || 0,
+                            zIndex: 20,
+                            transform: [{ translateY: bannerTranslateY }],
+                        }}
+                    >
+                        <View
+                            style={{
+                                marginHorizontal: 12,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                borderRadius: 12,
+                                backgroundColor: "#1d4ed8",
+                                flexDirection: "row",
+                                alignItems: "center",
+                            }}
+                        >
+                            <Ionicons
+                                name="notifications-outline"
+                                size={18}
+                                color="#fff"
+                                style={{ marginRight: 8 }}
+                            />
+                            <View style={{ flex: 1 }}>
+                                <Text
+                                    style={{
+                                        color: "#fff",
+                                        fontSize: 13,
+                                        fontWeight: "600",
+                                    }}
+                                >
+                                    {newRequestsCount > 1
+                                        ? `Bạn có ${newRequestsCount} lời mời kết bạn mới`
+                                        : "Bạn có 1 lời mời kết bạn mới"}
+                                </Text>
+                                <Text
+                                    style={{
+                                        color: "#e5e7eb",
+                                        fontSize: 12,
+                                        marginTop: 2,
+                                    }}
+                                >
+                                    Chạm để xem danh sách lời mời.
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    // Ẩn banner khi người dùng tự đóng, đồng thời mở màn Lời mời
+                                    if (hideBannerTimeoutRef.current) {
+                                        clearTimeout(hideBannerTimeoutRef.current);
+                                        hideBannerTimeoutRef.current = null;
+                                    }
+                                    Animated.timing(bannerTranslateY, {
+                                        toValue: -80,
+                                        duration: 180,
+                                        useNativeDriver: true,
+                                    }).start(() => {
+                                        setShowRequestBanner(false);
+                                    });
+                                    router.push("/(tabs)/contacts-requests");
+                                }}
+                                style={{ marginLeft: 8, padding: 4 }}
+                            >
+                                <Ionicons name="chevron-forward" size={18} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View>
+                )}
+
+                {/* Header: ô tìm kiếm + icon thêm bạn */}
+                <View
                     style={{
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                        top: insets.top || 0,
-                        zIndex: 20,
-                        transform: [{ translateY: bannerTranslateY }],
+                        height: 52,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 16,
+                        backgroundColor: colors.headerBg,
+                        borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                        borderBottomColor: colors.border,
+                        gap: 12,
                     }}
                 >
                     <View
                         style={{
-                            marginHorizontal: 12,
-                            paddingHorizontal: 12,
-                            paddingVertical: 10,
-                            borderRadius: 12,
-                            backgroundColor: "#1d4ed8",
+                            flex: 1,
                             flexDirection: "row",
                             alignItems: "center",
+                            borderRadius: 10,
+                            backgroundColor: colors.headerSearchBg,
+                            paddingHorizontal: 10,
+                            height: 36,
                         }}
                     >
                         <Ionicons
-                            name="notifications-outline"
+                            name="search"
                             size={18}
-                            color="#fff"
-                            style={{ marginRight: 8 }}
+                            color={colors.headerIcon}
                         />
-                        <View style={{ flex: 1 }}>
-                            <Text
-                                style={{
-                                    color: "#fff",
-                                    fontSize: 13,
-                                    fontWeight: "600",
-                                }}
-                            >
-                                {newRequestsCount > 1
-                                    ? `Bạn có ${newRequestsCount} lời mời kết bạn mới`
-                                    : "Bạn có 1 lời mời kết bạn mới"}
-                            </Text>
-                            <Text
-                                style={{
-                                    color: "#e5e7eb",
-                                    fontSize: 12,
-                                    marginTop: 2,
-                                }}
-                            >
-                                Chạm để xem danh sách lời mời.
-                            </Text>
-                        </View>
-                        <TouchableOpacity
-                            onPress={() => {
-                                // Ẩn banner khi người dùng tự đóng, đồng thời mở màn Lời mời
-                                if (hideBannerTimeoutRef.current) {
-                                    clearTimeout(hideBannerTimeoutRef.current);
-                                    hideBannerTimeoutRef.current = null;
-                                }
-                                Animated.timing(bannerTranslateY, {
-                                    toValue: -80,
-                                    duration: 180,
-                                    useNativeDriver: true,
-                                }).start(() => {
-                                    setShowRequestBanner(false);
-                                });
-                                router.push("/(tabs)/contacts-requests");
+                        <TextInput
+                            style={{
+                                flex: 1,
+                                fontSize: 15,
+                                color: colors.headerText,
+                                marginLeft: 8,
+                                paddingVertical: 0,
                             }}
-                            style={{ marginLeft: 8, padding: 4 }}
-                        >
-                            <Ionicons name="chevron-forward" size={18} color="#fff" />
-                        </TouchableOpacity>
+                            value={searchText}
+                            onChangeText={setSearchText}
+                            placeholder="Tìm kiếm"
+                            placeholderTextColor={colors.headerIcon}
+                            showSoftInputOnFocus={false}
+                            onFocus={() => {
+                                setSearchText("");
+                                router.push({
+                                    pathname: "/(tabs)/contacts-search",
+                                    params: { from: "contacts", t: Date.now() },
+                                });
+                            }}
+                        />
+                        {searchText ? (
+                            <TouchableOpacity
+                                onPress={() => setSearchText("")}
+                                style={{ paddingLeft: 4 }}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons
+                                    name="close-circle"
+                                    size={18}
+                                    color={colors.headerIcon}
+                                />
+                            </TouchableOpacity>
+                        ) : null}
                     </View>
-                </Animated.View>
-            )}
-
-            {/* Header: ô tìm kiếm + icon thêm bạn */}
-            <View style={profileStyles.searchRow}>
-                <View style={profileStyles.searchBox}>
-                    <Ionicons
-                        name="search"
-                        size={20}
-                        color={PROFILE_COLORS.textSecondary}
-                    />
-                    <TextInput
-                        style={profileStyles.searchInput}
-                        value={searchText}
-                        onChangeText={setSearchText}
-                        placeholder="Tìm kiếm"
-                        placeholderTextColor={PROFILE_COLORS.textSecondary}
-                        showSoftInputOnFocus={false}
-                        onFocus={() => {
-                            setSearchText("");
-                            router.push({
-                                pathname: "/(tabs)/contacts-search",
-                                params: { from: "contacts", t: Date.now() },
-                            });
-                        }}
-                    />
-                    {searchText ? (
-                        <TouchableOpacity
-                            onPress={() => setSearchText("")}
-                            style={{ paddingLeft: 4 }}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name="close-circle"
-                                size={18}
-                                color={PROFILE_COLORS.textSecondary}
-                            />
-                        </TouchableOpacity>
-                    ) : null}
+                    <TouchableOpacity
+                        style={{ padding: 4 }}
+                        activeOpacity={0.8}
+                        onPress={() => router.push("/(tabs)/contacts-add")}
+                    >
+                        <Ionicons
+                            name="person-add-outline"
+                            size={24}
+                            color={colors.headerIcon}
+                        />
+                    </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                    style={profileStyles.settingsButton}
-                    activeOpacity={0.8}
-                    onPress={() => router.push("/(tabs)/contacts-add")}
-                >
-                    <Ionicons
-                        name="person-add-outline"
-                        size={24}
-                        color={PROFILE_COLORS.text}
-                    />
-                </TouchableOpacity>
-            </View>
+            </SafeAreaView>
 
             {/* Tabs: Bạn bè / Nhóm */}
             <View
                 style={{
-                    paddingHorizontal: 16,
-                    paddingTop: 12,
-                    paddingBottom: 4,
-                    backgroundColor: PROFILE_COLORS.background,
+                    flexDirection: "row",
+                    backgroundColor: colors.card,
+                    borderBottomWidth: 0.5,
+                    borderBottomColor: colors.border,
                 }}
             >
-                <View
-                    style={{
-                        flexDirection: "row",
-                        borderRadius: 999,
-                        backgroundColor: "#1f1f21",
-                        padding: 2,
-                    }}
-                >
-                    {TABS.map((tab) => {
-                        const active = activeTab === tab.key;
-                        return (
-                            <TouchableOpacity
-                                key={tab.key}
-                                onPress={() => setActiveTab(tab.key)}
-                                activeOpacity={0.9}
+                {TABS.map((tab) => {
+                    const active = activeTab === tab.key;
+                    return (
+                        <TouchableOpacity
+                            key={tab.key}
+                            onPress={() => setActiveTab(tab.key)}
+                            activeOpacity={0.9}
+                            style={{
+                                flex: 1,
+                                paddingVertical: 14,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                borderBottomWidth: active ? 2 : 0,
+                                borderBottomColor: active ? colors.primary : "transparent",
+                            }}
+                        >
+                            <Text
                                 style={{
-                                    flex: 1,
-                                    paddingVertical: 6,
-                                    borderRadius: 999,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    backgroundColor: active ? "#fff" : "transparent",
+                                    fontSize: 15,
+                                    fontWeight: active ? "600" : "500",
+                                    color: active ? colors.text : colors.textSecondary,
                                 }}
                             >
-                                <Text
-                                    style={{
-                                        fontSize: 13,
-                                        fontWeight: "500",
-                                        color: active ? "#111827" : PROFILE_COLORS.textSecondary,
-                                    }}
-                                >
-                                    {tab.label}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
+                                {tab.label}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
             </View>
 
             {/* Khu vực hành động dưới tabs:
                - Tab Bạn bè: Lời mời kết bạn + Sinh nhật
                - Tab Nhóm: nút Tạo nhóm (chưa cần xử lý chức năng) */}
             {activeTab === "friends" ? (
-                <View
-                    style={{
-                        paddingHorizontal: 16,
-                        paddingTop: 8,
-                        paddingBottom: 4,
-                        backgroundColor: PROFILE_COLORS.background,
-                    }}
-                >
-                    <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => router.push("/(tabs)/contacts-requests")}
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingVertical: 10,
-                        }}
-                    >
-                        <View
-                            style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 16,
-                                backgroundColor: "#1d4ed8",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                marginRight: 10,
-                            }}
-                        >
-                            <Ionicons
-                                name="person-add-outline"
-                                size={18}
-                                color="#fff"
-                            />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text
-                                style={{
-                                    color: PROFILE_COLORS.text,
-                                    fontSize: 14,
-                                    fontWeight: "500",
-                                }}
-                            >
-                                {requests.length > 0
-                                    ? `Lời mời kết bạn(${requests.length})`
-                                    : "Lời mời kết bạn"}
-                            </Text>
-                            <Text
-                                style={{
-                                    color: PROFILE_COLORS.textSecondary,
-                                    fontSize: 12,
-                                    marginTop: 2,
-                                }}
-                            >
-                                {requests.length > 0
-                                    ? `${requests.length} lời mời đang chờ`
-                                    : "Xem các lời mời kết bạn của bạn"}
-                            </Text>
-                        </View>
-                        <Ionicons
-                            name="chevron-forward"
-                            size={18}
-                            color={PROFILE_COLORS.textSecondary}
-                        />
-                    </TouchableOpacity>
-
+                <View>
                     <View
                         style={{
-                            height: 0.5,
-                            backgroundColor: "#27272a",
-                            marginVertical: 6,
+                            paddingHorizontal: 16,
+                            paddingTop: 8,
+                            paddingBottom: 4,
+                            backgroundColor: colors.background,
                         }}
-                    />
+                    >
+                        <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => router.push("/(tabs)/contacts-requests")}
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                paddingVertical: 12,
+                            }}
+                        >
+                            <View
+                                style={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 14,
+                                    backgroundColor: colors.primary,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    marginRight: 16,
+                                }}
+                            >
+                                <Ionicons
+                                    name="people"
+                                    size={22}
+                                    color="#fff"
+                                />
+                            </View>
+                            <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
+                                <Text
+                                    style={{
+                                        color: colors.text,
+                                        fontSize: 16,
+                                        fontWeight: "400",
+                                    }}
+                                >
+                                    Lời mời kết bạn
+                                </Text>
+                                {requests.length > 0 && (
+                                    <Text
+                                        style={{
+                                            color: colors.textSecondary,
+                                            fontSize: 16,
+                                            marginLeft: 6,
+                                        }}
+                                    >
+                                        ({requests.length})
+                                    </Text>
+                                )}
+                            </View>
+                        </TouchableOpacity>
 
-                    <BirthdaySection birthdayFriends={birthdayFriends} />
+                        <BirthdaySection birthdayFriends={birthdayFriends} />
+                    </View>
+                    <View style={{ height: 8, backgroundColor: colors.searchBg }} />
                 </View>
             ) : (
                 <View
@@ -429,7 +435,7 @@ export default function ContactsMobileScreen() {
                         paddingHorizontal: 16,
                         paddingTop: 8,
                         paddingBottom: 4,
-                        backgroundColor: PROFILE_COLORS.background,
+                        backgroundColor: colors.background,
                     }}
                 >
                     <TouchableOpacity
@@ -461,7 +467,7 @@ export default function ContactsMobileScreen() {
                         <View style={{ flex: 1 }}>
                             <Text
                                 style={{
-                                    color: PROFILE_COLORS.text,
+                                    color: colors.text,
                                     fontSize: 14,
                                     fontWeight: "500",
                                 }}
@@ -470,7 +476,7 @@ export default function ContactsMobileScreen() {
                             </Text>
                             <Text
                                 style={{
-                                    color: PROFILE_COLORS.textSecondary,
+                                    color: colors.textSecondary,
                                     fontSize: 12,
                                     marginTop: 2,
                                 }}
@@ -481,7 +487,7 @@ export default function ContactsMobileScreen() {
                         <Ionicons
                             name="chevron-forward"
                             size={18}
-                            color={PROFILE_COLORS.textSecondary}
+                            color={colors.textSecondary}
                         />
                     </TouchableOpacity>
                 </View>
@@ -489,7 +495,7 @@ export default function ContactsMobileScreen() {
 
             {/* Nội dung từng tab */}
             <View style={{ flex: 1 }}>{renderTabContent()}</View>
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -499,6 +505,7 @@ type BirthdaySectionProps = {
 
 function BirthdaySection({ birthdayFriends }: BirthdaySectionProps) {
     const router = useRouter();
+    const colors = useThemeColors();
 
     return (
         <View>
@@ -508,47 +515,37 @@ function BirthdaySection({ birthdayFriends }: BirthdaySectionProps) {
                 style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    paddingVertical: 10,
+                    paddingVertical: 12,
                 }}
             >
                 <View
                     style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        backgroundColor: "#0ea5e9",
+                        width: 40,
+                        height: 40,
+                        borderRadius: 14,
+                        backgroundColor: colors.primary,
                         alignItems: "center",
                         justifyContent: "center",
-                        marginRight: 10,
+                        marginRight: 16,
                     }}
                 >
                     <Ionicons
-                        name="calendar-outline"
-                        size={18}
+                        name="gift"
+                        size={22}
                         color="#fff"
                     />
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
-                            fontSize: 14,
-                            fontWeight: "500",
+                            color: colors.text,
+                            fontSize: 16,
+                            fontWeight: "400",
                         }}
                     >
                         Sinh nhật
                     </Text>
-                    <Text
-                        style={{
-                            color: PROFILE_COLORS.textSecondary,
-                            fontSize: 12,
-                            marginTop: 2,
-                        }}
-                    >
-                        Xem sinh nhật bạn bè của bạn
-                    </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={PROFILE_COLORS.textSecondary} />
             </TouchableOpacity>
         </View>
     );

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { Platform } from "react-native";
 
-type ThemeMode = "light" | "dark";
+export type ThemeMode = "light" | "dark" | "system";
 
 interface ThemeState {
     theme: ThemeMode;

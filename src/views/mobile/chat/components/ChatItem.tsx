@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, Image, TouchableOpacity } from "react-native";
+import { useThemeColors } from "@/shared/theme/colors";
 
 interface ChatItemProps {
     avatar: any; // URL or local require
@@ -13,6 +14,7 @@ interface ChatItemProps {
 }
 
 export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified, onPress }: ChatItemProps) => {
+    const colors = useThemeColors();
     const hasUnread = !!(unreadCount && unreadCount > 0);
     return (
         <TouchableOpacity
@@ -21,7 +23,7 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
             style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: '#0d0d0d',
+                backgroundColor: colors.background,
                 paddingHorizontal: 16,
                 paddingVertical: 10,
             }}
@@ -43,14 +45,14 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
                         position: 'absolute',
                         bottom: 0,
                         right: 0,
-                        backgroundColor: '#0d0d0d',
+                        backgroundColor: colors.background,
                         borderRadius: 999,
                         padding: 1.5,
                     }}>
                         <View style={{
                             width: 12,
                             height: 12,
-                            backgroundColor: '#0d0d0d',
+                            backgroundColor: colors.background,
                             borderRadius: 999,
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -67,7 +69,7 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
             <View style={{
                 flex: 1,
                 borderBottomWidth: 0.5,
-                borderBottomColor: '#27272a',
+                borderBottomColor: colors.border,
                 paddingBottom: 10,
                 justifyContent: 'center',
                 height: 60,
@@ -75,7 +77,7 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
                 {/* Top Row: Name + Time */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
-                        <Text style={{ fontSize: 16, color: '#e4e6eb', fontWeight: hasUnread ? '600' : '400' }} numberOfLines={1}>{name}</Text>
+                        <Text style={{ fontSize: 16, color: colors.text, fontWeight: hasUnread ? '600' : '400' }} numberOfLines={1}>{name}</Text>
                         {isVerified && (
                             <View style={{
                                 marginLeft: 4,
@@ -100,7 +102,7 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
                             fontSize: 14,
                             flex: 1,
                             marginRight: 16,
-                            color: hasUnread ? '#e4e6eb' : '#7f8c8d',
+                            color: hasUnread ? colors.text : colors.textSecondary,
                             fontWeight: hasUnread ? '600' : 'normal',
                         }}
                         numberOfLines={1}
