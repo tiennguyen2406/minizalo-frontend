@@ -11,6 +11,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useThemeColors } from "@/shared/theme/colors";
+import * as Notifications from "expo-notifications";
+import { useAuthStore } from "@/shared/store/authStore";
 
 export default function ChatListScreen() {
     const router = useRouter();
@@ -114,6 +116,29 @@ export default function ChatListScreen() {
 
                     // addMessage trong store sẽ tự động cập nhật tin nhắn cuối, thời gian, VÀ unreadCount!
                     useChatStore.getState().addMessage(room.id, incoming);
+
+                    // ── Local notification khi có tin nhắn mới từ người khác ──
+                    const currentRoomId = useChatStore.getState().currentRoomId;
+                    const currentUserId = useAuthStore.getState().user?.id;
+                    const isMyMessage = currentUserId && dynamo.senderId === currentUserId;
+                    const isInThisRoom = currentRoomId === room.id;
+
+                    if (!isMyMessage && !isInThisRoom && !dynamo.recalled) {
+                        const senderName = dynamo.senderName || 'Tin nhắn mới';
+                        let bodyText = dynamo.content || '';
+                        if (dynamo.type === 'IMAGE') bodyText = '[Đã gửi hình ảnh]';
+                        else if (dynamo.type === 'FILE') bodyText = '[Đã gửi tập tin]';
+
+                        Notifications.scheduleNotificationAsync({
+                            content: {
+                                title: senderName,
+                                body: bodyText,
+                                data: { roomId: room.id, senderName: senderName },
+                                sound: 'default',
+                            },
+                            trigger: null, // Show immediately
+                        }).catch((err) => console.warn('Local notification error:', err));
+                    }
                 } catch (err) {
                     console.error('Lỗi parse tin nhắn WS:', err);
                 }

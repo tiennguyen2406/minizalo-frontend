@@ -22,6 +22,7 @@ import { friendService } from "@/shared/services/friendService";
 import { useAuthStore } from "@/shared/store/authStore";
 import { GroupDetail } from "@/shared/types";
 import { useThemeColors } from "@/shared/theme/colors";
+import { useRouter } from "expo-router";
 
 interface GroupInfoScreenProps {
     roomId: string;
@@ -125,10 +126,11 @@ function AddMemberModal({
                         flexDirection: "row",
                         alignItems: "center",
                         paddingHorizontal: 16,
-                        paddingVertical: 12,
-                        borderBottomWidth: 1,
-                        borderBottomColor: colors.border,
+                        height: 52,
                         backgroundColor: colors.headerBg,
+                        borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                        borderBottomColor: colors.border,
+                        gap: 12,
                     }}
                 >
                     <TouchableOpacity onPress={onClose} style={{ padding: 4, marginRight: 12 }}>
@@ -319,6 +321,7 @@ function SectionRow({
 
 // ─── Main GroupInfoScreen ───
 export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProps) {
+    const router = useRouter();
     const colors = useThemeColors();
     const [group, setGroup] = useState<GroupDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -405,10 +408,11 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     flexDirection: "row",
                     alignItems: "center",
                     paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
+                    height: 52,
                     backgroundColor: colors.headerBg,
+                    borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                    borderBottomColor: colors.border,
+                    gap: 12,
                 }}
             >
                 <TouchableOpacity
@@ -477,7 +481,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     }}
                 >
                     {[
-                        { icon: "search", label: "Tìm\ntin nhắn" },
+                        { icon: "search", label: "Tìm\ntin nhắn", onPress: () => router.push(`/search-messages?roomId=${roomId}&name=${encodeURIComponent(group.groupName)}&avatarUrl=${encodeURIComponent(avatarUri)}`) },
                         { icon: "person-add-outline", label: "Thêm\nthành viên", onPress: () => setShowAddMember(true) },
                         { icon: "color-palette-outline", label: "Đổi\nhình nền" },
                         { icon: "notifications-outline", label: "Tắt\nthông báo" },
@@ -648,10 +652,11 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                             flexDirection: "row",
                             alignItems: "center",
                             paddingHorizontal: 16,
-                            paddingVertical: 12,
-                            borderBottomWidth: 1,
-                            borderBottomColor: colors.border,
+                            height: 52,
                             backgroundColor: colors.headerBg,
+                            borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                            borderBottomColor: colors.border,
+                            gap: 12,
                         }}
                     >
                         <TouchableOpacity

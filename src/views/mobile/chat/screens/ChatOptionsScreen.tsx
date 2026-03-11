@@ -18,6 +18,7 @@ import AddToGroupModal from "../components/AddToGroupModal";
 import MediaStorageScreen from "./MediaStorageScreen";
 import { chatService } from "@/shared/services/chatService";
 import { useThemeColors } from "@/shared/theme/colors";
+import { useRouter } from "expo-router";
 
 const getImageUrl = (url: string) => {
     if (!url) return url;
@@ -42,6 +43,7 @@ interface ChatOptionsScreenProps {
 
 /* ══════════════════════════ MAIN ══════════════════════════ */
 export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, onClose }: ChatOptionsScreenProps) {
+    const router = useRouter();
     const colors = useThemeColors();
     const avatar = avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
 
@@ -197,31 +199,35 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     );
 
     return (
-        <SafeAreaView style={[s.container, { backgroundColor: colors.background }]} edges={["top"]}>
+        <View style={[s.container, { backgroundColor: colors.background }]}>
             <StatusBar style={colors.statusBar} />
             {/* Header */}
-            <View
-                style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                    backgroundColor: colors.headerBg,
-                }}
-            >
-                <TouchableOpacity
-                    onPress={onClose}
-                    style={{ paddingRight: 8, paddingVertical: 4 }}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                    <Ionicons name="chevron-back" size={26} color={colors.headerText} />
-                </TouchableOpacity>
-                <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
-                    Tuỳ chọn
-                </Text>
+            <View style={{ backgroundColor: colors.headerBg }}>
+                <SafeAreaView edges={["top"]}>
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: 16,
+                            height: 52,
+                            backgroundColor: colors.headerBg,
+                            borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                            borderBottomColor: colors.border,
+                            gap: 12,
+                        }}
+                    >
+                        <TouchableOpacity
+                            onPress={onClose}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                        </TouchableOpacity>
+                        <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
+                            Tuỳ chọn
+                        </Text>
+                    </View>
+                </SafeAreaView>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -233,12 +239,12 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     {/* 4 Action Buttons */}
                     <View style={s.actions}>
                         {[
-                            { icon: "search-outline", text: "Tìm\ntin nhắn" },
+                            { icon: "search-outline", text: "Tìm\ntin nhắn", onPress: () => router.push(`/search-messages?roomId=${roomId}&name=${encodeURIComponent(name)}&avatarUrl=${encodeURIComponent(avatarUrl || '')}`) },
                             { icon: "person-outline", text: "Trang\ncá nhân" },
                             { icon: "color-palette-outline", text: "Đổi\nhình nền" },
                             { icon: "notifications-off-outline", text: "Tắt\nthông báo" },
                         ].map((btn, i) => (
-                            <TouchableOpacity key={i} style={s.actionBtn}>
+                            <TouchableOpacity key={i} style={s.actionBtn} onPress={btn.onPress}>
                                 <View style={[s.actionCircle, { backgroundColor: colors.searchBg }]}>
                                     <Ionicons name={btn.icon as any} size={22} color={colors.text} />
                                 </View>
@@ -369,7 +375,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     />
                 </Animated.View>
             )}
-        </SafeAreaView>
+        </View>
     );
 }
 
