@@ -53,6 +53,13 @@ export interface ChatRoomResponse {
     members: any[]; // Define RoomMemberResponse if needed
 }
 
+export interface SearchMessageResponse {
+    messages: MessageDynamo[];
+    lastKey: string | null;
+    hasMore: boolean;
+    totalResults: number;
+}
+
 // Config Base URL
 const rawBase =
     typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
@@ -141,6 +148,13 @@ export const chatService = {
             body.replyToMessageId = replyToMessageId;
         }
         const { data } = await api.post<MessageDynamo>("/chat/send", body);
+        return data;
+    },
+
+    searchMessages: async (roomId: string, query: string, limit: number = 20, lastKey?: string): Promise<SearchMessageResponse> => {
+        const params: any = { q: query, limit };
+        if (lastKey) params.lastKey = lastKey;
+        const { data } = await api.get<SearchMessageResponse>(`/chat/${roomId}/search`, { params });
         return data;
     },
 };
