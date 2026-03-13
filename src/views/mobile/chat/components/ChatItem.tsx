@@ -36,7 +36,7 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
                         width: 52,
                         height: 52,
                         borderRadius: 26,
-                        backgroundColor: '#2d2d44',
+                        backgroundColor: colors.avatarBg,
                     }}
                     resizeMode="cover"
                 />

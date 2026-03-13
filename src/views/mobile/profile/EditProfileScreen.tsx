@@ -329,7 +329,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                 {
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    backgroundColor: colors.searchBg,
+                                    backgroundColor: colors.avatarBg,
                                 },
                             ]}
                         >

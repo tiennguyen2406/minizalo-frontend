@@ -173,9 +173,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                     width: AVATAR_SIZE,
                                     height: AVATAR_SIZE,
                                     borderRadius: AVATAR_SIZE / 2,
-                                    borderWidth: 3,
-                                    borderColor: colors.background,
-                                    backgroundColor: colors.card,
+                                    backgroundColor: colors.avatarBg,
                                 }}
                             />
                         ) : (
@@ -184,9 +182,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                     width: AVATAR_SIZE,
                                     height: AVATAR_SIZE,
                                     borderRadius: AVATAR_SIZE / 2,
-                                    borderWidth: 3,
-                                    borderColor: colors.background,
-                                    backgroundColor: colors.card,
+                                    backgroundColor: colors.avatarBg,
                                     alignItems: "center",
                                     justifyContent: "center",
                                 }}

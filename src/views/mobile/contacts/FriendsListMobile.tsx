@@ -434,7 +434,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: colors.searchBg,
+                        backgroundColor: colors.avatarBg,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
@@ -933,7 +933,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                 }}
                                                 style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border }}
                                             >
-                                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.avatarBg, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
                                                     <Text style={{ color: colors.text, fontWeight: "600", fontSize: 16 }}>
                                                         {((u.displayName || u.username || "?").charAt(0).toUpperCase() || "?").toUpperCase()}
                                                     </Text>

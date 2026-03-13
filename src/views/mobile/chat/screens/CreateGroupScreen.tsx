@@ -8,10 +8,10 @@ import {
     Image,
     ActivityIndicator,
     Platform,
-    StatusBar,
     Alert,
     KeyboardAvoidingView,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
@@ -19,16 +19,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { friendService } from "@/shared/services/friendService";
 import { groupService } from "@/shared/services/groupService";
 import { useChatStore } from "@/shared/store/useChatStore";
+import { useThemeColors } from "@/shared/theme/colors";
 
-const COLORS = {
-    bg: "#1a1a1a",
-    text: "#fff",
-    textSecondary: "#aaa",
-    border: "#262626",
-    blue: "#3b82f6",
-    cardBg: "#2c2c2e",
-    disabled: "#555",
-};
+
 
 interface Friend {
     id: string;
@@ -46,6 +39,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
     const router = useRouter();
     const navigation = useNavigation();
     const { upsertRoom } = useChatStore();
+    const colors = useThemeColors();
 
     const [groupName, setGroupName] = useState("");
     const [friends, setFriends] = useState<Friend[]>([]);
@@ -180,8 +174,8 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                         height: 22,
                         borderRadius: 11,
                         borderWidth: 2,
-                        borderColor: isSelected ? COLORS.blue : COLORS.disabled,
-                        backgroundColor: isSelected ? COLORS.blue : "transparent",
+                        borderColor: isSelected ? colors.primary : colors.textSecondary,
+                        backgroundColor: isSelected ? colors.primary : "transparent",
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
@@ -200,14 +194,14 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                         height: 46,
                         borderRadius: 23,
                         marginRight: 12,
-                        backgroundColor: COLORS.cardBg,
+                        backgroundColor: colors.avatarBg,
                     }}
                 />
 
                 {/* Name & info */}
                 <View style={{ flex: 1 }}>
                     <Text
-                        style={{ fontSize: 15, color: COLORS.text, fontWeight: "400" }}
+                        style={{ fontSize: 15, color: colors.text, fontWeight: "400" }}
                         numberOfLines={1}
                     >
                         {item.fullName || item.username}
@@ -223,26 +217,22 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
         groupName.trim().length >= 3;
 
     return (
-        <SafeAreaView
-            style={{
-                flex: 1,
-                backgroundColor: COLORS.bg,
-            }}
-            edges={["top"]}
-        >
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === "ios" ? "padding" : undefined}
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
+            <SafeAreaView
+                style={{ backgroundColor: colors.headerBg }}
+                edges={["top"]}
             >
                 {/* ── Header ── */}
                 <View
                     style={{
+                        height: 52,
                         flexDirection: "row",
                         alignItems: "center",
                         paddingHorizontal: 14,
-                        paddingVertical: 10,
-                        borderBottomWidth: 0.5,
-                        borderBottomColor: COLORS.border,
+                        backgroundColor: colors.headerBg,
+                        borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                        borderBottomColor: colors.border,
                     }}
                 >
                     <TouchableOpacity
@@ -258,24 +248,29 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                         activeOpacity={0.6}
                         style={{ padding: 4, marginRight: 12 }}
                     >
-                        <Ionicons name="close" size={26} color={COLORS.textSecondary} />
+                        <Ionicons name="close" size={26} color={colors.headerText} />
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
                         <Text
                             style={{
                                 fontSize: 17,
                                 fontWeight: "600",
-                                color: COLORS.text,
+                                color: colors.headerText,
                             }}
                         >
                             Nhóm mới
                         </Text>
-                        <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 1 }}>
+                        <Text style={{ fontSize: 12, color: colors.headerText, marginTop: 1, opacity: 0.8 }}>
                             Đã chọn: {selectedIds.length}
                         </Text>
                     </View>
                 </View>
+            </SafeAreaView>
 
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
+            >
                 {/* ── Group Name Input ── */}
                 <View
                     style={{
@@ -284,7 +279,8 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                         paddingHorizontal: 16,
                         paddingVertical: 10,
                         borderBottomWidth: 0.5,
-                        borderBottomColor: COLORS.border,
+                        borderBottomColor: colors.border,
+                        backgroundColor: colors.card,
                     }}
                 >
                     <View
@@ -292,27 +288,27 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                             width: 44,
                             height: 44,
                             borderRadius: 22,
-                            backgroundColor: COLORS.cardBg,
+                            backgroundColor: colors.avatarBg,
                             alignItems: "center",
                             justifyContent: "center",
                             marginRight: 12,
                         }}
                     >
-                        <Ionicons name="camera-outline" size={22} color={COLORS.textSecondary} />
+                        <Ionicons name="camera-outline" size={22} color={colors.textSecondary} />
                     </View>
                     <TextInput
                         placeholder="Đặt tên nhóm"
-                        placeholderTextColor={COLORS.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         value={groupName}
                         onChangeText={setGroupName}
                         maxLength={50}
                         style={{
                             flex: 1,
                             fontSize: 15,
-                            color: COLORS.text,
+                            color: colors.text,
                             paddingVertical: 6,
                             borderBottomWidth: 1,
-                            borderBottomColor: COLORS.border,
+                            borderBottomColor: colors.border,
                         }}
                     />
                 </View>
@@ -325,24 +321,25 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                         paddingHorizontal: 16,
                         paddingVertical: 8,
                         borderBottomWidth: 0.5,
-                        borderBottomColor: COLORS.border,
+                        borderBottomColor: colors.border,
+                        backgroundColor: colors.background,
                     }}
                 >
                     <Ionicons
                         name="search"
                         size={18}
-                        color={COLORS.textSecondary}
+                        color={colors.textSecondary}
                         style={{ marginRight: 8 }}
                     />
                     <TextInput
                         placeholder="Tìm tên hoặc số điện thoại"
-                        placeholderTextColor={COLORS.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         style={{
                             flex: 1,
                             fontSize: 14,
-                            color: COLORS.text,
+                            color: colors.text,
                             paddingVertical: 4,
                         }}
                     />
@@ -353,7 +350,8 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                     style={{
                         flexDirection: "row",
                         borderBottomWidth: 0.5,
-                        borderBottomColor: COLORS.border,
+                        borderBottomColor: colors.border,
+                        backgroundColor: colors.card,
                     }}
                 >
                     <TouchableOpacity
@@ -364,7 +362,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                             paddingVertical: 10,
                             borderBottomWidth: 2,
                             borderBottomColor:
-                                activeTab === "recent" ? COLORS.blue : "transparent",
+                                activeTab === "recent" ? colors.primary : "transparent",
                         }}
                     >
                         <Text
@@ -372,7 +370,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                                 fontSize: 13,
                                 fontWeight: "600",
                                 color:
-                                    activeTab === "recent" ? COLORS.blue : COLORS.textSecondary,
+                                    activeTab === "recent" ? colors.primary : colors.textSecondary,
                             }}
                         >
                             GẦN ĐÂY
@@ -386,7 +384,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                             paddingVertical: 10,
                             borderBottomWidth: 2,
                             borderBottomColor:
-                                activeTab === "contacts" ? COLORS.blue : "transparent",
+                                activeTab === "contacts" ? colors.primary : "transparent",
                         }}
                     >
                         <Text
@@ -394,7 +392,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                                 fontSize: 13,
                                 fontWeight: "600",
                                 color:
-                                    activeTab === "contacts" ? COLORS.blue : COLORS.textSecondary,
+                                    activeTab === "contacts" ? colors.primary : colors.textSecondary,
                             }}
                         >
                             DANH BẠ
@@ -411,9 +409,9 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                             alignItems: "center",
                         }}
                     >
-                        <ActivityIndicator size="large" color={COLORS.blue} />
+                        <ActivityIndicator size="large" color={colors.primary} />
                         <Text
-                            style={{ color: COLORS.textSecondary, marginTop: 8, fontSize: 13 }}
+                            style={{ color: colors.textSecondary, marginTop: 8, fontSize: 13 }}
                         >
                             Đang tải danh sách bạn bè...
                         </Text>
@@ -430,11 +428,11 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                         <Ionicons
                             name="people-outline"
                             size={56}
-                            color={COLORS.disabled}
+                            color={colors.textSecondary}
                         />
                         <Text
                             style={{
-                                color: COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 15,
                                 marginTop: 12,
                                 textAlign: "center",
@@ -444,10 +442,11 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                         </Text>
                         <Text
                             style={{
-                                color: COLORS.disabled,
+                                color: colors.textSecondary,
                                 fontSize: 12,
                                 marginTop: 4,
                                 textAlign: "center",
+                                opacity: 0.7,
                             }}
                         >
                             Hãy kết bạn trước khi tạo nhóm
@@ -461,7 +460,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                             alignItems: "center",
                         }}
                     >
-                        <Text style={{ color: COLORS.textSecondary, fontSize: 14 }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
                             Không tìm thấy kết quả
                         </Text>
                     </View>
@@ -483,9 +482,9 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                             bottom: 70,
                             left: 0,
                             right: 0,
-                            backgroundColor: COLORS.bg,
+                            backgroundColor: colors.background,
                             borderTopWidth: 0.5,
-                            borderTopColor: COLORS.border,
+                            borderTopColor: colors.border,
                             paddingHorizontal: 12,
                             paddingVertical: 8,
                             flexDirection: "row",
@@ -514,7 +513,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                                             height: 36,
                                             borderRadius: 18,
                                             borderWidth: 2,
-                                            borderColor: COLORS.blue,
+                                            borderColor: colors.primary,
                                         }}
                                     />
                                     <View
@@ -522,7 +521,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                                             position: "absolute",
                                             top: -2,
                                             right: -2,
-                                            backgroundColor: COLORS.disabled,
+                                            backgroundColor: colors.textSecondary,
                                             borderRadius: 8,
                                             width: 16,
                                             height: 16,
@@ -541,14 +540,14 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                                     width: 36,
                                     height: 36,
                                     borderRadius: 18,
-                                    backgroundColor: COLORS.cardBg,
+                                    backgroundColor: colors.avatarBg,
                                     alignItems: "center",
                                     justifyContent: "center",
                                 }}
                             >
                                 <Text
                                     style={{
-                                        color: COLORS.textSecondary,
+                                        color: colors.textSecondary,
                                         fontSize: 11,
                                         fontWeight: "600",
                                     }}
@@ -566,8 +565,8 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                         paddingHorizontal: 16,
                         paddingVertical: 12,
                         borderTopWidth: 0.5,
-                        borderTopColor: COLORS.border,
-                        backgroundColor: COLORS.bg,
+                        borderTopColor: colors.border,
+                        backgroundColor: colors.background,
                     }}
                 >
                     <TouchableOpacity
@@ -575,7 +574,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                         disabled={!canCreate}
                         activeOpacity={0.8}
                         style={{
-                            backgroundColor: canCreate ? COLORS.blue : COLORS.cardBg,
+                            backgroundColor: canCreate ? colors.primary : colors.avatarBg,
                             paddingVertical: 12,
                             borderRadius: 24,
                             alignItems: "center",
@@ -590,11 +589,11 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                                 <Ionicons
                                     name="arrow-forward"
                                     size={20}
-                                    color={canCreate ? "#fff" : COLORS.disabled}
+                                    color={canCreate ? "#fff" : colors.textSecondary}
                                 />
                                 <Text
                                     style={{
-                                        color: canCreate ? "#fff" : COLORS.disabled,
+                                        color: canCreate ? "#fff" : colors.textSecondary,
                                         fontSize: 15,
                                         fontWeight: "600",
                                         marginLeft: 6,
@@ -607,6 +606,6 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
-        </SafeAreaView>
+        </View>
     );
 }

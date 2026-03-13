@@ -161,7 +161,7 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                 {avatarUrl ? (
                     <Image
                         source={{ uri: avatarUrl as string }}
-                        style={[profileStyles.avatar, { borderWidth: 2, borderColor: colors.background }]}
+                        style={[profileStyles.avatar]}
                     />
                 ) : (
                     <View
@@ -170,9 +170,7 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                             {
                                 alignItems: "center",
                                 justifyContent: "center",
-                                borderWidth: 2,
-                                borderColor: colors.background,
-                                backgroundColor: colors.searchBg
+                                backgroundColor: colors.avatarBg
                             },
                         ]}
                     >

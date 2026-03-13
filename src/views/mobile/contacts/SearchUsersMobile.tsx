@@ -8,6 +8,8 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
@@ -25,6 +27,7 @@ export default function SearchUsersMobile({
     initialQuery = "",
     autoFocus = false,
 }: SearchUsersMobileProps) {
+    const router = useRouter();
     const colors = useThemeColors();
     const [query, setQuery] = useState(initialQuery);
     const [results, setResults] = useState<UserProfile[]>([]);
@@ -264,87 +267,76 @@ export default function SearchUsersMobile({
                 backgroundColor: colors.background,
             }}
         >
-            {/* Header tìm kiếm */}
-            <View
-                style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: colors.border,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                }}
-            >
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
+                {/* Header tìm kiếm */}
                 <View
                     style={{
-                        flex: 1,
+                        paddingHorizontal: 16,
+                        height: 52,
+                        borderBottomWidth: colors.headerBg.startsWith("#00") ? 0 : 0.5,
+                        borderBottomColor: colors.border,
                         flexDirection: "row",
                         alignItems: "center",
-                        borderRadius: 999,
-                        backgroundColor: colors.searchBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
+                        backgroundColor: colors.headerBg,
+                        gap: 12,
                     }}
                 >
-                    <Ionicons
-                        name="search"
-                        size={18}
-                        color={colors.textSecondary}
-                        style={{ marginRight: 6 }}
-                    />
+                    <TouchableOpacity
+                        onPress={() => router.back()}
+                        style={{ paddingRight: 4 }}
+                    >
+                        <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                    </TouchableOpacity>
+
+                    <View
+                        style={{
+                            flex: 1,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            borderRadius: 10,
+                            backgroundColor: colors.headerSearchBg,
+                            paddingHorizontal: 10,
+                            height: 36,
+                        }}
+                    >
+                        <Ionicons
+                            name="search"
+                            size={18}
+                            color={colors.headerIcon}
+                            style={{ marginRight: 6 }}
+                        />
                     <TextInput
                         ref={inputRef}
                         value={query}
                         onChangeText={setQuery}
                         placeholder="Nhập tên, số điện thoại hoặc email..."
-                        placeholderTextColor={colors.textSecondary}
+                        placeholderTextColor={colors.headerIcon}
                         style={{
                             flex: 1,
-                            color: colors.text,
-                            fontSize: 14,
+                            color: colors.headerText,
+                            fontSize: 15,
                             paddingVertical: 0,
                         }}
                         autoFocus={autoFocus}
                         onSubmitEditing={handleSubmit}
                         returnKeyType="search"
                     />
-                    {query ? (
-                        <TouchableOpacity
-                            onPress={() => setQuery("")}
-                            style={{ paddingLeft: 4 }}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name="close-circle"
-                                size={18}
-                                color={colors.textSecondary}
-                            />
-                        </TouchableOpacity>
-                    ) : null}
+                        {query ? (
+                            <TouchableOpacity
+                                onPress={() => setQuery("")}
+                                style={{ paddingLeft: 4 }}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons
+                                    name="close-circle"
+                                    size={18}
+                                    color={colors.headerIcon}
+                                />
+                            </TouchableOpacity>
+                        ) : null}
+                    </View>
                 </View>
-                <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={loading}
-                    style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        borderRadius: 999,
-                        backgroundColor: colors.primary,
-                        opacity: loading ? 0.7 : 1,
-                    }}
-                >
-                    <Text
-                        style={{
-                            color: "#fff",
-                            fontSize: 13,
-                            fontWeight: "600",
-                        }}
-                    >
-                        Tìm
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            </SafeAreaView>
 
             {error ? (
                 <View
