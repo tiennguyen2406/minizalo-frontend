@@ -82,7 +82,8 @@ export default function ChatScreen() {
                 roomId,
                 name: displayName,
                 avatarUrl,
-                partnerId: partnerId ?? ""
+                partnerId: partnerId ?? "",
+                type: roomType
             }
         });
     };
@@ -400,7 +401,7 @@ export default function ChatScreen() {
         if (!roomId || sending || assets.length === 0) return;
         setSending(true);
 
-        // Optimistic UI with local images
+        // Optimistic UI with local images (tạm thời để hiển thị ngay)
         const tempId = `temp-img-${Date.now()}`;
         const optimisticMsg: MessageDynamo = {
             messageId: tempId,
@@ -410,7 +411,7 @@ export default function ChatScreen() {
             content: "",
             attachments: assets.map((a, i) => ({
                 id: "",
-                url: a.uri,
+                url: a.uri, // Tạm thời dùng local URI
                 type: "IMAGE",
                 name: a.fileName || `image_${i}.jpg`,
                 size: a.fileSize || 0,
@@ -463,6 +464,15 @@ export default function ChatScreen() {
 
             const uploadedAttachments = await Promise.all(uploadPromises);
 
+            // ✅ Cập nhật optimistic message với server URLs
+            setMessages((prev) => 
+                prev.map(m => 
+                    m.messageId === tempId 
+                        ? { ...m, attachments: uploadedAttachments }
+                        : m
+                )
+            );
+
             // Send message with all attachments via WebSocket
             const sentViaWs = webSocketService.sendChatMessage(
                 roomId,
@@ -501,7 +511,7 @@ export default function ChatScreen() {
             content: "",
             attachments: [{
                 id: "",
-                url: file.uri,
+                url: file.uri, // Tạm thời dùng local URI
                 type: file.mimeType || "application/octet-stream",
                 name: file.name || "file",
                 size: file.size || 0,
@@ -550,6 +560,15 @@ export default function ChatScreen() {
                 filename: uploadData.fileName || filename,
                 size: uploadData.size || file.size || 0,
             };
+
+            // ✅ Cập nhật optimistic message với server URL
+            setMessages((prev) => 
+                prev.map(m => 
+                    m.messageId === tempId 
+                        ? { ...m, attachments: [attachment] }
+                        : m
+                )
+            );
 
             const sentViaWs = webSocketService.sendChatMessage(
                 roomId,
@@ -672,15 +691,44 @@ export default function ChatScreen() {
         return map;
     }, [messages, currentUserId]);
 
-    // Collect all image URLs across all messages for the gallery
+    // Xử lý URL ảnh cho cả localhost và IP address
     const getImageUrl = (url: string) => {
         if (!url) return url;
+        
+        // Xử lý localhost
         if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
             const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
             if (match && match[1]) {
                 return url.replace("localhost", match[1]);
             }
         }
+        
+        // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
+        if (process.env.EXPO_PUBLIC_API_URL) {
+            const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+            if (apiMatch && apiMatch[1]) {
+                const apiHost = apiMatch[1];
+                
+                // Thay thế IP address trong URL ảnh bằng API host
+                if (url.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
+                    const urlMatch = url.match(/https?:\/\/([^:\/]+)/);
+                    if (urlMatch && urlMatch[1] !== apiHost) {
+                        return url.replace(urlMatch[1], apiHost);
+                    }
+                }
+                
+                // Thay thế port 9000 (MinIO default) với API port nếu cần
+                if (url.includes(":9000") && !apiHost.includes(":9000")) {
+                    // Giữ nguyên port 9000 vì đây là MinIO server
+                    // Chỉ thay thế hostname
+                    const urlMatch = url.match(/https?:\/\/([^:]+):/);
+                    if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
+                        return url.replace(urlMatch[1], apiHost.split(':')[0]);
+                    }
+                }
+            }
+        }
+        
         return url;
     };
 
