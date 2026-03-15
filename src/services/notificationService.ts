@@ -1,22 +1,58 @@
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { Platform, LogBox } from 'react-native';
 import axios from 'axios';
 import { useAuthStore } from '@/shared/store/authStore';
 
-// ─── Notification handler: show alert + sound when app is foreground ───
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
-});
+// ─── LỖI EXPO GO SDK 53+ ───
+// Thư viện expo-notifications đã loại bỏ hỗ trợ Push Notification trên Expo Go.
+// Việc import/require thư viện này sẽ gây ra lỗi ERROR đỏ màn hình trên Android.
+// Chúng ta sẽ kiểm tra xem có đang chạy trong Expo Go hay không trước khi nạp.
 
-// ─── API base URL (same pattern as other services) ───
+const isExpoGo = Constants.appOwnership === 'expo';
+
+const getNotifications = () => {
+    // Chỉ chặn cứng trên Android Expo Go vì gây crash đỏ màn hình ngay lập tức trên SDK 53+.
+    // Trên iOS hoặc Development Build, chúng ta vẫn có thể thử nạp thư viện.
+    if (isExpoGo && Platform.OS === 'android') {
+        return null;
+    }
+    
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        return require('expo-notifications');
+    } catch (e) {
+        console.log('[notificationService] Không thể nạp expo-notifications:', e);
+        return null;
+    }
+};
+
+// ─── Notification handler ───
+export function initNotificationHandler() {
+    const Notifications = getNotifications();
+    if (!Notifications) {
+        if (isExpoGo) {
+            console.log('[notificationService] Đang trong Expo Go: Tắt hệ thống thông báo để tránh lỗi SDK 53+');
+        }
+        return;
+    }
+
+    try {
+        Notifications.setNotificationHandler({
+            handleNotification: async () => ({
+                shouldShowAlert: true,
+                shouldPlaySound: true,
+                shouldSetBadge: false,
+                shouldShowBanner: true,
+                shouldShowList: true,
+            }),
+        });
+    } catch (err) {
+        console.log('[notificationService] Lỗi setNotificationHandler:', err);
+    }
+}
+
+// ─── API base URL ───
 const rawBase =
     typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
         ? process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "")
@@ -24,14 +60,11 @@ const rawBase =
 const API_BASE_URL = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
 
 /**
- * Send FCM push token to backend `PUT /api/users/fcm-token`
+ * Send FCM push token to backend
  */
 async function sendTokenToBackend(pushToken: string): Promise<void> {
     const token = useAuthStore.getState().accessToken;
-    if (!token) {
-        console.warn('[notificationService] No auth token — skipping FCM token upload');
-        return;
-    }
+    if (!token) return;
     try {
         await axios.put(`${API_BASE_URL}/users/fcm-token`, pushToken, {
             headers: {
@@ -47,70 +80,81 @@ async function sendTokenToBackend(pushToken: string): Promise<void> {
 
 /**
  * Request permission, get Expo Push Token, send to backend.
- * Returns the token string or null on failure.
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-    console.log('[notificationService] Starting push registration...');
-    console.log('[notificationService] Platform:', Platform.OS);
-    console.log('[notificationService] Is physical device:', Device.isDevice);
+    const Notifications = getNotifications();
+    if (!Notifications) return null;
 
-    // Push only works on physical devices
     if (!Device.isDevice) {
-        console.log('[notificationService] ⚠️ Not a physical device — push won\'t work');
+        console.log('[notificationService] ⚠️ Push chỉ hoạt động trên thiết bị thật');
         return null;
     }
 
-    // Android: create notification channel
-    if (Platform.OS === 'android') {
-        console.log('[notificationService] Creating Android notification channel...');
-        await Notifications.setNotificationChannelAsync('default', {
-            name: 'default',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#FF231F7C',
-        });
-    }
-
-    // Check / request permission
-    console.log('[notificationService] Checking notification permission...');
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    console.log('[notificationService] Existing permission status:', existingStatus);
-
-    if (existingStatus !== 'granted') {
-        console.log('[notificationService] Requesting permission...');
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-        console.log('[notificationService] New permission status:', status);
-    }
-
-    if (finalStatus !== 'granted') {
-        console.log('[notificationService] ❌ Permission not granted');
-        return null;
-    }
-
-    console.log('[notificationService] ✅ Permission granted');
-
-    // Get Expo push token
     try {
-        const projectId =
-            Constants?.expoConfig?.extra?.eas?.projectId ??
-            Constants?.easConfig?.projectId;
-        console.log('[notificationService] Project ID:', projectId);
+        if (Platform.OS === 'android') {
+            await Notifications.setNotificationChannelAsync('default', {
+                name: 'default',
+                importance: Notifications.AndroidImportance.MAX,
+                vibrationPattern: [0, 250, 250, 250],
+                lightColor: '#FF231F7C',
+            });
+        }
 
-        const tokenData = projectId
-            ? await Notifications.getExpoPushTokenAsync({ projectId })
-            : await Notifications.getExpoPushTokenAsync();
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+        }
+
+        if (finalStatus !== 'granted') return null;
+
+        const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+        const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : {}).catch(() => null);
+        
+        if (!tokenData) return null;
 
         const pushToken = tokenData.data;
-        console.log('[notificationService] ✅ Push token:', pushToken);
-
-        // Send to backend
         await sendTokenToBackend(pushToken);
-
         return pushToken;
     } catch (error: any) {
-        console.error('[notificationService] ❌ Error getting push token:', error?.message);
+        console.log('[notificationService] Lỗi đăng ký Push:', error?.message);
         return null;
+    }
+}
+
+/**
+ * Hiển thị thông báo cục bộ (Local Notification)
+ */
+export async function showLocalNotification(title: string, body: string, data?: any) {
+    const Notifications = getNotifications();
+    if (!Notifications) return;
+
+    try {
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title,
+                body,
+                data,
+                sound: 'default',
+            },
+            trigger: null,
+        });
+    } catch (err) {
+        console.log('[notificationService] Lỗi gửi thông báo local:', err);
+    }
+}
+
+/**
+ * Lắng nghe khi người dùng bấm vào thông báo
+ */
+export function addNotificationResponseReceivedListener(handler: (response: any) => void) {
+    const Notifications = getNotifications();
+    if (!Notifications) return { remove: () => {} };
+    try {
+        return Notifications.addNotificationResponseReceivedListener(handler);
+    } catch (err) {
+        return { remove: () => {} };
     }
 }

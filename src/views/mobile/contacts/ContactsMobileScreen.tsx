@@ -253,7 +253,7 @@ export default function ContactsMobileScreen() {
                         alignItems: "center",
                         paddingHorizontal: 16,
                         backgroundColor: colors.headerBg,
-                        borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                        borderBottomWidth: colors.headerBg.startsWith("#0") ? 0 : 0.5,
                         borderBottomColor: colors.border,
                         gap: 12,
                     }}
@@ -290,7 +290,7 @@ export default function ContactsMobileScreen() {
                             onFocus={() => {
                                 setSearchText("");
                                 router.push({
-                                    pathname: "/(tabs)/contacts-search",
+                                    pathname: "/search",
                                     params: { from: "contacts", t: Date.now() },
                                 });
                             }}

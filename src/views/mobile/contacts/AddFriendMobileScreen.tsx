@@ -134,52 +134,55 @@ export default function AddFriendMobileScreen() {
     };
 
     return (
-        <SafeAreaView
-            style={{ flex: 1, backgroundColor: colors.background }}
-            edges={["top"]}
-        >
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
             <StatusBar style={colors.statusBar} />
-            {/* Header Thêm bạn */}
-            <View
-                style={{
-                    height: 52,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 16,
-                    borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
-                    borderBottomColor: colors.border,
-                    backgroundColor: colors.headerBg,
-                }}
+            <SafeAreaView
+                style={{ backgroundColor: colors.headerBg }}
+                edges={["top"]}
             >
-                <TouchableOpacity
-                    onPress={() => router.back()}
-                    style={{ padding: 4, marginRight: 8 }}
-                    activeOpacity={0.8}
-                >
-                    <Ionicons
-                        name="chevron-back"
-                        size={22}
-                        color={colors.headerText}
-                    />
-                </TouchableOpacity>
-                <Text
+                {/* Header Thêm bạn */}
+                <View
                     style={{
-                        color: colors.headerText,
-                        fontSize: 18,
-                        fontWeight: "600",
+                        height: 52,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 16,
+                        borderBottomWidth: colors.headerBg.startsWith("#0") ? 0 : 0.5,
+                        borderBottomColor: colors.border,
+                        backgroundColor: colors.headerBg,
                     }}
                 >
-                    Thêm bạn
-                </Text>
-            </View>
+                    <TouchableOpacity
+                        onPress={() => router.back()}
+                        style={{ padding: 4, marginRight: 8 }}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons
+                            name="chevron-back"
+                            size={22}
+                            color={colors.headerText}
+                        />
+                    </TouchableOpacity>
+                    <Text
+                        style={{
+                            color: colors.headerText,
+                            fontSize: 18,
+                            fontWeight: "600",
+                        }}
+                    >
+                        Thêm bạn
+                    </Text>
+                </View>
+            </SafeAreaView>
 
-            {/* Nội dung: chỉ cho tìm bằng số điện thoại */}
-            <View
-                style={{
-                    paddingHorizontal: 16,
-                    paddingTop: 12,
-                }}
-            >
+            <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Nội dung: chỉ cho tìm bằng số điện thoại */}
+                <View
+                    style={{
+                        paddingHorizontal: 16,
+                        paddingTop: 12,
+                    }}
+                >
                 {/* Hàng chọn mã quốc gia + nhập SĐT */}
                 <View
                     style={{
@@ -291,7 +294,7 @@ export default function AddFriendMobileScreen() {
                                     width: 56,
                                     height: 56,
                                     borderRadius: 28,
-                                    backgroundColor: "#1f2937",
+                                    backgroundColor: colors.avatarBg,
                                     alignItems: "center",
                                     justifyContent: "center",
                                     marginRight: 12,
@@ -515,6 +518,7 @@ export default function AddFriendMobileScreen() {
                     </View>
                 </View>
             </Modal>
-        </SafeAreaView>
+            </ScrollView>
+        </View>
     );
 }

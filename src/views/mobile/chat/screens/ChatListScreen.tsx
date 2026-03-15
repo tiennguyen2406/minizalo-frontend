@@ -11,7 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useThemeColors } from "@/shared/theme/colors";
-import * as Notifications from "expo-notifications";
+import { showLocalNotification } from "@/services/notificationService";
 import { useAuthStore } from "@/shared/store/authStore";
 
 export default function ChatListScreen() {
@@ -129,15 +129,7 @@ export default function ChatListScreen() {
                         if (dynamo.type === 'IMAGE') bodyText = '[Đã gửi hình ảnh]';
                         else if (dynamo.type === 'FILE') bodyText = '[Đã gửi tập tin]';
 
-                        Notifications.scheduleNotificationAsync({
-                            content: {
-                                title: senderName,
-                                body: bodyText,
-                                data: { roomId: room.id, senderName: senderName },
-                                sound: 'default',
-                            },
-                            trigger: null, // Show immediately
-                        }).catch((err) => console.warn('Local notification error:', err));
+                        showLocalNotification(senderName, bodyText, { roomId: room.id, senderName: senderName });
                     }
                 } catch (err) {
                     console.error('Lỗi parse tin nhắn WS:', err);
@@ -199,15 +191,15 @@ export default function ChatListScreen() {
             <ChatListHeader />
             {loading && rooms.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-                    <ActivityIndicator size="large" color="#0068FF" />
-                    <Text style={{ color: '#7f8c8d', marginTop: 12, fontSize: 13 }}>Đang tải tin nhắn...</Text>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 13 }}>Đang tải tin nhắn...</Text>
                 </View>
             ) : error && rooms.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, paddingHorizontal: 32 }}>
-                    <Ionicons name="cloud-offline-outline" size={48} color="#555" />
-                    <Text style={{ color: '#e74c3c', marginTop: 12, fontSize: 15, fontWeight: '500' }}>Không thể tải danh sách tin nhắn</Text>
-                    <Text style={{ color: '#7f8c8d', fontSize: 12, marginTop: 4 }}>{error}</Text>
-                    <Text style={{ color: '#3498db', marginTop: 16, fontSize: 14, fontWeight: '500' }} onPress={onRefresh}>Thử lại</Text>
+                    <Ionicons name="cloud-offline-outline" size={48} color={colors.textSecondary} />
+                    <Text style={{ color: "#ff4d4f", marginTop: 12, fontSize: 15, fontWeight: '500' }}>Không thể tải danh sách tin nhắn</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>{error}</Text>
+                    <Text style={{ color: colors.primary, marginTop: 16, fontSize: 14, fontWeight: '500' }} onPress={onRefresh}>Thử lại</Text>
                 </View>
             ) : rooms.length === 0 ? (
                 <FlatList
@@ -216,17 +208,17 @@ export default function ChatListScreen() {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            tintColor="#0068FF"
-                            colors={['#0068FF']}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
                         />
                     }
                     data={[]}
                     renderItem={null}
                     ListEmptyComponent={() => (
                         <View style={{ alignItems: 'center', paddingHorizontal: 32 }}>
-                            <Ionicons name="chatbubbles-outline" size={56} color="#555" />
-                            <Text style={{ color: '#7f8c8d', fontSize: 15, marginTop: 12 }}>Chưa có cuộc trò chuyện nào</Text>
-                            <Text style={{ color: '#555', fontSize: 12, marginTop: 4 }}>Bắt đầu trò chuyện với bạn bè ngay!</Text>
+                            <Ionicons name="chatbubbles-outline" size={56} color={colors.textSecondary} />
+                            <Text style={{ color: colors.textSecondary, fontSize: 15, marginTop: 12 }}>Chưa có cuộc trò chuyện nào</Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4, opacity: 0.8 }}>Bắt đầu trò chuyện với bạn bè ngay!</Text>
                         </View>
                     )}
                 />
@@ -238,8 +230,8 @@ export default function ChatListScreen() {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            tintColor="#0068FF"
-                            colors={['#0068FF']}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
                         />
                     }
                     ListHeaderComponent={() => (

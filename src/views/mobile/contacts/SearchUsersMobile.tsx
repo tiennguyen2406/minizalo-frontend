@@ -7,8 +7,13 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Keyboard,
+    Pressable,
+    Image,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
 import { searchService } from "@/shared/services/searchService";
@@ -19,12 +24,16 @@ import type { UserProfile } from "@/shared/services/types";
 type SearchUsersMobileProps = {
     initialQuery?: string;
     autoFocus?: boolean;
+    onBack?: () => void;
 };
 
 export default function SearchUsersMobile({
     initialQuery = "",
     autoFocus = false,
+    onBack,
 }: SearchUsersMobileProps) {
+    const router = useRouter();
+    const navigation = useNavigation();
     const colors = useThemeColors();
     const [query, setQuery] = useState(initialQuery);
     const [results, setResults] = useState<UserProfile[]>([]);
@@ -177,17 +186,25 @@ export default function SearchUsersMobile({
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
+                        overflow: "hidden",
                     }}
                 >
-                    <Text
-                        style={{
-                            color: colors.text,
-                            fontWeight: "600",
-                            fontSize: 16,
-                        }}
-                    >
-                        {initial}
-                    </Text>
+                    {item.avatarUrl ? (
+                        <Image
+                            source={{ uri: `${item.avatarUrl}?t=${Date.now()}` }}
+                            style={{ width: 40, height: 40 }}
+                        />
+                    ) : (
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontWeight: "600",
+                                fontSize: 16,
+                            }}
+                        >
+                            {initial}
+                        </Text>
+                    )}
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text
@@ -264,87 +281,94 @@ export default function SearchUsersMobile({
                 backgroundColor: colors.background,
             }}
         >
-            {/* Header tìm kiếm */}
-            <View
-                style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: colors.border,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                }}
-            >
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
+                {/* Header tìm kiếm */}
                 <View
                     style={{
-                        flex: 1,
+                        paddingHorizontal: 16,
+                        height: 52,
+                        borderBottomWidth: colors.headerBg.startsWith("#00") ? 0 : 0.5,
+                        borderBottomColor: colors.border,
                         flexDirection: "row",
                         alignItems: "center",
-                        borderRadius: 999,
-                        backgroundColor: colors.searchBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
+                        backgroundColor: colors.headerBg,
+                        gap: 12,
                     }}
                 >
-                    <Ionicons
-                        name="search"
-                        size={18}
-                        color={colors.textSecondary}
-                        style={{ marginRight: 6 }}
-                    />
+                    <Pressable
+                        onPress={() => {
+                            Keyboard.dismiss();
+                            try {
+                                if (onBack) {
+                                    onBack();
+                                } else {
+                                    router.back();
+                                }
+                            } catch (e) {
+                                router.replace("/(tabs)/");
+                            }
+                        }}
+                        style={({ pressed }) => ({
+                            padding: 12,
+                            opacity: pressed ? 0.5 : 1,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            zIndex: 999,
+                        })}
+                        hitSlop={50}
+                    >
+                        <Ionicons name="chevron-back" size={28} color={colors.headerText} />
+                    </Pressable>
+
+                    <View
+                        style={{
+                            flex: 1,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            borderRadius: 10,
+                            backgroundColor: colors.headerSearchBg,
+                            paddingHorizontal: 10,
+                            height: 36,
+                        }}
+                    >
+                        <Ionicons
+                            name="search"
+                            size={18}
+                            color={colors.headerIcon}
+                            style={{ marginRight: 6 }}
+                        />
                     <TextInput
                         ref={inputRef}
                         value={query}
                         onChangeText={setQuery}
                         placeholder="Nhập tên, số điện thoại hoặc email..."
-                        placeholderTextColor={colors.textSecondary}
+                        placeholderTextColor={colors.headerIcon}
                         style={{
                             flex: 1,
-                            color: colors.text,
-                            fontSize: 14,
+                            color: colors.headerText,
+                            fontSize: 15,
                             paddingVertical: 0,
                         }}
                         autoFocus={autoFocus}
                         onSubmitEditing={handleSubmit}
                         returnKeyType="search"
                     />
-                    {query ? (
-                        <TouchableOpacity
-                            onPress={() => setQuery("")}
-                            style={{ paddingLeft: 4 }}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name="close-circle"
-                                size={18}
-                                color={colors.textSecondary}
-                            />
-                        </TouchableOpacity>
-                    ) : null}
+                        {query ? (
+                            <TouchableOpacity
+                                onPress={() => setQuery("")}
+                                style={{ paddingLeft: 4 }}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons
+                                    name="close-circle"
+                                    size={18}
+                                    color={colors.headerIcon}
+                                />
+                            </TouchableOpacity>
+                        ) : null}
+                    </View>
                 </View>
-                <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={loading}
-                    style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        borderRadius: 999,
-                        backgroundColor: colors.primary,
-                        opacity: loading ? 0.7 : 1,
-                    }}
-                >
-                    <Text
-                        style={{
-                            color: "#fff",
-                            fontSize: 13,
-                            fontWeight: "600",
-                        }}
-                    >
-                        Tìm
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            </SafeAreaView>
 
             {error ? (
                 <View

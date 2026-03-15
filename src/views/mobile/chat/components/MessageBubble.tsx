@@ -238,7 +238,7 @@ export default function MessageBubble({
                                         }}
                                     >
                                         <Image
-                                            source={{ uri: getImageUrl(att.url) }}
+                                            source={{ uri: `${getImageUrl(att.url)}?t=${Date.now()}` }}
                                             style={{
                                                 width: thumbSize,
                                                 height: thumbSize,
@@ -250,6 +250,7 @@ export default function MessageBubble({
                                                         : {}),
                                             }}
                                             resizeMode="cover"
+                                            onError={(e) => console.log("Message Image Error:", e.nativeEvent.error, att.url)}
                                         />
                                     </TouchableOpacity>
                                 ))}
