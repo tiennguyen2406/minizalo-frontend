@@ -10,6 +10,7 @@ import {
     TextInput,
     ScrollView,
     Switch,
+    Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { GestureHandlerRootView, Swipeable } from "react-native-gesture-handler";
@@ -438,17 +439,26 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
+                        overflow: "hidden",
                     }}
                 >
-                    <Text
-                        style={{
-                            color: colors.text,
-                            fontWeight: "600",
-                            fontSize: 16,
-                        }}
-                    >
-                        {initial}
-                    </Text>
+                    {u.avatarUrl ? (
+                        <Image
+                            source={{ uri: `${u.avatarUrl}?t=${Date.now()}` }}
+                            style={{ width: 40, height: 40 }}
+                            onError={(e) => console.log("Contact Avatar Error:", e.nativeEvent.error, u.avatarUrl)}
+                        />
+                    ) : (
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontWeight: "600",
+                                fontSize: 16,
+                            }}
+                        >
+                            {initial}
+                        </Text>
+                    )}
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text
@@ -687,10 +697,14 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                         >
                             <TouchableOpacity activeOpacity={1} onPress={() => { }} style={{ backgroundColor: colors.modalBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
                                 <View style={{ alignItems: "center", marginBottom: 12 }}>
-                                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, alignItems: "center", justifyContent: "center" }}>
-                                        <Text style={{ color: colors.text, fontSize: 24, fontWeight: "600" }}>
-                                            {(actionSheetFriend.displayName.charAt(0).toUpperCase() || "?").toUpperCase()}
-                                        </Text>
+                                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                                        {actionSheetFriend.user.avatarUrl ? (
+                                            <Image source={{ uri: `${actionSheetFriend.user.avatarUrl}?t=${Date.now()}` }} style={{ width: 64, height: 64 }} />
+                                        ) : (
+                                            <Text style={{ color: colors.text, fontSize: 24, fontWeight: "600" }}>
+                                                {(actionSheetFriend.displayName.charAt(0).toUpperCase() || "?").toUpperCase()}
+                                            </Text>
+                                        )}
                                     </View>
                                     <Text style={{ color: colors.text, fontSize: 17, fontWeight: "600", marginTop: 8 }}>
                                         {actionSheetFriend.displayName}
@@ -707,6 +721,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                     userId: friend.user.id,
                                                     displayName: friend.displayName,
                                                     avatarUrl: friend.user.avatarUrl || "",
+                                                    coverPhotoUrl: friend.user.coverPhotoUrl || "",
                                                     businessDescription: friend.user.businessDescription || "",
                                                     statusMessage: friend.user.statusMessage || "",
                                                     phone: friend.user.phone || "",
@@ -720,8 +735,11 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         onPress={() => {
+                                            const friendId = actionSheetFriend.user.id;
+                                            const friendName = actionSheetFriend.displayName;
+                                            setActionSheetFriend(null);
                                             setBlockOptions({ blockMessages: false, blockCalls: false, blockTimeline: false });
-                                            setBlockSheetFriend({ userId: actionSheetFriend.user.id, displayName: actionSheetFriend.displayName });
+                                            setBlockSheetFriend({ userId: friendId, displayName: friendName });
                                         }}
                                         style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, paddingVertical: 12, marginLeft: 6, borderRadius: 10 }}
                                     >

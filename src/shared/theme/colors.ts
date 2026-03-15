@@ -3,9 +3,6 @@ import { useThemeStore } from "../store/themeStore";
 import type { ThemeMode } from "../store/themeStore";
 
 function resolve(mode: ThemeMode): "light" | "dark" {
-    if (mode === "system") {
-        return Appearance.getColorScheme() === "light" ? "light" : "dark";
-    }
     return mode;
 }
 

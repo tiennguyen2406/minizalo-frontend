@@ -99,7 +99,7 @@ export const ChatListHeader = () => {
                             e.target.blur();
                             setSearchText("");
                             router.push({
-                                pathname: "/(tabs)/contacts-search",
+                                pathname: "/search",
                                 params: { from: "chat", t: Date.now() },
                             });
                         }}

@@ -124,7 +124,7 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                             onFocus={() => {
                                 setSearchQuery("");
                                 router.push({
-                                    pathname: "/(tabs)/contacts-search",
+                                    pathname: "/search",
                                     params: { from: "account", t: Date.now() },
                                 });
                             }}

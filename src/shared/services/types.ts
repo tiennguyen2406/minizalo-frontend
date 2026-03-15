@@ -53,6 +53,8 @@ export interface UserProfile {
 
 export interface UserProfileUpdateRequest {
     displayName?: string;
+    avatarUrl?: string;
+    coverPhotoUrl?: string;
     statusMessage?: string;
     phone?: string;
     gender?: string;

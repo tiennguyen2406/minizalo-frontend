@@ -20,6 +20,7 @@ interface FriendProfileScreenProps {
     userId: string;
     displayName: string;
     avatarUrl?: string | null;
+    coverUrl?: string | null;
     businessDescription?: string;
     statusMessage?: string;
     phone?: string;
@@ -29,6 +30,7 @@ export default function FriendProfileScreen({
     userId,
     displayName,
     avatarUrl,
+    coverUrl,
     businessDescription,
     statusMessage,
     phone,
@@ -60,14 +62,24 @@ export default function FriendProfileScreen({
             >
                 {/* Cover + Avatar */}
                 <View style={{ height: COVER_HEIGHT + AVATAR_SIZE / 2, position: "relative" }}>
-                    <View
-                        style={{
-                            height: COVER_HEIGHT,
-                            backgroundColor: "#1a2a3a",
-                            width: "100%",
-                            overflow: "hidden",
-                        }}
-                    >
+                        {coverUrl ? (
+                            <Image
+                                source={{ uri: `${coverUrl}?t=${Date.now()}` }}
+                                style={{
+                                    height: COVER_HEIGHT,
+                                    width: "100%",
+                                }}
+                                resizeMode="cover"
+                            />
+                        ) : (
+                            <View
+                                style={{
+                                    height: COVER_HEIGHT,
+                                    backgroundColor: "#1a2a3a",
+                                    width: "100%",
+                                }}
+                            />
+                        )}
                         <View
                             style={{
                                 position: "absolute",
@@ -79,7 +91,6 @@ export default function FriendProfileScreen({
                                 zIndex: 1,
                             }}
                         />
-                    </View>
 
                     {/* Top bar */}
                     <SafeAreaView
@@ -131,7 +142,7 @@ export default function FriendProfileScreen({
                     >
                         {avatarUrl ? (
                             <Image
-                                source={{ uri: avatarUrl }}
+                                source={{ uri: `${avatarUrl}?t=${Date.now()}` }}
                                 style={{
                                     width: AVATAR_SIZE,
                                     height: AVATAR_SIZE,

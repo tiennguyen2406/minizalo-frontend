@@ -290,7 +290,7 @@ export default function ContactsMobileScreen() {
                             onFocus={() => {
                                 setSearchText("");
                                 router.push({
-                                    pathname: "/(tabs)/contacts-search",
+                                    pathname: "/search",
                                     params: { from: "contacts", t: Date.now() },
                                 });
                             }}

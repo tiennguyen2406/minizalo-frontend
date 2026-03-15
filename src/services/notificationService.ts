@@ -12,13 +12,17 @@ import { useAuthStore } from '@/shared/store/authStore';
 const isExpoGo = Constants.appOwnership === 'expo';
 
 const getNotifications = () => {
-    if (isExpoGo) {
-        // Trả về null để tránh lỗi crash/đỏ màn hình trên Expo Go
+    // Chỉ chặn cứng trên Android Expo Go vì gây crash đỏ màn hình ngay lập tức trên SDK 53+.
+    // Trên iOS hoặc Development Build, chúng ta vẫn có thể thử nạp thư viện.
+    if (isExpoGo && Platform.OS === 'android') {
         return null;
     }
+    
     try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         return require('expo-notifications');
     } catch (e) {
+        console.log('[notificationService] Không thể nạp expo-notifications:', e);
         return null;
     }
 };
