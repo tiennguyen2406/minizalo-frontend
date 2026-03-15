@@ -138,12 +138,21 @@ export const chatService = {
         return data;
     },
 
-    sendMessage: async (roomId: string, content: string, replyToMessageId?: string): Promise<MessageDynamo> => {
+    sendMessage: async (
+        roomId: string, 
+        content: string, 
+        replyToMessageId?: string,
+        type: "TEXT" | "IMAGE" | "FILE" | "VIDEO" = "TEXT",
+        attachments?: Attachment[]
+    ): Promise<MessageDynamo> => {
         const body: any = {
             receiverId: roomId,
             content,
-            type: "TEXT",
+            type,
         };
+        if (attachments && attachments.length > 0) {
+            body.attachments = attachments;
+        }
         if (replyToMessageId) {
             body.replyToMessageId = replyToMessageId;
         }

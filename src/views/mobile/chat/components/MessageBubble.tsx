@@ -20,7 +20,7 @@ interface ReplyPreview {
 }
 
 interface MessageBubbleProps {
-    message: MessageDynamo;
+    message: MessageDynamo & { isError?: boolean };
     isMe: boolean;
     showSenderName?: boolean; // for group chats
     onLongPress?: (message: MessageDynamo) => void;
@@ -62,6 +62,7 @@ export default function MessageBubble({
     const colors = useThemeColors();
     const senderName = message.senderName;
     const isRecalled = message.recalled;
+    const isError = message.isError;
     const time =
         message.createdAt && !isNaN(Date.parse(message.createdAt))
             ? formatTime(message.createdAt)
@@ -333,7 +334,7 @@ export default function MessageBubble({
                     )}
 
                     {/* Time */}
-                    {time ? (
+                    {time && !isError ? (
                         <Text
                             style={{
                                 fontSize: 11,
@@ -348,6 +349,20 @@ export default function MessageBubble({
                         </Text>
                     ) : null}
                 </View>
+
+                {/* Error message */}
+                {isError && (
+                    <Text
+                        style={{
+                            color: "#e74c3c", // Red color
+                            fontSize: 11,
+                            marginTop: 4,
+                            alignSelf: isMe ? "flex-end" : "flex-start",
+                        }}
+                    >
+                        Không gửi được
+                    </Text>
+                )}
 
                 {/* Reactions */}
                 {Array.isArray(message.reactions) && message.reactions.length > 0 && (

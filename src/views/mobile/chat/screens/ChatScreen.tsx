@@ -47,17 +47,13 @@ export default function ChatScreen() {
     const rawType = typeof type === "string" ? type : "DIRECT";
     const roomType = rawType === "GROUP" ? "GROUP" : "DIRECT";
 
-    const [messages, setMessages] = useState<MessageDynamo[]>([]);
+    const [messages, setMessages] = useState<(MessageDynamo & { isError?: boolean })[]>([]);
     const [sending, setSending] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const flatListRef = useRef<FlatList>(null);
     const galleryRef = useRef<FlatList>(null);
     const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
     const [galleryCurrentIndex, setGalleryCurrentIndex] = useState(0);
-    const [showGroupInfo, setShowGroupInfo] = useState(false);
-    const [showChatOptions, setShowChatOptions] = useState(false);
-    const slideAnim = useRef(new Animated.Value(SCREEN_WIDTH)).current;
-    const slideOptionsAnim = useRef(new Animated.Value(SCREEN_WIDTH)).current;
 
     const [selectedMessage, setSelectedMessage] = useState<MessageDynamo | null>(null);
     const [showActionSheet, setShowActionSheet] = useState(false);
@@ -70,37 +66,25 @@ export default function ChatScreen() {
     } | null>(null);
 
     const openGroupInfo = () => {
-        setShowGroupInfo(true);
-        Animated.timing(slideAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-        }).start();
-    };
-
-    const closeGroupInfo = () => {
-        Animated.timing(slideAnim, {
-            toValue: SCREEN_WIDTH,
-            duration: 250,
-            useNativeDriver: true,
-        }).start(() => setShowGroupInfo(false));
+        router.push({
+            pathname: "/group-info",
+            params: {
+                roomId,
+            }
+        });
     };
 
     const openChatOptions = () => {
-        setShowChatOptions(true);
-        Animated.spring(slideOptionsAnim, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 0,
-        }).start();
-    };
-
-    const closeChatOptions = () => {
-        Animated.timing(slideOptionsAnim, {
-            toValue: SCREEN_WIDTH,
-            duration: 250,
-            useNativeDriver: true,
-        }).start(() => setShowChatOptions(false));
+        const avatarUrl = useChatStore.getState().rooms.find(r => r.id === roomId)?.avatarUrl || "";
+        router.push({
+            pathname: "/chat-options",
+            params: {
+                roomId,
+                name: displayName,
+                avatarUrl,
+                partnerId: partnerId ?? ""
+            }
+        });
     };
 
     const currentUserId = useUserStore((s) => s.profile?.id);
@@ -129,6 +113,10 @@ export default function ChatScreen() {
             const result = await chatService.getChatHistory(roomId);
             console.log("📜 History result:", result?.messages?.length ?? 0, "messages");
             if (result?.messages && result.messages.length > 0) {
+                const imgMsgs = result.messages.filter(m => m.attachments && m.attachments.length > 0);
+                if (imgMsgs.length > 0) {
+                    console.log("🔗 Attachments payload from history:", JSON.stringify(imgMsgs[0].attachments, null, 2));
+                }
                 // Keep newest-first order for inverted FlatList
                 setMessages(result.messages);
             }
@@ -224,11 +212,18 @@ export default function ChatScreen() {
                     if (prev.some((m) => m.messageId === newMsg.messageId)) {
                         return prev;
                     }
-                    // Remove optimistic temp messages, add new msg at beginning (newest-first)
-                    const filtered = prev.filter(
-                        (m) => !m.messageId.startsWith("temp-")
+                    // Xóa tin nhắn temp ĐẦU TIÊN của user này (nếu có) thay vì xóa tất cả temp
+                    const tempIdx = prev.findIndex(
+                        (m) => m.messageId.startsWith("temp-") && m.senderId === newMsg.senderId
                     );
-                    return [newMsg, ...filtered];
+                    
+                    if (tempIdx !== -1) {
+                        const next = [...prev];
+                        next.splice(tempIdx, 1);
+                        return [newMsg, ...next];
+                    }
+                    
+                    return [newMsg, ...prev];
                 });
 
                 setTimeout(() => {
@@ -390,6 +385,10 @@ export default function ChatScreen() {
             }
         } catch (err) {
             console.log("Error sending message:", err);
+            Alert.alert("Lỗi", "Gửi tin nhắn thất bại, vui lòng thử lại.");
+            setMessages((prev) => 
+                prev.map(m => m.messageId === optimisticMsg.messageId ? { ...m, isError: true } : m)
+            );
         } finally {
             setSending(false);
             setReplyTo(null);
@@ -453,6 +452,8 @@ export default function ChatScreen() {
                 const uploadData = await uploadRes.json();
 
                 return {
+                    id: "",
+                    name: uploadData.fileName || filename,
                     url: uploadData.fileUrl,
                     type: uploadData.fileType || "image/jpeg",
                     filename: uploadData.fileName || filename,
@@ -471,13 +472,16 @@ export default function ChatScreen() {
                 uploadedAttachments
             );
             if (!sentViaWs) {
-                console.log("WS not connected for image, fallback needed");
+                console.log("WS not connected for image, fallback to REST");
+                await chatService.sendMessage(roomId, "", undefined, "IMAGE", uploadedAttachments);
                 await fetchMessages();
             }
         } catch (err) {
             console.log("Error sending image:", err);
             Alert.alert("Lỗi", "Gửi ảnh thất bại, vui lòng thử lại.");
-            setMessages((prev) => prev.filter((m) => m.messageId !== tempId));
+            setMessages((prev) => 
+                prev.map(m => m.messageId === tempId ? { ...m, isError: true } : m)
+            );
         } finally {
             setSending(false);
         }
@@ -539,6 +543,8 @@ export default function ChatScreen() {
             const uploadData = await uploadRes.json();
 
             const attachment = {
+                id: "",
+                name: uploadData.fileName || filename,
                 url: uploadData.fileUrl,
                 type: uploadData.fileType || type,
                 filename: uploadData.fileName || filename,
@@ -553,13 +559,16 @@ export default function ChatScreen() {
                 [attachment]
             );
             if (!sentViaWs) {
-                console.log("WS not connected for file, fallback needed");
+                console.log("WS not connected for file, fallback to REST");
+                await chatService.sendMessage(roomId, "", undefined, "FILE", [attachment]);
                 await fetchMessages();
             }
         } catch (err) {
             console.log("Error sending file:", err);
             Alert.alert("Lỗi", "Gửi file thất bại, vui lòng thử lại.");
-            setMessages((prev) => prev.filter((m) => m.messageId !== tempId));
+            setMessages((prev) => 
+                prev.map(m => m.messageId === tempId ? { ...m, isError: true } : m)
+            );
         } finally {
             setSending(false);
         }
@@ -742,49 +751,6 @@ export default function ChatScreen() {
                     }
                 }}
             />
-
-            {/* Group Info - Slide from right */}
-            {showGroupInfo && (
-                <Animated.View
-                    style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        zIndex: 100,
-                        transform: [{ translateX: slideAnim }],
-                    }}
-                >
-                    <GroupInfoScreen
-                        roomId={roomId}
-                        onClose={closeGroupInfo}
-                    />
-                </Animated.View>
-            )}
-
-            {/* Chat Options (Personal) - Slide from right */}
-            {showChatOptions && (
-                <Animated.View
-                    style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        zIndex: 100,
-                        transform: [{ translateX: slideOptionsAnim }],
-                    }}
-                >
-                    <ChatOptionsScreen
-                        roomId={roomId}
-                        name={displayName}
-                        avatarUrl={useChatStore.getState().rooms.find(r => r.id === roomId)?.avatarUrl || undefined}
-                        partnerId={partnerId ?? undefined}
-                        onClose={closeChatOptions}
-                    />
-                </Animated.View>
-            )}
 
             {/* Header pinned messages */}
             {messages.some((m) => m.pinned) && (

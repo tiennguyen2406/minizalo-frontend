@@ -52,10 +52,14 @@ export default function ChatListScreen() {
                         ? {
                             id: r.lastMessage.messageId,
                             senderId: r.lastMessage.senderId,
+                            senderName: r.lastMessage.senderName,
                             roomId: r.id,
-                            content: r.lastMessage.content,
+                            content: r.lastMessage.recalled
+                                ? '[Tin nhắn đã thu hồi]'
+                                : r.lastMessage.content,
                             type: (r.lastMessage.type as any) || 'TEXT',
                             createdAt: r.lastMessage.createdAt,
+                            recalled: r.lastMessage.recalled || false,
                         }
                         : undefined,
                     unreadCount: Math.max(existing ? existing.unreadCount : 0, r.unreadCount || 0),
@@ -161,10 +165,26 @@ export default function ChatListScreen() {
     );
 
     const renderItem = ({ item, index }: { item: any; index: number }) => {
-        const avatarUri = item.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "User")}&background=random&color=fff`;
-        const lastMsg = item.lastMessage?.content
-            ? (item.lastMessage.type === 'IMAGE' ? '[Hình ảnh]' : item.lastMessage.type === 'FILE' ? '[Tập tin]' : item.lastMessage.content)
-            : "Chưa có tin nhắn";
+        const processedAvatar = getImageUrl(item.avatarUrl);
+        const avatarUri = processedAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "User")}&background=random&color=fff`;
+        // Xử lý hiển thị tin nhắn cuối
+        let lastMsg = "Chưa có tin nhắn";
+        if (item.lastMessage) {
+            const lm = item.lastMessage;
+            if (lm.recalled) {
+                lastMsg = '[Tin nhắn đã thu hồi]';
+            } else if (lm.content === '[Tin nhắn đã thu hồi]') {
+                lastMsg = '[Tin nhắn đã thu hồi]';
+            } else if (lm.type === 'IMAGE') {
+                lastMsg = '[Hình ảnh]';
+            } else if (lm.type === 'FILE') {
+                lastMsg = '[Tập tin]';
+            } else if (lm.type === 'VIDEO') {
+                lastMsg = '[Video]';
+            } else {
+                lastMsg = lm.content || 'Chưa có tin nhắn';
+            }
+        }
 
         let timeDisplay = "";
         if (item.lastMessage?.createdAt) {
