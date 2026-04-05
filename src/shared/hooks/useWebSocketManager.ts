@@ -84,9 +84,12 @@ function _useWebSocketManagerWeb() {
         fetchRooms();
     }, [accessToken]);
 
-    // 2. Activate WebSocket khi có token
+    // 2. Activate WebSocket khi có token, reconnect nếu token thay đổi
     useEffect(() => {
-        if (!accessToken) return;
+        if (!accessToken) {
+            webSocketService.deactivate();
+            return;
+        }
         webSocketService.activate(accessToken);
     }, [accessToken]);
 

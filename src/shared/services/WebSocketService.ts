@@ -17,6 +17,7 @@ class WebSocketService {
     private connected: boolean = false;
     private pendingSubscriptions: Record<string, (message: IMessage) => void> = {};
     private subscriptions: Record<string, any> = {};
+    private currentToken: string | null = null;
 
     constructor() {
         this.client = new Client({
@@ -28,28 +29,34 @@ class WebSocketService {
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
 
-            // React Native needs this for WebSocket
             forceBinaryWSFrames: true,
             appendMissingNULLonIncoming: true,
         });
 
         this.client.onConnect = () => {
-            console.log('✅ WebSocket connected');
+            console.log('WebSocket connected');
             this.connected = true;
 
-            // Process pending subscriptions
             Object.keys(this.pendingSubscriptions).forEach((dest) => {
                 const callback = this.pendingSubscriptions[dest];
                 const sub = this.client.subscribe(dest, callback);
                 this.subscriptions[dest] = sub;
-                console.log('📩 Subscribed to:', dest);
             });
             this.pendingSubscriptions = {};
         };
 
-        this.client.onStompError = (frame) => {
-            console.error("Broker reported error: " + frame.headers["message"]);
-            console.error("Additional details: " + frame.body);
+        this.client.onStompError = async (frame) => {
+            const msg = frame.headers["message"] || "";
+            console.error("Broker reported error: " + msg);
+            if (msg.includes("JWT") || msg.includes("expired") || msg.includes("Authorization")) {
+                this.connected = false;
+                this.currentToken = null;
+                const refreshed = await useAuthStore.getState().refreshAuth();
+                if (refreshed) {
+                    const newToken = useAuthStore.getState().accessToken;
+                    if (newToken) this.activate(newToken);
+                }
+            }
         };
 
         this.client.onWebSocketError = (event) => {
@@ -59,7 +66,7 @@ class WebSocketService {
         this.client.onDisconnect = () => {
             this.connected = false;
             this.subscriptions = {};
-            console.log('🔌 WebSocket disconnected');
+            console.log('WebSocket disconnected');
         };
     }
 
@@ -71,14 +78,19 @@ class WebSocketService {
             return;
         }
 
-        // Don't reactivate if already connected
-        if (this.connected) return;
+        if (this.connected && this.currentToken === authToken) return;
 
+        if (this.connected && this.currentToken !== authToken) {
+            this.client.deactivate();
+            this.connected = false;
+            this.subscriptions = {};
+        }
+
+        this.currentToken = authToken;
         this.client.connectHeaders = {
             Authorization: `Bearer ${authToken}`,
         };
 
-        console.log('🔄 Activating WebSocket to:', WS_URL);
         this.client.activate();
     }
 
@@ -86,6 +98,7 @@ class WebSocketService {
     deactivate() {
         this.client.deactivate();
         this.connected = false;
+        this.currentToken = null;
         this.subscriptions = {};
         this.pendingSubscriptions = {};
     }
