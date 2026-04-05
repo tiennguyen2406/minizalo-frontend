@@ -1,8 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface MessageInputProps {
     onSend: (text: string) => void;
     onSendFile?: (file: File) => void;
+    onSendFiles?: (files: File[]) => void;
     onSendLike?: () => void;
     onTyping?: (isTyping: boolean) => void;
     replyingTo?: any;
@@ -24,6 +26,7 @@ const LINE_HEIGHT = 22; // px
 const MessageInput: React.FC<MessageInputProps> = ({
     onSend,
     onSendFile,
+    onSendFiles,
     onSendLike,
     onTyping,
     replyingTo,
@@ -32,8 +35,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
 }) => {
     const [text, setText] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [previewUrls, setPreviewUrls] = useState<string[]>([]);
     const [showEmoji, setShowEmoji] = useState(false);
+    const [emojiPos, setEmojiPos] = useState<{ bottom: number; left: number } | null>(null);
     const [failedSend, setFailedSend] = useState(false);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -41,6 +47,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const imageInputRef = useRef<HTMLInputElement>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const emojiRef = useRef<HTMLDivElement>(null);
+    const emojiBtnRef = useRef<HTMLButtonElement>(null);
+    const emojiPopupRef = useRef<HTMLDivElement>(null);
 
     // ── Auto-resize textarea ───────────────────────────────────────────────────
     const resizeTextarea = useCallback(() => {
@@ -59,7 +67,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
     // ── Close emoji picker on outside click ───────────────────────────────────
     useEffect(() => {
         const handler = (e: MouseEvent) => {
-            if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
+            const target = e.target as Node;
+            const inBtn = emojiRef.current?.contains(target);
+            const inPopup = emojiPopupRef.current?.contains(target);
+            if (!inBtn && !inPopup) {
                 setShowEmoji(false);
             }
         };
@@ -79,6 +90,17 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     // ── Send ──────────────────────────────────────────────────────────────────
     const handleSend = useCallback(async () => {
+        // Multi-file send
+        if (selectedFiles.length > 0 && onSendFiles) {
+            try {
+                setFailedSend(false);
+                onSendFiles(selectedFiles);
+                clearFilePreview();
+            } catch {
+                setFailedSend(true);
+            }
+            return;
+        }
         if (selectedFile && onSendFile) {
             try {
                 setFailedSend(false);
@@ -102,7 +124,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         } catch {
             setFailedSend(true);
         }
-    }, [text, selectedFile, onSend, onSendFile, onTyping]);
+    }, [text, selectedFile, selectedFiles, onSend, onSendFile, onSendFiles, onTyping]);
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
@@ -124,11 +146,34 @@ const MessageInput: React.FC<MessageInputProps> = ({
         const file = e.target.files?.[0];
         if (!file) return;
         setSelectedFile(file);
+        setSelectedFiles([]);
+        previewUrls.forEach(u => URL.revokeObjectURL(u));
+        setPreviewUrls([]);
         if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
             setPreviewUrl(URL.createObjectURL(file));
         } else {
             setPreviewUrl(null);
         }
+        e.target.value = '';
+    };
+
+    // ── Multi-image select ───────────────────────────────────────────────────
+    const handleMultiImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        const fileArr = Array.from(files);
+        if (fileArr.length === 1) {
+            // Single file: use normal flow
+            handleFileSelect(e);
+            return;
+        }
+        // Multi files
+        clearFilePreview();
+        setSelectedFiles(fileArr);
+        const urls = fileArr
+            .filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'))
+            .map(f => URL.createObjectURL(f));
+        setPreviewUrls(urls);
         e.target.value = '';
     };
 
@@ -146,8 +191,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     const clearFilePreview = () => {
         if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrls.forEach(u => URL.revokeObjectURL(u));
         setSelectedFile(null);
+        setSelectedFiles([]);
         setPreviewUrl(null);
+        setPreviewUrls([]);
     };
 
     const formatFileSize = (bytes: number) => {
@@ -175,7 +223,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         setShowEmoji(false);
     };
 
-    const hasContent = text.trim().length > 0 || !!selectedFile;
+    const hasContent = text.trim().length > 0 || !!selectedFile || selectedFiles.length > 0;
 
     return (
         <div style={{
@@ -200,7 +248,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
                             Trả lời {replyingTo.senderName || 'Người dùng'}
                         </span>
                         <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
-                            {replyingTo.content}
+                            {replyingTo.type === 'IMAGE' ? '🖼️ Ảnh'
+                                : replyingTo.type === 'VIDEO' ? '🎥 Video'
+                                : (replyingTo.type === 'FILE' || replyingTo.type === 'DOCUMENT') ? `📎 ${replyingTo.fileName || 'Tệp đính kèm'}`
+                                : replyingTo.content || '[Tin nhắn]'}
                         </span>
                     </div>
                     {onCancelReply && (
@@ -213,8 +264,45 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 </div>
             )}
 
-            {/* ── File / Image preview ── */}
-            {selectedFile && (
+            {/* ── Multi-image preview ── */}
+            {selectedFiles.length > 1 && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 12px',
+                    background: '#eff6ff',
+                    borderBottom: '1px solid #bfdbfe',
+                    overflowX: 'auto',
+                }}>
+                    <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+                        {selectedFiles.map((f, i) => (
+                            <div key={i} style={{ position: 'relative', width: 56, height: 56, borderRadius: 8, overflow: 'hidden', flexShrink: 0, border: '1px solid #dbeafe' }}>
+                                {f.type.startsWith('image/') ? (
+                                    <img src={previewUrls[i] || ''} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                    <div style={{ width: '100%', height: '100%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5">
+                                            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0, marginLeft: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1e3a5f' }}>{selectedFiles.length} ảnh</span>
+                        <button onClick={clearFilePreview} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94a3b8', display: 'flex' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ── File / Image preview (single) ── */}
+            {selectedFile && selectedFiles.length === 0 && (
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -260,7 +348,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             )}
 
             {/* ── Hidden file inputs ── */}
-            <input ref={imageInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleFileSelect} />
+            <input ref={imageInputRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }} onChange={handleMultiImageSelect} />
             <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileSelect} />
 
             {/* ── Toolbar ── */}
@@ -268,19 +356,28 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 {/* Emoji */}
                 <div style={{ position: 'relative' }} ref={emojiRef}>
                     <button
-                        onClick={() => setShowEmoji(v => !v)}
+                        ref={emojiBtnRef}
+                        onClick={() => {
+                            setShowEmoji(v => {
+                                if (!v && emojiBtnRef.current) {
+                                    const rect = emojiBtnRef.current.getBoundingClientRect();
+                                    setEmojiPos({ bottom: window.innerHeight - rect.top + 6, left: rect.left });
+                                }
+                                return !v;
+                            });
+                        }}
                         title="Biểu cảm"
                         style={toolbarBtnStyle(showEmoji)}
                     >
                         <span style={{ fontSize: 20, lineHeight: 1 }}>😊</span>
                     </button>
 
-                    {showEmoji && (
-                        <div style={{
-                            position: 'absolute',
-                            bottom: 'calc(100% + 6px)',
-                            left: 0,
-                            zIndex: 100,
+                    {showEmoji && emojiPos && createPortal(
+                        <div ref={emojiPopupRef} style={{
+                            position: 'fixed',
+                            bottom: emojiPos.bottom,
+                            left: emojiPos.left,
+                            zIndex: 9999,
                             background: '#fff',
                             border: '1px solid #e5e7eb',
                             borderRadius: 12,
@@ -311,7 +408,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                     {em}
                                 </button>
                             ))}
-                        </div>
+                        </div>,
+                        document.body
                     )}
                 </div>
 

@@ -99,6 +99,7 @@ export type GroupRole = 'ADMIN' | 'MEMBER';
 export interface GroupMember {
     userId: string;
     username: string;
+    fullName?: string;
     avatarUrl?: string;
     role: GroupRole;
 }
@@ -106,6 +107,7 @@ export interface GroupMember {
 export interface GroupDetail {
     id: string;
     groupName: string;
+    avatarUrl?: string;
     ownerId: string;
     createdAt: string;
     members: GroupMember[];

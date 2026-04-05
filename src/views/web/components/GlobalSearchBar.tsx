@@ -199,7 +199,10 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
     }, []);
 
     const handleSelectRoom = useCallback(
-        (roomId: string) => {
+        (roomId: string, messageId?: string) => {
+            if (messageId) {
+                useChatStore.getState().setHighlightedMessageId(messageId);
+            }
             onSelectRoom(roomId);
             handleClose();
         },
@@ -472,7 +475,7 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
                                         const room = rooms.find((r) => r.id === msg.roomId);
                                         return (
                                             <div key={msg.id}
-                                                onClick={() => handleSelectRoom(msg.roomId)}
+                                                onClick={() => handleSelectRoom(msg.roomId, msg.id)}
                                                 style={rowStyle}
                                                 onMouseEnter={(e) => { e.currentTarget.style.background = hoverBg; }}
                                                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
@@ -539,7 +542,7 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
                                         const senderShort = msg.senderName?.split(" ").pop() || "";
                                         return (
                                             <div key={msg.id}
-                                                onClick={() => handleSelectRoom(msg.roomId)}
+                                                onClick={() => handleSelectRoom(msg.roomId, msg.id)}
                                                 style={rowStyle}
                                                 onMouseEnter={(e) => { e.currentTarget.style.background = hoverBg; }}
                                                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}

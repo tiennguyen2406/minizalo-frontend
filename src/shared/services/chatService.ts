@@ -143,4 +143,10 @@ export const chatService = {
         const { data } = await api.post<MessageDynamo>("/chat/send", body);
         return data;
     },
+
+    /** Lưu tên gợi nhớ cho phòng chat (1-1). Trả về phòng chat đã cập nhật. */
+    saveNickname: async (roomId: string, nickname: string): Promise<ChatRoomResponse> => {
+        const { data } = await api.put<ChatRoomResponse>(`/chat/rooms/${roomId}/nickname`, { nickname });
+        return data;
+    },
 };

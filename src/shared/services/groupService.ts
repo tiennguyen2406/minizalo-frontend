@@ -48,11 +48,13 @@ function mapGroupResponse(data: any): GroupDetail {
     return {
         id: data.id,
         groupName: data.groupName,
+        avatarUrl: data.avatarUrl || undefined,
         ownerId: data.ownerId,
         createdAt: data.createdAt || new Date().toISOString(),
         members: (data.members || []).map((m: any) => ({
             userId: m.userId,
             username: m.username || "",
+            fullName: m.displayName || m.fullName || undefined,
             avatarUrl: m.avatarUrl || undefined,
             role: m.role || "MEMBER",
         })),
@@ -93,5 +95,23 @@ export const groupService = {
     /** Rời nhóm */
     async leaveGroup(groupId: string): Promise<void> {
         await api.post(`/group/leave/${groupId}`);
+    },
+
+    /** Đổi tên nhóm */
+    async renameGroup(groupId: string, groupName: string): Promise<GroupDetail> {
+        const { data } = await api.put(`/group`, { groupId, groupName });
+        return mapGroupResponse(data);
+    },
+
+    /** Thay đổi quyền thành viên (ADMIN / MEMBER) */
+    async changeRole(groupId: string, targetUserId: string, role: 'ADMIN' | 'MEMBER'): Promise<GroupDetail> {
+        const { data } = await api.put('/group/members/role', { groupId, targetUserId, role });
+        return mapGroupResponse(data);
+    },
+
+    /** Cập nhật avatar nhóm */
+    async updateGroupAvatar(groupId: string, avatarUrl: string): Promise<GroupDetail> {
+        const { data } = await api.put('/group', { groupId, avatarUrl });
+        return mapGroupResponse(data);
     },
 };
