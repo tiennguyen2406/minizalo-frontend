@@ -74,6 +74,26 @@ export const authService = {
     resetPassword: async (phone: string, otp: string, newPassword: string, confirmPassword: string): Promise<void> => {
         await api.post(authPath("auth/reset-password"), { phone, otp, newPassword, confirmPassword });
     },
+
+    generateQrSession: async (): Promise<{ sessionId: string; expiresAt: string }> => {
+        const response = await api.get<{ sessionId: string; expiresAt: string }>(authPath("auth/qr-login/generate"));
+        return response.data;
+    },
+
+    getQrSessionStatus: async (sessionId: string): Promise<{ status: string; accessToken?: string; refreshToken?: string }> => {
+        const response = await api.get<{ status: string; accessToken?: string; refreshToken?: string }>(
+            authPath(`auth/qr-login/status/${sessionId}`)
+        );
+        return response.data;
+    },
+
+    confirmQrLogin: async (sessionId: string, accessToken: string): Promise<void> => {
+        await api.post(
+            authPath("auth/qr-login/confirm"),
+            { sessionId },
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+    },
 };
 
 export default authService;
