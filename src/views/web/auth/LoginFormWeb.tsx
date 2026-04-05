@@ -184,6 +184,7 @@ export default function LoginFormWeb() {
                 >
                     <button
                         type="button"
+                        onClick={() => router.push("/(auth)/forgot-password")}
                         style={{
                             background: "none",
                             border: "none",

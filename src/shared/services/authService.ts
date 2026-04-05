@@ -57,6 +57,23 @@ export const authService = {
         );
         return response.data;
     },
+
+    sendOtp: async (phone: string): Promise<void> => {
+        await api.post(authPath("auth/send-otp"), { phone });
+    },
+
+    verifyOtp: async (phone: string, otp: string): Promise<{ verificationToken: string }> => {
+        const response = await api.post<{ verificationToken: string }>(authPath("auth/verify-otp"), { phone, otp });
+        return response.data;
+    },
+
+    forgotPasswordSendOtp: async (phone: string): Promise<void> => {
+        await api.post(authPath("auth/forgot-password/send-otp"), { phone });
+    },
+
+    resetPassword: async (phone: string, otp: string, newPassword: string, confirmPassword: string): Promise<void> => {
+        await api.post(authPath("auth/reset-password"), { phone, otp, newPassword, confirmPassword });
+    },
 };
 
 export default authService;
