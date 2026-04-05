@@ -34,6 +34,7 @@ interface GroupState {
 
     registerOnGroupCreated: (cb: (roomId: string) => void) => void;
     unregisterOnGroupCreated: () => void;
+    clear: () => void;
 }
 
 export const useGroupStore = create<GroupState>((set) => ({
@@ -62,4 +63,13 @@ export const useGroupStore = create<GroupState>((set) => ({
 
     registerOnGroupCreated: (cb) => set({ onGroupCreated: cb }),
     unregisterOnGroupCreated: () => set({ onGroupCreated: null }),
+
+    clear: () => set({
+        currentGroupDetail: null,
+        isGroupInfoOpen: false,
+        isCreateGroupOpen: false,
+        isAddMembersOpen: false,
+        isLoading: false,
+        error: null,
+    })
 }));

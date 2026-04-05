@@ -3,6 +3,10 @@ import { useRouter } from "expo-router";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useThemeStore } from "@/shared/store/themeStore";
 import ChangePasswordModal from "./ChangePasswordModal";
+import { useUserStore } from "@/shared/store/userStore";
+import { useChatStore } from "@/shared/store/useChatStore";
+import { useGroupStore } from "@/shared/store/useGroupStore";
+import { useFriendStore } from "@/shared/store/friendStore";
 
 const SIDEBAR_WIDTH = 72;
 const PANEL_WIDTH = 280;
@@ -156,6 +160,11 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
 
     const handleLogout = async () => {
         await logout();
+        useUserStore.getState().clear();
+        useChatStore.getState().clear();
+        useGroupStore.getState().clear();
+        useFriendStore.getState().clear();
+        
         onClose();
         router.replace("/(auth)/login");
     };

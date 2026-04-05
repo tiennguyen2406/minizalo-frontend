@@ -48,6 +48,7 @@ interface ChatState {
     togglePinRoom: (roomId: string) => void;
     toggleMuteRoom: (roomId: string) => void;
     setHighlightedMessageId: (messageId: string | null) => void;
+    clear: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -209,4 +210,14 @@ export const useChatStore = create<ChatState>((set) => ({
     }),
 
     setHighlightedMessageId: (messageId) => set({ highlightedMessageId: messageId }),
+
+    clear: () => set({
+        messages: {},
+        rooms: [],
+        typingUsers: {},
+        currentRoomId: null,
+        pinnedRooms: new Set(),
+        mutedRooms: new Set(),
+        highlightedMessageId: null,
+    }),
 }));
