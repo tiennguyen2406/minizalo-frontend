@@ -123,6 +123,7 @@ export const ChatListHeader = () => {
                 <TouchableOpacity
                     activeOpacity={0.6}
                     style={{ padding: 4 }}
+                    onPress={() => router.push("/qr-scanner" as any)}
                 >
                     <Ionicons
                         name="qr-code-outline"
