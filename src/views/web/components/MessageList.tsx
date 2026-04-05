@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import MessageBubble from './MessageBubble';
+import ImageGroupBubble from './ImageGroupBubble';
 import { Message, User } from '@/shared/types';
+import { useChatStore } from '@/shared/store/useChatStore';
 
 interface MessageListProps {
     messages: Message[];
@@ -13,7 +15,7 @@ interface MessageListProps {
     onTogglePin?: (messageId: string, currentPinStatus: boolean) => void;
     onRemoveAllReactions?: (messageId: string) => void;
     onDeleteForMe?: (messageId: string) => void;
-    onForward?: (message: Message) => void;
+    onForward?: (message: Message | Message[]) => void;
 }
 
 // ── Skeleton row ──────────────────────────────────────────────────────────────
@@ -140,6 +142,68 @@ function MessageStatus({
 // ── Virtual scrolling: window only visible items ──────────────────────────────
 const OVERSCAN = 10; // items above/below viewport to render
 
+// ── Image grouping utility ───────────────────────────────────────
+// Consecutive IMAGE messages from the SAME sender within 60 seconds
+// are grouped into an image cluster
+const IMAGE_GROUP_THRESHOLD_MS = 60_000;
+
+type RenderItem =
+    | { type: 'message'; message: Message; index: number }
+    | { type: 'imageGroup'; messages: Message[]; startIndex: number };
+
+function getEffectiveType(msg: Message): string {
+    let type: string = msg.type;
+    if ((type === 'TEXT' || !type) && msg.fileUrl && msg.attachments?.[0]) {
+        const mime = (msg.attachments[0].type || '').toLowerCase();
+        if (mime.startsWith('image')) type = 'IMAGE';
+        else if (mime.startsWith('video')) type = 'VIDEO';
+        else type = 'FILE';
+    }
+    return type;
+}
+
+function buildRenderItems(messages: Message[]): RenderItem[] {
+    const items: RenderItem[] = [];
+    let i = 0;
+    while (i < messages.length) {
+        const msg = messages[i];
+        const effectiveType = getEffectiveType(msg);
+
+        if (effectiveType === 'IMAGE' && (msg.fileUrl || msg.attachments?.[0]?.url) && !msg.isRecall) {
+            // Try to build an image group
+            const group: Message[] = [msg];
+            let j = i + 1;
+            while (j < messages.length) {
+                const next = messages[j];
+                const nextType = getEffectiveType(next);
+                if (
+                    nextType === 'IMAGE' &&
+                    (next.fileUrl || next.attachments?.[0]?.url) &&
+                    next.senderId === msg.senderId &&
+                    !next.isRecall &&
+                    Math.abs(new Date(next.createdAt).getTime() - new Date(group[group.length - 1].createdAt).getTime()) <= IMAGE_GROUP_THRESHOLD_MS
+                ) {
+                    group.push(next);
+                    j++;
+                } else {
+                    break;
+                }
+            }
+            if (group.length >= 2) {
+                items.push({ type: 'imageGroup', messages: group, startIndex: i });
+                i = j;
+            } else {
+                items.push({ type: 'message', message: msg, index: i });
+                i++;
+            }
+        } else {
+            items.push({ type: 'message', message: msg, index: i });
+            i++;
+        }
+    }
+    return items;
+}
+
 const MessageList: React.FC<MessageListProps> = ({
     messages,
     currentUserId,
@@ -160,6 +224,29 @@ const MessageList: React.FC<MessageListProps> = ({
     const prevRoomId = useRef<string | undefined>(undefined);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const scheduledScroll = useRef(false);
+
+    const highlightedMessageId = useChatStore((s) => s.highlightedMessageId);
+    const setHighlightedMessageId = useChatStore((s) => s.setHighlightedMessageId);
+
+    // Scroll to highlighted message
+    useEffect(() => {
+        if (!highlightedMessageId) return;
+        // Wait for render
+        const timer = setTimeout(() => {
+            const el = document.getElementById(`msg-${highlightedMessageId}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Flash effect
+                el.style.transition = 'background-color 0.5s ease';
+                el.style.backgroundColor = 'rgba(253, 224, 71, 0.4)'; // yellow-300 light
+                setTimeout(() => {
+                    el.style.backgroundColor = 'transparent';
+                    setHighlightedMessageId(null);
+                }, 2000);
+            }
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [highlightedMessageId, messages, setHighlightedMessageId]);
 
     // Reliable scroll: both scrollTop (for container) and scrollIntoView (fallback)
     const doScroll = useCallback(() => {
@@ -238,7 +325,42 @@ const MessageList: React.FC<MessageListProps> = ({
                         Hãy gửi tin nhắn đầu tiên! 👋
                     </div>
                 ) : (
-                    messages.map((msg, index) => {
+                    buildRenderItems(messages).map((item) => {
+                        if (item.type === 'imageGroup') {
+                            const group = item.messages;
+                            const firstMsg = group[0];
+                            const lastMsg = group[group.length - 1];
+                            const isMine = firstMsg.senderId === currentUserId;
+                            const sender = participantMap[firstMsg.senderId];
+                            const isFirstInGroup = !messages[item.startIndex - 1] || messages[item.startIndex - 1].senderId !== firstMsg.senderId;
+                            const nextAfterGroup = messages[item.startIndex + group.length];
+                            const isLastInGroup = !nextAfterGroup || nextAfterGroup.senderId !== firstMsg.senderId;
+                            const showAvatar = !isMine && isLastInGroup;
+                            const senderName = !isMine && isFirstInGroup
+                                ? (firstMsg.senderName || sender?.fullName || sender?.username || firstMsg.senderId?.slice(0, 8))
+                                : undefined;
+
+                            return (
+                                <div key={`img-group-${firstMsg.id}`} id={`msg-${firstMsg.id}`}>
+                                    <ImageGroupBubble
+                                        messages={group}
+                                        isMine={isMine}
+                                        showAvatar={showAvatar}
+                                        senderName={senderName}
+                                        senderAvatar={sender?.avatarUrl}
+                                        participants={participants}
+                                        onRecall={onRecall}
+                                        onDeleteForMe={onDeleteForMe}
+                                        onForward={onForward}
+                                        onReply={onReply}
+                                        onTogglePin={onTogglePin}
+                                    />
+                                </div>
+                            );
+                        }
+
+                        const msg = item.message;
+                        const index = item.index;
                         const isMine = msg.senderId === currentUserId;
                         const prevMsg = messages[index - 1];
                         const nextMsg = messages[index + 1];

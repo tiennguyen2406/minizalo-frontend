@@ -2,6 +2,7 @@ import React from 'react';
 import { List } from 'zmp-ui';
 import { ChatRoom } from '@/shared/types';
 import ChatRoomItem from './ChatRoomItem';
+import { useChatStore } from '@/shared/store/useChatStore';
 
 interface ChatRoomListProps {
     rooms: ChatRoom[];
@@ -11,9 +12,18 @@ interface ChatRoomListProps {
 }
 
 const ChatRoomList: React.FC<ChatRoomListProps> = React.memo(({ rooms, selectedRoomId, onSelectRoom, filterTab }) => {
+    const pinnedRooms = useChatStore((s) => s.pinnedRooms);
     const emptyMessage = filterTab === 'unread'
         ? 'Không có cuộc trò chuyện chưa đọc'
         : 'Chưa có cuộc trò chuyện nào';
+
+    // Sort: pinned rooms first (preserve relative order), then rest by updatedAt
+    const sorted = [...rooms].sort((a, b) => {
+        const aPinned = pinnedRooms.has(a.id);
+        const bPinned = pinnedRooms.has(b.id);
+        if (aPinned !== bPinned) return aPinned ? -1 : 1;
+        return 0; // keep original order within each group
+    });
 
     return (
         <List
@@ -23,17 +33,18 @@ const ChatRoomList: React.FC<ChatRoomListProps> = React.memo(({ rooms, selectedR
                 transition: 'background-color 0.3s ease',
             }}
         >
-            {rooms.length === 0 ? (
+            {sorted.length === 0 ? (
                 <div className="p-4 text-center" style={{ color: 'var(--text-muted)' }}>
                     {emptyMessage}
                 </div>
             ) : (
-                rooms.map((room) => (
+                sorted.map((room) => (
                     <ChatRoomItem
                         key={room.id}
                         room={room}
                         isActive={selectedRoomId === room.id}
                         onSelect={onSelectRoom}
+                        isPinned={pinnedRooms.has(room.id)}
                     />
                 ))
             )}

@@ -5,6 +5,7 @@ import MessageInput from './MessageInput';
 import GroupInfoPanel from './GroupInfoPanel';
 import DirectChatInfoPanel from './DirectChatInfoPanel';
 import AddMembersModal from './AddMembersModal';
+import ForwardMessageModal from './ForwardMessageModal';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { useGroupStore } from '@/shared/store/useGroupStore';
 import { useFriendStore } from '@/shared/store/friendStore';
@@ -45,9 +46,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     const currentUserId = user?.id || '';
 
     const { messages, addMessage, setCurrentRoom, setMessages, rooms } = useChatStore();
-    const { isGroupInfoOpen, openGroupInfo, closeGroupInfo } = useGroupStore();
+    const { isGroupInfoOpen, openGroupInfo, closeGroupInfo, currentGroupDetail } = useGroupStore();
     const [isInfoOpen, setIsInfoOpen] = useState(false);
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+    const [forwardingMessages, setForwardingMessages] = useState<Message[] | null>(null);
     const [isSendingFile, setIsSendingFile] = useState(false);
     const [showPinnedMenu, setShowPinnedMenu] = useState(false);
     const [blockStatus, setBlockStatus] = useState<{
@@ -336,6 +338,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         setReplyingTo(null);
     };
 
+    const handleForward = (msg: Message | Message[]) => {
+        setForwardingMessages(Array.isArray(msg) ? msg : [msg]);
+    };
+
+    const handleSendFiles = async (files: File[]) => {
+        if (!roomId || files.length === 0) return;
+        setIsSendingFile(true);
+        try {
+            for (const file of files) {
+                await handleSendFile(file);
+            }
+        } finally {
+            setIsSendingFile(false);
+        }
+    };
+
     const handleTogglePin = (messageId: string, currentPinStatus: boolean) => {
         if (!roomId) return;
         webSocketService.sendPin({
@@ -359,7 +377,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 content: !currentPinStatus ? 'Bạn đã ghim tin nhắn' : 'Bạn đã bỏ ghim tin nhắn',
                 type: 'SYSTEM',
                 createdAt: new Date().toISOString(),
-                isRecall: currentPinStatus, // use isRecall trick for UI (red/orange icon diff)
+                isRecall: currentPinStatus,
                 replyToId: !currentPinStatus ? messageId : undefined,
             });
         }
@@ -369,7 +387,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
     const handleRemoveAllReactions = async (messageId: string) => {
         if (!roomId || !currentUserId) return;
-        // Optimistic UI: chỉ xoá reactions của MÌNH, giữ lại reactions của bạn bè
         const currentMsgs = useChatStore.getState().messages[roomId] || [];
         const newMsgs = currentMsgs.map((m) =>
             m.id === messageId
@@ -415,7 +432,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                             <span className="font-bold text-base block truncate" style={{ color: 'var(--text-primary)' }}>{roomName}</span>
                             {isGroupRoom && currentRoom && (
                                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                    {currentRoom.participants?.length || 0} thành viên
+                                    {(currentGroupDetail?.id === roomId ? currentGroupDetail.members.length : currentRoom.participants?.length) || 0} thành viên
                                 </span>
                             )}
                         </div>
@@ -528,6 +545,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                         onTogglePin={handleTogglePin}
                         onRemoveAllReactions={handleRemoveAllReactions}
                         onDeleteForMe={handleDeleteForMe}
+                        onForward={handleForward}
                     />
 
                     {/* Blocked chat overlay */}
@@ -572,6 +590,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                         <MessageInput
                             onSend={handleSend}
                             onSendFile={handleSendFile}
+                            onSendFiles={handleSendFiles}
                             onSendLike={() => handleSend('👍')}
                             onTyping={handleTyping}
                             replyingTo={replyingTo}
@@ -582,23 +601,46 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 </Box>
             </div>
 
-            {/* ── Info Panel bên phải ── */}
-            {isGroupRoom && infoOpen && currentRoom && (
-                <GroupInfoPanel
-                    roomId={roomId}
-                    onClose={closeGroupInfo}
-                />
-            )}
-            {!isGroupRoom && infoOpen && currentRoom && (
-                <DirectChatInfoPanel
-                    room={currentRoom}
-                    partner={partner}
-                    onClose={() => setIsInfoOpen(false)}
-                />
-            )}
+            {/* ── Info Panel bên phải — slide-in từ phải ── */}
+            <div
+                style={{
+                    width: infoOpen ? 300 : 0,
+                    minWidth: 0,
+                    overflowX: 'hidden',
+                    overflowY: 'visible',
+                    transition: 'width 260ms cubic-bezier(0.4,0,0.2,1)',
+                    flexShrink: 0,
+                    position: 'relative',
+                }}
+            >
+                <div style={{ width: 300, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    {isGroupRoom && currentRoom && (
+                        <GroupInfoPanel
+                            roomId={roomId}
+                            onClose={closeGroupInfo}
+                        />
+                    )}
+                    {!isGroupRoom && currentRoom && (
+                        <DirectChatInfoPanel
+                            room={currentRoom}
+                            partner={partner}
+                            onClose={() => setIsInfoOpen(false)}
+                        />
+                    )}
+                </div>
+            </div>
 
             {/* Add Members Modal (chỉ nhóm) */}
             {isGroupRoom && <AddMembersModal roomId={roomId} />}
+
+            {/* Forward Message Modal */}
+            {forwardingMessages && (
+                <ForwardMessageModal
+                    messages={forwardingMessages}
+                    currentRoomId={roomId}
+                    onClose={() => setForwardingMessages(null)}
+                />
+            )}
         </div>
     );
 };

@@ -29,6 +29,10 @@ interface ChatState {
     rooms: import('../types').ChatRoom[];
     typingUsers: Record<string, string[]>; // roomId -> userIds
     currentRoomId: string | null;
+    pinnedRooms: Set<string>; // roomIds that are pinned to top
+    mutedRooms: Set<string>; // roomIds that are muted
+
+    highlightedMessageId: string | null;
 
     // Actions
     setRooms: (rooms: import('../types').ChatRoom[]) => void;
@@ -41,6 +45,9 @@ interface ChatState {
     setTyping: (roomId: string, userId: string, isTyping: boolean) => void;
     clearTyping: (roomId: string) => void;
     markRoomAsRead: (roomId: string) => void;
+    togglePinRoom: (roomId: string) => void;
+    toggleMuteRoom: (roomId: string) => void;
+    setHighlightedMessageId: (messageId: string | null) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -48,6 +55,9 @@ export const useChatStore = create<ChatState>((set) => ({
     rooms: [],
     typingUsers: {},
     currentRoomId: null,
+    pinnedRooms: new Set<string>(),
+    mutedRooms: new Set<string>(),
+    highlightedMessageId: null,
 
     setRooms: (rooms) => set({ rooms }),
 
@@ -185,4 +195,18 @@ export const useChatStore = create<ChatState>((set) => ({
         );
         return { rooms: newRooms };
     }),
+
+    togglePinRoom: (roomId) => set((state) => {
+        const next = new Set(state.pinnedRooms);
+        if (next.has(roomId)) { next.delete(roomId); } else { next.add(roomId); }
+        return { pinnedRooms: next };
+    }),
+
+    toggleMuteRoom: (roomId) => set((state) => {
+        const next = new Set(state.mutedRooms);
+        if (next.has(roomId)) { next.delete(roomId); } else { next.add(roomId); }
+        return { mutedRooms: next };
+    }),
+
+    setHighlightedMessageId: (messageId) => set({ highlightedMessageId: messageId }),
 }));

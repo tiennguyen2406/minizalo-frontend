@@ -3,11 +3,13 @@ import { Avatar } from 'zmp-ui';
 import { ChatRoom } from '@/shared/types';
 import { useRouter } from 'expo-router';
 import { useThemeStore } from '@/shared/store/themeStore';
+import { useChatStore } from '@/shared/store/useChatStore';
 
 interface ChatRoomItemProps {
     room: ChatRoom;
     isActive?: boolean;
     onSelect?: (roomId: string) => void;
+    isPinned?: boolean;
 }
 
 /**
@@ -49,9 +51,10 @@ function formatChatTime(isoString?: string): string {
     return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 }
 
-const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, onSelect }) => {
+const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, onSelect, isPinned }) => {
     const router = useRouter();
     const isDark = useThemeStore((s) => s.theme === 'dark');
+    const isMuted = useChatStore((s) => s.mutedRooms.has(room.id));
 
     const onPress = () => {
         if (onSelect) {
@@ -145,17 +148,29 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                 </div>
             </div>
 
-            {/* Timestamp + badge */}
+            {/* Timestamp + badge + pin + muted */}
             <div className="flex flex-col items-end whitespace-nowrap pl-2">
-                <span
-                    style={{
-                        fontSize: 11,
-                        fontWeight: hasUnread ? 700 : 400,
-                        color: hasUnread ? 'var(--accent)' : 'var(--text-muted)',
-                    }}
-                >
-                    {formatChatTime(room.lastMessage?.createdAt || room.updatedAt)}
-                </span>
+                <div className="flex items-center gap-1">
+                    {isPinned && (
+                        <svg className="w-3 h-3 text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/>
+                        </svg>
+                    )}
+                    {isMuted && (
+                        <svg className="w-3 h-3 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                        </svg>
+                    )}
+                    <span
+                        style={{
+                            fontSize: 11,
+                            fontWeight: hasUnread ? 700 : 400,
+                            color: hasUnread ? 'var(--accent)' : 'var(--text-muted)',
+                        }}
+                    >
+                        {formatChatTime(room.lastMessage?.createdAt || room.updatedAt)}
+                    </span>
+                </div>
 
                 {hasUnread && (
                     <div
