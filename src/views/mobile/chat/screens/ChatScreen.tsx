@@ -11,6 +11,8 @@ import {
     TouchableOpacity,
     Alert,
     Image,
+    TextInput,
+    ActivityIndicator,
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -59,6 +61,11 @@ export default function ChatScreen() {
     const [showActionSheet, setShowActionSheet] = useState(false);
     const [showPinnedList, setShowPinnedList] = useState(false);
     const [reactionListMessage, setReactionListMessage] = useState<MessageDynamo | null>(null);
+    const [showForwardModal, setShowForwardModal] = useState(false);
+    const [forwardingMessage, setForwardingMessage] = useState<MessageDynamo | null>(null);
+    const [forwardLoading, setForwardLoading] = useState(false);
+    const [forwardSearch, setForwardSearch] = useState("");
+    const [selectedForwardRooms, setSelectedForwardRooms] = useState<Set<string>>(new Set());
     const [replyTo, setReplyTo] = useState<{
         messageId: string;
         senderName?: string;
@@ -217,13 +224,13 @@ export default function ChatScreen() {
                     const tempIdx = prev.findIndex(
                         (m) => m.messageId.startsWith("temp-") && m.senderId === newMsg.senderId
                     );
-                    
+
                     if (tempIdx !== -1) {
                         const next = [...prev];
                         next.splice(tempIdx, 1);
                         return [newMsg, ...next];
                     }
-                    
+
                     return [newMsg, ...prev];
                 });
 
@@ -387,7 +394,7 @@ export default function ChatScreen() {
         } catch (err) {
             console.log("Error sending message:", err);
             Alert.alert("Lỗi", "Gửi tin nhắn thất bại, vui lòng thử lại.");
-            setMessages((prev) => 
+            setMessages((prev) =>
                 prev.map(m => m.messageId === optimisticMsg.messageId ? { ...m, isError: true } : m)
             );
         } finally {
@@ -465,9 +472,9 @@ export default function ChatScreen() {
             const uploadedAttachments = await Promise.all(uploadPromises);
 
             // ✅ Cập nhật optimistic message với server URLs
-            setMessages((prev) => 
-                prev.map(m => 
-                    m.messageId === tempId 
+            setMessages((prev) =>
+                prev.map(m =>
+                    m.messageId === tempId
                         ? { ...m, attachments: uploadedAttachments }
                         : m
                 )
@@ -489,7 +496,7 @@ export default function ChatScreen() {
         } catch (err) {
             console.log("Error sending image:", err);
             Alert.alert("Lỗi", "Gửi ảnh thất bại, vui lòng thử lại.");
-            setMessages((prev) => 
+            setMessages((prev) =>
                 prev.map(m => m.messageId === tempId ? { ...m, isError: true } : m)
             );
         } finally {
@@ -562,9 +569,9 @@ export default function ChatScreen() {
             };
 
             // ✅ Cập nhật optimistic message với server URL
-            setMessages((prev) => 
-                prev.map(m => 
-                    m.messageId === tempId 
+            setMessages((prev) =>
+                prev.map(m =>
+                    m.messageId === tempId
                         ? { ...m, attachments: [attachment] }
                         : m
                 )
@@ -585,7 +592,7 @@ export default function ChatScreen() {
         } catch (err) {
             console.log("Error sending file:", err);
             Alert.alert("Lỗi", "Gửi file thất bại, vui lòng thử lại.");
-            setMessages((prev) => 
+            setMessages((prev) =>
                 prev.map(m => m.messageId === tempId ? { ...m, isError: true } : m)
             );
         } finally {
@@ -670,6 +677,58 @@ export default function ChatScreen() {
         setShowActionSheet(false);
     };
 
+    const handleOpenForward = () => {
+        if (!selectedMessage) return;
+        setForwardingMessage(selectedMessage);
+        setForwardSearch("");
+        setSelectedForwardRooms(new Set());
+        setShowActionSheet(false);
+        setShowForwardModal(true);
+    };
+
+    const toggleForwardRoom = (targetRoomId: string) => {
+        setSelectedForwardRooms((prev) => {
+            const next = new Set(prev);
+            if (next.has(targetRoomId)) {
+                next.delete(targetRoomId);
+            } else {
+                next.add(targetRoomId);
+            }
+            return next;
+        });
+    };
+
+    const handleConfirmForward = async () => {
+        if (!forwardingMessage || !roomId || forwardLoading || selectedForwardRooms.size === 0) return;
+        setForwardLoading(true);
+        try {
+            await Promise.all(
+                Array.from(selectedForwardRooms).map((targetRoomId) =>
+                    MessageService.forwardMessage(
+                        roomId,
+                        forwardingMessage.messageId,
+                        targetRoomId
+                    )
+                )
+            );
+            setShowForwardModal(false);
+            setForwardingMessage(null);
+            setSelectedForwardRooms(new Set());
+            const count = selectedForwardRooms.size;
+            Alert.alert(
+                "Thành công",
+                count === 1
+                    ? "Đã chuyển tiếp tin nhắn!"
+                    : `Đã chuyển tiếp đến các cuộc trò chuyện!`
+            );
+        } catch (err) {
+            console.log("Error forwarding message:", err);
+            Alert.alert("Lỗi", "Chuyển tiếp thất bại. Vui lòng thử lại.");
+        } finally {
+            setForwardLoading(false);
+        }
+    };
+
     const handleTogglePin = () => {
         if (!selectedMessage || !roomId) return;
         const nextPin = !selectedMessage.pinned;
@@ -694,7 +753,7 @@ export default function ChatScreen() {
     // Xử lý URL ảnh cho cả localhost và IP address
     const getImageUrl = (url: string) => {
         if (!url) return url;
-        
+
         // Xử lý localhost
         if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
             const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
@@ -702,13 +761,13 @@ export default function ChatScreen() {
                 return url.replace("localhost", match[1]);
             }
         }
-        
+
         // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
         if (process.env.EXPO_PUBLIC_API_URL) {
             const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
             if (apiMatch && apiMatch[1]) {
                 const apiHost = apiMatch[1];
-                
+
                 // Thay thế IP address trong URL ảnh bằng API host
                 if (url.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
                     const urlMatch = url.match(/https?:\/\/([^:\/]+)/);
@@ -716,7 +775,7 @@ export default function ChatScreen() {
                         return url.replace(urlMatch[1], apiHost);
                     }
                 }
-                
+
                 // Thay thế port 9000 (MinIO default) với API port nếu cần
                 if (url.includes(":9000") && !apiHost.includes(":9000")) {
                     // Giữ nguyên port 9000 vì đây là MinIO server
@@ -728,7 +787,7 @@ export default function ChatScreen() {
                 }
             }
         }
-        
+
         return url;
     };
 
@@ -1078,10 +1137,30 @@ export default function ChatScreen() {
                                 style={{
                                     paddingVertical: 12,
                                     paddingHorizontal: 20,
+                                    flexDirection: "row",
+                                    alignItems: "center",
                                 }}
                             >
+                                <Ionicons name="arrow-redo-outline" size={20} color="#e5e7eb" style={{ marginRight: 12 }} />
                                 <Text style={{ color: "#e5e7eb", fontSize: 16 }}>
                                     Trả lời
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {selectedMessage && !selectedMessage.recalled && (
+                            <TouchableOpacity
+                                onPress={handleOpenForward}
+                                style={{
+                                    paddingVertical: 12,
+                                    paddingHorizontal: 20,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                }}
+                            >
+                                <Ionicons name="share-outline" size={20} color="#60a5fa" style={{ marginRight: 12 }} />
+                                <Text style={{ color: "#60a5fa", fontSize: 16, fontWeight: "500" }}>
+                                    Chuyển tiếp
                                 </Text>
                             </TouchableOpacity>
                         )}
@@ -1092,8 +1171,11 @@ export default function ChatScreen() {
                                 style={{
                                     paddingVertical: 12,
                                     paddingHorizontal: 20,
+                                    flexDirection: "row",
+                                    alignItems: "center",
                                 }}
                             >
+                                <Ionicons name={selectedMessage.pinned ? "pin" : "pin-outline"} size={20} color="#e5e7eb" style={{ marginRight: 12 }} />
                                 <Text style={{ color: "#e5e7eb", fontSize: 16 }}>
                                     {selectedMessage.pinned ? "Bỏ ghim" : "Ghim"}
                                 </Text>
@@ -1105,8 +1187,11 @@ export default function ChatScreen() {
                             style={{
                                 paddingVertical: 14,
                                 paddingHorizontal: 20,
+                                flexDirection: "row",
+                                alignItems: "center",
                             }}
                         >
+                            <Ionicons name="close-outline" size={20} color={colors.textSecondary} style={{ marginRight: 12 }} />
                             <Text style={{ color: colors.textSecondary, fontSize: 16 }}>Đóng</Text>
                         </TouchableOpacity>
                     </View>
@@ -1375,6 +1460,307 @@ export default function ChatScreen() {
                         })()}
                     </TouchableOpacity>
                 </TouchableOpacity>
+            </Modal>
+
+            {/* ─── Modal chuyển tiếp tin nhắn (multi-select) ─── */}
+            <Modal
+                transparent
+                animationType="slide"
+                visible={showForwardModal}
+                onRequestClose={() => {
+                    if (!forwardLoading) {
+                        setShowForwardModal(false);
+                        setSelectedForwardRooms(new Set());
+                    }
+                }}
+            >
+                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={{ flex: 1 }}
+                        onPress={() => {
+                            if (!forwardLoading) {
+                                setShowForwardModal(false);
+                                setSelectedForwardRooms(new Set());
+                            }
+                        }}
+                    />
+                    <View
+                        style={{
+                            backgroundColor: colors.background,
+                            borderTopLeftRadius: 24,
+                            borderTopRightRadius: 24,
+                            paddingTop: 12,
+                            maxHeight: "85%",
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                    >
+                        {/* Handle bar */}
+                        <View
+                            style={{
+                                alignSelf: "center",
+                                width: 40,
+                                height: 4,
+                                borderRadius: 999,
+                                backgroundColor: colors.border,
+                                marginBottom: 14,
+                            }}
+                        />
+
+                        {/* Header */}
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                paddingHorizontal: 20,
+                                marginBottom: 10,
+                            }}
+                        >
+                            <View>
+                                <Text style={{ color: colors.text, fontSize: 17, fontWeight: "700" }}>
+                                    Chuyển tiếp đến
+                                </Text>
+                                {selectedForwardRooms.size > 0 && (
+                                    <Text style={{ color: "#60a5fa", fontSize: 12, marginTop: 2 }}>
+                                        Đã chọn {selectedForwardRooms.size} cuộc trò chuyện
+                                    </Text>
+                                )}
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    if (!forwardLoading) {
+                                        setShowForwardModal(false);
+                                        setSelectedForwardRooms(new Set());
+                                    }
+                                }}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                                <Ionicons name="close" size={24} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Preview tin nhắn gốc */}
+                        {forwardingMessage && (
+                            <View
+                                style={{
+                                    marginHorizontal: 16,
+                                    marginBottom: 10,
+                                    padding: 10,
+                                    backgroundColor: colors.card,
+                                    borderRadius: 12,
+                                    borderLeftWidth: 3,
+                                    borderLeftColor: "#60a5fa",
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                }}
+                            >
+                                <Ionicons
+                                    name={
+                                        forwardingMessage.type === "IMAGE"
+                                            ? "image-outline"
+                                            : forwardingMessage.attachments?.length > 0
+                                                ? "document-outline"
+                                                : "chatbubble-outline"
+                                    }
+                                    size={18}
+                                    color="#60a5fa"
+                                    style={{ marginRight: 8 }}
+                                />
+                                <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, flex: 1 }}>
+                                    {forwardingMessage.type === "IMAGE"
+                                        ? `${forwardingMessage.attachments?.length ?? 1} hình ảnh`
+                                        : forwardingMessage.attachments?.length > 0
+                                            ? forwardingMessage.attachments[0].name || "Tệp đính kèm"
+                                            : forwardingMessage.content || "[Tin nhắn]"}
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Ô tìm kiếm */}
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                marginHorizontal: 16,
+                                marginBottom: 6,
+                                backgroundColor: colors.card,
+                                borderRadius: 12,
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                            }}
+                        >
+                            <Ionicons name="search-outline" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                            <TextInput
+                                placeholder="Tìm cuộc trò chuyện..."
+                                placeholderTextColor={colors.textSecondary}
+                                value={forwardSearch}
+                                onChangeText={setForwardSearch}
+                                style={{
+                                    flex: 1,
+                                    color: colors.text,
+                                    fontSize: 14,
+                                    padding: 0,
+                                }}
+                            />
+                            {forwardSearch.length > 0 && (
+                                <TouchableOpacity onPress={() => setForwardSearch("")}>
+                                    <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {/* Danh sách cuộc trò chuyện – multi-select */}
+                        <FlatList
+                            data={rooms.filter((r) =>
+                                r.id !== roomId &&
+                                (forwardSearch.trim() === "" ||
+                                    r.name?.toLowerCase().includes(forwardSearch.toLowerCase()))
+                            )}
+                            keyExtractor={(item) => item.id}
+                            style={{ maxHeight: 340 }}
+                            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 4 }}
+                            ListEmptyComponent={() => (
+                                <View style={{ alignItems: "center", paddingVertical: 28 }}>
+                                    <Ionicons name="chatbubbles-outline" size={36} color={colors.textSecondary} />
+                                    <Text style={{ color: colors.textSecondary, marginTop: 8, fontSize: 14 }}>
+                                        Không tìm thấy cuộc trò chuyện
+                                    </Text>
+                                </View>
+                            )}
+                            renderItem={({ item }) => {
+                                const isSelected = selectedForwardRooms.has(item.id);
+                                const avatarUri =
+                                    item.avatarUrl ||
+                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "U")}&background=0068FF&color=fff`;
+                                return (
+                                    <TouchableOpacity
+                                        onPress={() => toggleForwardRoom(item.id)}
+                                        disabled={forwardLoading}
+                                        activeOpacity={0.7}
+                                        style={{
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            paddingVertical: 10,
+                                            borderBottomWidth: 1,
+                                            borderBottomColor: colors.border,
+                                            opacity: forwardLoading ? 0.5 : 1,
+                                        }}
+                                    >
+                                        {/* Checkbox */}
+                                        <View
+                                            style={{
+                                                width: 24,
+                                                height: 24,
+                                                borderRadius: 12,
+                                                borderWidth: 2,
+                                                borderColor: isSelected ? "#60a5fa" : colors.border,
+                                                backgroundColor: isSelected ? "#60a5fa" : "transparent",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                marginRight: 12,
+                                            }}
+                                        >
+                                            {isSelected && (
+                                                <Ionicons name="checkmark" size={14} color="#fff" />
+                                            )}
+                                        </View>
+
+                                        {/* Avatar */}
+                                        <Image
+                                            source={{ uri: avatarUri }}
+                                            style={{
+                                                width: 44,
+                                                height: 44,
+                                                borderRadius: 22,
+                                                marginRight: 12,
+                                                backgroundColor: colors.card,
+                                                borderWidth: isSelected ? 2 : 0,
+                                                borderColor: "#60a5fa",
+                                            }}
+                                        />
+
+                                        {/* Thông tin */}
+                                        <View style={{ flex: 1 }}>
+                                            <Text
+                                                numberOfLines={1}
+                                                style={{
+                                                    color: isSelected ? "#60a5fa" : colors.text,
+                                                    fontSize: 15,
+                                                    fontWeight: isSelected ? "600" : "400",
+                                                }}
+                                            >
+                                                {item.name || "Người dùng"}
+                                            </Text>
+                                            <Text
+                                                numberOfLines={1}
+                                                style={{
+                                                    color: colors.textSecondary,
+                                                    fontSize: 12,
+                                                    marginTop: 1,
+                                                }}
+                                            >
+                                                {item.type === "GROUP" ? "👥 Nhóm" : "👤 Cá nhân"}
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            }}
+                        />
+
+                        {/* Nút gửi – cố định dưới đáy modal */}
+                        <View
+                            style={{
+                                paddingHorizontal: 16,
+                                paddingTop: 12,
+                                paddingBottom: 28,
+                                borderTopWidth: 1,
+                                borderTopColor: colors.border,
+                            }}
+                        >
+                            <TouchableOpacity
+                                onPress={handleConfirmForward}
+                                disabled={selectedForwardRooms.size === 0 || forwardLoading}
+                                style={{
+                                    backgroundColor:
+                                        selectedForwardRooms.size === 0 ? colors.border : "#60a5fa",
+                                    borderRadius: 14,
+                                    paddingVertical: 14,
+                                    alignItems: "center",
+                                    flexDirection: "row",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                {forwardLoading ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <>
+                                        <Ionicons
+                                            name="send"
+                                            size={18}
+                                            color={selectedForwardRooms.size === 0 ? colors.textSecondary : "#fff"}
+                                            style={{ marginRight: 8 }}
+                                        />
+                                        <Text
+                                            style={{
+                                                color: selectedForwardRooms.size === 0 ? colors.textSecondary : "#fff",
+                                                fontSize: 16,
+                                                fontWeight: "700",
+                                            }}
+                                        >
+                                            {selectedForwardRooms.size === 0
+                                                ? "Chọn để chuyển tiếp"
+                                                : `Chuyển tiếp`}
+                                        </Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
             </Modal>
 
             {/* ─── Chat-wide swipeable image gallery ─── */}

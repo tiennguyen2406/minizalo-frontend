@@ -151,6 +151,23 @@ export default function MessageBubble({
                 alignItems: isMe ? "flex-end" : "flex-start",
             }}
         >
+            {message.type === "SYSTEM" ? (
+                <View
+                    style={{
+                        alignSelf: "center",
+                        backgroundColor: "rgba(0,0,0,0.05)",
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 16,
+                        marginVertical: 4,
+                        alignItems: "center",
+                    }}
+                >
+                    <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: "center" }}>
+                        {message.content}
+                    </Text>
+                </View>
+            ) : (
             <TouchableOpacity
                 activeOpacity={0.8}
                 delayLongPress={250}
@@ -442,6 +459,7 @@ export default function MessageBubble({
                     </TouchableOpacity>
                 )}
             </TouchableOpacity>
+            )}
 
             {/* Full-screen swipeable image gallery */}
             <Modal
