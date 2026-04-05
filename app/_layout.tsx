@@ -1,11 +1,86 @@
 import "../src/shared/styles/global.css";
-import { LogBox } from "react-native";
-import { Stack } from "expo-router";
+import { useEffect, useRef } from "react";
+import { LogBox, Platform } from "react-native";
+import { Stack, useRouter } from "expo-router";
+import { 
+    registerForPushNotificationsAsync, 
+    addNotificationResponseReceivedListener,
+    initNotificationHandler 
+} from "@/services/notificationService";
+import { useAuthStore } from "@/shared/store/authStore";
 
-// Ẩn cảnh báo SafeAreaView deprecated (app dùng react-native-safe-area-context; cảnh báo từ RN/dependency)
-LogBox.ignoreLogs(["SafeAreaView has been deprecated"]);
+// Quyết liệt chặn tất cả các cảnh báo và lỗi liên quan đến expo-notifications trên Expo Go
+LogBox.ignoreLogs([
+    "SafeAreaView has been deprecated",
+    "expo-notifications",
+    "Android Push notifications",
+    "fully supported in Expo Go",
+    "Use a development build instead of Expo Go"
+]);
+
+// Nếu vẫn bị hiện bảng đỏ, chúng ta sẽ tạm thời ghi đè console.error 
+// cho những thông báo cụ thể này (chỉ dùng khi dev)
+if (__DEV__) {
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+        if (typeof args[0] === 'string' && (
+            args[0].includes("expo-notifications") || 
+            args[0].includes("Android Push notifications") ||
+            args[0].includes("removed from Expo Go")
+        )) {
+            // Chuyển lỗi này thành log bình thường để không bị hiện bảng đỏ
+            console.log("[Suppressed Notification Error]:", ...args);
+            return;
+        }
+        originalConsoleError(...args);
+    };
+}
 
 export default function RootLayout() {
+    const router = useRouter();
+    const notificationResponseListener = useRef<{ remove: () => void } | null>(null);
+
+    useEffect(() => {
+        // Khởi tạo handler thông báo (đã được bọc an toàn trong notificationService)
+        initNotificationHandler();
+
+        // ── Register push notifications ──
+        const accessToken = useAuthStore.getState().accessToken;
+        if (accessToken) {
+            registerForPushNotificationsAsync()
+                .catch((err) => console.log('[RootLayout] Push registration skipped:', err?.message));
+        }
+
+        // ── Listen for auth changes to re-register ──
+        const unsub = useAuthStore.subscribe((state, prevState) => {
+            if (state.accessToken && !prevState.accessToken) {
+                registerForPushNotificationsAsync().catch(() => {});
+            }
+        });
+
+        // ── Handle notification tap → navigate to chat ──
+        notificationResponseListener.current = addNotificationResponseReceivedListener((response) => {
+            const data = response?.notification?.request?.content?.data;
+            if (data?.roomId) {
+                router.push({
+                    pathname: "/chat/[id]",
+                    params: {
+                        id: data.roomId as string,
+                        name: (data.senderName as string) || "Chat",
+                        type: (data.roomType as string) || "DIRECT",
+                    },
+                });
+            }
+        });
+
+        return () => {
+            unsub();
+            if (notificationResponseListener.current) {
+                notificationResponseListener.current.remove();
+            }
+        };
+    }, []);
+
     return (
         <Stack
             screenOptions={{

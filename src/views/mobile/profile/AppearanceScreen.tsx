@@ -20,7 +20,6 @@ type ThemeOption = {
 const THEME_OPTIONS: ThemeOption[] = [
     { key: "light", label: "Sáng" },
     { key: "dark", label: "Tối" },
-    { key: "system", label: "Hệ thống" },
 ];
 
 function ThemeCard({
@@ -35,7 +34,6 @@ function ThemeCard({
     colors: ReturnType<typeof useThemeColors>;
 }) {
     const isDark = option.key === "dark";
-    const isSystem = option.key === "system";
 
     const renderMockContent = (dark: boolean) => (
         <View style={{ flex: 1, justifyContent: "space-between" }}>
@@ -95,32 +93,15 @@ function ThemeCard({
                     width: 100,
                     height: 72,
                     borderRadius: 12,
-                    backgroundColor: isSystem ? "transparent" : (isDark ? "#1c1c1e" : "#f2f2f7"),
+                    backgroundColor: isDark ? "#1c1c1e" : "#f2f2f7",
                     borderWidth: isSelected ? 2.5 : 1,
                     borderColor: isSelected ? colors.primary : colors.border,
                     overflow: "hidden",
                 }}
             >
-                {isSystem ? (
-                    <View style={{ flex: 1, flexDirection: "row" }}>
-                        {/* Left half - Light */}
-                        <View style={{ flex: 1, backgroundColor: "#f2f2f7", overflow: "hidden" }}>
-                            <View style={{ width: 100, height: 72, padding: 8 }}>
-                                {renderMockContent(false)}
-                            </View>
-                        </View>
-                        {/* Right half - Dark */}
-                        <View style={{ flex: 1, backgroundColor: "#1c1c1e", overflow: "hidden" }}>
-                            <View style={{ width: 100, height: 72, padding: 8, marginLeft: -50 }}>
-                                {renderMockContent(true)}
-                            </View>
-                        </View>
-                    </View>
-                ) : (
                     <View style={{ flex: 1, padding: 8 }}>
                         {renderMockContent(isDark)}
                     </View>
-                )}
             </View>
 
             {/* Radio + Label */}
@@ -243,7 +224,8 @@ export default function AppearanceScreen() {
                     style={{
                         flexDirection: "row",
                         paddingHorizontal: 16,
-                        justifyContent: "space-around",
+                        justifyContent: "center",
+                        gap: 32,
                     }}
                 >
                     {THEME_OPTIONS.map((opt) => (

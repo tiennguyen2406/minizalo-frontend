@@ -60,7 +60,7 @@ export const ChatListHeader = () => {
                     alignItems: "center",
                     paddingHorizontal: 16,
                     backgroundColor: colors.headerBg,
-                    borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                    borderBottomWidth: colors.headerBg.startsWith("#0") ? 0 : 0.5,
                     borderBottomColor: colors.border,
                     gap: 12,
                 }}
@@ -99,7 +99,7 @@ export const ChatListHeader = () => {
                             e.target.blur();
                             setSearchText("");
                             router.push({
-                                pathname: "/(tabs)/contacts-search",
+                                pathname: "/search",
                                 params: { from: "chat", t: Date.now() },
                             });
                         }}

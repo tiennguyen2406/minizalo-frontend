@@ -8,6 +8,7 @@ export default function FriendProfileRoute() {
         userId: string;
         displayName: string;
         avatarUrl?: string;
+        coverPhotoUrl?: string;
         businessDescription?: string;
         statusMessage?: string;
         phone?: string;
@@ -21,6 +22,7 @@ export default function FriendProfileRoute() {
             userId={params.userId || ""}
             displayName={params.displayName || "Người dùng"}
             avatarUrl={params.avatarUrl || null}
+            coverUrl={params.coverPhotoUrl || null}
             businessDescription={params.businessDescription || ""}
             statusMessage={params.statusMessage || ""}
             phone={params.phone || ""}

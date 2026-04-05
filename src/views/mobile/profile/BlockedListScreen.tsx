@@ -86,7 +86,7 @@ export default function BlockedListScreen() {
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: colors.searchBg,
+                        backgroundColor: colors.avatarBg,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,

@@ -87,7 +87,7 @@ export default function TabsLayout() {
                         ),
                     }}
                 />
-                <Tabs.Screen name="contacts-search" options={{ href: null }} />
+
                 <Tabs.Screen
                     name="explore"
                     options={{

@@ -1,29 +1,15 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export type ThemeMode = "light" | "dark" | "system";
+export type ThemeMode = "light" | "dark";
 
 interface ThemeState {
     theme: ThemeMode;
     setTheme: (theme: ThemeMode) => void;
     toggleTheme: () => void;
 }
-
-const getInitialTheme = (): ThemeMode => {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-        try {
-            const saved = localStorage.getItem("minizalo-theme");
-            if (saved === "dark" || saved === "light") return saved;
-        } catch {
-            // ignore
-        }
-        // Respect system preference
-        if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
-            return "dark";
-        }
-    }
-    return "light";
-};
 
 const applyThemeToDOM = (theme: ThemeMode) => {
     if (Platform.OS === "web" && typeof document !== "undefined") {
@@ -33,37 +19,34 @@ const applyThemeToDOM = (theme: ThemeMode) => {
         } else {
             root.classList.remove("dark");
         }
-        // Also set a data attribute for non-Tailwind CSS
         root.setAttribute("data-theme", theme);
     }
 };
 
-export const useThemeStore = create<ThemeState>((set, get) => {
-    // Apply initial theme on creation
-    const initial = getInitialTheme();
-    // Defer DOM update to avoid SSR issues
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-        queueMicrotask(() => applyThemeToDOM(initial));
-    }
+export const useThemeStore = create<ThemeState>()(
+    persist(
+        (set, get) => ({
+            theme: "light", // Mặc định là sáng, sẽ bị ghi đè bởi giá trị lưu trong máy
 
-    return {
-        theme: initial,
+            setTheme: (theme: ThemeMode) => {
+                set({ theme });
+                applyThemeToDOM(theme);
+            },
 
-        setTheme: (theme: ThemeMode) => {
-            set({ theme });
-            applyThemeToDOM(theme);
-            if (Platform.OS === "web" && typeof window !== "undefined") {
-                try {
-                    localStorage.setItem("minizalo-theme", theme);
-                } catch {
-                    // ignore
+            toggleTheme: () => {
+                const next = get().theme === "light" ? "dark" : "light";
+                get().setTheme(next);
+            },
+        }),
+        {
+            name: "minizalo-theme",
+            storage: createJSONStorage(() => (Platform.OS === "web" ? localStorage : AsyncStorage)),
+            onRehydrateStorage: () => (state) => {
+                // Sau khi load dữ liệu từ máy lên, áp dụng ngay cho giao diện
+                if (state) {
+                    applyThemeToDOM(state.theme);
                 }
-            }
-        },
-
-        toggleTheme: () => {
-            const next = get().theme === "light" ? "dark" : "light";
-            get().setTheme(next);
-        },
-    };
-});
+            },
+        }
+    )
+);

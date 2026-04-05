@@ -36,7 +36,7 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
                         width: 52,
                         height: 52,
                         borderRadius: 26,
-                        backgroundColor: '#2d2d44',
+                        backgroundColor: colors.avatarBg,
                     }}
                     resizeMode="cover"
                 />
@@ -63,6 +63,20 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
                         </View>
                     </View>
                 )}
+                {/* Red dot indicator for unread messages */}
+                {hasUnread && (
+                    <View style={{
+                        position: 'absolute',
+                        top: -2,
+                        right: -2,
+                        width: 14,
+                        height: 14,
+                        borderRadius: 7,
+                        backgroundColor: '#e74c3c',
+                        borderWidth: 2,
+                        borderColor: colors.background,
+                    }} />
+                )}
             </View>
 
             {/* Content Container */}
@@ -77,7 +91,7 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
                 {/* Top Row: Name + Time */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
-                        <Text style={{ fontSize: 16, color: colors.text, fontWeight: hasUnread ? '600' : '400' }} numberOfLines={1}>{name}</Text>
+                        <Text style={{ fontSize: 16, color: colors.text, fontWeight: hasUnread ? '700' : '400' }} numberOfLines={1}>{name}</Text>
                         {isVerified && (
                             <View style={{
                                 marginLeft: 4,
@@ -92,7 +106,7 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
                             </View>
                         )}
                     </View>
-                    <Text style={{ fontSize: 12, color: hasUnread ? '#3b82f6' : '#7f8c8d', fontWeight: hasUnread ? '600' : '400' }}>{time}</Text>
+                    <Text style={{ fontSize: 12, color: hasUnread ? '#e74c3c' : '#7f8c8d', fontWeight: hasUnread ? '600' : '400' }}>{time}</Text>
                 </View>
 
                 {/* Bottom Row: Message + Badge */}
@@ -103,7 +117,7 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
                             flex: 1,
                             marginRight: 16,
                             color: hasUnread ? colors.text : colors.textSecondary,
-                            fontWeight: hasUnread ? '600' : 'normal',
+                            fontWeight: hasUnread ? '700' : 'normal',
                         }}
                         numberOfLines={1}
                         ellipsizeMode="tail"
@@ -115,13 +129,13 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
                         <View style={{
                             backgroundColor: '#e74c3c',
                             borderRadius: 999,
-                            minWidth: 18,
-                            height: 18,
+                            minWidth: 20,
+                            height: 20,
                             alignItems: 'center',
                             justifyContent: 'center',
-                            paddingHorizontal: 4,
+                            paddingHorizontal: 5,
                         }}>
-                            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+                            <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>
                                 {unreadCount! > 99 ? '99+' : unreadCount}
                             </Text>
                         </View>

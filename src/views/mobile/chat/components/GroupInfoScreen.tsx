@@ -15,6 +15,7 @@ import {
     TextInput,
     FlatList,
 } from "react-native";
+import { SafeAreaView as SafeAreaViewCtx } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { groupService } from "@/shared/services/groupService";
@@ -22,6 +23,7 @@ import { friendService } from "@/shared/services/friendService";
 import { useAuthStore } from "@/shared/store/authStore";
 import { GroupDetail } from "@/shared/types";
 import { useThemeColors } from "@/shared/theme/colors";
+import { useRouter } from "expo-router";
 
 interface GroupInfoScreenProps {
     roomId: string;
@@ -125,10 +127,11 @@ function AddMemberModal({
                         flexDirection: "row",
                         alignItems: "center",
                         paddingHorizontal: 16,
-                        paddingVertical: 12,
-                        borderBottomWidth: 1,
-                        borderBottomColor: colors.border,
+                        height: 52,
                         backgroundColor: colors.headerBg,
+                        borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                        borderBottomColor: colors.border,
+                        gap: 12,
                     }}
                 >
                     <TouchableOpacity onPress={onClose} style={{ padding: 4, marginRight: 12 }}>
@@ -319,6 +322,7 @@ function SectionRow({
 
 // ─── Main GroupInfoScreen ───
 export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProps) {
+    const router = useRouter();
     const colors = useThemeColors();
     const [group, setGroup] = useState<GroupDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -339,6 +343,51 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
             .finally(() => setLoading(false));
     }, [roomId]);
 
+    const isOwner = group?.ownerId === currentUserId;
+    const currentUserRole = group?.members.find((m) => m.userId === currentUserId)?.role;
+    const isAdmin = currentUserRole === "ADMIN";
+    const canManageMembers = isOwner || isAdmin;
+
+    const handleRemoveMember = (memberId: string) => {
+        Alert.alert("Xóa thành viên", "Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?", [
+            { text: "Hủy", style: "cancel" },
+            {
+                text: "Xóa",
+                style: "destructive",
+                onPress: async () => {
+                    try {
+                        const updated = await groupService.removeMembersFromGroup(roomId, [memberId]);
+                        setGroup(updated);
+                    } catch (err: any) {
+                        Alert.alert("Lỗi", err?.response?.data?.message || "Xóa thành viên thất bại.");
+                    }
+                },
+            },
+        ]);
+    };
+
+    const handleDisbandGroup = () => {
+        Alert.alert("Giải tán nhóm", "Hành động này không thể hoàn tác. Tất cả thành viên và tin nhắn sẽ bị xóa. Bạn có chắc chắn muốn giải tán nhóm này?", [
+            { text: "Hủy", style: "cancel" },
+            {
+                text: "Giải tán",
+                style: "destructive",
+                onPress: async () => {
+                    setIsLeaving(true);
+                    try {
+                        await groupService.disbandGroup(roomId);
+                        onClose();
+                        router.replace("/(tabs)");
+                    } catch (err: any) {
+                        Alert.alert("Lỗi", err?.response?.data?.message || "Giải tán nhóm thất bại.");
+                    } finally {
+                        setIsLeaving(false);
+                    }
+                },
+            },
+        ]);
+    };
+
     const handleLeaveGroup = () => {
         Alert.alert("Rời nhóm", "Bạn có chắc chắn muốn rời nhóm này?", [
             { text: "Hủy", style: "cancel" },
@@ -350,6 +399,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     try {
                         await groupService.leaveGroup(roomId);
                         onClose();
+                        router.replace("/(tabs)");
                     } catch (err: any) {
                         Alert.alert("Lỗi", err?.response?.data?.message || "Rời nhóm thất bại.");
                     } finally {
@@ -391,37 +441,49 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     const existingMemberIds = group.members.map((m) => m.userId);
 
     return (
-        <SafeAreaView
-            style={{
-                flex: 1,
-                backgroundColor: colors.background,
-                paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
-            }}
-        >
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
             <StatusBar style={colors.statusBar} />
-            {/* ── Header ── */}
-            <View
-                style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                    backgroundColor: colors.headerBg,
-                }}
-            >
-                <TouchableOpacity
-                    onPress={onClose}
-                    activeOpacity={0.6}
-                    style={{ paddingRight: 8, paddingVertical: 4 }}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                    <Ionicons name="chevron-back" size={26} color={colors.headerText} />
-                </TouchableOpacity>
-                <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
-                    Tùy chọn
-                </Text>
+            {/* ── Header (giống ChatOptionsScreen – màu xanh phủ tận status bar) ── */}
+            <View style={{ backgroundColor: colors.headerBg }}>
+                <SafeAreaViewCtx edges={["top"]}>
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            paddingHorizontal: 16,
+                            height: 52,
+                            borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                            borderBottomColor: colors.border,
+                        }}
+                    >
+                        {/* Left: Back & Title */}
+                        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                            <TouchableOpacity
+                                onPress={onClose}
+                                activeOpacity={0.7}
+                                style={{ paddingRight: 8, paddingVertical: 4 }}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                                <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                            </TouchableOpacity>
+                            <View style={{ flex: 1 }}>
+                                <Text
+                                    style={{ color: colors.headerText, fontSize: 17, fontWeight: "600" }}
+                                    numberOfLines={1}
+                                >
+                                    Tuỳ chọn
+                                </Text>
+                                <Text style={{ color: colors.headerText, fontSize: 11, opacity: 0.7 }}>
+                                    Cài đặt trò chuyện
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Right: placeholder */}
+                        <View style={{ width: 24 }} />
+                    </View>
+                </SafeAreaViewCtx>
             </View>
 
             <ScrollView
@@ -477,7 +539,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     }}
                 >
                     {[
-                        { icon: "search", label: "Tìm\ntin nhắn" },
+                        { icon: "search", label: "Tìm\ntin nhắn", onPress: () => router.push(`/search-messages?roomId=${roomId}&name=${encodeURIComponent(group.groupName)}&avatarUrl=${encodeURIComponent(avatarUri)}`) },
                         { icon: "person-add-outline", label: "Thêm\nthành viên", onPress: () => setShowAddMember(true) },
                         { icon: "color-palette-outline", label: "Đổi\nhình nền" },
                         { icon: "notifications-outline", label: "Tắt\nthông báo" },
@@ -594,29 +656,56 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     />
                     <Text style={{ fontSize: 15, color: "#ef4444" }}>Xóa lịch sử trò chuyện</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={handleLeaveGroup}
-                    disabled={isLeaving}
-                    style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingHorizontal: 16,
-                        paddingVertical: 14,
-                        backgroundColor: colors.card,
-                        opacity: isLeaving ? 0.5 : 1,
-                    }}
-                >
-                    <Ionicons
-                        name="log-out-outline"
-                        size={22}
-                        color="#ef4444"
-                        style={{ marginRight: 14, width: 24, textAlign: "center" as const }}
-                    />
-                    <Text style={{ fontSize: 15, color: "#ef4444" }}>
-                        {isLeaving ? "Đang rời..." : "Rời nhóm"}
-                    </Text>
-                </TouchableOpacity>
+
+                {isOwner ? (
+                    <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={handleDisbandGroup}
+                        disabled={isLeaving}
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: 16,
+                            paddingVertical: 14,
+                            backgroundColor: colors.card,
+                            opacity: isLeaving ? 0.5 : 1,
+                        }}
+                    >
+                        <Ionicons
+                            name="trash-bin-outline"
+                            size={22}
+                            color="#ef4444"
+                            style={{ marginRight: 14, width: 24, textAlign: "center" as const }}
+                        />
+                        <Text style={{ fontSize: 15, color: "#ef4444" }}>
+                            {isLeaving ? "Đang giải tán..." : "Giải tán nhóm"}
+                        </Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={handleLeaveGroup}
+                        disabled={isLeaving}
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: 16,
+                            paddingVertical: 14,
+                            backgroundColor: colors.card,
+                            opacity: isLeaving ? 0.5 : 1,
+                        }}
+                    >
+                        <Ionicons
+                            name="log-out-outline"
+                            size={22}
+                            color="#ef4444"
+                            style={{ marginRight: 14, width: 24, textAlign: "center" as const }}
+                        />
+                        <Text style={{ fontSize: 15, color: "#ef4444" }}>
+                            {isLeaving ? "Đang rời..." : "Rời nhóm"}
+                        </Text>
+                    </TouchableOpacity>
+                )}
             </ScrollView>
 
             {/* ── Add Member Modal ── */}
@@ -648,10 +737,11 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                             flexDirection: "row",
                             alignItems: "center",
                             paddingHorizontal: 16,
-                            paddingVertical: 12,
-                            borderBottomWidth: 1,
-                            borderBottomColor: colors.border,
+                            height: 52,
                             backgroundColor: colors.headerBg,
+                            borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                            borderBottomColor: colors.border,
+                            gap: 12,
                         }}
                     >
                         <TouchableOpacity
@@ -736,6 +826,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                                 paddingHorizontal: 10,
                                                 paddingVertical: 4,
                                                 borderRadius: 12,
+                                                marginRight: canManageMembers && !isOwnerMember && !isCurrentUser ? 8 : 0,
                                             }}
                                         >
                                             <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "600" }}>
@@ -743,12 +834,20 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                             </Text>
                                         </View>
                                     )}
+                                    {canManageMembers && !isOwnerMember && !isCurrentUser && (
+                                        <TouchableOpacity
+                                            style={{ padding: 6 }}
+                                            onPress={() => handleRemoveMember(member.userId)}
+                                        >
+                                            <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             );
                         }}
                     />
                 </SafeAreaView>
             </Modal>
-        </SafeAreaView>
+        </View>
     );
 }

@@ -9,6 +9,9 @@ import {
     Modal,
     TextInput,
     Alert,
+    ActivityIndicator,
+    ActionSheetIOS,
+    Platform,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
@@ -18,6 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { UserProfile } from "@/shared/services/types";
 import { useUserStore } from "@/shared/store/userStore";
 import { useThemeColors } from "@/shared/theme/colors";
+import { useImagePicker } from "@/shared/hooks/useImagePicker";
 
 const COVER_HEIGHT = 240;
 const AVATAR_SIZE = 100;
@@ -42,6 +46,10 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
     const [introText, setIntroText] = useState(businessDescription);
     const [saving, setSaving] = useState(false);
 
+    // Hooks for images
+    const avatarPicker = useImagePicker({ folder: "avatars/", aspect: [1, 1], allowsEditing: true });
+    const coverPicker = useImagePicker({ folder: "covers/", aspect: [3, 2], allowsEditing: true });
+
     const handleOpenIntroModal = () => {
         setIntroText(businessDescription);
         setIntroModalVisible(true);
@@ -59,6 +67,56 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
         }
     };
 
+    const handleImageAction = async (
+        picker: ReturnType<typeof useImagePicker>,
+        onSuccess: (url: string) => Promise<void>
+    ) => {
+        const options = ["Hủy", "Chụp ảnh mới", "Chọn từ thư viện"];
+        
+        const processSelection = async (index: number) => {
+            let asset = null;
+            if (index === 1) asset = await picker.takePhoto();
+            else if (index === 2) asset = await picker.pickImage();
+            
+            if (asset) {
+                const url = await picker.upload(asset);
+                if (url) {
+                    try {
+                        await onSuccess(url);
+                        Alert.alert("Thành công", "Đã cập nhật hình ảnh.");
+                    } catch {
+                        Alert.alert("Lỗi", "Không thể lưu hình ảnh mới.");
+                    }
+                }
+            }
+        };
+
+        if (Platform.OS === "ios") {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    options,
+                    cancelButtonIndex: 0,
+                    title: "Thay đổi hình ảnh",
+                },
+                processSelection
+            );
+        } else {
+            Alert.alert("Thay đổi hình ảnh", "Bạn muốn chọn ảnh từ đâu?", [
+                { text: "Hủy", style: "cancel" },
+                { text: "Chụp ảnh mới", onPress: () => processSelection(1) },
+                { text: "Chọn từ thư viện", onPress: () => processSelection(2) },
+            ]);
+        }
+    };
+
+    const handleChangeAvatar = () => {
+        handleImageAction(avatarPicker, (url) => updateProfile({ avatarUrl: url }));
+    };
+
+    const handleChangeCover = () => {
+        handleImageAction(coverPicker, (url) => updateProfile({ coverPhotoUrl: url }));
+    };
+
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
             <StatusBar style="light" />
@@ -71,31 +129,70 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                 {/* Cover + Avatar area */}
                 <View style={{ height: COVER_HEIGHT + AVATAR_SIZE / 2, position: "relative" }}>
                     {/* Cover background */}
-                    <View
-                        style={{
-                            height: COVER_HEIGHT,
-                            backgroundColor: "#1a2a3a",
-                            width: "100%",
-                            overflow: "hidden",
-                        }}
-                    >
-                        {/* Dark gradient overlay for top buttons visibility */}
+                    <View style={{ height: COVER_HEIGHT, width: "100%", position: 'relative', overflow: 'hidden' }}>
+                        {user?.coverPhotoUrl ? (
+                            <Image
+                                key={user.coverPhotoUrl}
+                                source={{ uri: `${user.coverPhotoUrl}?t=${Date.now()}` }}
+                                style={{ width: "100%", height: COVER_HEIGHT }}
+                                resizeMode="cover"
+                                onError={(e) => console.log("Cover Load Error:", e.nativeEvent.error, user.coverPhotoUrl)}
+                            />
+                        ) : (
+                            <View
+                                style={{
+                                    height: COVER_HEIGHT,
+                                    backgroundColor: colors.primary, // Zalo blue as primary
+                                    width: "100%",
+                                }}
+                            />
+                        )}
+
+                        {/* Top bar overlay gradient */}
                         <View
                             style={{
                                 position: "absolute",
                                 top: 0,
                                 left: 0,
                                 right: 0,
-                                height: 110,
-                                backgroundColor: "rgba(0,0,0,0.4)",
+                                height: 120,
+                                backgroundColor: "rgba(0,0,0,0.25)",
                                 zIndex: 1,
                             }}
                         />
+
+                        {/* Change Cover Button */}
+                        <TouchableOpacity
+                            onPress={handleChangeCover}
+                            disabled={coverPicker.uploading}
+                            style={{
+                                position: "absolute",
+                                bottom: 16,
+                                right: 16,
+                                backgroundColor: "rgba(0,0,0,0.4)",
+                                width: 40,
+                                height: 40,
+                                borderRadius: 20,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                zIndex: 30, // Higher than top bar/avatar if needed
+                                borderWidth: 1,
+                                borderColor: 'rgba(255,255,255,0.4)',
+                            }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            {coverPicker.uploading ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Ionicons name="camera" size={22} color="#fff" />
+                            )}
+                        </TouchableOpacity>
                     </View>
 
                     {/* Top bar overlay */}
                     <SafeAreaView
                         edges={["top"]}
+                        pointerEvents="box-none"
                         style={{
                             position: "absolute",
                             top: 0,
@@ -105,6 +202,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                         }}
                     >
                         <View
+                            pointerEvents="box-none"
                             style={{
                                 height: 52,
                                 flexDirection: "row",
@@ -118,9 +216,9 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                 onPress={() => router.back()}
                                 style={{ padding: 8 }}
                                 activeOpacity={0.7}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                             >
-                                <Ionicons name="chevron-back" size={26} color="#fff" />
+                                <Ionicons name="chevron-back" size={28} color="#fff" />
                             </TouchableOpacity>
 
                             {/* Right: Search person + 3-dot menu */}
@@ -130,7 +228,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                     style={{ padding: 8 }}
                                     activeOpacity={0.7}
                                 >
-                                    <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
+                                    <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -158,58 +256,97 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
 
                     {/* Avatar */}
                     <View
+                        pointerEvents="box-none"
                         style={{
                             position: "absolute",
                             bottom: 0,
                             left: 0,
                             right: 0,
                             alignItems: "center",
+                            zIndex: 20,
                         }}
                     >
-                        {avatarUrl ? (
-                            <Image
-                                source={{ uri: avatarUrl }}
-                                style={{
-                                    width: AVATAR_SIZE,
-                                    height: AVATAR_SIZE,
-                                    borderRadius: AVATAR_SIZE / 2,
-                                    borderWidth: 3,
-                                    borderColor: colors.background,
-                                    backgroundColor: colors.card,
-                                }}
-                            />
-                        ) : (
-                            <View
-                                style={{
-                                    width: AVATAR_SIZE,
-                                    height: AVATAR_SIZE,
-                                    borderRadius: AVATAR_SIZE / 2,
-                                    borderWidth: 3,
-                                    borderColor: colors.background,
-                                    backgroundColor: colors.card,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                }}
-                            >
-                                <Text
+                        <View style={{ position: "relative" }}>
+                            {avatarUrl ? (
+                                <Image
+                                    key={avatarUrl}
+                                    source={{ 
+                                        uri: `${avatarUrl}?t=${Date.now()}`,
+                                    }}
                                     style={{
-                                        color: colors.text,
-                                        fontSize: 38,
-                                        fontWeight: "600",
+                                        width: AVATAR_SIZE,
+                                        height: AVATAR_SIZE,
+                                        borderRadius: AVATAR_SIZE / 2,
+                                        borderWidth: 3,
+                                        borderColor: colors.background,
+                                        backgroundColor: "#f0f2f5",
+                                    }}
+                                    onError={(e) => console.log("Avatar Load Error:", e.nativeEvent.error, avatarUrl)}
+                                />
+                            ) : (
+                                <View
+                                    style={{
+                                        width: AVATAR_SIZE,
+                                        height: AVATAR_SIZE,
+                                        borderRadius: AVATAR_SIZE / 2,
+                                        borderWidth: 3,
+                                        borderColor: colors.background,
+                                        backgroundColor: "#f0f2f5",
+                                        alignItems: "center",
+                                        justifyContent: "center",
                                     }}
                                 >
-                                    {avatarInitial}
-                                </Text>
-                            </View>
-                        )}
+                                    <Text
+                                        style={{
+                                            color: colors.primary,
+                                            fontSize: 40,
+                                            fontWeight: "700",
+                                        }}
+                                    >
+                                        {avatarInitial}
+                                    </Text>
+                                </View>
+                            )}
+                            
+                            {/* Change Avatar Button */}
+                            <TouchableOpacity
+                                onPress={handleChangeAvatar}
+                                disabled={avatarPicker.uploading}
+                                style={{
+                                    position: "absolute",
+                                    bottom: 0,
+                                    right: 0,
+                                    backgroundColor: colors.card,
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: 16,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    elevation: 4,
+                                    shadowColor: "#000",
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.15,
+                                    shadowRadius: 4,
+                                    zIndex: 25,
+                                }}
+                            >
+                                {avatarPicker.uploading ? (
+                                    <ActivityIndicator size="small" color={colors.primary} />
+                                ) : (
+                                    <Ionicons name="camera" size={18} color={colors.text} />
+                                )}
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
 
                 {/* Name */}
-                <View style={{ alignItems: "center", paddingTop: 14, paddingHorizontal: 24 }}>
+                <View style={{ alignItems: "center", paddingTop: 16, paddingHorizontal: 24 }}>
                     <Text
                         style={{
-                            fontSize: 22,
+                            fontSize: 24,
                             fontWeight: "700",
                             color: colors.text,
                             textAlign: "center",

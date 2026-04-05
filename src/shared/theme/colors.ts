@@ -3,9 +3,6 @@ import { useThemeStore } from "../store/themeStore";
 import type { ThemeMode } from "../store/themeStore";
 
 function resolve(mode: ThemeMode): "light" | "dark" {
-    if (mode === "system") {
-        return Appearance.getColorScheme() === "light" ? "light" : "dark";
-    }
     return mode;
 }
 
@@ -16,7 +13,7 @@ function resolve(mode: ThemeMode): "light" | "dark" {
 
 export const darkColors = {
     background: "#000000",
-    card: "#1a1a1a",
+    card: "#121212",
     border: "#262626",
     text: "#ffffff",
     textSecondary: "#8e8e93",
@@ -27,7 +24,7 @@ export const darkColors = {
     inputBg: "#1c1c1e",
     statusBar: "light" as const,
     // Header (dark matches Zalo's dark gray header)
-    headerBg: "#1a1a1a",
+    headerBg: "#1c1c1e",
     headerText: "#ffffff",
     headerSearchBg: "transparent",
     headerIcon: "#ffffff",
@@ -39,6 +36,7 @@ export const darkColors = {
     // Icons in menu lists
     iconColor: "#ffffff",
     listItemBg: "transparent",
+    avatarBg: "#4a4a4c",
     chatBg: "#000000",
 };
 
@@ -55,9 +53,9 @@ export const lightColors = {
     inputBg: "#ffffff",
     statusBar: "light" as const, // always light because header is blue
     // Header (light = blue header like Zalo)
-    headerBg: "#0068FF",
+    headerBg: "#0084ff",
     headerText: "#ffffff",
-    headerSearchBg: "rgba(255,255,255,0.25)",
+    headerSearchBg: "transparent",
     headerIcon: "#ffffff",
     // Tab bar
     tabBarBg: "#ffffff",
@@ -67,6 +65,7 @@ export const lightColors = {
     // Icons in menu lists
     iconColor: "#1c1c1e",
     listItemBg: "#ffffff",
+    avatarBg: "#e3e3e8",
     chatBg: "#ffffff",
 };
 
@@ -92,6 +91,7 @@ export interface ThemeColors {
     tabBarInactive: string;
     iconColor: string;
     listItemBg: string;
+    avatarBg: string;
     chatBg: string;
 }
 

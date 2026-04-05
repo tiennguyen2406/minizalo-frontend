@@ -53,6 +53,13 @@ export interface ChatRoomResponse {
     members: any[]; // Define RoomMemberResponse if needed
 }
 
+export interface SearchMessageResponse {
+    messages: MessageDynamo[];
+    lastKey: string | null;
+    hasMore: boolean;
+    totalResults: number;
+}
+
 // Config Base URL
 const rawBase =
     typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
@@ -131,12 +138,21 @@ export const chatService = {
         return data;
     },
 
-    sendMessage: async (roomId: string, content: string, replyToMessageId?: string): Promise<MessageDynamo> => {
+    sendMessage: async (
+        roomId: string, 
+        content: string, 
+        replyToMessageId?: string,
+        type: "TEXT" | "IMAGE" | "FILE" | "VIDEO" = "TEXT",
+        attachments?: Attachment[]
+    ): Promise<MessageDynamo> => {
         const body: any = {
             receiverId: roomId,
             content,
-            type: "TEXT",
+            type,
         };
+        if (attachments && attachments.length > 0) {
+            body.attachments = attachments;
+        }
         if (replyToMessageId) {
             body.replyToMessageId = replyToMessageId;
         }
@@ -147,6 +163,10 @@ export const chatService = {
     /** Lưu tên gợi nhớ cho phòng chat (1-1). Trả về phòng chat đã cập nhật. */
     saveNickname: async (roomId: string, nickname: string): Promise<ChatRoomResponse> => {
         const { data } = await api.put<ChatRoomResponse>(`/chat/rooms/${roomId}/nickname`, { nickname });
+    searchMessages: async (roomId: string, query: string, limit: number = 20, lastKey?: string): Promise<SearchMessageResponse> => {
+        const params: any = { q: query, limit };
+        if (lastKey) params.lastKey = lastKey;
+        const { data } = await api.get<SearchMessageResponse>(`/chat/${roomId}/search`, { params });
         return data;
     },
 };

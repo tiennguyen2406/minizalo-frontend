@@ -113,5 +113,8 @@ export const groupService = {
     async updateGroupAvatar(groupId: string, avatarUrl: string): Promise<GroupDetail> {
         const { data } = await api.put('/group', { groupId, avatarUrl });
         return mapGroupResponse(data);
+    /** Giải tán nhóm */
+    async disbandGroup(groupId: string): Promise<void> {
+        await api.delete(`/group/${groupId}`);
     },
 };

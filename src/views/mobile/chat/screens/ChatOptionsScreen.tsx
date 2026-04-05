@@ -18,15 +18,45 @@ import AddToGroupModal from "../components/AddToGroupModal";
 import MediaStorageScreen from "./MediaStorageScreen";
 import { chatService } from "@/shared/services/chatService";
 import { useThemeColors } from "@/shared/theme/colors";
+import { useRouter } from "expo-router";
 
 const getImageUrl = (url: string) => {
     if (!url) return url;
+    
+    // Xử lý localhost
     if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
         const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
         if (match && match[1]) {
             return url.replace("localhost", match[1]);
         }
     }
+    
+    // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
+    if (process.env.EXPO_PUBLIC_API_URL) {
+        const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+        if (apiMatch && apiMatch[1]) {
+            const apiHost = apiMatch[1];
+            
+            // Thay thế IP address trong URL ảnh bằng API host
+            if (url.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
+                const urlMatch = url.match(/https?:\/\/([^:\/]+)/);
+                if (urlMatch && urlMatch[1] !== apiHost) {
+                    return url.replace(urlMatch[1], apiHost);
+                }
+            }
+            
+            // Thay thế port 9000 (MinIO default) với API port nếu cần
+            if (url.includes(":9000") && !apiHost.includes(":9000")) {
+                // Giữ nguyên port 9000 vì đây là MinIO server
+                // Chỉ thay thế hostname
+                const urlMatch = url.match(/https?:\/\/([^:]+):/);
+                if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
+                    return url.replace(urlMatch[1], apiHost.split(':')[0]);
+                }
+            }
+        }
+    }
+    
     return url;
 };
 
@@ -37,11 +67,13 @@ interface ChatOptionsScreenProps {
     name: string;
     avatarUrl?: string;
     partnerId?: string;
+    type?: "DIRECT" | "GROUP";
     onClose: () => void;
 }
 
 /* ══════════════════════════ MAIN ══════════════════════════ */
-export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, onClose }: ChatOptionsScreenProps) {
+export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, type = "DIRECT", onClose }: ChatOptionsScreenProps) {
+    const router = useRouter();
     const colors = useThemeColors();
     const avatar = avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
 
@@ -197,31 +229,50 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     );
 
     return (
-        <SafeAreaView style={[s.container, { backgroundColor: colors.background }]} edges={["top"]}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
             <StatusBar style={colors.statusBar} />
             {/* Header */}
-            <View
-                style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                    backgroundColor: colors.headerBg,
-                }}
-            >
-                <TouchableOpacity
-                    onPress={onClose}
-                    style={{ paddingRight: 8, paddingVertical: 4 }}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                    <Ionicons name="chevron-back" size={26} color={colors.headerText} />
-                </TouchableOpacity>
-                <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
-                    Tuỳ chọn
-                </Text>
+            <View style={{ backgroundColor: colors.headerBg }}>
+                <SafeAreaView edges={["top"]}>
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            paddingHorizontal: 16,
+                            height: 52,
+                            borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                            borderBottomColor: colors.border,
+                        }}
+                    >
+                        {/* Left: Back & Title */}
+                        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                            <TouchableOpacity
+                                onPress={onClose}
+                                style={{ paddingRight: 8, paddingVertical: 4 }}
+                                activeOpacity={0.7}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                                <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                            </TouchableOpacity>
+
+                            <View style={{ flex: 1 }}>
+                                <Text
+                                    style={{ color: colors.headerText, fontSize: 17, fontWeight: "600" }}
+                                    numberOfLines={1}
+                                >
+                                    Tuỳ chọn
+                                </Text>
+                                <Text style={{ color: colors.headerText, fontSize: 11, opacity: 0.7 }}>
+                                    Cài đặt trò chuyện
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Right: Actions (empty for options screen) */}
+                        <View style={{ width: 24 }} />
+                    </View>
+                </SafeAreaView>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -233,12 +284,12 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     {/* 4 Action Buttons */}
                     <View style={s.actions}>
                         {[
-                            { icon: "search-outline", text: "Tìm\ntin nhắn" },
+                            { icon: "search-outline", text: "Tìm\ntin nhắn", onPress: () => router.push(`/search-messages?roomId=${roomId}&name=${encodeURIComponent(name)}&avatarUrl=${encodeURIComponent(avatarUrl || '')}`) },
                             { icon: "person-outline", text: "Trang\ncá nhân" },
                             { icon: "color-palette-outline", text: "Đổi\nhình nền" },
                             { icon: "notifications-off-outline", text: "Tắt\nthông báo" },
                         ].map((btn, i) => (
-                            <TouchableOpacity key={i} style={s.actionBtn}>
+                            <TouchableOpacity key={i} style={s.actionBtn} onPress={btn.onPress}>
                                 <View style={[s.actionCircle, { backgroundColor: colors.searchBg }]}>
                                     <Ionicons name={btn.icon as any} size={22} color={colors.text} />
                                 </View>
@@ -306,7 +357,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     <OptionRow icon="people-outline" label="Xem nhóm chung (0)" right={<Arrow />} />
                 </Section>
 
-                {/* Group 4: Settings */}
+                {/* Group 5: Settings */}
                 <Section>
                     <OptionRow icon="pin-outline" label="Ghim trò chuyện" right={<CustomSwitch value={pinned} onToggle={() => setPinned(v => !v)} />} first />
                     <OptionRow icon="eye-off-outline" label="Ẩn trò chuyện" right={<CustomSwitch value={hidden} onToggle={() => setHidden(v => !v)} />} />
@@ -369,7 +420,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     />
                 </Animated.View>
             )}
-        </SafeAreaView>
+        </View>
     );
 }
 
