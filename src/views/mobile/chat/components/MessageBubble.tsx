@@ -20,7 +20,7 @@ interface ReplyPreview {
 }
 
 interface MessageBubbleProps {
-    message: MessageDynamo;
+    message: MessageDynamo & { isError?: boolean };
     isMe: boolean;
     showSenderName?: boolean; // for group chats
     onLongPress?: (message: MessageDynamo) => void;
@@ -62,6 +62,7 @@ export default function MessageBubble({
     const colors = useThemeColors();
     const senderName = message.senderName;
     const isRecalled = message.recalled;
+    const isError = message.isError;
     const time =
         message.createdAt && !isNaN(Date.parse(message.createdAt))
             ? formatTime(message.createdAt)
@@ -71,15 +72,44 @@ export default function MessageBubble({
     const [currentIndex, setCurrentIndex] = useState(0);
     const galleryRef = useRef<FlatList>(null);
 
-    // Xử lý lỗi URL localhost từ MinIO trên thiết bị thật/emulator
+    // Xử lý lỗi URL localhost/IP address từ MinIO trên thiết bị thật/emulator
     const getImageUrl = (url: string) => {
         if (!url) return url;
+        
+        // Xử lý localhost
         if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
             const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
             if (match && match[1]) {
                 return url.replace("localhost", match[1]);
             }
         }
+        
+        // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
+        if (process.env.EXPO_PUBLIC_API_URL) {
+            const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+            if (apiMatch && apiMatch[1]) {
+                const apiHost = apiMatch[1];
+                
+                // Thay thế IP address trong URL ảnh bằng API host
+                if (url.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
+                    const urlMatch = url.match(/https?:\/\/([^:\/]+)/);
+                    if (urlMatch && urlMatch[1] !== apiHost) {
+                        return url.replace(urlMatch[1], apiHost);
+                    }
+                }
+                
+                // Thay thế port 9000 (MinIO default) với API port nếu cần
+                if (url.includes(":9000") && !apiHost.includes(":9000")) {
+                    // Giữ nguyên port 9000 vì đây là MinIO server
+                    // Chỉ thay thế hostname
+                    const urlMatch = url.match(/https?:\/\/([^:]+):/);
+                    if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
+                        return url.replace(urlMatch[1], apiHost.split(':')[0]);
+                    }
+                }
+            }
+        }
+        
         return url;
     };
 
@@ -121,6 +151,23 @@ export default function MessageBubble({
                 alignItems: isMe ? "flex-end" : "flex-start",
             }}
         >
+            {message.type === "SYSTEM" ? (
+                <View
+                    style={{
+                        alignSelf: "center",
+                        backgroundColor: "rgba(0,0,0,0.05)",
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 16,
+                        marginVertical: 4,
+                        alignItems: "center",
+                    }}
+                >
+                    <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: "center" }}>
+                        {message.content}
+                    </Text>
+                </View>
+            ) : (
             <TouchableOpacity
                 activeOpacity={0.8}
                 delayLongPress={250}
@@ -333,7 +380,7 @@ export default function MessageBubble({
                     )}
 
                     {/* Time */}
-                    {time ? (
+                    {time && !isError ? (
                         <Text
                             style={{
                                 fontSize: 11,
@@ -348,6 +395,20 @@ export default function MessageBubble({
                         </Text>
                     ) : null}
                 </View>
+
+                {/* Error message */}
+                {isError && (
+                    <Text
+                        style={{
+                            color: "#e74c3c", // Red color
+                            fontSize: 11,
+                            marginTop: 4,
+                            alignSelf: isMe ? "flex-end" : "flex-start",
+                        }}
+                    >
+                        Không gửi được
+                    </Text>
+                )}
 
                 {/* Reactions */}
                 {Array.isArray(message.reactions) && message.reactions.length > 0 && (
@@ -398,6 +459,7 @@ export default function MessageBubble({
                     </TouchableOpacity>
                 )}
             </TouchableOpacity>
+            )}
 
             {/* Full-screen swipeable image gallery */}
             <Modal

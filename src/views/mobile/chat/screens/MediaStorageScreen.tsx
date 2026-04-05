@@ -29,15 +29,44 @@ interface MediaStorageScreenProps {
     onClose: () => void;
 }
 
-// Lấy link thực tế của ảnh (fix lỗi localhost)
+// Lấy link thực tế của ảnh (fix lỗi localhost/IP address)
 const getImageUrl = (url: string) => {
     if (!url) return url;
+    
+    // Xử lý localhost
     if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
         const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
         if (match && match[1]) {
             return url.replace("localhost", match[1]);
         }
     }
+    
+    // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
+    if (process.env.EXPO_PUBLIC_API_URL) {
+        const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+        if (apiMatch && apiMatch[1]) {
+            const apiHost = apiMatch[1];
+            
+            // Thay thế IP address trong URL ảnh bằng API host
+            if (url.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
+                const urlMatch = url.match(/https?:\/\/([^:\/]+)/);
+                if (urlMatch && urlMatch[1] !== apiHost) {
+                    return url.replace(urlMatch[1], apiHost);
+                }
+            }
+            
+            // Thay thế port 9000 (MinIO default) với API port nếu cần
+            if (url.includes(":9000") && !apiHost.includes(":9000")) {
+                // Giữ nguyên port 9000 vì đây là MinIO server
+                // Chỉ thay thế hostname
+                const urlMatch = url.match(/https?:\/\/([^:]+):/);
+                if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
+                    return url.replace(urlMatch[1], apiHost.split(':')[0]);
+                }
+            }
+        }
+    }
+    
     return url;
 };
 
@@ -220,20 +249,35 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
     );
 
     return (
-        <SafeAreaView style={[s.container, { backgroundColor: colors.background }]} edges={["top"]}>
+        <View style={[s.container, { backgroundColor: colors.background }]}>
             <StatusBar style={colors.statusBar} />
             {/* Header */}
-            <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
-                <TouchableOpacity
-                    onPress={onClose}
-                    style={s.backBtn}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                    <Ionicons name="chevron-back" size={26} color={colors.headerText} />
-                </TouchableOpacity>
-                <Text style={[s.headerTitle, { color: colors.headerText }]}>Ảnh, file, link</Text>
-                <View style={{ width: 40 }} />
+            <View style={{ backgroundColor: colors.headerBg }}>
+                <SafeAreaView edges={["top"]}>
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: 16,
+                            height: 52,
+                            backgroundColor: colors.headerBg,
+                            borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                            borderBottomColor: colors.border,
+                            gap: 12,
+                        }}
+                    >
+                        <TouchableOpacity
+                            onPress={onClose}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                        </TouchableOpacity>
+                        <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
+                            Ảnh, file, link
+                        </Text>
+                    </View>
+                </SafeAreaView>
             </View>
 
             {renderTabHeader()}
@@ -267,7 +311,7 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                     )}
                 </View>
             </Modal>
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -275,16 +319,6 @@ const s = StyleSheet.create({
     container: {
         flex: 1,
     },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        height: 52,
-        paddingHorizontal: 8,
-        borderBottomWidth: 1,
-    },
-    backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-    headerTitle: { fontSize: 18, fontWeight: "600" },
     tabContainer: {
         flexDirection: "row",
         borderBottomWidth: 1,

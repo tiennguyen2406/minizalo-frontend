@@ -22,6 +22,47 @@ export default function ChatListScreen() {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const subscribedRooms = useRef<Set<string>>(new Set());
 
+    // Helper function to process image URLs (similar to ChatScreen)
+    const getImageUrl = (url: string) => {
+        if (!url) return url;
+        
+        // Xử lý localhost
+        if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
+            const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+            if (match && match[1]) {
+                return url.replace("localhost", match[1]);
+            }
+        }
+        
+        // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
+        if (process.env.EXPO_PUBLIC_API_URL) {
+            const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+            if (apiMatch && apiMatch[1]) {
+                const apiHost = apiMatch[1];
+                
+                // Thay thế IP address trong URL ảnh bằng API host
+                if (url.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
+                    const urlMatch = url.match(/https?:\/\/([^:\/]+)/);
+                    if (urlMatch && urlMatch[1] !== apiHost) {
+                        return url.replace(urlMatch[1], apiHost);
+                    }
+                }
+                
+                // Thay thế port 9000 (MinIO default) với API port nếu cần
+                if (url.includes(":9000") && !apiHost.includes(":9000")) {
+                    // Giữ nguyên port 9000 vì đây là MinIO server
+                    // Chỉ thay thế hostname
+                    const urlMatch = url.match(/https?:\/\/([^:]+):/);
+                    if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
+                        return url.replace(urlMatch[1], apiHost.split(':')[0]);
+                    }
+                }
+            }
+        }
+        
+        return url;
+    };
+
     const onRefresh = useCallback(() => {
         setRefreshing(true);
         fetchChats().finally(() => setRefreshing(false));
@@ -52,10 +93,14 @@ export default function ChatListScreen() {
                         ? {
                             id: r.lastMessage.messageId,
                             senderId: r.lastMessage.senderId,
+                            senderName: r.lastMessage.senderName,
                             roomId: r.id,
-                            content: r.lastMessage.content,
+                            content: r.lastMessage.recalled
+                                ? '[Tin nhắn đã thu hồi]'
+                                : r.lastMessage.content,
                             type: (r.lastMessage.type as any) || 'TEXT',
                             createdAt: r.lastMessage.createdAt,
+                            recalled: r.lastMessage.recalled || false,
                         }
                         : undefined,
                     unreadCount: Math.max(existing ? existing.unreadCount : 0, r.unreadCount || 0),
@@ -161,10 +206,26 @@ export default function ChatListScreen() {
     );
 
     const renderItem = ({ item, index }: { item: any; index: number }) => {
-        const avatarUri = item.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "User")}&background=random&color=fff`;
-        const lastMsg = item.lastMessage?.content
-            ? (item.lastMessage.type === 'IMAGE' ? '[Hình ảnh]' : item.lastMessage.type === 'FILE' ? '[Tập tin]' : item.lastMessage.content)
-            : "Chưa có tin nhắn";
+        const processedAvatar = getImageUrl(item.avatarUrl);
+        const avatarUri = processedAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "User")}&background=random&color=fff`;
+        // Xử lý hiển thị tin nhắn cuối
+        let lastMsg = "Chưa có tin nhắn";
+        if (item.lastMessage) {
+            const lm = item.lastMessage;
+            if (lm.recalled) {
+                lastMsg = '[Tin nhắn đã thu hồi]';
+            } else if (lm.content === '[Tin nhắn đã thu hồi]') {
+                lastMsg = '[Tin nhắn đã thu hồi]';
+            } else if (lm.type === 'IMAGE') {
+                lastMsg = '[Hình ảnh]';
+            } else if (lm.type === 'FILE') {
+                lastMsg = '[Tập tin]';
+            } else if (lm.type === 'VIDEO') {
+                lastMsg = '[Video]';
+            } else {
+                lastMsg = lm.content || 'Chưa có tin nhắn';
+            }
+        }
 
         let timeDisplay = "";
         if (item.lastMessage?.createdAt) {

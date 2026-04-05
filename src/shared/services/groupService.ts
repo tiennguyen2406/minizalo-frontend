@@ -94,4 +94,9 @@ export const groupService = {
     async leaveGroup(groupId: string): Promise<void> {
         await api.post(`/group/leave/${groupId}`);
     },
+
+    /** Giải tán nhóm */
+    async disbandGroup(groupId: string): Promise<void> {
+        await api.delete(`/group/${groupId}`);
+    },
 };
