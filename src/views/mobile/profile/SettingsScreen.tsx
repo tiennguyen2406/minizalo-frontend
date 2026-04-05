@@ -6,6 +6,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { profileStyles } from "./styles";
 import { useAuthStore } from "@/shared/store/authStore";
+import { useUserStore } from "@/shared/store/userStore";
+import { useChatStore } from "@/shared/store/useChatStore";
+import { useGroupStore } from "@/shared/store/useGroupStore";
+import { useFriendStore } from "@/shared/store/friendStore";
 import { useThemeColors, ThemeColors } from "@/shared/theme/colors";
 
 const createHeaderStyles = (colors: ThemeColors) => StyleSheet.create({
@@ -63,6 +67,10 @@ export default function SettingsScreen() {
                     style: "destructive",
                     onPress: async () => {
                         await logout();
+                        useUserStore.getState().clear();
+                        useChatStore.getState().clear();
+                        useGroupStore.getState().clear();
+                        useFriendStore.getState().clear();
                         router.replace("/(auth)/login");
                     },
                 },

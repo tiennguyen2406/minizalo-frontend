@@ -21,6 +21,7 @@ type FriendState = {
     unblockUser: (userId: string) => Promise<void>;
     fetchBlockedUsers: () => Promise<void>;
     clearError: () => void;
+    clear: () => void;
 };
 
 function extractErrorMessage(e: unknown, fallback: string): string {
@@ -211,5 +212,14 @@ export const useFriendStore = create<FriendState>((set, get) => ({
     },
 
     clearError: () => set({ error: null }),
+
+    clear: () => set({
+        friends: [],
+        requests: [],
+        sentRequests: [],
+        blockedUsers: [],
+        loading: false,
+        error: null,
+    }),
 }));
 
