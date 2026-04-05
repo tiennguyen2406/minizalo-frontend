@@ -163,6 +163,9 @@ export const chatService = {
     /** Lưu tên gợi nhớ cho phòng chat (1-1). Trả về phòng chat đã cập nhật. */
     saveNickname: async (roomId: string, nickname: string): Promise<ChatRoomResponse> => {
         const { data } = await api.put<ChatRoomResponse>(`/chat/rooms/${roomId}/nickname`, { nickname });
+        return data;
+    },
+
     searchMessages: async (roomId: string, query: string, limit: number = 20, lastKey?: string): Promise<SearchMessageResponse> => {
         const params: any = { q: query, limit };
         if (lastKey) params.lastKey = lastKey;

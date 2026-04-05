@@ -11,68 +11,49 @@ const COLORS = {
     text: "#333",
     textSecondary: "#666",
     border: "#e0e0e0",
+    success: "#4caf50",
 };
 
-type Step = "form" | "otp";
+type Step = "phone" | "reset";
 
-export default function RegisterFormWeb() {
+export default function ForgotPasswordWeb() {
     const router = useRouter();
-    const [step, setStep] = useState<Step>("form");
+    const [step, setStep] = useState<Step>("phone");
 
-    const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-
     const [otp, setOtp] = useState("");
-    const [verificationToken, setVerificationToken] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [otpCooldown, setOtpCooldown] = useState(60);
 
-    const validateForm = useCallback(() => {
-        const trimmedName = name.trim();
-        if (!trimmedName) return "Vui lòng nhập tên";
-        if (trimmedName.length < 2 || trimmedName.length > 40) return "Tên phải từ 2-40 ký tự";
-        if (!/^[\p{L} ]+$/u.test(trimmedName)) return "Tên chỉ được chứa chữ cái và khoảng trắng, không chứa số hay ký tự đặc biệt";
-        if (!phone.trim()) return "Vui lòng nhập số điện thoại";
-        if (!/^(03|05|07|08|09)[0-9]{8}$/.test(phone.trim())) return "Số điện thoại phải là 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09";
-        if (!email.trim()) return "Vui lòng nhập email";
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return "Email không hợp lệ";
-        if (!password) return "Vui lòng nhập mật khẩu";
-        if (password.length < 6 || password.length > 32) return "Mật khẩu phải từ 6-32 ký tự";
-        if (/\s/.test(password)) return "Mật khẩu không được chứa khoảng trắng";
-        if (!/[A-Z]/.test(password)) return "Mật khẩu phải chứa ít nhất 1 chữ hoa";
-        if (!/[a-z]/.test(password)) return "Mật khẩu phải chứa ít nhất 1 chữ thường";
-        if (!/[0-9]/.test(password)) return "Mật khẩu phải chứa ít nhất 1 chữ số";
-        if (password !== confirmPassword) return "Mật khẩu nhập lại không khớp";
-        return null;
-    }, [name, phone, email, password, confirmPassword]);
-
     const handleSendOtp = useCallback(async () => {
         setError("");
-        const validationError = validateForm();
-        if (validationError) {
-            setError(validationError);
+        if (!phone.trim()) {
+            setError("Vui lòng nhập số điện thoại");
+            return;
+        }
+        if (!/^(03|05|07|08|09)[0-9]{8}$/.test(phone.trim())) {
+            setError("Số điện thoại phải là 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09");
             return;
         }
         setLoading(true);
         try {
-            await authService.sendOtp(phone.trim());
-            setStep("otp");
+            await authService.forgotPasswordSendOtp(phone.trim());
+            setStep("reset");
             setOtpCooldown(60);
         } catch (err: any) {
             setError(err.response?.data?.message || "Gửi mã OTP thất bại. Vui lòng thử lại.");
         } finally {
             setLoading(false);
         }
-    }, [validateForm, phone]);
+    }, [phone]);
 
     const handleResendOtp = useCallback(async () => {
         try {
-            await authService.sendOtp(phone.trim());
+            await authService.forgotPasswordSendOtp(phone.trim());
             setOtpCooldown(60);
             setError("");
         } catch (err: any) {
@@ -80,31 +61,50 @@ export default function RegisterFormWeb() {
         }
     }, [phone]);
 
-    const handleVerifyAndRegister = useCallback(async () => {
+    const handleResetPassword = useCallback(async () => {
         setError("");
         if (otp.length < 6) {
             setError("Vui lòng nhập đủ 6 số OTP");
             return;
         }
+        if (!newPassword) {
+            setError("Vui lòng nhập mật khẩu mới");
+            return;
+        }
+        if (newPassword.length < 6 || newPassword.length > 32) {
+            setError("Mật khẩu phải từ 6-32 ký tự");
+            return;
+        }
+        if (/\s/.test(newPassword)) {
+            setError("Mật khẩu không được chứa khoảng trắng");
+            return;
+        }
+        if (!/[A-Z]/.test(newPassword)) {
+            setError("Mật khẩu phải chứa ít nhất 1 chữ hoa");
+            return;
+        }
+        if (!/[a-z]/.test(newPassword)) {
+            setError("Mật khẩu phải chứa ít nhất 1 chữ thường");
+            return;
+        }
+        if (!/[0-9]/.test(newPassword)) {
+            setError("Mật khẩu phải chứa ít nhất 1 chữ số");
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setError("Mật khẩu nhập lại không khớp");
+            return;
+        }
         setLoading(true);
         try {
-            const result = await authService.verifyOtp(phone.trim(), otp);
-            setVerificationToken(result.verificationToken);
-
-            await authService.signup({
-                name: name.trim(),
-                phone: phone.trim(),
-                email: email.trim(),
-                password,
-                verificationToken: result.verificationToken,
-            });
+            await authService.resetPassword(phone.trim(), otp, newPassword, confirmPassword);
             router.replace("/(auth)/login-form");
         } catch (err: any) {
-            setError(err.response?.data?.message || "Xác thực thất bại. Vui lòng thử lại.");
+            setError(err.response?.data?.message || "Đặt lại mật khẩu thất bại. Vui lòng thử lại.");
         } finally {
             setLoading(false);
         }
-    }, [otp, phone, name, email, password, router]);
+    }, [otp, newPassword, confirmPassword, phone, router]);
 
     return (
         <div style={{ minHeight: "100vh", backgroundColor: COLORS.white, padding: 24 }}>
@@ -112,9 +112,11 @@ export default function RegisterFormWeb() {
                 <button
                     type="button"
                     onClick={() => {
-                        if (step === "otp") {
-                            setStep("form");
+                        if (step === "reset") {
+                            setStep("phone");
                             setOtp("");
+                            setNewPassword("");
+                            setConfirmPassword("");
                             setError("");
                         } else {
                             router.back();
@@ -151,61 +153,23 @@ export default function RegisterFormWeb() {
                         margin: 0,
                     }}
                 >
-                    {step === "form" ? "Đăng ký" : "Xác thực OTP"}
+                    Quên mật khẩu
                 </h1>
-                {step === "otp" && (
-                    <p style={{ color: COLORS.textSecondary, fontSize: 14, marginTop: 8, textAlign: "center" }}>
-                        Mã xác thực đã được gửi đến số {phone}
-                    </p>
-                )}
+                <p style={{ color: COLORS.textSecondary, fontSize: 14, marginTop: 8, textAlign: "center" }}>
+                    {step === "phone"
+                        ? "Nhập số điện thoại để nhận mã xác thực"
+                        : `Mã xác thực đã được gửi đến số ${phone}`}
+                </p>
             </div>
 
             <div style={{ maxWidth: 400, margin: "0 auto" }}>
-                {step === "form" ? (
+                {step === "phone" ? (
                     <>
-                        <div style={{ marginBottom: 16 }}>
-                            <Input
-                                placeholder="Tên"
-                                value={name}
-                                onChange={(e: any) => setName(e.target?.value ?? e)}
-                                disabled={loading}
-                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16 }}
-                            />
-                        </div>
                         <div style={{ marginBottom: 16 }}>
                             <Input
                                 placeholder="Số điện thoại"
                                 value={phone}
                                 onChange={(e: any) => setPhone(e.target?.value ?? e)}
-                                disabled={loading}
-                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16 }}
-                            />
-                        </div>
-                        <div style={{ marginBottom: 16 }}>
-                            <Input
-                                placeholder="Email"
-                                value={email}
-                                onChange={(e: any) => setEmail(e.target?.value ?? e)}
-                                disabled={loading}
-                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16 }}
-                            />
-                        </div>
-                        <div style={{ marginBottom: 16 }}>
-                            <Input
-                                type="password"
-                                placeholder="Mật khẩu"
-                                value={password}
-                                onChange={(e: any) => setPassword(e.target?.value ?? e)}
-                                disabled={loading}
-                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16 }}
-                            />
-                        </div>
-                        <div style={{ marginBottom: 16 }}>
-                            <Input
-                                type="password"
-                                placeholder="Nhập lại mật khẩu"
-                                value={confirmPassword}
-                                onChange={(e: any) => setConfirmPassword(e.target?.value ?? e)}
                                 disabled={loading}
                                 style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16 }}
                             />
@@ -228,10 +192,9 @@ export default function RegisterFormWeb() {
                                 fontSize: 16,
                                 border: "none",
                                 marginTop: 16,
-                                marginBottom: 40,
                             }}
                         >
-                            {loading ? "Đang gửi mã..." : "Tiếp tục"}
+                            {loading ? "Đang gửi..." : "Gửi mã xác thực"}
                         </Button>
                     </>
                 ) : (
@@ -246,6 +209,27 @@ export default function RegisterFormWeb() {
                             />
                         </div>
 
+                        <div style={{ marginBottom: 16 }}>
+                            <Input
+                                type="password"
+                                placeholder="Mật khẩu mới"
+                                value={newPassword}
+                                onChange={(e: any) => setNewPassword(e.target?.value ?? e)}
+                                disabled={loading}
+                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16 }}
+                            />
+                        </div>
+                        <div style={{ marginBottom: 16 }}>
+                            <Input
+                                type="password"
+                                placeholder="Nhập lại mật khẩu mới"
+                                value={confirmPassword}
+                                onChange={(e: any) => setConfirmPassword(e.target?.value ?? e)}
+                                disabled={loading}
+                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16 }}
+                            />
+                        </div>
+
                         {error ? (
                             <p style={{ color: "#d32f2f", fontSize: 14, marginBottom: 12, textAlign: "center" }}>
                                 {error}
@@ -254,7 +238,7 @@ export default function RegisterFormWeb() {
 
                         <Button
                             fullWidth
-                            onClick={handleVerifyAndRegister}
+                            onClick={handleResetPassword}
                             disabled={loading || otp.length < 6}
                             style={{
                                 backgroundColor: loading || otp.length < 6 ? "#88b4ff" : COLORS.primary,
@@ -265,10 +249,9 @@ export default function RegisterFormWeb() {
                                 fontSize: 16,
                                 border: "none",
                                 marginTop: 16,
-                                marginBottom: 40,
                             }}
                         >
-                            {loading ? "Đang xác thực..." : "Xác nhận"}
+                            {loading ? "Đang xử lý..." : "Đặt lại mật khẩu"}
                         </Button>
                     </>
                 )}

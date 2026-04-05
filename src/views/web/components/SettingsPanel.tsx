@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useThemeStore } from "@/shared/store/themeStore";
+import ChangePasswordModal from "./ChangePasswordModal";
 
 const SIDEBAR_WIDTH = 72;
 const PANEL_WIDTH = 280;
@@ -43,6 +44,12 @@ const iconSupport = (
 const iconArrow = (
     <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="9 18 15 12 9 6" />
+    </svg>
+);
+const iconLock = (
+    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
     </svg>
 );
 
@@ -145,6 +152,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
     const logout = useAuthStore((s) => s.logout);
     const theme = useThemeStore((s) => s.theme);
     const isDark = theme === "dark";
+    const [showChangePassword, setShowChangePassword] = useState(false);
 
     const handleLogout = async () => {
         await logout();
@@ -162,6 +170,12 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                 router.push("/(tabs)/account");
                 onClose();
             },
+        },
+        {
+            id: "change-password",
+            label: "Đổi mật khẩu",
+            icon: iconLock,
+            onClick: () => setShowChangePassword(true),
         },
         {
             id: "settings",
@@ -366,6 +380,10 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                     </div>
                 </div>
             </div>
+
+            {showChangePassword && (
+                <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+            )}
         </>
     );
 }

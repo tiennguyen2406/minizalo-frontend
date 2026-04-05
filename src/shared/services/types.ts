@@ -6,6 +6,7 @@ export interface SignupRequest {
     password: string;
     gender?: string;
     dateOfBirth?: string;
+    verificationToken: string;
 }
 
 export interface LoginRequest {
