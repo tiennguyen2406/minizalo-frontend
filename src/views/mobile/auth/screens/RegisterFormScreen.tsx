@@ -35,48 +35,84 @@ export default function RegisterFormScreen() {
     const [confirmPasswordError, setConfirmPasswordError] = useState("");
     const [otpError, setOtpError] = useState("");
 
+    const getNameError = useCallback((raw: string): string => {
+        const trimmedName = raw.trim();
+        if (!trimmedName) return "Vui lòng nhập tên";
+        if (trimmedName.length < 2 || trimmedName.length > 40) return "Tên phải từ 2-40 ký tự";
+        if (!/^[\p{L} ]+$/u.test(trimmedName)) {
+            return "Tên chỉ được chứa chữ cái và khoảng trắng, không chứa số hay ký tự đặc biệt";
+        }
+        return "";
+    }, []);
+
+    const getPhoneError = useCallback((raw: string): string => {
+        const v = raw.trim();
+        if (!v) return "Vui lòng nhập số điện thoại";
+        if (!/^[0-9]+$/.test(v)) return "Số điện thoại chỉ được chứa chữ số";
+        if (v.length !== 10) return "Số điện thoại phải đủ 10 chữ số";
+        if (!/^(03|05|07|08|09)/.test(v)) return "Số điện thoại phải bắt đầu bằng 03, 05, 07, 08 hoặc 09";
+        return "";
+    }, []);
+
+    const getEmailError = useCallback((raw: string): string => {
+        const v = raw.trim();
+        if (!v) return "Vui lòng nhập email";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Email không hợp lệ";
+        return "";
+    }, []);
+
+    const getPasswordError = useCallback((raw: string): string => {
+        if (!raw) return "Vui lòng nhập mật khẩu";
+        if (raw.length < 6 || raw.length > 32) return "Mật khẩu phải từ 6-32 ký tự";
+        if (/\s/.test(raw)) return "Mật khẩu không được chứa khoảng trắng";
+        if (!/[A-Z]/.test(raw)) return "Mật khẩu phải chứa ít nhất 1 chữ hoa";
+        if (!/[a-z]/.test(raw)) return "Mật khẩu phải chứa ít nhất 1 chữ thường";
+        if (!/[0-9]/.test(raw)) return "Mật khẩu phải chứa ít nhất 1 chữ số";
+        return "";
+    }, []);
+
+    const getConfirmPasswordError = useCallback((pwd: string, confirm: string): string => {
+        if (!confirm) return "Vui lòng nhập lại mật khẩu";
+        if (pwd !== confirm) return "Mật khẩu nhập lại không khớp";
+        return "";
+    }, []);
+
     const validateForm = useCallback((): boolean => {
         let isValid = true;
 
-        const trimmedName = name.trim();
-        if (!trimmedName) {
-            setNameError("Vui lòng nhập tên"); isValid = false;
-        } else if (trimmedName.length < 2 || trimmedName.length > 40) {
-            setNameError("Tên phải từ 2-40 ký tự"); isValid = false;
-        }
+        const nameErr = getNameError(name);
+        setNameError(nameErr);
+        if (nameErr) isValid = false;
 
-        if (!phone.trim()) {
-            setPhoneError("Vui lòng nhập số điện thoại"); isValid = false;
-        } else if (!/^(03|05|07|08|09)[0-9]{8}$/.test(phone.trim())) {
-            setPhoneError("Số điện thoại phải là 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09"); isValid = false;
-        }
+        const phoneErr = getPhoneError(phone);
+        setPhoneError(phoneErr);
+        if (phoneErr) isValid = false;
 
-        if (!email.trim()) {
-            setEmailError("Vui lòng nhập email"); isValid = false;
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-            setEmailError("Email không hợp lệ"); isValid = false;
-        }
+        const emailErr = getEmailError(email);
+        setEmailError(emailErr);
+        if (emailErr) isValid = false;
 
-        if (!password) {
-            setPasswordError("Vui lòng nhập mật khẩu"); isValid = false;
-        } else if (password.length < 6 || password.length > 32) {
-            setPasswordError("Mật khẩu phải từ 6-32 ký tự"); isValid = false;
-        } else if (/\s/.test(password)) {
-            setPasswordError("Mật khẩu không được chứa khoảng trắng"); isValid = false;
-        } else if (!/[A-Z]/.test(password)) {
-            setPasswordError("Mật khẩu phải chứa ít nhất 1 chữ hoa"); isValid = false;
-        } else if (!/[a-z]/.test(password)) {
-            setPasswordError("Mật khẩu phải chứa ít nhất 1 chữ thường"); isValid = false;
-        } else if (!/[0-9]/.test(password)) {
-            setPasswordError("Mật khẩu phải chứa ít nhất 1 chữ số"); isValid = false;
-        }
+        const pwdErr = getPasswordError(password);
+        setPasswordError(pwdErr);
+        if (pwdErr) isValid = false;
 
-        if (password !== confirmPassword) {
-            setConfirmPasswordError("Mật khẩu nhập lại không khớp"); isValid = false;
-        }
+        const confirmErr = getConfirmPasswordError(password, confirmPassword);
+        setConfirmPasswordError(confirmErr);
+        if (confirmErr) isValid = false;
 
         return isValid;
-    }, [name, phone, email, password, confirmPassword]);
+    }, [
+        name,
+        phone,
+        email,
+        password,
+        confirmPassword,
+        getNameError,
+        getPhoneError,
+        getEmailError,
+        getPasswordError,
+        getConfirmPasswordError,
+    ]);
 
     const handleSendOtp = useCallback(async () => {
         // Reset errors
@@ -166,7 +202,10 @@ export default function RegisterFormScreen() {
                             <AuthInput
                                 placeholder="Tên"
                                 value={name}
-                                onChangeText={(text) => { setName(text); setNameError(""); }}
+                                onChangeText={(text) => {
+                                    setName(text);
+                                    setNameError(getNameError(text));
+                                }}
                                 disabled={loading}
                                 error={nameError}
                             />
@@ -174,7 +213,10 @@ export default function RegisterFormScreen() {
                             <AuthInput
                                 placeholder="Số điện thoại"
                                 value={phone}
-                                onChangeText={(text) => { setPhone(text); setPhoneError(""); }}
+                                onChangeText={(text) => {
+                                    setPhone(text);
+                                    setPhoneError(getPhoneError(text));
+                                }}
                                 keyboardType="phone-pad"
                                 disabled={loading}
                                 error={phoneError}
@@ -183,7 +225,10 @@ export default function RegisterFormScreen() {
                             <AuthInput
                                 placeholder="Email"
                                 value={email}
-                                onChangeText={(text) => { setEmail(text); setEmailError(""); }}
+                                onChangeText={(text) => {
+                                    setEmail(text);
+                                    setEmailError(getEmailError(text));
+                                }}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 disabled={loading}
@@ -193,7 +238,12 @@ export default function RegisterFormScreen() {
                             <AuthInput
                                 placeholder="Mật khẩu"
                                 value={password}
-                                onChangeText={(text) => { setPassword(text); setPasswordError(""); }}
+                                onChangeText={(text) => {
+                                    setPassword(text);
+                                    setPasswordError(getPasswordError(text));
+                                    // Re-validate confirm password realtime when password changes
+                                    setConfirmPasswordError(getConfirmPasswordError(text, confirmPassword));
+                                }}
                                 isPassword
                                 disabled={loading}
                                 error={passwordError}
@@ -202,7 +252,10 @@ export default function RegisterFormScreen() {
                             <AuthInput
                                 placeholder="Nhập lại mật khẩu"
                                 value={confirmPassword}
-                                onChangeText={(text) => { setConfirmPassword(text); setConfirmPasswordError(""); }}
+                                onChangeText={(text) => {
+                                    setConfirmPassword(text);
+                                    setConfirmPasswordError(getConfirmPasswordError(password, text));
+                                }}
                                 isPassword
                                 disabled={loading}
                                 error={confirmPasswordError}

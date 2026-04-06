@@ -1,5 +1,5 @@
 import "zmp-ui/zaui.css";
-import React, { useState, useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import { useRouter } from "expo-router";
 import { Button, Input } from "zmp-ui";
 import authService from "@/shared/services/authService";
@@ -29,69 +29,130 @@ export default function RegisterFormWeb() {
   const [verificationToken, setVerificationToken] = useState("");
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
+  const [otpError, setOtpError] = useState("");
   const [otpCooldown, setOtpCooldown] = useState(60);
 
-  const validateForm = useCallback(() => {
-    const trimmedName = name.trim();
+  const getNameError = useCallback((raw: string): string => {
+    const trimmedName = raw.trim();
     if (!trimmedName) return "Vui lòng nhập tên";
     if (trimmedName.length < 2 || trimmedName.length > 40)
       return "Tên phải từ 2-40 ký tự";
-    if (!/^[\p{L} ]+$/u.test(trimmedName))
+    if (!/^[\p{L} ]+$/u.test(trimmedName)) {
       return "Tên chỉ được chứa chữ cái và khoảng trắng, không chứa số hay ký tự đặc biệt";
-    if (!phone.trim()) return "Vui lòng nhập số điện thoại";
-    if (!/^(03|05|07|08|09)[0-9]{8}$/.test(phone.trim()))
-      return "Số điện thoại phải là 10 chữ số, bắt đầu bằng 03, 05, 07, 08 hoặc 09";
-    if (!email.trim()) return "Vui lòng nhập email";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
-      return "Email không hợp lệ";
-    if (!password) return "Vui lòng nhập mật khẩu";
-    if (password.length < 6 || password.length > 32)
-      return "Mật khẩu phải từ 6-32 ký tự";
-    if (/\s/.test(password)) return "Mật khẩu không được chứa khoảng trắng";
-    if (!/[A-Z]/.test(password)) return "Mật khẩu phải chứa ít nhất 1 chữ hoa";
-    if (!/[a-z]/.test(password))
-      return "Mật khẩu phải chứa ít nhất 1 chữ thường";
-    if (!/[0-9]/.test(password)) return "Mật khẩu phải chứa ít nhất 1 chữ số";
-    if (password !== confirmPassword) return "Mật khẩu nhập lại không khớp";
-    return null;
-  }, [name, phone, email, password, confirmPassword]);
+    }
+    return "";
+  }, []);
+
+  const getPhoneError = useCallback((raw: string): string => {
+    const v = raw.trim();
+    if (!v) return "Vui lòng nhập số điện thoại";
+    if (!/^[0-9]+$/.test(v)) return "Số điện thoại chỉ được chứa chữ số";
+    if (v.length !== 10) return "Số điện thoại phải đủ 10 chữ số";
+    if (!/^(03|05|07|08|09)/.test(v))
+      return "Số điện thoại phải bắt đầu bằng 03, 05, 07, 08 hoặc 09";
+    return "";
+  }, []);
+
+  const getEmailError = useCallback((raw: string): string => {
+    const v = raw.trim();
+    if (!v) return "Vui lòng nhập email";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Email không hợp lệ";
+    return "";
+  }, []);
+
+  const getPasswordError = useCallback((raw: string): string => {
+    if (!raw) return "Vui lòng nhập mật khẩu";
+    if (raw.length < 6 || raw.length > 32) return "Mật khẩu phải từ 6-32 ký tự";
+    if (/\s/.test(raw)) return "Mật khẩu không được chứa khoảng trắng";
+    if (!/[A-Z]/.test(raw)) return "Mật khẩu phải chứa ít nhất 1 chữ hoa";
+    if (!/[a-z]/.test(raw)) return "Mật khẩu phải chứa ít nhất 1 chữ thường";
+    if (!/[0-9]/.test(raw)) return "Mật khẩu phải chứa ít nhất 1 chữ số";
+    return "";
+  }, []);
+
+  const getConfirmPasswordError = useCallback(
+    (pwd: string, confirm: string): string => {
+      if (!confirm) return "Vui lòng nhập lại mật khẩu";
+      if (pwd !== confirm) return "Mật khẩu nhập lại không khớp";
+      return "";
+    },
+    [],
+  );
+
+  const validateForm = useCallback((): boolean => {
+    let isValid = true;
+
+    const nameErr = getNameError(name);
+    setNameError(nameErr);
+    if (nameErr) isValid = false;
+
+    const phoneErr = getPhoneError(phone);
+    setPhoneError(phoneErr);
+    if (phoneErr) isValid = false;
+
+    const emailErr = getEmailError(email);
+    setEmailError(emailErr);
+    if (emailErr) isValid = false;
+
+    const pwdErr = getPasswordError(password);
+    setPasswordError(pwdErr);
+    if (pwdErr) isValid = false;
+
+    const confirmErr = getConfirmPasswordError(password, confirmPassword);
+    setConfirmPasswordError(confirmErr);
+    if (confirmErr) isValid = false;
+
+    return isValid;
+  }, [
+    name,
+    phone,
+    email,
+    password,
+    confirmPassword,
+    getNameError,
+    getPhoneError,
+    getEmailError,
+    getPasswordError,
+    getConfirmPasswordError,
+  ]);
 
   const handleSendOtp = useCallback(async () => {
-    setError("");
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
+    setOtpError("");
+    if (!validateForm()) return;
+
     setLoading(true);
     try {
       await authService.sendOtp(phone.trim());
       setStep("otp");
       setOtpCooldown(60);
     } catch (err: any) {
-      setError(
+      setOtpError(
         err.response?.data?.message || "Gửi mã OTP thất bại. Vui lòng thử lại.",
       );
     } finally {
       setLoading(false);
     }
-  }, [validateForm, phone]);
+  }, [phone, validateForm]);
 
   const handleResendOtp = useCallback(async () => {
     try {
       await authService.sendOtp(phone.trim());
       setOtpCooldown(60);
-      setError("");
+      setOtpError("");
     } catch (err: any) {
-      setError(err.response?.data?.message || "Gửi lại mã OTP thất bại.");
+      setOtpError(err.response?.data?.message || "Gửi lại mã OTP thất bại.");
     }
   }, [phone]);
 
   const handleVerifyAndRegister = useCallback(async () => {
-    setError("");
+    setOtpError("");
     if (otp.length < 6) {
-      setError("Vui lòng nhập đủ 6 số OTP");
+      setOtpError("Vui lòng nhập đủ 6 số OTP");
       return;
     }
     setLoading(true);
@@ -108,7 +169,7 @@ export default function RegisterFormWeb() {
       });
       router.replace("/(auth)/login-form");
     } catch (err: any) {
-      setError(
+      setOtpError(
         err.response?.data?.message || "Xác thực thất bại. Vui lòng thử lại.",
       );
     } finally {
@@ -117,9 +178,7 @@ export default function RegisterFormWeb() {
   }, [otp, phone, name, email, password, router]);
 
   return (
-    <div
-      style={{ minHeight: "100vh", backgroundColor: COLORS.white, padding: 24 }}
-    >
+    <div style={{ minHeight: "100vh", backgroundColor: COLORS.white, padding: 24 }}>
       <div style={{ paddingTop: 20, paddingBottom: 20 }}>
         <button
           type="button"
@@ -127,7 +186,12 @@ export default function RegisterFormWeb() {
             if (step === "otp") {
               setStep("form");
               setOtp("");
-              setError("");
+              setNameError("");
+              setPhoneError("");
+              setEmailError("");
+              setPasswordError("");
+              setConfirmPasswordError("");
+              setOtpError("");
             } else {
               router.back();
             }
@@ -186,73 +250,123 @@ export default function RegisterFormWeb() {
               <Input
                 placeholder="Tên"
                 value={name}
-                onChange={(e: any) => setName(e.target?.value ?? e)}
+                onChange={(e: any) => {
+                  const v = e.target?.value ?? e;
+                  setName(v);
+                  setNameError(getNameError(v));
+                }}
                 disabled={loading}
                 style={{
-                  borderBottom: `1px solid ${COLORS.border}`,
+                  borderBottom: `1px solid ${nameError ? "#d32f2f" : COLORS.border}`,
                   padding: "12px 0",
                   fontSize: 16,
                 }}
               />
+              {nameError ? (
+                <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                  {nameError}
+                </p>
+              ) : null}
             </div>
+
             <div style={{ marginBottom: 16 }}>
               <Input
                 placeholder="Số điện thoại"
                 value={phone}
-                onChange={(e: any) => setPhone(e.target?.value ?? e)}
+                onChange={(e: any) => {
+                  const v = e.target?.value ?? e;
+                  setPhone(v);
+                  setPhoneError(getPhoneError(v));
+                }}
                 disabled={loading}
                 style={{
-                  borderBottom: `1px solid ${COLORS.border}`,
+                  borderBottom: `1px solid ${phoneError ? "#d32f2f" : COLORS.border}`,
                   padding: "12px 0",
                   fontSize: 16,
                 }}
               />
+              {phoneError ? (
+                <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                  {phoneError}
+                </p>
+              ) : null}
             </div>
+
             <div style={{ marginBottom: 16 }}>
               <Input
                 placeholder="Email"
                 value={email}
-                onChange={(e: any) => setEmail(e.target?.value ?? e)}
+                onChange={(e: any) => {
+                  const v = e.target?.value ?? e;
+                  setEmail(v);
+                  setEmailError(getEmailError(v));
+                }}
                 disabled={loading}
                 style={{
-                  borderBottom: `1px solid ${COLORS.border}`,
+                  borderBottom: `1px solid ${emailError ? "#d32f2f" : COLORS.border}`,
                   padding: "12px 0",
                   fontSize: 16,
                 }}
               />
+              {emailError ? (
+                <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                  {emailError}
+                </p>
+              ) : null}
             </div>
+
             <div style={{ marginBottom: 16 }}>
               <Input
                 type="password"
                 placeholder="Mật khẩu"
                 value={password}
-                onChange={(e: any) => setPassword(e.target?.value ?? e)}
+                onChange={(e: any) => {
+                  const v = e.target?.value ?? e;
+                  setPassword(v);
+                  setPasswordError(getPasswordError(v));
+                  setConfirmPasswordError(getConfirmPasswordError(v, confirmPassword));
+                }}
                 disabled={loading}
                 style={{
-                  borderBottom: `1px solid ${COLORS.border}`,
+                  borderBottom: `1px solid ${passwordError ? "#d32f2f" : COLORS.border}`,
                   padding: "12px 0",
                   fontSize: 16,
                 }}
               />
+              {passwordError ? (
+                <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                  {passwordError}
+                </p>
+              ) : null}
             </div>
+
             <div style={{ marginBottom: 16 }}>
               <Input
                 type="password"
                 placeholder="Nhập lại mật khẩu"
                 value={confirmPassword}
-                onChange={(e: any) => setConfirmPassword(e.target?.value ?? e)}
+                onChange={(e: any) => {
+                  const v = e.target?.value ?? e;
+                  setConfirmPassword(v);
+                  setConfirmPasswordError(getConfirmPasswordError(password, v));
+                }}
                 disabled={loading}
                 style={{
-                  borderBottom: `1px solid ${COLORS.border}`,
+                  borderBottom: `1px solid ${confirmPasswordError ? "#d32f2f" : COLORS.border}`,
                   padding: "12px 0",
                   fontSize: 16,
                 }}
               />
+              {confirmPasswordError ? (
+                <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                  {confirmPasswordError}
+                </p>
+              ) : null}
             </div>
 
-            {error ? (
+            {otpError ? (
               <p style={{ color: "#d32f2f", fontSize: 14, marginBottom: 12 }}>
-                {error}
+                {otpError}
               </p>
             ) : null}
 
@@ -280,14 +394,17 @@ export default function RegisterFormWeb() {
             <div style={{ marginTop: 16, marginBottom: 24 }}>
               <OtpInput
                 value={otp}
-                onChange={setOtp}
+                onChange={(v) => {
+                  setOtp(v);
+                  setOtpError("");
+                }}
                 disabled={loading}
                 onResend={handleResendOtp}
                 cooldownSeconds={otpCooldown}
               />
             </div>
 
-            {error ? (
+            {otpError ? (
               <p
                 style={{
                   color: "#d32f2f",
@@ -296,7 +413,7 @@ export default function RegisterFormWeb() {
                   textAlign: "center",
                 }}
               >
-                {error}
+                {otpError}
               </p>
             ) : null}
 
@@ -305,8 +422,7 @@ export default function RegisterFormWeb() {
               onClick={handleVerifyAndRegister}
               disabled={loading || otp.length < 6}
               style={{
-                backgroundColor:
-                  loading || otp.length < 6 ? "#88b4ff" : COLORS.primary,
+                backgroundColor: loading || otp.length < 6 ? "#88b4ff" : COLORS.primary,
                 borderRadius: 25,
                 padding: "14px 24px",
                 color: COLORS.white,

@@ -64,6 +64,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         set({ accessToken, refreshToken });
         const { user } = get();
         saveToWebStorage({ accessToken, refreshToken, user });
+        scheduleProactiveRefresh();
     },
 
     login: async (data: LoginRequest) => {
@@ -75,13 +76,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         set(newState);
         // Persist to web storage immediately (user will be set later by profile fetch)
         saveToWebStorage({ ...newState, user: get().user });
+        scheduleProactiveRefresh();
     },
 
     logout: async () => {
-        const { accessToken } = get();
+        const { accessToken, refreshToken } = get();
         if (accessToken) {
             try {
-                await authService.logout(accessToken);
+                await authService.logout(accessToken, refreshToken);
             } catch {
                 // ignore network error on logout
             }
@@ -92,6 +94,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
         set({ accessToken: null, refreshToken: null, user: null });
         clearWebStorage();
+        cancelProactiveRefresh();
     },
 
     refreshAuth: async (): Promise<boolean> => {
@@ -105,10 +108,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             };
             set(newState);
             saveToWebStorage({ ...newState, user: get().user });
+            scheduleProactiveRefresh();
             return true;
         } catch {
             set({ accessToken: null, refreshToken: null });
             clearWebStorage();
+            cancelProactiveRefresh();
             return false;
         }
     },
@@ -116,10 +121,60 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     clear: () => {
         set({ accessToken: null, refreshToken: null, user: null });
         clearWebStorage();
+        cancelProactiveRefresh();
     },
 }));
 
 export const isAuthenticated = (): boolean => {
     return !!useAuthStore.getState().accessToken;
 };
+
+// ─── Proactive refresh (keep user logged in while using app) ───
+let refreshTimer: any = null;
+
+function cancelProactiveRefresh() {
+    if (refreshTimer) {
+        clearTimeout(refreshTimer);
+        refreshTimer = null;
+    }
+}
+
+function decodeJwtExpMs(token: string): number | null {
+    try {
+        const parts = token.split(".");
+        if (parts.length < 2) return null;
+        const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        // pad base64
+        const pad = payload.length % 4;
+        const padded = pad ? payload + "=".repeat(4 - pad) : payload;
+        const json = typeof atob !== "undefined" ? atob(padded) : Buffer.from(padded, "base64").toString("utf-8");
+        const data = JSON.parse(json);
+        if (typeof data.exp !== "number") return null;
+        return data.exp * 1000;
+    } catch {
+        return null;
+    }
+}
+
+function scheduleProactiveRefresh() {
+    cancelProactiveRefresh();
+
+    const { accessToken, refreshToken } = useAuthStore.getState();
+    if (!accessToken || !refreshToken) return;
+
+    const expMs = decodeJwtExpMs(accessToken);
+    if (!expMs) return;
+
+    // Refresh a bit before expiry (90 seconds)
+    const refreshAt = expMs - 90_000;
+    const delay = Math.max(5_000, refreshAt - Date.now());
+
+    refreshTimer = setTimeout(async () => {
+        const ok = await useAuthStore.getState().refreshAuth();
+        if (!ok) {
+            useAuthStore.getState().clear();
+        }
+        // refreshAuth() will reschedule on success
+    }, delay);
+}
 
