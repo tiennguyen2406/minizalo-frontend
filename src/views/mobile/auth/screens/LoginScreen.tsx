@@ -37,8 +37,11 @@ export default function LoginScreen() {
                     </View>
 
                     {/* Forgot Password */}
-                    <TouchableOpacity style={styles.forgotContainer}>
-                        <Text style={[styles.forgotText, { color: colors.textSecondary }]}>Quên mật khẩu</Text>
+                    <TouchableOpacity
+                        style={styles.forgotContainer}
+                        onPress={() => router.push("/(auth)/forgot-password")}
+                    >
+                        <Text style={[styles.forgotText, { color: colors.textSecondary }]}>Quên mật khẩu?</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>

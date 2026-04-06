@@ -122,7 +122,10 @@ export default function LoginFormScreen() {
                     loading={loading}
                 />
 
-                <AuthLink text="Quên mật khẩu" />
+                <AuthLink
+                    text="Quên mật khẩu?"
+                    onPress={() => router.push("/(auth)/forgot-password")}
+                />
             </KeyboardAvoidingView>
 
             {/* Error Modal */}

@@ -50,20 +50,26 @@ function SettingsItem({ label, onPress, isHeader, colors }: SettingsItemProps) {
 
     return (
         <TouchableOpacity
-            onPress={onPress}
+            onPress={() => {
+                console.log(`SettingsItem pressed: ${label}`);
+                alert(`Pressed: ${label}`);
+                onPress?.();
+            }}
             activeOpacity={0.7}
             style={{
                 paddingHorizontal: 16,
-                paddingVertical: 14,
+                paddingVertical: 20, // Tăng padding để dễ nhấn hơn
                 backgroundColor: colors.card,
                 borderBottomWidth: 0.5,
                 borderBottomColor: colors.border,
+                minHeight: 60, // Đảm bảo có chiều cao tối thiểu
             }}
         >
             <Text
                 style={{
                     color: colors.text,
                     fontSize: 15,
+                    fontWeight: "500", // Tăng đậm để dễ thấy
                 }}
             >
                 {label}
@@ -141,7 +147,15 @@ export default function ProfileSettingsScreen({ user }: ProfileSettingsScreenPro
                 {/* Nhóm 2: Cài đặt */}
                 <SettingsItem label="Cài đặt" isHeader colors={colors} />
                 <SettingsItem label="Mã QR của tôi" colors={colors} />
-                <SettingsItem label="Quyền riêng tư" colors={colors} />
+                <SettingsItem 
+                    label="Quyền riêng tư" 
+                    onPress={() => {
+                        console.log("=== PRIVACY PRESSED ===");
+                        alert("Privacy pressed!");
+                        router.push("/privacy");
+                    }} 
+                    colors={colors} 
+                />
                 <SettingsItem label="Quản lý tài khoản" colors={colors} />
                 <SettingsItem label="Cài đặt chung" colors={colors} />
 

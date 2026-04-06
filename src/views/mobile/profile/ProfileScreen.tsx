@@ -238,6 +238,7 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                 <MenuItem
                     icon="lock-closed"
                     title="Quyền riêng tư"
+                    onPress={() => router.push("/privacy")}
                 />
 
                 {/* Padding bottom */}

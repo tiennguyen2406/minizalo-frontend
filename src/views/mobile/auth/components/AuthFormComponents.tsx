@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, TextInputProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -138,6 +138,119 @@ export const AuthLink: React.FC<AuthLinkProps> = ({ text, onPress }) => {
             <TouchableOpacity onPress={onPress}>
                 <Text style={[authStyles.linkText, { color: colors.textSecondary }]}>{text}</Text>
             </TouchableOpacity>
+        </View>
+    );
+};
+
+// OTP Input Mobile - 6 ô nhập riêng lẻ với auto-focus
+interface OtpInputMobileProps {
+    value: string;
+    onChange: (otp: string) => void;
+    disabled?: boolean;
+    onResend?: () => void;
+    cooldownSeconds?: number;
+}
+
+export const OtpInputMobile: React.FC<OtpInputMobileProps> = ({
+    value,
+    onChange,
+    disabled,
+    onResend,
+    cooldownSeconds = 60,
+}) => {
+    const colors = useThemeColors();
+    const [countdown, setCountdown] = useState(cooldownSeconds);
+    const inputRefs = useRef<(TextInput | null)[]>([]);
+    const digits = Array.from({ length: 6 }, (_, i) => value[i] || "");
+
+    useEffect(() => {
+        setCountdown(cooldownSeconds);
+    }, [cooldownSeconds]);
+
+    useEffect(() => {
+        if (countdown <= 0) return;
+        const timer = setInterval(() => setCountdown((c) => c - 1), 1000);
+        return () => clearInterval(timer);
+    }, [countdown]);
+
+    const handleDigitChange = (text: string, index: number) => {
+        const cleaned = text.replace(/[^0-9]/g, "");
+        if (!cleaned) {
+            // Xoá ký tự
+            const newOtp = digits.map((d, i) => (i === index ? "" : d)).join("");
+            onChange(newOtp);
+            if (index > 0) inputRefs.current[index - 1]?.focus();
+            return;
+        }
+        const digit = cleaned[cleaned.length - 1];
+        const newDigits = [...digits];
+        newDigits[index] = digit;
+        const newOtp = newDigits.join("");
+        onChange(newOtp);
+        if (index < 5) inputRefs.current[index + 1]?.focus();
+    };
+
+    const handleKeyPress = (e: any, index: number) => {
+        if (e.nativeEvent.key === "Backspace" && !digits[index] && index > 0) {
+            const newDigits = [...digits];
+            newDigits[index - 1] = "";
+            onChange(newDigits.join(""));
+            inputRefs.current[index - 1]?.focus();
+        }
+    };
+
+    return (
+        <View>
+            {/* 6 ô OTP */}
+            <View style={{ flexDirection: "row", justifyContent: "center", gap: 10, marginBottom: 24 }}>
+                {digits.map((digit, index) => (
+                    <TextInput
+                        key={index}
+                        ref={(ref) => { inputRefs.current[index] = ref; }}
+                        value={digit}
+                        onChangeText={(text) => handleDigitChange(text, index)}
+                        onKeyPress={(e) => handleKeyPress(e, index)}
+                        keyboardType="number-pad"
+                        maxLength={1}
+                        editable={!disabled}
+                        style={{
+                            width: 48,
+                            height: 56,
+                            borderWidth: 1.5,
+                            borderColor: digit ? colors.primary : colors.border,
+                            borderRadius: 12,
+                            textAlign: "center",
+                            fontSize: 22,
+                            fontWeight: "700",
+                            color: colors.text,
+                            backgroundColor: colors.card,
+                        }}
+                        selectTextOnFocus
+                    />
+                ))}
+            </View>
+
+            {/* Gửi lại */}
+            <View style={{ alignItems: "center" }}>
+                {countdown > 0 ? (
+                    <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
+                        Gửi lại sau{" "}
+                        <Text style={{ color: colors.primary, fontWeight: "600" }}>{countdown}s</Text>
+                    </Text>
+                ) : (
+                    <TouchableOpacity
+                        onPress={() => {
+                            onResend?.();
+                            setCountdown(cooldownSeconds);
+                        }}
+                        disabled={disabled}
+                    >
+                        <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "600" }}>
+                            Gửi lại mã OTP
+                        </Text>
+                    </TouchableOpacity>
+                )}
+            </View>
         </View>
     );
 };
