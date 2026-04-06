@@ -12,6 +12,7 @@ import { useChatStore } from '@/shared/store/useChatStore';
 import { chatService, ChatRoomResponse } from '@/shared/services/chatService';
 import { webSocketService } from '@/shared/services/WebSocketService';
 import { ChatRoom } from '../types';
+import axios from 'axios';
 
 export function useWebSocketManager() {
     // Chỉ chạy trên web
@@ -77,7 +78,9 @@ function _useWebSocketManagerWeb() {
                 allRooms.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
                 setRooms(allRooms);
             } catch (err) {
-                console.error('[useWebSocketManager] Failed to fetch chat rooms:', err);
+                if (!axios.isAxiosError(err) || err.response?.status !== 401) {
+                    console.error('[useWebSocketManager] Failed to fetch chat rooms:', err);
+                }
             }
         };
 

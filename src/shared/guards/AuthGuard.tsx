@@ -28,11 +28,32 @@ export function AuthGuard({
     const [isValidating, setIsValidating] = useState(false);
     const [isTokenValid, setIsTokenValid] = useState<boolean | null>(null);
 
+    const isAccessTokenExpired = (token: string | null): boolean => {
+        if (!token) return true;
+        try {
+            const parts = token.split(".");
+            if (parts.length < 2) return true;
+            const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+            const pad = payload.length % 4;
+            const padded = pad ? payload + "=".repeat(4 - pad) : payload;
+            const json = typeof atob !== "undefined" ? atob(padded) : Buffer.from(padded, "base64").toString("utf-8");
+            const data = JSON.parse(json);
+            if (typeof data.exp !== "number") return true;
+            return data.exp * 1000 <= Date.now();
+        } catch {
+            return true;
+        }
+    };
+
     // Validate token with server when app loads
     useEffect(() => {
         const validateToken = async () => {
             if (isHydrated && refreshToken && isTokenValid === null) {
                 setIsValidating(true);
+                // Optimistic UX on web refresh: keep user in app if current access token still valid
+                if (accessToken && !isAccessTokenExpired(accessToken)) {
+                    setIsTokenValid(true);
+                }
                 try {
                     const success = await refreshAuth();
                     setIsTokenValid(success);
@@ -52,19 +73,31 @@ export function AuthGuard({
                             }
                         }
                     } else {
-                        clear(); // Clear invalid tokens
+                        // Only clear if access token is already expired.
+                        // If token is still valid (e.g. temporary network issue), keep current session.
+                        if (!accessToken || isAccessTokenExpired(accessToken)) {
+                            clear();
+                        } else {
+                            setIsTokenValid(true);
+                        }
                     }
                 } catch {
-                    setIsTokenValid(false);
-                    clear(); // Clear invalid tokens
+                    if (!accessToken || isAccessTokenExpired(accessToken)) {
+                        setIsTokenValid(false);
+                        clear();
+                    } else {
+                        setIsTokenValid(true);
+                    }
                 }
                 setIsValidating(false);
             } else if (isHydrated && !refreshToken) {
-                setIsTokenValid(false);
+                // If no refresh token but access token still valid, allow temporarily.
+                // API layer will eventually force relogin when token expires.
+                setIsTokenValid(accessToken ? !isAccessTokenExpired(accessToken) : false);
             }
         };
         validateToken();
-    }, [isHydrated, refreshToken]);
+    }, [isHydrated, refreshToken, accessToken]);
 
 
     // Show loading while hydrating or validating

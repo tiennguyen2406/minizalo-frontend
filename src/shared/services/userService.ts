@@ -29,6 +29,10 @@ export const userService = {
         });
         return data;
     },
+
+    lockAccount: async (password: string): Promise<void> => {
+        await api.post("/users/lock-account", { password });
+    },
 };
 
 export default userService;
