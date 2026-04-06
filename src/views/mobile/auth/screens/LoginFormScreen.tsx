@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/shared/store/authStore";
@@ -90,42 +90,48 @@ export default function LoginFormScreen() {
         <View style={authStyles.container}>
             <StatusBar style={colors.background === "#000000" ? "light" : "dark"} />
 
-            <AuthHeader onBack={() => router.back()} />
-
             <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={authStyles.content}
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
+                style={{ flex: 1 }}
             >
-                <AuthTitle title="Đăng nhập" />
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ flexGrow: 1 }}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <AuthHeader onBack={() => router.back()} />
 
-                <AuthInput
-                    placeholder="Số điện thoại hoặc email"
-                    value={phone}
-                    onChangeText={(text) => { setPhone(text); setPhoneError(""); }}
-                    keyboardType="phone-pad"
-                    disabled={loading}
-                    error={phoneError}
-                />
+                    <View style={authStyles.content}>
+                        <AuthTitle title="Đăng nhập" />
 
-                <AuthInput
-                    placeholder="Mật khẩu"
-                    value={password}
-                    onChangeText={(text) => { setPassword(text); setPasswordError(""); }}
-                    isPassword
-                    disabled={loading}
-                    error={passwordError}
-                />
+                        <AuthInput
+                            placeholder="Số điện thoại hoặc email"
+                            value={phone}
+                            onChangeText={(text) => { setPhone(text); setPhoneError(""); }}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            disabled={loading}
+                            error={phoneError}
+                        />
 
-                <AuthButton
-                    title="Đăng nhập"
-                    onPress={handleLogin}
-                    loading={loading}
-                />
+                        <AuthInput
+                            placeholder="Mật khẩu"
+                            value={password}
+                            onChangeText={(text) => { setPassword(text); setPasswordError(""); }}
+                            isPassword
+                            disabled={loading}
+                            error={passwordError}
+                        />
 
-                <AuthLink
-                    text="Quên mật khẩu?"
-                    onPress={() => router.push("/(auth)/forgot-password")}
-                />
+                        <AuthButton
+                            title="Đăng nhập"
+                            onPress={handleLogin}
+                            loading={loading}
+                        />
+
+                        <AuthLink text="Quên mật khẩu" />
+                    </View>
+                </ScrollView>
             </KeyboardAvoidingView>
 
             {/* Error Modal */}

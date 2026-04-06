@@ -50,10 +50,36 @@ export function AuthGuard({
         const validateToken = async () => {
             if (isHydrated && refreshToken && isTokenValid === null) {
                 setIsValidating(true);
-                // Optimistic UX on web refresh: keep user in app if current access token still valid
+
+                // If access token exists and is NOT expired, skip refresh entirely.
+                // The proactive-refresh scheduler in authStore already handles
+                // pre-emptive renewal before expiry.  Calling refreshAuth() here
+                // when the token is still valid causes a race condition: the
+                // backend rotates the session row, immediately invalidating the
+                // current access-token's embedded session-token (st claim) for
+                // any concurrent request that is already in-flight.
                 if (accessToken && !isAccessTokenExpired(accessToken)) {
                     setIsTokenValid(true);
+                    setIsValidating(false);
+
+                    // Fetch user profile if not already loaded
+                    if (!user) {
+                        try {
+                            const profile = await userService.getProfile();
+                            setUser({
+                                id: profile.id,
+                                username: profile.username,
+                                fullName: profile.displayName || profile.username,
+                                avatarUrl: profile.avatarUrl || undefined,
+                            });
+                        } catch {
+                            // Profile fetch failed but auth is still valid
+                        }
+                    }
+                    return;
                 }
+
+                // Access token is missing or expired — try refreshing
                 try {
                     const success = await refreshAuth();
                     setIsTokenValid(success);
@@ -73,21 +99,11 @@ export function AuthGuard({
                             }
                         }
                     } else {
-                        // Only clear if access token is already expired.
-                        // If token is still valid (e.g. temporary network issue), keep current session.
-                        if (!accessToken || isAccessTokenExpired(accessToken)) {
-                            clear();
-                        } else {
-                            setIsTokenValid(true);
-                        }
+                        clear();
                     }
                 } catch {
-                    if (!accessToken || isAccessTokenExpired(accessToken)) {
-                        setIsTokenValid(false);
-                        clear();
-                    } else {
-                        setIsTokenValid(true);
-                    }
+                    setIsTokenValid(false);
+                    clear();
                 }
                 setIsValidating(false);
             } else if (isHydrated && !refreshToken) {
@@ -97,7 +113,7 @@ export function AuthGuard({
             }
         };
         validateToken();
-    }, [isHydrated, refreshToken, accessToken]);
+    }, [isHydrated, refreshToken]);
 
 
     // Show loading while hydrating or validating

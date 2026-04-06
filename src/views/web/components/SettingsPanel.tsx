@@ -94,11 +94,20 @@ function ThemeToggleSwitch() {
     const isDark = theme === "dark";
 
     return (
-        <button
-            type="button"
+        <div
+            role="switch"
+            aria-checked={isDark}
+            tabIndex={0}
             onClick={(e) => {
                 e.stopPropagation();
                 toggleTheme();
+            }}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleTheme();
+                }
             }}
             title={isDark ? "Chuyển sang sáng" : "Chuyển sang tối"}
             style={{
@@ -148,7 +157,7 @@ function ThemeToggleSwitch() {
                     </svg>
                 )}
             </div>
-        </button>
+        </div>
     );
 }
 

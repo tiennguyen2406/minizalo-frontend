@@ -116,121 +116,127 @@ export default function ForgotPasswordScreen() {
         <View style={authStyles.container}>
             <StatusBar style={colors.background === "#000000" ? "light" : "dark"} />
 
-            <AuthHeader
-                onBack={() => {
-                    if (step === "reset") {
-                        setStep("phone");
-                        setOtp("");
-                        setNewPassword("");
-                        setConfirmPassword("");
-                        setOtpError("");
-                        setNewPasswordError("");
-                        setConfirmPasswordError("");
-                    } else {
-                        router.back();
-                    }
-                }}
-            />
-
             <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={authStyles.content}
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
+                style={{ flex: 1 }}
             >
-                <ScrollView showsVerticalScrollIndicator={false}>
-                    {step === "phone" ? (
-                        <>
-                            <AuthTitle title="Quên mật khẩu" />
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ flexGrow: 1 }}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <AuthHeader
+                        onBack={() => {
+                            if (step === "reset") {
+                                setStep("phone");
+                                setOtp("");
+                                setNewPassword("");
+                                setConfirmPassword("");
+                                setOtpError("");
+                                setNewPasswordError("");
+                                setConfirmPasswordError("");
+                            } else {
+                                router.back();
+                            }
+                        }}
+                    />
 
-                            <Text style={{
-                                textAlign: "center",
-                                color: colors.textSecondary,
-                                fontSize: 14,
-                                marginBottom: 24,
-                                lineHeight: 20,
-                            }}>
-                                Nhập số điện thoại để nhận mã xác thực
-                            </Text>
+                    <View style={authStyles.content}>
+                        {step === "phone" ? (
+                            <>
+                                <AuthTitle title="Quên mật khẩu" />
 
-                            <AuthInput
-                                placeholder="Số điện thoại"
-                                value={phone}
-                                onChangeText={(text) => { setPhone(text); setPhoneError(""); }}
-                                keyboardType="phone-pad"
-                                disabled={loading}
-                                error={phoneError}
-                            />
-
-                            <AuthButton
-                                title={loading ? "Đang gửi..." : "Gửi mã xác thực"}
-                                onPress={handleSendOtp}
-                                loading={loading}
-                                style={{ marginTop: 8, marginBottom: 40 }}
-                            />
-                        </>
-                    ) : (
-                        <>
-                            <AuthTitle title="Đặt mật khẩu mới" />
-
-                            <Text style={{
-                                textAlign: "center",
-                                color: colors.textSecondary,
-                                fontSize: 14,
-                                marginBottom: 24,
-                                lineHeight: 20,
-                            }}>
-                                Mã xác thực đã được gửi đến số{"\n"}
-                                <Text style={{ color: colors.primary, fontWeight: "600" }}>{phone}</Text>
-                            </Text>
-
-                            <OtpInputMobile
-                                value={otp}
-                                onChange={(v) => { setOtp(v); setOtpError(""); }}
-                                disabled={loading}
-                                onResend={handleResendOtp}
-                                cooldownSeconds={otpCooldown}
-                            />
-
-                            {otpError ? (
                                 <Text style={{
-                                    color: "#d32f2f",
-                                    fontSize: 13,
                                     textAlign: "center",
-                                    marginTop: 4,
-                                    marginBottom: 8,
+                                    color: colors.textSecondary,
+                                    fontSize: 14,
+                                    marginBottom: 24,
+                                    lineHeight: 20,
                                 }}>
-                                    {otpError}
+                                    Nhập số điện thoại để nhận mã xác thực
                                 </Text>
-                            ) : null}
-
-                            <View style={{ marginTop: 16 }}>
-                                <AuthInput
-                                    placeholder="Mật khẩu mới"
-                                    value={newPassword}
-                                    onChangeText={(text) => { setNewPassword(text); setNewPasswordError(""); }}
-                                    isPassword
-                                    disabled={loading}
-                                    error={newPasswordError}
-                                />
 
                                 <AuthInput
-                                    placeholder="Nhập lại mật khẩu mới"
-                                    value={confirmPassword}
-                                    onChangeText={(text) => { setConfirmPassword(text); setConfirmPasswordError(""); }}
-                                    isPassword
+                                    placeholder="Số điện thoại"
+                                    value={phone}
+                                    onChangeText={(text) => { setPhone(text); setPhoneError(""); }}
+                                    keyboardType="phone-pad"
                                     disabled={loading}
-                                    error={confirmPasswordError}
+                                    error={phoneError}
                                 />
-                            </View>
 
-                            <AuthButton
-                                title={loading ? "Đang xử lý..." : "Đặt lại mật khẩu"}
-                                onPress={handleResetPassword}
-                                loading={loading}
-                                disabled={otp.length < 6}
-                                style={{ marginTop: 8, marginBottom: 40 }}
-                            />
-                        </>
-                    )}
+                                <AuthButton
+                                    title={loading ? "Đang gửi..." : "Gửi mã xác thực"}
+                                    onPress={handleSendOtp}
+                                    loading={loading}
+                                    style={{ marginTop: 8, marginBottom: 40 }}
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <AuthTitle title="Đặt mật khẩu mới" />
+
+                                <Text style={{
+                                    textAlign: "center",
+                                    color: colors.textSecondary,
+                                    fontSize: 14,
+                                    marginBottom: 24,
+                                    lineHeight: 20,
+                                }}>
+                                    Mã xác thực đã được gửi đến số{"\n"}
+                                    <Text style={{ color: colors.primary, fontWeight: "600" }}>{phone}</Text>
+                                </Text>
+
+                                <OtpInputMobile
+                                    value={otp}
+                                    onChange={(v) => { setOtp(v); setOtpError(""); }}
+                                    disabled={loading}
+                                    onResend={handleResendOtp}
+                                    cooldownSeconds={otpCooldown}
+                                />
+
+                                {otpError ? (
+                                    <Text style={{
+                                        color: "#d32f2f",
+                                        fontSize: 13,
+                                        textAlign: "center",
+                                        marginTop: 4,
+                                        marginBottom: 8,
+                                    }}>
+                                        {otpError}
+                                    </Text>
+                                ) : null}
+
+                                <View style={{ marginTop: 16 }}>
+                                    <AuthInput
+                                        placeholder="Mật khẩu mới"
+                                        value={newPassword}
+                                        onChangeText={(text) => { setNewPassword(text); setNewPasswordError(""); }}
+                                        isPassword
+                                        disabled={loading}
+                                        error={newPasswordError}
+                                    />
+
+                                    <AuthInput
+                                        placeholder="Nhập lại mật khẩu mới"
+                                        value={confirmPassword}
+                                        onChangeText={(text) => { setConfirmPassword(text); setConfirmPasswordError(""); }}
+                                        isPassword
+                                        disabled={loading}
+                                        error={confirmPasswordError}
+                                    />
+                                </View>
+
+                                <AuthButton
+                                    title={loading ? "Đang xử lý..." : "Đặt lại mật khẩu"}
+                                    onPress={handleResetPassword}
+                                    loading={loading}
+                                    disabled={otp.length < 6}
+                                    style={{ marginTop: 8, marginBottom: 40 }}
+                                />
+                            </>
+                        )}
+                    </View>
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
