@@ -41,6 +41,7 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
         if (!/[A-Z]/.test(newPassword)) { setError("Mật khẩu phải chứa ít nhất 1 chữ hoa"); return; }
         if (!/[a-z]/.test(newPassword)) { setError("Mật khẩu phải chứa ít nhất 1 chữ thường"); return; }
         if (!/[0-9]/.test(newPassword)) { setError("Mật khẩu phải chứa ít nhất 1 chữ số"); return; }
+        if (newPassword === oldPassword) { setError("Mật khẩu mới phải khác mật khẩu hiện tại"); return; }
         if (newPassword !== confirmPassword) { setError("Mật khẩu nhập lại không khớp"); return; }
 
         setLoading(true);

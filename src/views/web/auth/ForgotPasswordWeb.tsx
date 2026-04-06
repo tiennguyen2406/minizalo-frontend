@@ -100,7 +100,11 @@ export default function ForgotPasswordWeb() {
             await authService.resetPassword(phone.trim(), otp, newPassword, confirmPassword);
             router.replace("/(auth)/login-form");
         } catch (err: any) {
-            setError(err.response?.data?.message || "Đặt lại mật khẩu thất bại. Vui lòng thử lại.");
+            let msg = err.response?.data?.message || "Đặt lại mật khẩu thất bại. Vui lòng thử lại.";
+            if (msg === "New password must be different from old password") {
+                msg = "Mật khẩu mới phải khác mật khẩu hiện tại";
+            }
+            setError(msg);
         } finally {
             setLoading(false);
         }
