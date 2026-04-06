@@ -1,5 +1,5 @@
 import "zmp-ui/zaui.css";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { Button, Input } from "zmp-ui";
 import authService from "@/shared/services/authService";
@@ -14,10 +14,12 @@ const COLORS = {
 };
 
 type Step = "form" | "otp";
+type OtpChannel = "SMS" | "EMAIL";
 
 export default function RegisterFormWeb() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("form");
+  const [otpChannel, setOtpChannel] = useState<OtpChannel>("SMS");
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -36,6 +38,24 @@ export default function RegisterFormWeb() {
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [otpError, setOtpError] = useState("");
   const [otpCooldown, setOtpCooldown] = useState(60);
+
+  useEffect(() => {
+    // Ép nền trắng tuyệt đối cho web để không lộ mảng xám từ layout/host app.
+    if (typeof document === "undefined") return;
+    const prevBodyBg = document.body.style.backgroundColor;
+    const prevHtmlBg = document.documentElement.style.backgroundColor;
+    const prevBodyMargin = document.body.style.margin;
+
+    document.documentElement.style.backgroundColor = COLORS.white;
+    document.body.style.backgroundColor = COLORS.white;
+    document.body.style.margin = "0";
+
+    return () => {
+      document.body.style.backgroundColor = prevBodyBg;
+      document.documentElement.style.backgroundColor = prevHtmlBg;
+      document.body.style.margin = prevBodyMargin;
+    };
+  }, []);
 
   const getNameError = useCallback((raw: string): string => {
     const trimmedName = raw.trim();
@@ -127,7 +147,7 @@ export default function RegisterFormWeb() {
 
     setLoading(true);
     try {
-      await authService.sendOtp(phone.trim());
+      await authService.sendOtp(phone.trim(), otpChannel, email.trim());
       setStep("otp");
       setOtpCooldown(60);
     } catch (err: any) {
@@ -137,17 +157,17 @@ export default function RegisterFormWeb() {
     } finally {
       setLoading(false);
     }
-  }, [phone, validateForm]);
+  }, [phone, email, otpChannel, validateForm]);
 
   const handleResendOtp = useCallback(async () => {
     try {
-      await authService.sendOtp(phone.trim());
+      await authService.sendOtp(phone.trim(), otpChannel, email.trim());
       setOtpCooldown(60);
       setOtpError("");
     } catch (err: any) {
       setOtpError(err.response?.data?.message || "Gửi lại mã OTP thất bại.");
     }
-  }, [phone]);
+  }, [phone, email, otpChannel]);
 
   const handleVerifyAndRegister = useCallback(async () => {
     setOtpError("");
@@ -178,72 +198,97 @@ export default function RegisterFormWeb() {
   }, [otp, phone, name, email, password, router]);
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: COLORS.white, padding: 24 }}>
-      <div style={{ paddingTop: 20, paddingBottom: 20 }}>
-        <button
-          type="button"
-          onClick={() => {
-            if (step === "otp") {
-              setStep("form");
-              setOtp("");
-              setNameError("");
-              setPhoneError("");
-              setEmailError("");
-              setPasswordError("");
-              setConfirmPasswordError("");
-              setOtpError("");
-            } else {
-              router.back();
-            }
-          }}
-          style={{
-            background: "none",
-            border: "none",
-            fontSize: 24,
-            color: COLORS.text,
-            cursor: "pointer",
-            padding: "12px 16px",
-          }}
-        >
-          ←
-        </button>
-      </div>
-
+    <div
+      style={{
+        minHeight: "100vh",
+        width: "100%",
+        margin: 0,
+        backgroundColor: COLORS.white,
+        boxSizing: "border-box",
+      }}
+    >
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          marginTop: 32,
-          marginBottom: 40,
+          maxWidth: 440,
+          margin: "0 auto",
+          width: "100%",
+          padding: "16px 24px 48px",
+          boxSizing: "border-box",
+          backgroundColor: COLORS.white,
         }}
       >
-        <h1
-          style={{
-            fontSize: 28,
-            fontWeight: "bold",
-            color: COLORS.primary,
-            textAlign: "center",
-            margin: 0,
-          }}
-        >
-          {step === "form" ? "Đăng ký" : "Xác thực OTP"}
-        </h1>
-        {step === "otp" && (
-          <p
+        <div style={{ paddingTop: 4, paddingBottom: 8 }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (step === "otp") {
+                setStep("form");
+                setOtp("");
+                setNameError("");
+                setPhoneError("");
+                setEmailError("");
+                setPasswordError("");
+                setConfirmPasswordError("");
+                setOtpError("");
+              } else {
+                router.back();
+              }
+            }}
             style={{
-              color: COLORS.textSecondary,
-              fontSize: 14,
-              marginTop: 8,
-              textAlign: "center",
+              background: "none",
+              border: "none",
+              fontSize: 24,
+              color: COLORS.text,
+              cursor: "pointer",
+              padding: "8px 0",
+              marginLeft: -4,
             }}
           >
-            Mã xác thực đã được gửi đến số {phone}
-          </p>
-        )}
-      </div>
+            ←
+          </button>
+        </div>
 
-      <div style={{ maxWidth: 400, margin: "0 auto" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            marginTop: 8,
+            marginBottom: 28,
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: "bold",
+              color: COLORS.primary,
+              textAlign: "center",
+              margin: 0,
+            }}
+          >
+            {step === "form" ? "Đăng ký" : "Xác thực OTP"}
+          </h1>
+          {step === "otp" && (
+            <p
+              style={{
+                color: COLORS.textSecondary,
+                fontSize: 14,
+                marginTop: 10,
+                marginBottom: 0,
+                textAlign: "center",
+                lineHeight: 1.5,
+                paddingLeft: 8,
+                paddingRight: 8,
+              }}
+            >
+              {otpChannel === "EMAIL"
+                ? `Mã xác thực đã được gửi đến email ${email.trim()}`
+                : `Mã xác thực đã được gửi đến số ${phone.trim()}`}
+            </p>
+          )}
+        </div>
+
+        <div style={{ width: "100%" }}>
         {step === "form" ? (
           <>
             <div style={{ marginBottom: 16 }}>
@@ -364,8 +409,61 @@ export default function RegisterFormWeb() {
               ) : null}
             </div>
 
+            <div
+              style={{
+                marginTop: 8,
+                marginBottom: 8,
+                paddingTop: 22,
+                borderTop: `1px solid ${COLORS.border}`,
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 14,
+                  color: COLORS.text,
+                  margin: "0 0 12px",
+                  fontWeight: 500,
+                }}
+              >
+                Nhận mã OTP qua
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  gap: 10,
+                  width: "100%",
+                  alignItems: "stretch",
+                }}
+              >
+                {(["SMS", "EMAIL"] as const).map((ch) => (
+                  <button
+                    key={ch}
+                    type="button"
+                    onClick={() => setOtpChannel(ch)}
+                    disabled={loading}
+                    style={{
+                      flex: 1,
+                      minHeight: 44,
+                      padding: "10px 12px",
+                      borderRadius: 22,
+                      border: `2px solid ${otpChannel === ch ? COLORS.primary : COLORS.border}`,
+                      backgroundColor: otpChannel === ch ? COLORS.primary : COLORS.white,
+                      color: otpChannel === ch ? COLORS.white : COLORS.text,
+                      fontWeight: 600,
+                      fontSize: 14,
+                      cursor: loading ? "not-allowed" : "pointer",
+                      opacity: loading ? 0.7 : 1,
+                    }}
+                  >
+                    {ch === "SMS" ? "SMS" : "Email"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {otpError ? (
-              <p style={{ color: "#d32f2f", fontSize: 14, marginBottom: 12 }}>
+              <p style={{ color: "#d32f2f", fontSize: 14, margin: "12px 0 0" }}>
                 {otpError}
               </p>
             ) : null}
@@ -382,7 +480,7 @@ export default function RegisterFormWeb() {
                 fontWeight: 600,
                 fontSize: 16,
                 border: "none",
-                marginTop: 16,
+                marginTop: 20,
                 marginBottom: 40,
               }}
             >
@@ -437,6 +535,7 @@ export default function RegisterFormWeb() {
             </Button>
           </>
         )}
+        </div>
       </div>
     </div>
   );
