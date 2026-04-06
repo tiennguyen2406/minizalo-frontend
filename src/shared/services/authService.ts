@@ -80,6 +80,13 @@ export const authService = {
         return response.data;
     },
 
+    getQrSessionStatus: async (sessionId: string): Promise<{ status: string; accessToken?: string; refreshToken?: string }> => {
+        const response = await api.get<{ status: string; accessToken?: string; refreshToken?: string }>(
+            authPath(`auth/qr-login/status/${sessionId}`)
+        );
+        return response.data;
+    },
+
     confirmQrLogin: async (sessionId: string, accessToken: string): Promise<void> => {
         await api.post(
             authPath("auth/qr-login/confirm"),

@@ -234,6 +234,7 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                 <MenuItem
                     icon="shield-checkmark"
                     title="Tài khoản và bảo mật"
+                    onPress={() => router.push("/account-security")}
                 />
                 <MenuItem
                     icon="lock-closed"

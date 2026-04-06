@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import { Platform, LogBox } from 'react-native';
 import axios from 'axios';
 import { useAuthStore } from '@/shared/store/authStore';
+import { api, API_BASE_URL } from '@/shared/services/apiClient';
 
 // ─── LỖI EXPO GO SDK 53+ ───
 // Thư viện expo-notifications đã loại bỏ hỗ trợ Push Notification trên Expo Go.
@@ -52,13 +53,6 @@ export function initNotificationHandler() {
     }
 }
 
-// ─── API base URL ───
-const rawBase =
-    typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
-        ? process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "")
-        : "http://localhost:8080/api";
-const API_BASE_URL = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
-
 /**
  * Send FCM push token to backend
  */
@@ -66,15 +60,15 @@ async function sendTokenToBackend(pushToken: string): Promise<void> {
     const token = useAuthStore.getState().accessToken;
     if (!token) return;
     try {
-        await axios.put(`${API_BASE_URL}/users/fcm-token`, pushToken, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'text/plain',
-            },
+        await api.put('/users/fcm-token', pushToken, {
+            headers: { 'Content-Type': 'text/plain' },
         });
         console.log('[notificationService] FCM token sent to backend');
     } catch (error: any) {
-        console.error('[notificationService] Failed to send FCM token:', error?.message);
+        // Ignore expected 401 noise when session is revoked elsewhere.
+        if (!axios.isAxiosError(error) || error.response?.status !== 401) {
+            console.error('[notificationService] Failed to send FCM token:', error?.message);
+        }
     }
 }
 

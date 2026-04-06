@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Message, User } from '@/shared/types';
 import clsx from 'clsx';
-import { LazyImage } from './MessageList';
+import LazyImage from './LazyImage';
 
 interface MessageBubbleProps {
     message: Message;

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { Platform } from "react-native";
 import authService from "@/shared/services/authService";
 import type { LoginRequest, JwtResponse } from "@/shared/services/types";
+import { getDeviceType, getOrCreateDeviceId } from "@/shared/utils/deviceSession";
 
 // ──── Web persistence helpers (localStorage) ────
 const WEB_STORAGE_KEY = "minizalo_auth";
@@ -68,7 +69,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     },
 
     login: async (data: LoginRequest) => {
-        const res: JwtResponse = await authService.signin(data);
+        const deviceId = data.deviceId || (await getOrCreateDeviceId());
+        const deviceType = data.deviceType || getDeviceType();
+        const res: JwtResponse = await authService.signin({ ...data, deviceId, deviceType });
         const newState = {
             accessToken: res.accessToken,
             refreshToken: res.refreshToken,
