@@ -58,8 +58,13 @@ export const authService = {
         return response.data;
     },
 
-    sendOtp: async (phone: string): Promise<void> => {
-        await api.post(authPath("auth/send-otp"), { phone });
+    /** Đăng ký: luôn gửi kèm email để backend kiểm tra trùng SĐT/email. */
+    sendOtp: async (
+        phone: string,
+        channel: "SMS" | "EMAIL" = "SMS",
+        email: string = "",
+    ): Promise<void> => {
+        await api.post(authPath("auth/send-otp"), { phone, channel, email: email.trim() });
     },
 
     verifyOtp: async (phone: string, otp: string): Promise<{ verificationToken: string }> => {

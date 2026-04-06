@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, KeyboardAvoidingView, Platform, ScrollView, Alert, Text } from "react-native";
+import { View, KeyboardAvoidingView, Platform, ScrollView, Alert, Text, TouchableOpacity } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import authService from "@/shared/services/authService";
@@ -8,6 +8,7 @@ import { AuthHeader, AuthTitle, AuthInput, AuthButton, OtpInputMobile } from "..
 import { useThemeColors } from "@/shared/theme/colors";
 
 type Step = "form" | "otp";
+type OtpChannel = "SMS" | "EMAIL";
 
 export default function RegisterFormScreen() {
     const router = useRouter();
@@ -20,6 +21,8 @@ export default function RegisterFormScreen() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
+
+    const [otpChannel, setOtpChannel] = useState<OtpChannel>("SMS");
 
     // OTP step
     const [step, setStep] = useState<Step>("form");
@@ -123,7 +126,7 @@ export default function RegisterFormScreen() {
 
         setLoading(true);
         try {
-            await authService.sendOtp(phone.trim());
+            await authService.sendOtp(phone.trim(), otpChannel, email.trim());
             setOtp("");
             setOtpError("");
             setOtpCooldown(60);
@@ -134,18 +137,18 @@ export default function RegisterFormScreen() {
         } finally {
             setLoading(false);
         }
-    }, [validateForm, phone]);
+    }, [validateForm, phone, email, otpChannel]);
 
     const handleResendOtp = useCallback(async () => {
         try {
-            await authService.sendOtp(phone.trim());
+            await authService.sendOtp(phone.trim(), otpChannel, email.trim());
             setOtpCooldown(60);
             setOtpError("");
         } catch (err: any) {
             const msg = err.response?.data?.message || "Gửi lại mã OTP thất bại.";
             Alert.alert("Lỗi", msg);
         }
-    }, [phone]);
+    }, [phone, email, otpChannel]);
 
     const handleVerifyAndRegister = useCallback(async () => {
         setOtpError("");
@@ -175,7 +178,7 @@ export default function RegisterFormScreen() {
     }, [otp, phone, name, email, password, router]);
 
     return (
-        <View style={authStyles.container}>
+        <View style={[authStyles.container, { backgroundColor: "#fff" }]}>
             <StatusBar style={colors.background === "#000000" ? "light" : "dark"} />
 
             <AuthHeader
@@ -192,7 +195,7 @@ export default function RegisterFormScreen() {
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={authStyles.content}
+                style={[authStyles.content, { backgroundColor: "#fff" }]}
             >
                 <ScrollView showsVerticalScrollIndicator={false}>
                     {step === "form" ? (
@@ -261,11 +264,89 @@ export default function RegisterFormScreen() {
                                 error={confirmPasswordError}
                             />
 
+                            <View
+                                style={{
+                                    marginTop: 10,
+                                    paddingTop: 18,
+                                    borderTopWidth: 1,
+                                    borderTopColor: colors.border,
+                                }}
+                            >
+                                <Text
+                                    style={{
+                                        fontSize: 14,
+                                        color: colors.text,
+                                        marginBottom: 12,
+                                        fontWeight: "500",
+                                    }}
+                                >
+                                    Nhận mã OTP qua
+                                </Text>
+
+                                <View style={{ flexDirection: "row" }}>
+                                    <TouchableOpacity
+                                        onPress={() => setOtpChannel("SMS")}
+                                        activeOpacity={0.85}
+                                        disabled={loading}
+                                        style={[
+                                            authStyles.submitButton,
+                                            {
+                                                flex: 1,
+                                                minHeight: 52,
+                                                marginTop: 0,
+                                                backgroundColor: otpChannel === "SMS" ? colors.primary : "#fff",
+                                                borderWidth: otpChannel === "SMS" ? 0 : 2,
+                                                borderColor: colors.primary,
+                                                opacity: loading ? 0.65 : 1,
+                                            },
+                                        ]}
+                                    >
+                                        <Text
+                                            style={[
+                                                authStyles.submitButtonText,
+                                                { color: otpChannel === "SMS" ? "#fff" : colors.primary },
+                                            ]}
+                                        >
+                                            SMS
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <View style={{ width: 12 }} />
+
+                                    <TouchableOpacity
+                                        onPress={() => setOtpChannel("EMAIL")}
+                                        activeOpacity={0.85}
+                                        disabled={loading}
+                                        style={[
+                                            authStyles.submitButton,
+                                            {
+                                                flex: 1,
+                                                minHeight: 52,
+                                                marginTop: 0,
+                                                backgroundColor: otpChannel === "EMAIL" ? colors.primary : "#fff",
+                                                borderWidth: otpChannel === "EMAIL" ? 0 : 2,
+                                                borderColor: colors.primary,
+                                                opacity: loading ? 0.65 : 1,
+                                            },
+                                        ]}
+                                    >
+                                        <Text
+                                            style={[
+                                                authStyles.submitButtonText,
+                                                { color: otpChannel === "EMAIL" ? "#fff" : colors.primary },
+                                            ]}
+                                        >
+                                            Email
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
                             <AuthButton
                                 title={loading ? "Đang gửi mã..." : "Tiếp tục"}
                                 onPress={handleSendOtp}
                                 loading={loading}
-                                style={{ marginTop: 8, marginBottom: 40 }}
+                                style={{ marginTop: 20, marginBottom: 40 }}
                             />
                         </>
                     ) : (
@@ -279,8 +360,17 @@ export default function RegisterFormScreen() {
                                 marginBottom: 24,
                                 lineHeight: 20,
                             }}>
-                                Mã xác thực đã được gửi đến số{"\n"}
-                                <Text style={{ color: colors.primary, fontWeight: "600" }}>{phone}</Text>
+                                {otpChannel === "EMAIL" ? (
+                                    <>
+                                        Mã xác thực đã được gửi đến email{"\n"}
+                                        <Text style={{ color: colors.primary, fontWeight: "600" }}>{email.trim()}</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        Mã xác thực đã được gửi đến số{"\n"}
+                                        <Text style={{ color: colors.primary, fontWeight: "600" }}>{phone}</Text>
+                                    </>
+                                )}
                             </Text>
 
                             <OtpInputMobile
