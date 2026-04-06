@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useThemeStore } from "@/shared/store/themeStore";
 import ChangePasswordModal from "./ChangePasswordModal";
+import SettingsModal from "./SettingsModal";
 import { useUserStore } from "@/shared/store/userStore";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useGroupStore } from "@/shared/store/useGroupStore";
@@ -157,6 +158,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
     const theme = useThemeStore((s) => s.theme);
     const isDark = theme === "dark";
     const [showChangePassword, setShowChangePassword] = useState(false);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
 
     const handleLogout = async () => {
         await logout();
@@ -190,7 +192,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
             id: "settings",
             label: "Cài đặt",
             icon: iconGear,
-            onClick: () => onClose(),
+            onClick: () => setShowSettingsModal(true),
         },
         {
             id: "theme",
@@ -392,6 +394,10 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
 
             {showChangePassword && (
                 <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+            )}
+            
+            {showSettingsModal && (
+                <SettingsModal onClose={() => setShowSettingsModal(false)} />
             )}
         </>
     );
