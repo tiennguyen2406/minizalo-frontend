@@ -23,6 +23,7 @@ import { chatService, MessageDynamo, MessageReaction } from "@/shared/services/c
 import { MessageService } from "@/shared/services/MessageService";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import { useUserStore } from "@/shared/store/userStore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatTime } from "@/shared/utils/dateUtils";
 import GroupInfoScreen from "../components/GroupInfoScreen";
 import ChatOptionsScreen from "./ChatOptionsScreen";
@@ -114,10 +115,23 @@ export default function ChatScreen() {
         return partner?.id ?? null;
     }, [rooms, roomId, roomType, currentUserId]);
 
+    // ─── Deleted Messages state ───
+    const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set());
+
     // ─── Load chat history ───
     const fetchMessages = useCallback(async () => {
         if (!roomId) return;
         try {
+            let latestDeletedIds = deletedMessageIds;
+            if (currentUserId) {
+                const raw = await AsyncStorage.getItem(`DELETED_MESSAGES_${currentUserId}`);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    latestDeletedIds = new Set(parsed);
+                    setDeletedMessageIds(latestDeletedIds);
+                }
+            }
+
             const result = await chatService.getChatHistory(roomId);
             console.log("📜 History result:", result?.messages?.length ?? 0, "messages");
             if (result?.messages && result.messages.length > 0) {
@@ -126,14 +140,15 @@ export default function ChatScreen() {
                     console.log("🔗 Attachments payload from history:", JSON.stringify(imgMsgs[0].attachments, null, 2));
                 }
                 // Keep newest-first order for inverted FlatList
-                setMessages(result.messages);
+                const filtered = result.messages.filter(m => !latestDeletedIds.has(m.messageId));
+                setMessages(filtered);
             }
         } catch (err) {
             console.log("Error fetching messages:", err);
         } finally {
             setLoaded(true);
         }
-    }, [roomId]);
+    }, [roomId, currentUserId]);
 
     // ─── Check block status for DIRECT chats ───
     useEffect(() => {
@@ -622,6 +637,17 @@ export default function ChatScreen() {
             return;
         }
 
+        // Kiểm tra thời gian 1 ngày
+        const messageTime = new Date(selectedMessage.createdAt).getTime();
+        const now = Date.now();
+        const oneDayMs = 24 * 60 * 60 * 1000;
+
+        if (now - messageTime > oneDayMs) {
+            Alert.alert("Không thể thu hồi", "Tin nhắn đã gửi quá 1 ngày nên không thể thu hồi nữa.");
+            closeActionSheet();
+            return;
+        }
+
         Alert.alert(
             "Thu hồi tin nhắn",
             "Bạn có chắc muốn thu hồi tin nhắn này?",
@@ -650,7 +676,7 @@ export default function ChatScreen() {
                             if (status === 400) {
                                 Alert.alert(
                                     "Không thể thu hồi",
-                                    "Tin nhắn đã gửi quá 5 phút nên không thể thu hồi nữa."
+                                    "Tin nhắn đã gửi quá 1 ngày nên không thể thu hồi nữa."
                                 );
                             } else {
                                 Alert.alert(
@@ -661,6 +687,38 @@ export default function ChatScreen() {
                         } finally {
                             closeActionSheet();
                         }
+                    },
+                },
+            ]
+        );
+    };
+
+    const handleDeleteMessage = () => {
+        if (!selectedMessage) return;
+
+        Alert.alert(
+            "Xóa tin nhắn",
+            "Tin nhắn này sẽ được xóa ở phía bạn.",
+            [
+                { text: "Hủy", style: "cancel" },
+                {
+                    text: "Xóa",
+                    style: "destructive",
+                    onPress: async () => {
+                        const mid = selectedMessage.messageId;
+                        try {
+                            const newSet = new Set(deletedMessageIds);
+                            newSet.add(mid);
+                            setDeletedMessageIds(newSet);
+                            if (currentUserId) {
+                                await AsyncStorage.setItem(`DELETED_MESSAGES_${currentUserId}`, JSON.stringify(Array.from(newSet)));
+                            }
+                        } catch (e) {
+                            console.log("Error saving deleted message id to local storage:", e);
+                        }
+                        
+                        setMessages((prev) => prev.filter(m => m.messageId !== mid));
+                        closeActionSheet();
                     },
                 },
             ]
@@ -1117,15 +1175,19 @@ export default function ChatScreen() {
                             </View>
                         )}
 
-                        {selectedMessage?.senderId === currentUserId && !selectedMessage?.recalled && (
+                        {selectedMessage && selectedMessage.senderId === currentUserId &&
+                         !selectedMessage.recalled && (
                             <TouchableOpacity
                                 onPress={handleRecall}
                                 style={{
-                                    paddingVertical: 14,
+                                    paddingVertical: 12,
                                     paddingHorizontal: 20,
+                                    flexDirection: "row",
+                                    alignItems: "center",
                                 }}
                             >
-                                <Text style={{ color: "#f97373", fontSize: 16, fontWeight: "600" }}>
+                                <Ionicons name="refresh-outline" size={20} color="#ea580c" style={{ marginRight: 12 }} />
+                                <Text style={{ color: "#ea580c", fontSize: 16, fontWeight: "600" }}>
                                     Thu hồi tin nhắn
                                 </Text>
                             </TouchableOpacity>
@@ -1141,8 +1203,8 @@ export default function ChatScreen() {
                                     alignItems: "center",
                                 }}
                             >
-                                <Ionicons name="arrow-redo-outline" size={20} color="#e5e7eb" style={{ marginRight: 12 }} />
-                                <Text style={{ color: "#e5e7eb", fontSize: 16 }}>
+                                <Ionicons name="arrow-redo-outline" size={20} color={colors.text} style={{ marginRight: 12 }} />
+                                <Text style={{ color: colors.text, fontSize: 16 }}>
                                     Trả lời
                                 </Text>
                             </TouchableOpacity>
@@ -1165,7 +1227,7 @@ export default function ChatScreen() {
                             </TouchableOpacity>
                         )}
 
-                        {selectedMessage && (
+                        {selectedMessage && !selectedMessage.recalled && (
                             <TouchableOpacity
                                 onPress={handleTogglePin}
                                 style={{
@@ -1175,9 +1237,26 @@ export default function ChatScreen() {
                                     alignItems: "center",
                                 }}
                             >
-                                <Ionicons name={selectedMessage.pinned ? "pin" : "pin-outline"} size={20} color="#e5e7eb" style={{ marginRight: 12 }} />
-                                <Text style={{ color: "#e5e7eb", fontSize: 16 }}>
+                                <Ionicons name={selectedMessage.pinned ? "pin" : "pin-outline"} size={20} color={colors.text} style={{ marginRight: 12 }} />
+                                <Text style={{ color: colors.text, fontSize: 16 }}>
                                     {selectedMessage.pinned ? "Bỏ ghim" : "Ghim"}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {selectedMessage && (
+                            <TouchableOpacity
+                                onPress={handleDeleteMessage}
+                                style={{
+                                    paddingVertical: 12,
+                                    paddingHorizontal: 20,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                }}
+                            >
+                                <Ionicons name="trash-outline" size={20} color="#ef4444" style={{ marginRight: 12 }} />
+                                <Text style={{ color: "#ef4444", fontSize: 16, fontWeight: "500" }}>
+                                    Xóa
                                 </Text>
                             </TouchableOpacity>
                         )}

@@ -50,6 +50,7 @@ export interface UserProfile {
     createdAt: string | null;
     updatedAt: string | null;
     roles: string[] | null;
+    allowPhoneSearch?: boolean;
 }
 
 export interface UserProfileUpdateRequest {
@@ -61,6 +62,7 @@ export interface UserProfileUpdateRequest {
     gender?: string;
     dateOfBirth?: string; // "YYYY-MM-DD"
     businessDescription?: string;
+    allowPhoneSearch?: boolean;
 }
 
 // -----------------------------

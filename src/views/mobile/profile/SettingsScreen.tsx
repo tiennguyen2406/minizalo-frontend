@@ -109,6 +109,20 @@ export default function SettingsScreen() {
                 <Text style={headerStyles.rowText}>Giao diện</Text>
             </TouchableOpacity>
 
+            {/* Quản lý nguồn tìm kiếm và kết bạn */}
+            <TouchableOpacity
+                style={[headerStyles.row, { marginTop: 16 }]}
+                onPress={() => router.push("/(tabs)/search-sources")}
+                activeOpacity={0.7}
+            >
+                <Ionicons
+                    name="shield-checkmark-outline"
+                    size={24}
+                    color={colors.textSecondary}
+                />
+                <Text style={headerStyles.rowText}>Quản lý nguồn tìm kiếm và kết bạn</Text>
+            </TouchableOpacity>
+
             {/* Danh sách chặn tin nhắn */}
             <TouchableOpacity
                 style={[headerStyles.row, { marginTop: 16 }]}

@@ -12,6 +12,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import FriendsListMobile from "./FriendsListMobile";
+import PhonebookListMobile from "./PhonebookListMobile";
 import { useRouter } from "expo-router";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useUserStore } from "@/shared/store/userStore";
@@ -20,11 +21,12 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { useThemeColors } from "@/shared/theme/colors";
 
-type TabKey = "friends" | "groups";
+type TabKey = "friends" | "groups" | "phonebook";
 
 const TABS: { key: TabKey; label: string }[] = [
     { key: "friends", label: "Bạn bè" },
     { key: "groups", label: "Nhóm" },
+    { key: "phonebook", label: "Danh bạ máy" },
 ];
 
 export default function ContactsMobileScreen() {
@@ -161,6 +163,8 @@ export default function ContactsMobileScreen() {
                         </Text>
                     </View>
                 );
+            case "phonebook":
+                return <PhonebookListMobile />;
             default:
                 return null;
         }
@@ -362,10 +366,8 @@ export default function ContactsMobileScreen() {
                 })}
             </View>
 
-            {/* Khu vực hành động dưới tabs:
-               - Tab Bạn bè: Lời mời kết bạn + Sinh nhật
-               - Tab Nhóm: nút Tạo nhóm (chưa cần xử lý chức năng) */}
-            {activeTab === "friends" ? (
+            {/* Khu vực hành động dưới tabs (chỉ hiện với tab Bạn bè và Nhóm) */}
+            {activeTab === "friends" && (
                 <View>
                     <View
                         style={{
@@ -395,100 +397,40 @@ export default function ContactsMobileScreen() {
                                     marginRight: 16,
                                 }}
                             >
-                                <Ionicons
-                                    name="people"
-                                    size={22}
-                                    color="#fff"
-                                />
+                                <Ionicons name="people" size={22} color="#fff" />
                             </View>
                             <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
-                                <Text
-                                    style={{
-                                        color: colors.text,
-                                        fontSize: 16,
-                                        fontWeight: "400",
-                                    }}
-                                >
+                                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "400" }}>
                                     Lời mời kết bạn
                                 </Text>
                                 {requests.length > 0 && (
-                                    <Text
-                                        style={{
-                                            color: colors.textSecondary,
-                                            fontSize: 16,
-                                            marginLeft: 6,
-                                        }}
-                                    >
+                                    <Text style={{ color: colors.textSecondary, fontSize: 16, marginLeft: 6 }}>
                                         ({requests.length})
                                     </Text>
                                 )}
                             </View>
                         </TouchableOpacity>
-
                         <BirthdaySection birthdayFriends={birthdayFriends} />
                     </View>
                     <View style={{ height: 8, backgroundColor: colors.searchBg }} />
                 </View>
-            ) : (
-                <View
-                    style={{
-                        paddingHorizontal: 16,
-                        paddingTop: 8,
-                        paddingBottom: 4,
-                        backgroundColor: colors.background,
-                    }}
-                >
+            )}
+            {activeTab === "groups" && (
+                <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, backgroundColor: colors.background }}>
                     <TouchableOpacity
                         activeOpacity={0.8}
-                        // Chưa xử lý điều hướng, chỉ làm UI
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingVertical: 10,
-                        }}
+                        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10 }}
                     >
-                        <View
-                            style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 16,
-                                backgroundColor: "#22c55e",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                marginRight: 10,
-                            }}
-                        >
-                            <Ionicons
-                                name="people-outline"
-                                size={18}
-                                color="#fff"
-                            />
+                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#22c55e", alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                            <Ionicons name="people-outline" size={18} color="#fff" />
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Text
-                                style={{
-                                    color: colors.text,
-                                    fontSize: 14,
-                                    fontWeight: "500",
-                                }}
-                            >
-                                Tạo nhóm
-                            </Text>
-                            <Text
-                                style={{
-                                    color: colors.textSecondary,
-                                    fontSize: 12,
-                                    marginTop: 2,
-                                }}
-                            >
+                            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "500" }}>Tạo nhóm</Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
                                 Tạo nhóm chat để trò chuyện cùng nhiều bạn bè
                             </Text>
                         </View>
-                        <Ionicons
-                            name="chevron-forward"
-                            size={18}
-                            color={colors.textSecondary}
-                        />
+                        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
             )}
