@@ -16,6 +16,12 @@ const COLORS = {
     border: "#e0e0e0",
 };
 
+const rawBase =
+    typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
+        ? process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "")
+        : "http://localhost:8080/api";
+const API_BASE = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
+
 type Mode = "qr" | "password";
 
 export default function LoginScreenWeb() {
@@ -27,17 +33,18 @@ export default function LoginScreenWeb() {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [qrStatus, setQrStatus] = useState<"loading" | "pending" | "expired" | "confirmed" | "error">("loading");
     const [error, setError] = useState("");
-    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const eventSourceRef = useRef<EventSource | null>(null);
     const mountedRef = useRef(true);
 
-    const stopPolling = useCallback(() => {
-        if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
+    const closeEventSource = useCallback(() => {
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
         }
     }, []);
 
     const generateQr = useCallback(async () => {
+        closeEventSource();
         setQrStatus("loading");
         setError("");
         try {
@@ -50,10 +57,10 @@ export default function LoginScreenWeb() {
             setQrStatus("error");
             setError("Không thể tạo mã QR. Vui lòng thử lại.");
         }
-    }, []);
+    }, [closeEventSource]);
 
     const handleConfirmed = useCallback(async (accessToken: string, refreshToken: string) => {
-        stopPolling();
+        closeEventSource();
         setQrStatus("confirmed");
         setTokens(accessToken, refreshToken);
         try {
@@ -65,10 +72,10 @@ export default function LoginScreenWeb() {
                 avatarUrl: profile.avatarUrl || undefined,
             });
         } catch {
-            // profile fetch failure is non-critical
+            // non-critical
         }
         router.replace("/(tabs)");
-    }, [stopPolling, setTokens, setUser, router]);
+    }, [closeEventSource, setTokens, setUser, router]);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -77,33 +84,48 @@ export default function LoginScreenWeb() {
         }
         return () => {
             mountedRef.current = false;
-            stopPolling();
+            closeEventSource();
         };
-    }, [mode, generateQr, stopPolling]);
+    }, [mode, generateQr, closeEventSource]);
 
     useEffect(() => {
         if (mode !== "qr" || !sessionId || qrStatus !== "pending") {
-            stopPolling();
+            closeEventSource();
             return;
         }
 
-        pollingRef.current = setInterval(async () => {
-            try {
-                const data = await authService.getQrSessionStatus(sessionId);
-                if (!mountedRef.current) return;
-                if (data.status === "CONFIRMED" && data.accessToken && data.refreshToken) {
-                    handleConfirmed(data.accessToken, data.refreshToken);
-                } else if (data.status === "EXPIRED") {
-                    stopPolling();
-                    setQrStatus("expired");
-                }
-            } catch {
-                // silently retry on next interval
-            }
-        }, 2000);
+        const sseUrl = `${API_BASE}/auth/qr-login/events/${sessionId}`;
+        const es = new EventSource(sseUrl);
+        eventSourceRef.current = es;
 
-        return () => stopPolling();
-    }, [mode, sessionId, qrStatus, stopPolling, handleConfirmed]);
+        es.addEventListener("confirmed", (event: MessageEvent) => {
+            if (!mountedRef.current) return;
+            try {
+                const data = JSON.parse(event.data);
+                if (data.accessToken && data.refreshToken) {
+                    handleConfirmed(data.accessToken, data.refreshToken);
+                }
+            } catch { /* parse error */ }
+        });
+
+        es.addEventListener("expired", () => {
+            if (!mountedRef.current) return;
+            setQrStatus("expired");
+            es.close();
+        });
+
+        es.onerror = () => {
+            if (!mountedRef.current) return;
+            es.close();
+            eventSourceRef.current = null;
+            setQrStatus("expired");
+        };
+
+        return () => {
+            es.close();
+            eventSourceRef.current = null;
+        };
+    }, [mode, sessionId, qrStatus, closeEventSource, handleConfirmed]);
 
     const qrValue = sessionId ? `minizalo://qr-login/${sessionId}` : "";
 
