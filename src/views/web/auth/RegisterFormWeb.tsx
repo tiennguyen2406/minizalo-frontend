@@ -289,252 +289,252 @@ export default function RegisterFormWeb() {
         </div>
 
         <div style={{ width: "100%" }}>
-        {step === "form" ? (
-          <>
-            <div style={{ marginBottom: 16 }}>
-              <Input
-                placeholder="Tên"
-                value={name}
-                onChange={(e: any) => {
-                  const v = e.target?.value ?? e;
-                  setName(v);
-                  setNameError(getNameError(v));
-                }}
-                disabled={loading}
-                style={{
-                  borderBottom: `1px solid ${nameError ? "#d32f2f" : COLORS.border}`,
-                  padding: "12px 0",
-                  fontSize: 16,
-                }}
-              />
-              {nameError ? (
-                <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
-                  {nameError}
-                </p>
-              ) : null}
-            </div>
+          {step === "form" ? (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  placeholder="Tên"
+                  value={name}
+                  onChange={(e: any) => {
+                    const v = e.target?.value ?? e;
+                    setName(v);
+                    setNameError(getNameError(v));
+                  }}
+                  disabled={loading}
+                  style={{
+                    borderBottom: `1px solid ${nameError ? "#d32f2f" : COLORS.border}`,
+                    padding: "12px 0",
+                    fontSize: 16,
+                  }}
+                />
+                {nameError ? (
+                  <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                    {nameError}
+                  </p>
+                ) : null}
+              </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <Input
-                placeholder="Số điện thoại"
-                value={phone}
-                onChange={(e: any) => {
-                  const v = e.target?.value ?? e;
-                  setPhone(v);
-                  setPhoneError(getPhoneError(v));
-                }}
-                disabled={loading}
-                style={{
-                  borderBottom: `1px solid ${phoneError ? "#d32f2f" : COLORS.border}`,
-                  padding: "12px 0",
-                  fontSize: 16,
-                }}
-              />
-              {phoneError ? (
-                <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
-                  {phoneError}
-                </p>
-              ) : null}
-            </div>
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  placeholder="Số điện thoại"
+                  value={phone}
+                  onChange={(e: any) => {
+                    const v = e.target?.value ?? e;
+                    setPhone(v);
+                    setPhoneError(getPhoneError(v));
+                  }}
+                  disabled={loading}
+                  style={{
+                    borderBottom: `1px solid ${phoneError ? "#d32f2f" : COLORS.border}`,
+                    padding: "12px 0",
+                    fontSize: 16,
+                  }}
+                />
+                {phoneError ? (
+                  <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                    {phoneError}
+                  </p>
+                ) : null}
+              </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <Input
-                placeholder="Email"
-                value={email}
-                onChange={(e: any) => {
-                  const v = e.target?.value ?? e;
-                  setEmail(v);
-                  setEmailError(getEmailError(v));
-                }}
-                disabled={loading}
-                style={{
-                  borderBottom: `1px solid ${emailError ? "#d32f2f" : COLORS.border}`,
-                  padding: "12px 0",
-                  fontSize: 16,
-                }}
-              />
-              {emailError ? (
-                <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
-                  {emailError}
-                </p>
-              ) : null}
-            </div>
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e: any) => {
+                    const v = e.target?.value ?? e;
+                    setEmail(v);
+                    setEmailError(getEmailError(v));
+                  }}
+                  disabled={loading}
+                  style={{
+                    borderBottom: `1px solid ${emailError ? "#d32f2f" : COLORS.border}`,
+                    padding: "12px 0",
+                    fontSize: 16,
+                  }}
+                />
+                {emailError ? (
+                  <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                    {emailError}
+                  </p>
+                ) : null}
+              </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <Input
-                type="password"
-                placeholder="Mật khẩu"
-                value={password}
-                onChange={(e: any) => {
-                  const v = e.target?.value ?? e;
-                  setPassword(v);
-                  setPasswordError(getPasswordError(v));
-                  setConfirmPasswordError(getConfirmPasswordError(v, confirmPassword));
-                }}
-                disabled={loading}
-                style={{
-                  borderBottom: `1px solid ${passwordError ? "#d32f2f" : COLORS.border}`,
-                  padding: "12px 0",
-                  fontSize: 16,
-                }}
-              />
-              {passwordError ? (
-                <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
-                  {passwordError}
-                </p>
-              ) : null}
-            </div>
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  type="password"
+                  placeholder="Mật khẩu"
+                  value={password}
+                  onChange={(e: any) => {
+                    const v = e.target?.value ?? e;
+                    setPassword(v);
+                    setPasswordError(getPasswordError(v));
+                    setConfirmPasswordError(getConfirmPasswordError(v, confirmPassword));
+                  }}
+                  disabled={loading}
+                  style={{
+                    borderBottom: `1px solid ${passwordError ? "#d32f2f" : COLORS.border}`,
+                    padding: "12px 0",
+                    fontSize: 16,
+                  }}
+                />
+                {passwordError ? (
+                  <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                    {passwordError}
+                  </p>
+                ) : null}
+              </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <Input
-                type="password"
-                placeholder="Nhập lại mật khẩu"
-                value={confirmPassword}
-                onChange={(e: any) => {
-                  const v = e.target?.value ?? e;
-                  setConfirmPassword(v);
-                  setConfirmPasswordError(getConfirmPasswordError(password, v));
-                }}
-                disabled={loading}
-                style={{
-                  borderBottom: `1px solid ${confirmPasswordError ? "#d32f2f" : COLORS.border}`,
-                  padding: "12px 0",
-                  fontSize: 16,
-                }}
-              />
-              {confirmPasswordError ? (
-                <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
-                  {confirmPasswordError}
-                </p>
-              ) : null}
-            </div>
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  type="password"
+                  placeholder="Nhập lại mật khẩu"
+                  value={confirmPassword}
+                  onChange={(e: any) => {
+                    const v = e.target?.value ?? e;
+                    setConfirmPassword(v);
+                    setConfirmPasswordError(getConfirmPasswordError(password, v));
+                  }}
+                  disabled={loading}
+                  style={{
+                    borderBottom: `1px solid ${confirmPasswordError ? "#d32f2f" : COLORS.border}`,
+                    padding: "12px 0",
+                    fontSize: 16,
+                  }}
+                />
+                {confirmPasswordError ? (
+                  <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                    {confirmPasswordError}
+                  </p>
+                ) : null}
+              </div>
 
-            <div
-              style={{
-                marginTop: 8,
-                marginBottom: 8,
-                paddingTop: 22,
-                borderTop: `1px solid ${COLORS.border}`,
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 14,
-                  color: COLORS.text,
-                  margin: "0 0 12px",
-                  fontWeight: 500,
-                }}
-              >
-                Nhận mã OTP qua
-              </p>
               <div
                 style={{
-                  display: "flex",
-                  flexDirection: "row",
-                  gap: 10,
-                  width: "100%",
-                  alignItems: "stretch",
+                  marginTop: 8,
+                  marginBottom: 8,
+                  paddingTop: 22,
+                  borderTop: `1px solid ${COLORS.border}`,
                 }}
               >
-                {(["SMS", "EMAIL"] as const).map((ch) => (
-                  <button
-                    key={ch}
-                    type="button"
-                    onClick={() => setOtpChannel(ch)}
-                    disabled={loading}
-                    style={{
-                      flex: 1,
-                      minHeight: 44,
-                      padding: "10px 12px",
-                      borderRadius: 22,
-                      border: `2px solid ${otpChannel === ch ? COLORS.primary : COLORS.border}`,
-                      backgroundColor: otpChannel === ch ? COLORS.primary : COLORS.white,
-                      color: otpChannel === ch ? COLORS.white : COLORS.text,
-                      fontWeight: 600,
-                      fontSize: 14,
-                      cursor: loading ? "not-allowed" : "pointer",
-                      opacity: loading ? 0.7 : 1,
-                    }}
-                  >
-                    {ch === "SMS" ? "SMS" : "Email"}
-                  </button>
-                ))}
+                <p
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    margin: "0 0 12px",
+                    fontWeight: 500,
+                  }}
+                >
+                  Nhận mã OTP qua
+                </p>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    gap: 10,
+                    width: "100%",
+                    alignItems: "stretch",
+                  }}
+                >
+                  {(["SMS", "EMAIL"] as const).map((ch) => (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => setOtpChannel(ch)}
+                      disabled={loading}
+                      style={{
+                        flex: 1,
+                        minHeight: 44,
+                        padding: "10px 12px",
+                        borderRadius: 22,
+                        border: `2px solid ${otpChannel === ch ? COLORS.primary : COLORS.border}`,
+                        backgroundColor: otpChannel === ch ? COLORS.primary : COLORS.white,
+                        color: otpChannel === ch ? COLORS.white : COLORS.text,
+                        fontWeight: 600,
+                        fontSize: 14,
+                        cursor: loading ? "not-allowed" : "pointer",
+                        opacity: loading ? 0.7 : 1,
+                      }}
+                    >
+                      {ch === "SMS" ? "SMS" : "Email"}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {otpError ? (
-              <p style={{ color: "#d32f2f", fontSize: 14, margin: "12px 0 0" }}>
-                {otpError}
-              </p>
-            ) : null}
+              {otpError ? (
+                <p style={{ color: "#d32f2f", fontSize: 14, margin: "12px 0 0" }}>
+                  {otpError}
+                </p>
+              ) : null}
 
-            <Button
-              fullWidth
-              onClick={handleSendOtp}
-              disabled={loading}
-              style={{
-                backgroundColor: loading ? "#88b4ff" : COLORS.primary,
-                borderRadius: 25,
-                padding: "14px 24px",
-                color: COLORS.white,
-                fontWeight: 600,
-                fontSize: 16,
-                border: "none",
-                marginTop: 20,
-                marginBottom: 40,
-              }}
-            >
-              {loading ? "Đang gửi mã..." : "Tiếp tục"}
-            </Button>
-          </>
-        ) : (
-          <>
-            <div style={{ marginTop: 16, marginBottom: 24 }}>
-              <OtpInput
-                value={otp}
-                onChange={(v) => {
-                  setOtp(v);
-                  setOtpError("");
-                }}
+              <Button
+                fullWidth
+                onClick={handleSendOtp}
                 disabled={loading}
-                onResend={handleResendOtp}
-                cooldownSeconds={otpCooldown}
-              />
-            </div>
-
-            {otpError ? (
-              <p
                 style={{
-                  color: "#d32f2f",
-                  fontSize: 14,
-                  marginBottom: 12,
-                  textAlign: "center",
+                  backgroundColor: loading ? "#88b4ff" : COLORS.primary,
+                  borderRadius: 25,
+                  padding: "14px 24px",
+                  color: COLORS.white,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  border: "none",
+                  marginTop: 20,
+                  marginBottom: 40,
                 }}
               >
-                {otpError}
-              </p>
-            ) : null}
+                {loading ? "Đang gửi mã..." : "Tiếp tục"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <div style={{ marginTop: 16, marginBottom: 24 }}>
+                <OtpInput
+                  value={otp}
+                  onChange={(v) => {
+                    setOtp(v);
+                    setOtpError("");
+                  }}
+                  disabled={loading}
+                  onResend={handleResendOtp}
+                  cooldownSeconds={otpCooldown}
+                />
+              </div>
 
-            <Button
-              fullWidth
-              onClick={handleVerifyAndRegister}
-              disabled={loading || otp.length < 6}
-              style={{
-                backgroundColor: loading || otp.length < 6 ? "#88b4ff" : COLORS.primary,
-                borderRadius: 25,
-                padding: "14px 24px",
-                color: COLORS.white,
-                fontWeight: 600,
-                fontSize: 16,
-                border: "none",
-                marginTop: 16,
-                marginBottom: 40,
-              }}
-            >
-              {loading ? "Đang xác thực..." : "Xác nhận"}
-            </Button>
-          </>
-        )}
+              {otpError ? (
+                <p
+                  style={{
+                    color: "#d32f2f",
+                    fontSize: 14,
+                    marginBottom: 12,
+                    textAlign: "center",
+                  }}
+                >
+                  {otpError}
+                </p>
+              ) : null}
+
+              <Button
+                fullWidth
+                onClick={handleVerifyAndRegister}
+                disabled={loading || otp.length < 6}
+                style={{
+                  backgroundColor: loading || otp.length < 6 ? "#88b4ff" : COLORS.primary,
+                  borderRadius: 25,
+                  padding: "14px 24px",
+                  color: COLORS.white,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  border: "none",
+                  marginTop: 16,
+                  marginBottom: 40,
+                }}
+              >
+                {loading ? "Đang xác thực..." : "Xác nhận"}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

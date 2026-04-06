@@ -1,4 +1,5 @@
 import { api, API_BASE_URL } from "@/shared/services/apiClient";
+import axios from "axios";
 
 // Type definitions based on backend ChatRoomResponse
 export interface UserResponse {
@@ -72,7 +73,11 @@ export const chatService = {
             console.log("Chat rooms fetched:", data.length);
             return data;
         } catch (error) {
-            console.error("Error fetching chat rooms:", error);
+            // 401 is expected when session was revoked on another device/browser.
+            // apiClient already handles refresh + clear; avoid noisy error logs.
+            if (!axios.isAxiosError(error) || error.response?.status !== 401) {
+                console.error("Error fetching chat rooms:", error);
+            }
             throw error;
         }
     },

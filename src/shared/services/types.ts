@@ -12,6 +12,8 @@ export interface SignupRequest {
 export interface LoginRequest {
     username: string; // phone hoặc email
     password: string;
+    deviceType?: "WEB" | "MOBILE";
+    deviceId?: string;
 }
 
 export interface JwtResponse {

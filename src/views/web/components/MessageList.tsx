@@ -3,6 +3,7 @@ import MessageBubble from './MessageBubble';
 import ImageGroupBubble from './ImageGroupBubble';
 import { Message, User } from '@/shared/types';
 import { useChatStore } from '@/shared/store/useChatStore';
+import LazyImage from './LazyImage';
 
 interface MessageListProps {
     messages: Message[];
@@ -43,10 +44,9 @@ function SkeletonBubble({ align }: { align: 'left' | 'right' }) {
     );
 }
 
-function LazyImage({ src, alt, style, onClick, onLoad }: { src: string; alt: string; style?: React.CSSProperties; onClick?: () => void; onLoad?: () => void }) {
+function LocalLazyImage({ src, alt, style, onClick, onLoad }: { src: string; alt: string; style?: React.CSSProperties; onClick?: () => void; onLoad?: () => void }) {
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
-
     return (
         <div style={{ position: 'relative', display: 'inline-block', ...style }}>
             {/* Skeleton background while loading */}
@@ -443,9 +443,6 @@ const MessageList: React.FC<MessageListProps> = ({
         </div>
     );
 };
-
-// Provide LazyImage as named export for use in MessageBubble
-export { LazyImage };
 
 const animationCSS = `
 @keyframes shimmer {
