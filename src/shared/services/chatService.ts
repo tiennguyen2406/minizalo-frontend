@@ -1,5 +1,4 @@
-import axios from "axios";
-import { useAuthStore } from "@/shared/store/authStore";
+import { api, API_BASE_URL } from "@/shared/services/apiClient";
 
 // Type definitions based on backend ChatRoomResponse
 export interface UserResponse {
@@ -59,52 +58,6 @@ export interface SearchMessageResponse {
     hasMore: boolean;
     totalResults: number;
 }
-
-// Config Base URL
-const rawBase =
-    typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
-        ? process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "")
-        : "http://localhost:8080/api";
-const API_BASE_URL = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
-
-const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: { "Content-Type": "application/json" },
-});
-
-// Add interceptor for token
-api.interceptors.request.use(async (config) => {
-    const token = useAuthStore.getState().accessToken;
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
-
-// Add interceptor for 401 refresh (simplified compared to userService, can copy if needed)
-api.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-            try {
-                const refreshed = await useAuthStore.getState().refreshAuth();
-                if (refreshed) {
-                    const token = useAuthStore.getState().accessToken;
-                    if (token) {
-                        originalRequest.headers.Authorization = `Bearer ${token}`;
-                        return api(originalRequest);
-                    }
-                }
-            } catch {
-                // ignore
-            }
-            useAuthStore.getState().clear();
-        }
-        return Promise.reject(error);
-    }
-);
 
 export interface PaginatedMessageResult {
     messages: MessageDynamo[];

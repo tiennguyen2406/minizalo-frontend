@@ -1,54 +1,5 @@
-import axios from 'axios';
 import { PaginatedMessageResult, SearchMessageResponse, Message } from '../types';
-import { useAuthStore } from '../store/authStore';
-
-// Config Base URL (same pattern as chatService)
-const rawBase =
-    typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
-        ? process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "")
-        : "http://localhost:8080/api";
-const API_URL = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
-
-const api = axios.create({
-    baseURL: API_URL,
-    headers: {
-        'Content-Type': 'application/json',
-    },
-});
-
-// Interceptor to add token
-api.interceptors.request.use((config) => {
-    const token = useAuthStore.getState().accessToken;
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
-
-// Add interceptor for 401 refresh
-api.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-            try {
-                const refreshed = await useAuthStore.getState().refreshAuth();
-                if (refreshed) {
-                    const token = useAuthStore.getState().accessToken;
-                    if (token) {
-                        originalRequest.headers.Authorization = `Bearer ${token}`;
-                        return api(originalRequest);
-                    }
-                }
-            } catch {
-                // ignore
-            }
-            useAuthStore.getState().clear();
-        }
-        return Promise.reject(error);
-    }
-);
+import { api } from "@/shared/services/apiClient";
 
 export const MessageService = {
     getChatHistory: async (roomId: string, limit: number = 20, lastKey?: string): Promise<PaginatedMessageResult> => {

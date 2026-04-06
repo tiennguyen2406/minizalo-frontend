@@ -45,10 +45,10 @@ export const authService = {
         return response.data;
     },
 
-    logout: async (accessToken: string): Promise<MessageResponse> => {
+    logout: async (accessToken: string, refreshToken?: string | null): Promise<MessageResponse> => {
         const response = await api.post<MessageResponse>(
             authPath("auth/logout"),
-            {},
+            refreshToken ? { refreshToken } : {},
             {
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
