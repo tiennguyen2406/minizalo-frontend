@@ -129,7 +129,7 @@ export default function MessageBubble({
     const partnerTextColor = colors.text;
     const myTextColor = "#ffffff"; // Always white for primary bg (blue)
     const textColor = isMe ? myTextColor : partnerTextColor;
-    const recalledTextColor = colors.textSecondary;
+    const recalledTextColor = isMe ? "rgba(255, 255, 255, 0.7)" : colors.textSecondary;
 
     // Check for image attachments
     const imageAttachments = (message.attachments || []).filter(
