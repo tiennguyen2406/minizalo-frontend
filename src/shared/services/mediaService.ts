@@ -1,51 +1,5 @@
 import axios from "axios";
-import { useAuthStore } from "@/shared/store/authStore";
-
-const rawBase =
-    typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
-        ? process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "")
-        : "http://localhost:8080/api";
-
-// Đảm bảo BASE_URL luôn trỏ đến /api để khớp với security config backend
-const API_BASE_URL = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
-
-function getAuthHeaders() {
-    const token = useAuthStore.getState().accessToken;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-        "Content-Type": "application/json",
-    },
-});
-
-// Interceptor xử lý refresh token khi gặp lỗi 401
-api.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-            try {
-                const refreshed = await useAuthStore.getState().refreshAuth();
-                if (refreshed) {
-                    const token = useAuthStore.getState().accessToken;
-                    if (token) {
-                        originalRequest.headers = originalRequest.headers || {};
-                        originalRequest.headers.Authorization = `Bearer ${token}`;
-                        return api(originalRequest);
-                    }
-                }
-            } catch {
-                // ignore
-            }
-            useAuthStore.getState().clear();
-        }
-        return Promise.reject(error);
-    }
-);
+import { api } from "@/shared/services/apiClient";
 
 export const mediaService = {
     /**
@@ -57,8 +11,6 @@ export const mediaService = {
             folder,
             fileName,
             contentType,
-        }, {
-            headers: getAuthHeaders()
         });
         return data.url;
     },
