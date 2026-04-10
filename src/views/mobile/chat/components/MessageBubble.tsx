@@ -1,11 +1,19 @@
-import React, { useState, useRef } from "react";
-import { View, Text, TouchableOpacity, Image, Modal, Dimensions, Linking, FlatList } from "react-native";
+import React, { useState, useRef, useCallback } from "react";
+import { View, Text, TouchableOpacity, Image, Modal, Dimensions, Linking, FlatList, Animated, Alert, Share, Platform, StatusBar, Pressable, useColorScheme } from "react-native";
 import type { MessageDynamo } from "@/shared/services/chatService";
 import { formatTime } from "@/shared/utils/dateUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
+import * as MediaLibrary from "expo-media-library";
+import * as FileSystem from "expo-file-system/legacy";
+const { documentDirectory, cacheDirectory, downloadAsync, readAsStringAsync, EncodingType } = FileSystem;
+import * as Sharing from "expo-sharing";
+import * as Clipboard from "expo-clipboard";
+import { Video, ResizeMode } from "expo-av";
+import { useThemeStore } from "@/shared/store/themeStore";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 function formatFileSize(bytes: number): string {
     if (!bytes || bytes <= 0) return "0 B";
@@ -13,6 +21,60 @@ function formatFileSize(bytes: number): string {
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
+
+const LinkableText = ({ text, style }: { text: string, style: any }) => {
+    const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(URL_REGEX);
+    return (
+        <Text style={style}>
+            {parts.map((part, i) => {
+                if (part.match(URL_REGEX)) {
+                    return (
+                        <Text
+                            key={i}
+                            style={[style, { color: (style.color === "#fff" || style.color === "#ffffff") ? "#add8e6" : "#0066cc", textDecorationLine: "underline" }]}
+                            onPress={() => Linking.openURL(part)}
+                        >
+                            {part}
+                        </Text>
+                    );
+                }
+                return part;
+            })}
+        </Text>
+    );
+};
+
+const LinkPreview = ({ url, isMe }: { url: string, isMe: boolean }) => {
+    const colors = useThemeColors();
+    const domain = url.replace(/https?:\/\//, "").split("/")[0];
+    
+    return (
+        <TouchableOpacity
+            onPress={() => Linking.openURL(url)}
+            activeOpacity={0.9}
+            style={{
+                backgroundColor: isMe ? "rgba(255,255,255,0.15)" : (useThemeStore.getState().theme === 'dark' ? "#1c1c1e" : "#f0f0f0"),
+                borderRadius: 8,
+                marginHorizontal: 10,
+                marginBottom: 8,
+                padding: 10,
+                borderLeftWidth: 3,
+                borderLeftColor: isMe ? "#fff" : colors.primary,
+            }}
+        >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="link-outline" size={16} color={isMe ? "#fff" : colors.primary} style={{ marginRight: 6 }} />
+                <Text style={{ color: isMe ? "#fff" : colors.textSecondary, fontSize: 11, fontWeight: '600' }} numberOfLines={1}>
+                    {domain}
+                </Text>
+            </View>
+            <Text style={{ color: isMe ? "rgba(255,255,255,0.9)" : colors.text, fontSize: 13, marginTop: 4 }} numberOfLines={2}>
+                {url}
+            </Text>
+        </TouchableOpacity>
+    );
+};
 
 interface ReplyPreview {
     senderName?: string;
@@ -23,11 +85,17 @@ interface MessageBubbleProps {
     message: MessageDynamo & { isError?: boolean };
     isMe: boolean;
     showSenderName?: boolean; // for group chats
-    onLongPress?: (message: MessageDynamo) => void;
+    onLongPress?: (message: MessageDynamo, attachment?: any) => void;
     onPress?: (message: MessageDynamo) => void;
     onPressReactions?: (message: MessageDynamo) => void;
     onImagePress?: (imageUrl: string) => void;
+    onForward?: (message: MessageDynamo) => void;
+    onRecall?: (message: MessageDynamo) => void;
+    onDelete?: (message: MessageDynamo) => void;
+    onReply?: (message: MessageDynamo) => void;
+    onTogglePin?: (message: MessageDynamo) => void;
     replyPreview?: ReplyPreview | null;
+    senderAvatarUrl?: string | null;
 }
 
 // Tạo màu nhất quán cho mỗi tên (giống Zalo)
@@ -57,9 +125,16 @@ export default function MessageBubble({
     onPress,
     onPressReactions,
     onImagePress,
+    onForward,
+    onRecall,
+    onDelete,
+    onReply,
+    onTogglePin,
     replyPreview,
+    senderAvatarUrl,
 }: MessageBubbleProps) {
     const colors = useThemeColors();
+    const theme = useThemeStore(s => s.theme);
     const senderName = message.senderName;
     const isRecalled = message.recalled;
     const isError = message.isError;
@@ -71,46 +146,231 @@ export default function MessageBubble({
     const [previewIndex, setPreviewIndex] = useState<number | null>(null);
     const [currentIndex, setCurrentIndex] = useState(0);
     const galleryRef = useRef<FlatList>(null);
+    const [pressedImageIndex, setPressedImageIndex] = useState<number | null>(null);
+    const [showControls, setShowControls] = useState(true);
+    const controlsOpacity = useRef(new Animated.Value(1)).current;
+    const [imgOptionsVisible, setImgOptionsVisible] = useState(false);
+
+    // Video states
+    const [previewVideoIndex, setPreviewVideoIndex] = useState<number | null>(null);
+    const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+    const videoGalleryRef = useRef<FlatList>(null);
+    const [pressedVideoIndex, setPressedVideoIndex] = useState<number | null>(null);
+    const [videoOptionsVisible, setVideoOptionsVisible] = useState(false);
+
+    // File states
+    const [selectedFile, setSelectedFile] = useState<any>(null);
+    const [filePreviewVisible, setFilePreviewVisible] = useState(false);
+
+    // Đóng chế độ xem nếu tin nhắn bị thu hồi từ bên ngoài (realtime)
+    React.useEffect(() => {
+        if (message.recalled) {
+            if (previewIndex !== null) {
+                setPreviewIndex(null);
+                setImgOptionsVisible(false);
+            }
+            if (previewVideoIndex !== null) {
+                setPreviewVideoIndex(null);
+                setVideoOptionsVisible(false);
+            }
+        }
+    }, [message.recalled, previewIndex, previewVideoIndex]);
+
+    const toggleControls = useCallback(() => {
+        const toValue = showControls ? 0 : 1;
+        Animated.timing(controlsOpacity, { toValue, duration: 200, useNativeDriver: true }).start();
+        setShowControls(v => !v);
+    }, [showControls, controlsOpacity]);
+
+    const getTimeAgo = (dateStr: string): string => {
+        if (!dateStr) return "";
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const mins = Math.floor(diff / 60000);
+        const hours = Math.floor(mins / 60);
+        const days = Math.floor(hours / 24);
+        if (days > 0) return `${days} ngày trước`;
+        if (hours > 0) return `${hours} giờ trước`;
+        if (mins > 0) return `${mins} phút trước`;
+        return "Vừa xong";
+    };
+
+    const [toastMsg, setToastMsg] = useState<string | null>(null);
+    const toastOpacity = useRef(new Animated.Value(0)).current;
+
+    const showToast = useCallback((msg: string) => {
+        setToastMsg(msg);
+        Animated.sequence([
+            Animated.timing(toastOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+            Animated.delay(1800),
+            Animated.timing(toastOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+        ]).start(() => setToastMsg(null));
+    }, [toastOpacity]);
+
+    const handleDownload = async (url: string | undefined, originalFileName?: string) => {
+        if (!url) {
+            Alert.alert("Lỗi", "Đường dẫn không hợp lệ.");
+            return;
+        }
+        try {
+            const finalUrl = getImageUrl(url);
+            const extension = finalUrl.split(".").pop()?.split("?")[0]?.toLowerCase() || "";
+            const isMedia = ["jpg", "jpeg", "png", "gif", "mp4", "mov"].includes(extension);
+
+            const filename = originalFileName || `file_${Date.now()}.${extension}`;
+            const localUri = `${cacheDirectory}${filename}`;
+
+            showToast("Đang tải xuống...");
+            const downloadRes = await downloadAsync(finalUrl, localUri);
+            if (!downloadRes) throw new Error("Download failed: No response");
+            console.log("Download success:", downloadRes.uri);
+
+            if (isMedia) {
+                const { status } = await MediaLibrary.requestPermissionsAsync();
+                if (status === "granted") {
+                    await MediaLibrary.saveToLibraryAsync(downloadRes.uri);
+                    showToast("Đã lưu vào bộ sưu tập!");
+                } else {
+                    await Sharing.shareAsync(downloadRes.uri);
+                }
+            } else {
+                // IMPORTANT: For files like .docx, .pdf, we open the share sheet.
+                // The user MUST select "Save to Files" (Lưu vào tệp) for it to appear in the Files app.
+                showToast("Chọn 'Lưu vào Tệp' từ menu hiện ra");
+                await Sharing.shareAsync(downloadRes.uri, {
+                    dialogTitle: "Tải file về máy"
+                });
+            }
+        } catch (e) {
+            console.error("Error downloading:", e);
+            Alert.alert("Lỗi", "Không thể tải file. Thử lại sau.");
+        }
+    };
+
+    const handleShare = async (url: string, originalFileName?: string) => {
+        try {
+            const isAvailable = await Sharing.isAvailableAsync();
+            const extension = url.split(".").pop()?.split("?")[0] || "jpg";
+            const filename = originalFileName || `share_${Date.now()}.${extension}`;
+            const localUri = `${documentDirectory}${filename}`;
+            const downloadRes = await downloadAsync(url, localUri);
+            if (!downloadRes) throw new Error("Download for share failed");
+            if (isAvailable) {
+                await Sharing.shareAsync(localUri);
+            } else {
+                await Share.share({ url });
+            }
+        } catch {
+            showToast("Không thể chia sẻ ảnh.");
+        }
+    };
+
+    const handleCopyImage = async (url: string, originalFileName?: string) => {
+        // Close options immediately
+        setImgOptionsVisible(false);
+
+        try {
+            const finalUrl = getImageUrl(url);
+            // Create a stable filename for better caching (use ID or part of URL)
+            const urlHash = url.split('/').pop()?.split('?')[0] || `img_temp`;
+            const extension = finalUrl.split(".").pop()?.split("?")[0]?.toLowerCase() || "jpg";
+            const filename = originalFileName || `cache_${urlHash}.${extension}`;
+            const localUri = `${cacheDirectory}${filename}`;
+            
+            showToast("Đang chuẩn bị ảnh...");
+            
+            // ─── OPTIMIZE CACHE: Check if file already exists ───
+            const info = await FileSystem.getInfoAsync(localUri);
+            let targetUri = localUri;
+
+            if (!info.exists) {
+                const downloadRes = await downloadAsync(finalUrl, localUri);
+                if (!downloadRes) throw new Error("Download for copy failed");
+                targetUri = downloadRes.uri;
+            }
+            
+            const base64 = await readAsStringAsync(targetUri, { encoding: EncodingType.Base64 });
+            await Clipboard.setImageAsync(base64);
+            showToast("Đã sao chép hình ảnh!");
+        } catch (e) {
+            console.error("Copy image failed:", e);
+            await Clipboard.setStringAsync(getImageUrl(url));
+            showToast("Đã sao chép liên kết ảnh!");
+        }
+    };
 
     // Xử lý lỗi URL localhost/IP address từ MinIO trên thiết bị thật/emulator
     const getImageUrl = (url: string) => {
         if (!url) return url;
-        
+        let finalUrl = url;
+
         // Xử lý localhost
-        if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
+        if (finalUrl.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
             const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
             if (match && match[1]) {
-                return url.replace("localhost", match[1]);
+                finalUrl = finalUrl.replace("localhost", match[1]);
             }
         }
-        
+
         // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
         if (process.env.EXPO_PUBLIC_API_URL) {
             const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
             if (apiMatch && apiMatch[1]) {
                 const apiHost = apiMatch[1];
-                
+
                 // Thay thế IP address trong URL ảnh bằng API host
-                if (url.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
-                    const urlMatch = url.match(/https?:\/\/([^:\/]+)/);
+                if (finalUrl.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
+                    const urlMatch = finalUrl.match(/https?:\/\/([^:\/]+)/);
                     if (urlMatch && urlMatch[1] !== apiHost) {
-                        return url.replace(urlMatch[1], apiHost);
+                        finalUrl = finalUrl.replace(urlMatch[1], apiHost);
                     }
                 }
-                
+
                 // Thay thế port 9000 (MinIO default) với API port nếu cần
-                if (url.includes(":9000") && !apiHost.includes(":9000")) {
-                    // Giữ nguyên port 9000 vì đây là MinIO server
-                    // Chỉ thay thế hostname
-                    const urlMatch = url.match(/https?:\/\/([^:]+):/);
+                if (finalUrl.includes(":9000") && !apiHost.includes(":9000")) {
+                    const urlMatch = finalUrl.match(/https?:\/\/([^:]+):/);
                     if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
-                        return url.replace(urlMatch[1], apiHost.split(':')[0]);
+                        finalUrl = finalUrl.replace(urlMatch[1], apiHost.split(':')[0]);
                     }
                 }
             }
         }
-        
-        return url;
+
+        // Ensure URL is encoded for spaces and special chars
+        try {
+            // Check if it looks like it needs encoding (contains spaces or special chars in path)
+            // We use encodeURI because it doesn't encode protocol (http://)
+            if (finalUrl.includes(" ") || finalUrl.includes("[") || finalUrl.includes("]")) {
+                return encodeURI(finalUrl);
+            }
+        } catch (e) {
+            console.error("Encoding error in getImageUrl:", e);
+        }
+
+        return finalUrl;
+    };
+
+    const handleFileView = async (url: string | undefined, originalFileName?: string) => {
+        if (!url) return;
+        try {
+            const finalUrl = getImageUrl(url);
+            showToast("Đang chuẩn bị mở...");
+            
+            const extension = finalUrl.split(".").pop()?.split("?")[0]?.toLowerCase() || "";
+            const filename = originalFileName || `view_${Date.now()}.${extension}`;
+            const localUri = `${cacheDirectory}${filename}`;
+
+            const downloadRes = await downloadAsync(finalUrl, localUri);
+            if (!downloadRes) throw new Error("View download failed: No response");
+            console.log("View Download success:", downloadRes.uri);
+
+            await Sharing.shareAsync(downloadRes.uri, {
+                dialogTitle: "Xem nội dung file"
+            });
+        } catch (e) {
+            console.error("View error:", e);
+            Alert.alert("Lỗi", "Không thể mở file. Vui lòng kiểm tra lại kết nối mạng hoặc ứng dụng đọc file.");
+            // Linking.openURL(getImageUrl(url)); // Optional: fallback to browser
+        }
     };
 
     const handlePress = () => {
@@ -119,29 +379,72 @@ export default function MessageBubble({
         }
     };
 
-    const handleLongPress = () => {
-        if (onLongPress) {
-            onLongPress(message);
+    const getFileIconInfo = (filename: string) => {
+        const ext = filename.split(".").pop()?.toLowerCase() || "";
+        switch (ext) {
+            case "pdf":
+                return { icon: "document-text-outline" as const, color: "#ff453a", label: "PDF" };
+            case "doc":
+            case "docx":
+                return { icon: "document-outline" as const, color: "#007aff", label: "WORD" };
+            case "xls":
+            case "xlsx":
+                return { icon: "grid-outline" as const, color: "#34c759", label: "EXCEL" };
+            case "ppt":
+            case "pptx":
+                return { icon: "easel-outline" as const, color: "#ff9500", label: "POWERPOINT" };
+            case "zip":
+            case "rar":
+            case "7z":
+                return { icon: "archive-outline" as const, color: "#af52de", label: "COMPRESS" };
+            case "mp3":
+            case "wav":
+            case "m4a":
+                return { icon: "musical-notes-outline" as const, color: "#5856d6", label: "AUDIO" };
+            case "txt":
+                return { icon: "document-text-outline" as const, color: "#8e8e93", label: "TEXT" };
+            default:
+                return { icon: "document-outline" as const, color: colors.primary, label: "FILE" };
         }
     };
 
-    const bubbleBackground = isMe ? colors.primary : colors.card;
-    const partnerTextColor = colors.text;
-    const myTextColor = "#ffffff"; // Always white for primary bg (blue)
-    const textColor = isMe ? myTextColor : partnerTextColor;
-    const recalledTextColor = isMe ? "rgba(255, 255, 255, 0.7)" : colors.textSecondary;
+
 
     // Check for image attachments
     const imageAttachments = (message.attachments || []).filter(
         (a) => a.type?.startsWith("image") || a.type === "IMAGE"
     );
-    // Check for file attachments (non-image)
+    // Check for file attachments (non-image, non-video)
     const fileAttachments = (message.attachments || []).filter(
-        (a) => a.type && !a.type.startsWith("image") && a.type !== "IMAGE"
+        (a) => a.type && !a.type.startsWith("image") && a.type !== "IMAGE" && !a.type.startsWith("video") && a.type !== "VIDEO"
+    );
+    // Check for video attachments
+    const videoAttachments = (message.attachments || []).filter(
+        (a) => a.type?.startsWith("video") || a.type === "VIDEO"
     );
     const hasImages = imageAttachments.length > 0 && !isRecalled;
+    const hasVideos = videoAttachments.length > 0 && !isRecalled;
     const hasFiles = fileAttachments.length > 0 && !isRecalled;
     const hasText = !!message.content && !isRecalled;
+
+    const isMediaOnly = (hasImages || hasVideos || hasFiles) && !hasText;
+
+    const bubbleBackground = isRecalled
+        ? (theme === 'dark' ? "#1c1c1e" : "#e5e5ea")
+        : (isMediaOnly
+            ? "transparent"
+            : (isMe ? colors.primary : (theme === 'dark' ? "#2c2c2e" : "#ffffff")));
+
+    const partnerTextColor = theme === 'dark' ? colors.text : "#000000";
+    const myTextColor = "#ffffff";
+    const textColor = isMe ? myTextColor : partnerTextColor;
+    const recalledTextColor = theme === 'dark' ? "#8e8e93" : "#6e6e73";
+
+    const handleLongPress = (attachment?: any) => {
+        if (onLongPress) {
+            onLongPress(message, attachment);
+        }
+    };
 
     return (
         <View
@@ -168,325 +471,585 @@ export default function MessageBubble({
                     </Text>
                 </View>
             ) : (
-            <TouchableOpacity
-                activeOpacity={0.8}
-                delayLongPress={250}
-                onPress={handlePress}
-                onLongPress={handleLongPress}
-            >
-                {/* Bubble */}
-                <View
-                    style={{
-                        maxWidth: SCREEN_WIDTH * 0.75,
-                        backgroundColor: (hasImages && !hasText && !hasFiles) ? "transparent" : bubbleBackground,
-                        borderRadius: 16,
-                        ...(isMe
-                            ? { borderBottomRightRadius: 4 }
-                            : { borderBottomLeftRadius: 4 }),
-                        opacity: isRecalled ? 0.8 : 1,
-                        overflow: "hidden",
-                        borderWidth: isMe ? 0 : 1,
-                        borderColor: colors.border,
-                    }}
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    delayLongPress={250}
+                    onPress={handlePress}
+                    onLongPress={handleLongPress}
                 >
-                    {/* Preview reply (nếu có) */}
-                    {replyPreview && (
-                        <View
-                            style={{
-                                marginBottom: 6,
-                                marginHorizontal: 12,
-                                marginTop: 8,
-                                paddingHorizontal: 8,
-                                paddingVertical: 4,
-                                borderLeftWidth: 2,
-                                borderLeftColor: isMe ? "rgba(255,255,255,0.6)" : colors.primary,
-                                backgroundColor: isMe ? "rgba(255,255,255,0.1)" : colors.background,
-                                borderRadius: 6,
-                            }}
-                        >
-                            {replyPreview.senderName && (
-                                <Text
-                                    style={{
-                                        color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary,
-                                        fontSize: 11,
-                                        fontWeight: "600",
-                                        marginBottom: 2,
-                                    }}
-                                >
-                                    {replyPreview.senderName}
-                                </Text>
-                            )}
-                            <Text
-                                numberOfLines={2}
+                    {/* Bubble */}
+                    <View
+                        style={{
+                            maxWidth: SCREEN_WIDTH * 0.75,
+                            backgroundColor: bubbleBackground,
+                            borderRadius: 16,
+                            padding: ((hasImages || hasVideos) && !hasText) ? 0 : 12, // Ensure padding for recalled messages
+                            borderWidth: 1,
+                            borderColor: isRecalled ? (theme === 'dark' ? "#3a3a3c" : "#d1d1d6") : (isMe ? "transparent" : colors.border),
+                        }}
+                    >
+                        {/* Preview reply (nếu có) */}
+                        {replyPreview && (
+                            <View
                                 style={{
-                                    color: isMe ? "rgba(255,255,255,0.9)" : colors.text,
-                                    fontSize: 11,
+                                    marginBottom: 6,
+                                    marginHorizontal: 12,
+                                    marginTop: 8,
+                                    paddingHorizontal: 8,
+                                    paddingVertical: 4,
+                                    borderLeftWidth: 2,
+                                    borderLeftColor: isMe ? "rgba(255,255,255,0.6)" : colors.primary,
+                                    backgroundColor: isMe ? "rgba(255,255,255,0.1)" : colors.background,
+                                    borderRadius: 6,
                                 }}
                             >
-                                {replyPreview.content}
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* Tên người gửi trong group */}
-                    {showSenderName && !isMe && senderName && (
-                        <Text
-                            style={{
-                                fontSize: 12,
-                                color: getNameColor(senderName),
-                                fontWeight: "700",
-                                marginBottom: 2,
-                                paddingHorizontal: 12,
-                                paddingTop: hasImages ? 8 : 0,
-                            }}
-                        >
-                            {senderName}
-                        </Text>
-                    )}
-
-                    {/* Image attachments */}
-                    {hasImages && (() => {
-                        const count = imageAttachments.length;
-                        const isSingle = count === 1;
-                        // Choose columns: 2 imgs → 2 cols, 3 → 3 cols, 4+ → 4 cols
-                        const GRID_COLS = isSingle ? 1 : count <= 2 ? 2 : count <= 3 ? 3 : 4;
-                        const gap = 2;
-                        const maxBubbleWidth = SCREEN_WIDTH * 0.65;
-                        const thumbSize = isSingle
-                            ? SCREEN_WIDTH * 0.55
-                            : Math.floor((maxBubbleWidth - gap * (GRID_COLS - 1)) / GRID_COLS);
-                        const gridWidth = isSingle
-                            ? undefined
-                            : thumbSize * GRID_COLS + gap * (GRID_COLS - 1) + 4; // +4 for padding
-
-                        return (
-                            <View style={isSingle ? undefined : {
-                                flexDirection: "row",
-                                flexWrap: "wrap",
-                                width: gridWidth,
-                                padding: 2,
-                            }}>
-                                {imageAttachments.map((att, idx) => (
-                                    <TouchableOpacity
-                                        key={idx}
-                                        activeOpacity={0.9}
-                                        onPress={() => {
-                                            const url = getImageUrl(att.url);
-                                            if (onImagePress) {
-                                                onImagePress(url);
-                                            } else {
-                                                setPreviewIndex(idx);
-                                                setCurrentIndex(idx);
-                                            }
-                                        }}
-                                        style={isSingle ? undefined : {
-                                            marginRight: (idx + 1) % GRID_COLS === 0 ? 0 : gap,
-                                            marginBottom: gap,
-                                        }}
-                                    >
-                                        <Image
-                                            source={{ uri: `${getImageUrl(att.url)}?t=${Date.now()}` }}
-                                            style={{
-                                                width: thumbSize,
-                                                height: thumbSize,
-                                                borderRadius: isSingle ? (hasText ? 0 : 16) : 4,
-                                                ...(isSingle && isMe && !hasText
-                                                    ? { borderBottomRightRadius: 4 }
-                                                    : isSingle && !isMe && !hasText
-                                                        ? { borderBottomLeftRadius: 4 }
-                                                        : {}),
-                                            }}
-                                            resizeMode="cover"
-                                            onError={(e) => console.log("Message Image Error:", e.nativeEvent.error, att.url)}
-                                        />
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        );
-                    })()}
-
-                    {/* File attachments */}
-                    {hasFiles && (
-                        <View>
-                            {fileAttachments.map((att, idx) => {
-                                const fileName = att.name || att.filename || "Tệp đính kèm";
-                                const fileSize = att.size ? formatFileSize(att.size) : "";
-                                return (
-                                    <TouchableOpacity
-                                        key={idx}
-                                        activeOpacity={0.8}
-                                        onPress={() => {
-                                            const url = getImageUrl(att.url);
-                                            if (url) Linking.openURL(url);
-                                        }}
+                                {replyPreview.senderName && (
+                                    <Text
                                         style={{
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            paddingHorizontal: 12,
-                                            paddingVertical: 10,
+                                            color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary,
+                                            fontSize: 11,
+                                            fontWeight: "600",
+                                            marginBottom: 2,
                                         }}
                                     >
-                                        <View
-                                            style={{
-                                                width: 40,
-                                                height: 40,
-                                                borderRadius: 8,
-                                                backgroundColor: isMe ? "rgba(255,255,255,0.15)" : colors.background,
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                marginRight: 10,
-                                            }}
-                                        >
-                                            <Ionicons name="document-text-outline" size={22} color={isMe ? "#fff" : colors.primary} />
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text
-                                                numberOfLines={2}
-                                                style={{
-                                                    color: textColor,
-                                                    fontSize: 14,
-                                                    fontWeight: "500",
+                                        {replyPreview.senderName}
+                                    </Text>
+                                )}
+                                <Text
+                                    numberOfLines={2}
+                                    style={{
+                                        color: isMe ? "rgba(255,255,255,0.9)" : colors.text,
+                                        fontSize: 11,
+                                    }}
+                                >
+                                    {replyPreview.content}
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Tên người gửi trong group */}
+                        {showSenderName && !isMe && senderName && (
+                            <Text
+                                style={{
+                                    fontSize: 12,
+                                    color: getNameColor(senderName),
+                                    fontWeight: "700",
+                                    marginBottom: 2,
+                                    paddingHorizontal: 12,
+                                    paddingTop: hasImages ? 8 : 0,
+                                }}
+                            >
+                                {senderName}
+                            </Text>
+                        )}
+
+                        {/* Image attachments */}
+                        {hasImages && (() => {
+                            const count = imageAttachments.length;
+                            const isSingle = count === 1;
+                            // Choose columns: 2 imgs → 2 cols, 3 → 3 cols, 4+ → 4 cols
+                            const GRID_COLS = isSingle ? 1 : count <= 2 ? 2 : count <= 3 ? 3 : 4;
+                            const gap = 2;
+                            const maxBubbleWidth = SCREEN_WIDTH * 0.65;
+                            const thumbSize = isSingle
+                                ? SCREEN_WIDTH * 0.55
+                                : Math.floor((maxBubbleWidth - gap * (GRID_COLS - 1)) / GRID_COLS);
+                            const gridWidth = isSingle
+                                ? undefined
+                                : thumbSize * GRID_COLS + gap * (GRID_COLS - 1) + 4; // +4 for padding
+
+                            return (
+                                <View style={isSingle ? undefined : {
+                                    flexDirection: "row",
+                                    flexWrap: "wrap",
+                                    width: gridWidth,
+                                    padding: 2,
+                                }}>
+                                    {imageAttachments.map((att, idx) => {
+                                        const isPressed = pressedImageIndex === idx;
+                                        const borderRadius = isSingle ? (hasText ? 0 : 16) : 4;
+                                        const extraRadius = isSingle && isMe && !hasText
+                                            ? { borderBottomRightRadius: 4 }
+                                            : isSingle && !isMe && !hasText
+                                                ? { borderBottomLeftRadius: 4 }
+                                                : {};
+                                        return (
+                                            <TouchableOpacity
+                                                key={idx}
+                                                activeOpacity={1}
+                                                delayLongPress={250}
+                                                onPressIn={() => setPressedImageIndex(idx)}
+                                                onPressOut={() => setPressedImageIndex(null)}
+                                                onLongPress={() => {
+                                                    // Giữ trạng thái highlight và gọi long press của message
+                                                    handleLongPress(att);
+                                                    // Tắt highlight sau 500ms
+                                                    setTimeout(() => setPressedImageIndex(null), 500);
+                                                }}
+                                                onPress={() => {
+                                                    setPressedImageIndex(null);
+                                                    const url = getImageUrl(att.url);
+                                                    if (onImagePress) {
+                                                        onImagePress(url);
+                                                    } else {
+                                                        setPreviewIndex(idx);
+                                                        setCurrentIndex(idx);
+                                                    }
+                                                }}
+                                                style={isSingle ? undefined : {
+                                                    marginRight: (idx + 1) % GRID_COLS === 0 ? 0 : gap,
+                                                    marginBottom: gap,
                                                 }}
                                             >
-                                                {fileName}
-                                            </Text>
-                                            {fileSize ? (
-                                                <Text style={{ color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                                                    {fileSize}
-                                                </Text>
-                                            ) : null}
-                                        </View>
-                                        <Ionicons name="download-outline" size={20} color={isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary} />
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    )}
+                                                {/* Image + overlay khi nhấn giữ */}
+                                                <View style={{
+                                                    width: thumbSize,
+                                                    height: thumbSize,
+                                                    borderRadius,
+                                                    overflow: "hidden",
+                                                    backgroundColor: "rgba(0,0,0,0.05)",
+                                                    ...extraRadius,
+                                                }}>
+                                                    <Image
+                                                        source={{ uri: `${getImageUrl(att.url)}?t=${Date.now()}` }}
+                                                        style={{
+                                                            width: thumbSize,
+                                                            height: thumbSize,
+                                                        }}
+                                                        resizeMode="cover"
+                                                    // Image load error
+                                                    />
+                                                    {/* Overlay khi đang nhấn giữ */}
+                                                    {isPressed && (
+                                                        <View
+                                                            style={{
+                                                                position: "absolute",
+                                                                top: 0,
+                                                                left: 0,
+                                                                width: thumbSize,
+                                                                height: thumbSize,
+                                                                borderRadius,
+                                                                ...extraRadius,
+                                                                backgroundColor: "rgba(0, 0, 0, 0.35)",
+                                                                justifyContent: "center",
+                                                                alignItems: "center",
+                                                            }}
+                                                        >
+                                                            <Ionicons name="checkmark-circle" size={28} color="rgba(255,255,255,0.9)" />
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            );
+                        })()}
 
-                    {/* Text content */}
-                    {(hasText || isRecalled) && (
-                        <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
-                            <Text
-                                style={{
-                                    color: isRecalled ? recalledTextColor : textColor,
-                                    fontSize: 15,
-                                    lineHeight: 20,
-                                    fontStyle: isRecalled ? "italic" : "normal",
-                                }}
-                            >
-                                {isRecalled ? "Tin nhắn đã được thu hồi" : message.content}
-                            </Text>
-                        </View>
-                    )}
+                        {/* Video attachments */}
+                        {hasVideos && (() => {
+                            const count = videoAttachments.length;
+                            const isSingle = count === 1;
+                            const GRID_COLS = isSingle ? 1 : count <= 2 ? 2 : count <= 3 ? 3 : 4;
+                            const gap = 2;
+                            const maxBubbleWidth = SCREEN_WIDTH * 0.65;
+                            const thumbSize = isSingle
+                                ? SCREEN_WIDTH * 0.55
+                                : Math.floor((maxBubbleWidth - gap * (GRID_COLS - 1)) / GRID_COLS);
+                            const gridWidth = isSingle
+                                ? undefined
+                                : thumbSize * GRID_COLS + gap * (GRID_COLS - 1) + 4;
 
-                    {/* Time */}
-                    {time && !isError ? (
-                        <Text
-                            style={{
-                                fontSize: 11,
-                                paddingHorizontal: 12,
-                                paddingBottom: 6,
-                                marginTop: hasImages && !hasText ? 4 : 0,
-                                color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary,
-                                textAlign: "right",
-                            }}
-                        >
-                            {time}
-                        </Text>
-                    ) : null}
-                </View>
-
-                {/* Error message */}
-                {isError && (
-                    <Text
-                        style={{
-                            color: "#e74c3c", // Red color
-                            fontSize: 11,
-                            marginTop: 4,
-                            alignSelf: isMe ? "flex-end" : "flex-start",
-                        }}
-                    >
-                        Không gửi được
-                    </Text>
-                )}
-
-                {/* Reactions */}
-                {Array.isArray(message.reactions) && message.reactions.length > 0 && (
-                    <TouchableOpacity
-                        onPress={() => onPressReactions?.(message)}
-                        activeOpacity={0.8}
-                        style={{
-                            flexDirection: "row",
-                            alignSelf: isMe ? "flex-end" : "flex-start",
-                            marginTop: 2,
-                            marginRight: isMe ? 8 : 0,
-                            marginLeft: !isMe ? 8 : 0,
-                            backgroundColor: colors.card,
-                            borderRadius: 999,
-                            paddingHorizontal: 6,
-                            paddingVertical: 2,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                        }}
-                    >
-                        {Object.entries(
-                            message.reactions.reduce<Record<string, number>>((acc, r) => {
-                                if (!r?.emoji) return acc;
-                                acc[r.emoji] = (acc[r.emoji] || 0) + 1;
-                                return acc;
-                            }, {})
-                        ).map(([emoji, count]) => (
-                            <View
-                                key={emoji}
-                                style={{
+                            return (
+                                <View style={isSingle ? {
+                                    width: SCREEN_WIDTH * 0.7,
+                                    backgroundColor: "transparent",
+                                    borderRadius: 16,
+                                    overflow: "hidden",
+                                    marginBottom: hasText ? 8 : 0,
+                                } : {
                                     flexDirection: "row",
-                                    alignItems: "center",
-                                    marginHorizontal: 2,
+                                    flexWrap: "wrap",
+                                    width: gridWidth,
+                                    padding: 2,
+                                }}>
+                                    {videoAttachments.map((att, idx) => {
+                                        const isPressed = pressedVideoIndex === idx;
+                                        const borderRadius = isSingle ? 0 : 4;
+                                        const vSize = isSingle ? SCREEN_WIDTH * 0.7 : thumbSize;
+                                        const vHeight = isSingle ? 180 : thumbSize;
+
+                                        return (
+                                            <View key={`vid-${idx}`} style={{ marginBottom: isSingle ? 0 : gap }}>
+                                                <TouchableOpacity
+                                                    activeOpacity={1}
+                                                    delayLongPress={250}
+                                                    onPressIn={() => setPressedVideoIndex(idx)}
+                                                    onPressOut={() => setPressedVideoIndex(null)}
+                                                    onLongPress={() => {
+                                                        handleLongPress(att);
+                                                        setTimeout(() => setPressedVideoIndex(null), 500);
+                                                    }}
+                                                    onPress={() => {
+                                                        setPressedVideoIndex(null);
+                                                        setPreviewVideoIndex(idx);
+                                                        setCurrentVideoIndex(idx);
+                                                    }}
+                                                    style={isSingle ? undefined : {
+                                                        marginRight: (idx + 1) % GRID_COLS === 0 ? 0 : gap,
+                                                    }}
+                                                >
+                                                    <View style={{ position: "relative" }}>
+                                                        <Video
+                                                            source={{ uri: getImageUrl(att.url) }}
+                                                            style={{
+                                                                width: vSize,
+                                                                height: vHeight,
+                                                                borderRadius: borderRadius,
+                                                            }}
+                                                            resizeMode={ResizeMode.COVER}
+                                                            shouldPlay={true}
+                                                            isMuted={true}
+                                                            isLooping={true}
+                                                        />
+                                                        {/* Central Play Icon */}
+                                                        <View style={{
+                                                            position: "absolute",
+                                                            top: 0, left: 0, right: 0, bottom: 0,
+                                                            justifyContent: "center",
+                                                            alignItems: "center",
+                                                        }}>
+                                                            <View style={{
+                                                                width: 44, height: 44, borderRadius: 22,
+                                                                backgroundColor: "rgba(0,0,0,0.4)",
+                                                                justifyContent: "center", alignItems: "center",
+                                                                borderWidth: 1, borderColor: "rgba(255,255,255,0.3)",
+                                                            }}>
+                                                                <Ionicons name="play" size={24} color="#fff" style={{ marginLeft: 3 }} />
+                                                            </View>
+                                                        </View>
+
+                                                        {/* Overlay when pressed */}
+                                                        {isPressed && (
+                                                            <View
+                                                                style={{
+                                                                    position: "absolute",
+                                                                    top: 0, left: 0, right: 0, bottom: 0,
+                                                                    backgroundColor: "rgba(0,0,0,0.35)",
+                                                                    justifyContent: "center",
+                                                                    alignItems: "center",
+                                                                    borderRadius: borderRadius,
+                                                                }}
+                                                            >
+                                                                <Ionicons name="checkmark-circle" size={28} color="rgba(255,255,255,0.9)" />
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                </TouchableOpacity>
+
+                                                {/* Single Video Footer (Style matching File Bubble) */}
+                                                {isSingle && (
+                                                    <View style={{
+                                                        flexDirection: "row",
+                                                        alignItems: "center",
+                                                        padding: 12,
+                                                        backgroundColor: "rgba(0,0,0,0.8)", // Darker like the image
+                                                    }}>
+                                                        <View style={{
+                                                            width: 36,
+                                                            height: 36,
+                                                            backgroundColor: "#5856d6",
+                                                            borderRadius: 8,
+                                                            justifyContent: "center",
+                                                            alignItems: "center",
+                                                            marginRight: 12,
+                                                        }}>
+                                                            <Ionicons name="videocam" size={20} color="#fff" />
+                                                        </View>
+                                                        <View style={{ flex: 1 }}>
+                                                            <Text style={{
+                                                                color: "#fff",
+                                                                fontSize: 14,
+                                                                fontWeight: "600",
+                                                            }} numberOfLines={1}>
+                                                                Video
+                                                            </Text>
+                                                            <Text style={{
+                                                                color: "rgba(255,255,255,0.6)",
+                                                                fontSize: 12,
+                                                            }}>
+                                                                Chạm để xem chi tiết
+                                                            </Text>
+                                                        </View>
+                                                    </View>
+                                                )}
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            );
+                        })()}
+
+                        {/* File attachments */}
+                        {hasFiles && (
+                            <View style={{ marginTop: (hasImages || hasVideos) ? 8 : 0 }}>
+                                {fileAttachments.map((att, idx) => {
+                                    const rawName = att.name || att.filename || "Tệp đính kèm";
+                                    const fileName = decodeURIComponent(rawName);
+                                    const fileSize = att.size ? formatFileSize(att.size) : "";
+                                    const { icon, color, label } = getFileIconInfo(fileName);
+                                    const isPDF = label === "PDF";
+
+                                    return (
+                                        <TouchableOpacity
+                                            key={idx}
+                                            activeOpacity={0.9}
+                                            delayLongPress={250}
+                                            onLongPress={handleLongPress}
+                                            onPress={() => {
+                                                setSelectedFile({ ...att, fileName, icon, color, label });
+                                                setFilePreviewVisible(true);
+                                            }}
+                                            style={{
+                                                width: SCREEN_WIDTH * 0.7,
+                                                backgroundColor: "transparent",
+                                                borderRadius: 16,
+                                                overflow: "hidden",
+                                                marginBottom: idx === fileAttachments.length - 1 ? 0 : 8,
+                                            }}
+                                        >
+                                            {/* Top Preview Area (Thumbnail) */}
+                                            <View style={{
+                                                height: 120,
+                                                backgroundColor: theme === 'dark' ? "#1c1c1e" : "#f8f9fa",
+                                                justifyContent: "center",
+                                                alignItems: "center",
+                                                padding: 10,
+                                            }}>
+                                                {/* Giả lập trang tài liệu với nội dung mờ */}
+                                                <View style={{
+                                                    width: "80%",
+                                                    height: "90%",
+                                                    backgroundColor: theme === 'dark' ? "#2c2c2e" : "#fff",
+                                                    borderRadius: 2,
+                                                    padding: 10,
+                                                    borderWidth: theme === 'dark' ? 0.5 : 0,
+                                                    borderColor: "rgba(255,255,255,0.1)",
+                                                    shadowColor: "#000",
+                                                    shadowOffset: { width: 0, height: 2 },
+                                                    shadowOpacity: 0.1,
+                                                    shadowRadius: 3,
+                                                    elevation: 2,
+                                                }}>
+                                                    <View style={{ width: "40%", height: 3, backgroundColor: theme === 'dark' ? "#3a3a3c" : "#eee", marginBottom: 6 }} />
+                                                    <View style={{ width: "90%", height: 2, backgroundColor: theme === 'dark' ? "#3a3a3c" : "#f5f5f5", marginBottom: 4 }} />
+                                                    <View style={{ width: "85%", height: 2, backgroundColor: theme === 'dark' ? "#3a3a3c" : "#f5f5f5", marginBottom: 4 }} />
+                                                    <View style={{ width: "95%", height: 2, backgroundColor: theme === 'dark' ? "#3a3a3c" : "#f5f5f5", marginBottom: 4 }} />
+                                                    <View style={{ position: "absolute", bottom: 10, right: 10 }}>
+                                                        <Ionicons name={icon} size={20} color={color + "30"} />
+                                                    </View>
+                                                </View>
+                                            </View>
+
+                                            {/* Bottom Info Bar */}
+                                            <View style={{
+                                                flexDirection: "row",
+                                                alignItems: "center",
+                                                padding: 12,
+                                                backgroundColor: "rgba(0,0,0,0.8)", // Darker like the image
+                                            }}>
+                                                <View style={{
+                                                    width: 40,
+                                                    height: 48,
+                                                    backgroundColor: color,
+                                                    borderRadius: 6,
+                                                    justifyContent: "center",
+                                                    alignItems: "center",
+                                                    marginRight: 12,
+                                                }}>
+                                                    <Ionicons name={icon} size={20} color="#fff" />
+                                                    <Text style={{ color: "#fff", fontSize: 8, fontWeight: "bold", marginTop: 2 }}>{label}</Text>
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text
+                                                        numberOfLines={1}
+                                                        ellipsizeMode="middle"
+                                                        style={{
+                                                            color: "#fff",
+                                                            fontSize: 14,
+                                                            fontWeight: "600",
+                                                        }}
+                                                    >
+                                                        {fileName}
+                                                    </Text>
+                                                    <Text style={{
+                                                        color: "rgba(255,255,255,0.6)",
+                                                        fontSize: 12,
+                                                        marginTop: 2,
+                                                    }}>
+                                                        {label} · {fileSize || "Không rõ"}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        )}
+
+                        {/* Text content with Link Detection */}
+                        {(hasText || isRecalled) && (
+                            <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+                                {isRecalled ? (
+                                    <Text
+                                        style={{
+                                            color: recalledTextColor,
+                                            fontSize: 15,
+                                            lineHeight: 20,
+                                            fontStyle: "italic",
+                                        }}
+                                    >
+                                        Tin nhắn đã được thu hồi
+                                    </Text>
+                                ) : (
+                                    <LinkableText 
+                                        text={message.content || ""} 
+                                        style={{
+                                            color: textColor,
+                                            fontSize: 15,
+                                            lineHeight: 22,
+                                        }} 
+                                    />
+                                )}
+                            </View>
+                        )}
+
+                        {/* Link Preview (Simple implementation) */}
+                        {!isRecalled && hasText && message.content?.match(/https?:\/\/[^\s]+/) && (
+                            <LinkPreview url={message.content.match(/https?:\/\/[^\s]+/)?.[0] || ""} isMe={isMe} />
+                        )}
+
+                        {/* Time */}
+                        {time && !isError ? (
+                            <View
+                                style={{
+                                    alignSelf: "flex-end",
+                                    paddingHorizontal: isMediaOnly ? 6 : 12,
+                                    paddingVertical: isMediaOnly ? 2 : 0,
+                                    paddingBottom: isMediaOnly ? 4 : 6,
+                                    marginRight: isMediaOnly ? 8 : 0,
+                                    marginBottom: isMediaOnly ? 8 : 0,
+                                    backgroundColor: isMediaOnly ? "rgba(0,0,0,0.4)" : "transparent",
+                                    borderRadius: 10,
+                                    marginTop: (hasImages || hasVideos) && !hasText ? (isMediaOnly ? -24 : 4) : 0,
+                                    zIndex: 5,
                                 }}
                             >
-                                <Text style={{ fontSize: 11, marginRight: 2 }}>{emoji}</Text>
                                 <Text
                                     style={{
-                                        color: colors.text,
-                                        fontSize: 9,
-                                        fontWeight: "600",
+                                        fontSize: 10,
+                                        color: isRecalled
+                                            ? colors.textSecondary
+                                            : (isMediaOnly
+                                                ? "#ffffff"
+                                                : (isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary)),
+                                        textAlign: "right",
                                     }}
                                 >
-                                    {count}
+                                    {time}
                                 </Text>
                             </View>
-                        ))}
-                    </TouchableOpacity>
-                )}
-            </TouchableOpacity>
+                        ) : null}
+                    </View>
+
+                    {/* Error message */}
+                    {isError && (
+                        <Text
+                            style={{
+                                color: "#e74c3c", // Red color
+                                fontSize: 11,
+                                marginTop: 4,
+                                alignSelf: isMe ? "flex-end" : "flex-start",
+                            }}
+                        >
+                            Không gửi được
+                        </Text>
+                    )}
+
+                    {/* Reactions */}
+                    {Array.isArray(message.reactions) && message.reactions.length > 0 && !isRecalled && (
+                        <TouchableOpacity
+                            onPress={() => onPressReactions?.(message)}
+                            activeOpacity={0.8}
+                            style={{
+                                flexDirection: "row",
+                                flexWrap: "wrap",
+                                alignSelf: isMe ? "flex-end" : "flex-start",
+                                marginTop: -10, // Overlap slightly with bubble for premium look
+                                marginRight: isMe ? 12 : 0,
+                                marginLeft: !isMe ? 12 : 0,
+                                backgroundColor: theme === 'dark' ? "#2c2c2e" : "#ffffff",
+                                borderRadius: 14,
+                                paddingHorizontal: 8,
+                                paddingVertical: 4,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                maxWidth: '80%',
+                                shadowColor: "#000",
+                                shadowOffset: { width: 0, height: 1 },
+                                shadowOpacity: 0.15,
+                                shadowRadius: 2,
+                                elevation: 3,
+                                zIndex: 10,
+                            }}
+                        >
+                            {Object.entries(
+                                message.reactions.reduce<Record<string, number>>((acc, r) => {
+                                    if (!r?.emoji) return acc;
+                                    acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                                    return acc;
+                                }, {})
+                            ).map(([emoji, count]) => (
+                                <View
+                                    key={emoji}
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        marginHorizontal: 2,
+                                    }}
+                                >
+                                    <Text style={{ fontSize: 11, marginRight: 2 }}>{emoji}</Text>
+                                    <Text
+                                        style={{
+                                            color: colors.text,
+                                            fontSize: 9,
+                                            fontWeight: "600",
+                                        }}
+                                    >
+                                        {count}
+                                    </Text>
+                                </View>
+                            ))}
+                        </TouchableOpacity>
+                    )}
+                </TouchableOpacity>
             )}
 
-            {/* Full-screen swipeable image gallery */}
+            {/* ─── Full-screen image gallery with header/footer ─── */}
             <Modal
                 visible={previewIndex !== null}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setPreviewIndex(null)}
+                statusBarTranslucent
+                onRequestClose={() => {
+                    setPreviewIndex(null);
+                    setShowControls(true);
+                    controlsOpacity.setValue(1);
+                }}
             >
-                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.95)" }}>
-                    {/* Close button */}
-                    <TouchableOpacity
-                        onPress={() => setPreviewIndex(null)}
-                        style={{ position: "absolute", top: 52, right: 20, zIndex: 10, padding: 8 }}
-                    >
-                        <Ionicons name="close" size={28} color="#fff" />
-                    </TouchableOpacity>
+                <View style={{ flex: 1, backgroundColor: "#000" }}>
 
-                    {/* Counter */}
-                    {imageAttachments.length > 1 && (
-                        <View style={{ position: "absolute", top: 56, left: 0, right: 0, zIndex: 10, alignItems: "center" }}>
-                            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
-                                {currentIndex + 1} / {imageAttachments.length}
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* Swipeable gallery */}
+                    {/* Swipeable gallery — tap to toggle controls */}
                     <FlatList
                         ref={galleryRef}
                         data={imageAttachments}
@@ -505,22 +1068,522 @@ export default function MessageBubble({
                             setCurrentIndex(idx);
                         }}
                         renderItem={({ item: att }) => (
-                            <View style={{
-                                width: SCREEN_WIDTH,
-                                flex: 1,
-                                justifyContent: "center",
-                                alignItems: "center",
-                            }}>
+                            <TouchableOpacity
+                                activeOpacity={1}
+                                onPress={toggleControls}
+                                style={{
+                                    width: SCREEN_WIDTH,
+                                    height: SCREEN_HEIGHT,
+                                    justifyContent: "center",
+                                    alignItems: "center",
+                                    backgroundColor: 'black'
+                                }}
+                            >
                                 <Image
                                     source={{ uri: getImageUrl(att.url) }}
-                                    style={{ width: SCREEN_WIDTH, height: SCREEN_WIDTH }}
+                                    style={{
+                                        width: SCREEN_WIDTH,
+                                        height: '100%',
+                                    }}
                                     resizeMode="contain"
                                 />
-                            </View>
+                            </TouchableOpacity>
                         )}
                     />
+
+                    {/* ─── Animated Header ─── */}
+                    <Animated.View
+                        pointerEvents={showControls ? "auto" : "none"}
+                        style={{
+                            position: "absolute", top: 0, left: 0, right: 0,
+                            opacity: controlsOpacity,
+                            backgroundColor: "rgba(0,0,0,0.6)",
+                            paddingTop: Platform.OS === "ios" ? 52 : (StatusBar.currentHeight ?? 24) + 12,
+                            paddingBottom: 15, paddingHorizontal: 15,
+                            flexDirection: "row", alignItems: "center",
+                            zIndex: 1000,
+                        }}
+                    >
+                        {/* Back */}
+                        <TouchableOpacity
+                            onPress={() => { setPreviewIndex(null); setShowControls(true); controlsOpacity.setValue(1); }}
+                            style={{ padding: 4, marginRight: 10 }}
+                        >
+                            <Ionicons name="chevron-back" size={26} color="#fff" />
+                        </TouchableOpacity>
+
+                        {/* Avatar */}
+                        {senderAvatarUrl ? (
+                            <Image source={{ uri: senderAvatarUrl }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10 }} />
+                        ) : (
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#666", justifyContent: "center", alignItems: "center", marginRight: 10 }}>
+                                <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>
+                                    {(message.senderName || "?").charAt(0).toUpperCase()}
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Name + time */}
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }} numberOfLines={1}>
+                                {message.senderName || "Nguoi dung"}
+                            </Text>
+                            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 1 }}>
+                                {message.createdAt
+                                    ? `${new Date(message.createdAt).toLocaleDateString("vi-VN")} · ${formatTime(message.createdAt)} · ${getTimeAgo(message.createdAt)}`
+                                    : ""}
+                            </Text>
+                        </View>
+
+                        {/* Download */}
+                        <TouchableOpacity
+                            onPress={() => { 
+                                const att = imageAttachments[currentIndex];
+                                const url = getImageUrl(att?.url || ""); 
+                                if (url) handleDownload(url, att?.name); 
+                            }}
+                            style={{ padding: 8, marginLeft: 4 }}
+                        >
+                            <Ionicons name="download-outline" size={24} color="#fff" />
+                        </TouchableOpacity>
+
+                        {/* 3-dot */}
+                        <TouchableOpacity onPress={() => setImgOptionsVisible(true)} style={{ padding: 8, marginLeft: 4 }}>
+                            <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
+                        </TouchableOpacity>
+                    </Animated.View>
+
+                    {/* ─── Animated Footer ─── */}
+                    <Animated.View
+                        pointerEvents={showControls ? "auto" : "none"}
+                        style={{
+                            position: "absolute", bottom: 0, left: 0, right: 0,
+                            opacity: controlsOpacity,
+                            backgroundColor: "rgba(0,0,0,0.55)",
+                            paddingBottom: Platform.OS === "ios" ? 36 : 16,
+                            paddingTop: 12, paddingHorizontal: 20,
+                            flexDirection: "row", alignItems: "center", justifyContent: "flex-end",
+                            zIndex: 1000,
+                        }}
+                    >
+                        {imageAttachments.length > 1 && (
+                            <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 14, flex: 1 }}>
+                                {currentIndex + 1} / {imageAttachments.length}
+                            </Text>
+                        )}
+                        <TouchableOpacity
+                            onPress={() => { 
+                                const att = imageAttachments[currentIndex];
+                                const url = getImageUrl(att?.url || ""); 
+                                if (url) handleShare(url, att?.name); 
+                            }}
+                            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.18)", justifyContent: "center", alignItems: "center" }}
+                        >
+                            <Ionicons name="share-outline" size={22} color="#fff" />
+                        </TouchableOpacity>
+                    </Animated.View>
+
+                    {/* ─── Options Bottom Sheet ─── */}
+                    {imgOptionsVisible && (
+                        <TouchableOpacity
+                            activeOpacity={1}
+                            onPress={() => setImgOptionsVisible(false)}
+                            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end", zIndex: 2000 }}
+                        >
+                            <View style={{ backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: Platform.OS === "ios" ? 40 : 25, overflow: "hidden" }}>
+                                {[
+                                    { icon: "image-outline" as const, label: "Lưu hình ảnh", color: "#fff", action: async () => { setImgOptionsVisible(false); const att = imageAttachments[currentIndex]; const url = getImageUrl(att?.url || ""); if (url) await handleDownload(url, att?.name); } },
+                                    { icon: "chatbubble-outline" as const, label: "Trả lời", color: "#fff", action: () => { setImgOptionsVisible(false); setPreviewIndex(null); setTimeout(() => onReply?.(message), 100); } },
+                                    { icon: "pin-outline" as const, label: message.pinned ? "Bỏ ghim" : "Ghim", color: "#fff", action: () => { setImgOptionsVisible(false); onTogglePin?.(message); } },
+                                    { icon: "arrow-redo-outline" as const, label: "Chuyển tiếp", color: "#fff", action: () => { setImgOptionsVisible(false); setPreviewIndex(null); setTimeout(() => onForward?.(message), 250); } },
+                                    { icon: "copy-outline" as const, label: "Sao chép", color: "#fff", action: async () => { setImgOptionsVisible(false); const att = imageAttachments[currentIndex]; const url = getImageUrl(att?.url || ""); if (url) await handleCopyImage(url, att?.name); } },
+                                    ...(isMe ? [{ icon: "refresh-outline" as const, label: "Thu hồi", color: "#ff9f0a", action: () => { setImgOptionsVisible(false); onRecall?.(message); } }] : []),
+                                    { icon: "trash-outline" as const, label: "Xóa", color: "#ff453a", action: () => { setImgOptionsVisible(false); setPreviewIndex(null); setTimeout(() => onDelete?.(message), 100); } },
+                                    { icon: "close-circle-outline" as const, label: "Hủy", color: "#ccc", action: () => setImgOptionsVisible(false) },
+                                ].map((item, i, arr) => (
+                                    <TouchableOpacity
+                                        key={item.label}
+                                        onPress={item.action}
+                                        activeOpacity={0.6}
+                                        style={{
+                                            paddingVertical: 14,
+                                            paddingHorizontal: 20,
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            borderBottomWidth: i === arr.length - 1 ? 0 : 0.5,
+                                            borderBottomColor: "rgba(255,255,255,0.1)",
+                                        }}
+                                    >
+                                        <Ionicons name={item.icon} size={22} color={item.color} style={{ marginRight: 14 }} />
+                                        <Text style={{ color: item.color, fontSize: 16, fontWeight: "500" }}>{item.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </TouchableOpacity>
+                    )}
+                    {toastMsg && (
+                        <View pointerEvents="none" style={{ position: "absolute", bottom: 150, left: 0, right: 0, alignItems: "center", zIndex: 9999999 }}>
+                            <Animated.View style={{ backgroundColor: "rgba(0,0,0,0.9)", paddingHorizontal: 22, paddingVertical: 14, borderRadius: 30, opacity: toastOpacity, elevation: 20 }}>
+                                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{toastMsg}</Text>
+                            </Animated.View>
+                        </View>
+                    )}
                 </View>
             </Modal>
+
+            {/* ─── Full-screen video gallery with header/footer ─── */}
+            <Modal
+                visible={previewVideoIndex !== null}
+                transparent
+                animationType="fade"
+                statusBarTranslucent
+                onRequestClose={() => {
+                    setPreviewVideoIndex(null);
+                    setShowControls(true);
+                    controlsOpacity.setValue(1);
+                }}
+            >
+                <View style={{ flex: 1, backgroundColor: "#000" }}>
+                    <FlatList
+                        data={videoAttachments}
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        keyExtractor={(_, i) => `vid-gallery-${i}`}
+                        initialScrollIndex={previewVideoIndex ?? 0}
+                        getItemLayout={(_, index) => ({
+                            length: SCREEN_WIDTH,
+                            offset: SCREEN_WIDTH * index,
+                            index,
+                        })}
+                        onMomentumScrollEnd={(e) => {
+                            const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                            setCurrentVideoIndex(idx);
+                        }}
+                        renderItem={({ item: att, index }) => (
+                            <TouchableOpacity
+                                activeOpacity={1}
+                                onPress={toggleControls}
+                                style={{
+                                    width: SCREEN_WIDTH,
+                                    height: SCREEN_HEIGHT,
+                                    justifyContent: "center",
+                                    alignItems: "center",
+                                    backgroundColor: 'black'
+                                }}
+                            >
+                                <Video
+                                    source={{ uri: getImageUrl(att.url) }}
+                                    style={{
+                                        width: SCREEN_WIDTH,
+                                        height: '100%',
+                                    }}
+                                    resizeMode={ResizeMode.CONTAIN}
+                                    useNativeControls
+                                    shouldPlay={index === currentVideoIndex}
+                                    isLooping
+                                />
+                            </TouchableOpacity>
+                        )}
+                    />
+
+                    {/* ─── Animated Header ─── */}
+                    <Animated.View
+                        pointerEvents={showControls ? "auto" : "none"}
+                        style={{
+                            position: "absolute", top: 0, left: 0, right: 0,
+                            opacity: controlsOpacity,
+                            backgroundColor: "rgba(0,0,0,0.6)",
+                            paddingTop: Platform.OS === "ios" ? 52 : (StatusBar.currentHeight ?? 24) + 12,
+                            paddingBottom: 15, paddingHorizontal: 15,
+                            flexDirection: "row", alignItems: "center",
+                            zIndex: 1000,
+                        }}
+                    >
+                        {/* Back */}
+                        <TouchableOpacity
+                            onPress={() => { setPreviewVideoIndex(null); setShowControls(true); controlsOpacity.setValue(1); }}
+                            style={{ padding: 4, marginRight: 10 }}
+                        >
+                            <Ionicons name="chevron-back" size={26} color="#fff" />
+                        </TouchableOpacity>
+
+                        {/* Avatar */}
+                        {senderAvatarUrl ? (
+                            <Image source={{ uri: senderAvatarUrl }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10 }} />
+                        ) : (
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#666", justifyContent: "center", alignItems: "center", marginRight: 10 }}>
+                                <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>
+                                    {(message.senderName || "?").charAt(0).toUpperCase()}
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Name + time */}
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }} numberOfLines={1}>
+                                {message.senderName || "Nguoi dung"}
+                            </Text>
+                            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 1 }}>
+                                {message.createdAt
+                                    ? `${new Date(message.createdAt).toLocaleDateString("vi-VN")} · ${formatTime(message.createdAt)} · ${getTimeAgo(message.createdAt)}`
+                                    : ""}
+                            </Text>
+                        </View>
+
+                        {/* Download */}
+                        <TouchableOpacity
+                            onPress={() => { 
+                                const att = videoAttachments[currentVideoIndex];
+                                const url = getImageUrl(att?.url || ""); 
+                                if (url) handleDownload(url, att?.name); 
+                            }}
+                            style={{ padding: 8, marginLeft: 4 }}
+                        >
+                            <Ionicons name="download-outline" size={24} color="#fff" />
+                        </TouchableOpacity>
+
+                        {/* 3-dot */}
+                        <TouchableOpacity onPress={() => setVideoOptionsVisible(true)} style={{ padding: 8, marginLeft: 4 }}>
+                            <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
+                        </TouchableOpacity>
+                    </Animated.View>
+
+                    {/* ─── Animated Footer ─── */}
+                    <Animated.View
+                        pointerEvents={showControls ? "auto" : "none"}
+                        style={{
+                            position: "absolute", bottom: 0, left: 0, right: 0,
+                            opacity: controlsOpacity,
+                            backgroundColor: "rgba(0,0,0,0.55)",
+                            paddingBottom: Platform.OS === "ios" ? 36 : 16,
+                            paddingTop: 12, paddingHorizontal: 20,
+                            flexDirection: "row", alignItems: "center", justifyContent: "flex-end",
+                            zIndex: 1000,
+                        }}
+                    >
+                        {videoAttachments.length > 1 && (
+                            <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 14, flex: 1 }}>
+                                {currentVideoIndex + 1} / {videoAttachments.length}
+                            </Text>
+                        )}
+                        <TouchableOpacity
+                            onPress={() => { 
+                                const att = videoAttachments[currentVideoIndex];
+                                const url = getImageUrl(att?.url || ""); 
+                                if (url) handleShare(url, att?.name); 
+                            }}
+                            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.18)", justifyContent: "center", alignItems: "center" }}
+                        >
+                            <Ionicons name="share-outline" size={22} color="#fff" />
+                        </TouchableOpacity>
+                    </Animated.View>
+
+                    {/* ─── Options Bottom Sheet ─── */}
+                    {videoOptionsVisible && (
+                        <TouchableOpacity
+                            activeOpacity={1}
+                            onPress={() => setVideoOptionsVisible(false)}
+                            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end", zIndex: 2000 }}
+                        >
+                            <View style={{ backgroundColor: "#1c1c1e", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: Platform.OS === "ios" ? 40 : 25, overflow: "hidden" }}>
+                                {[
+                                    { icon: "download-outline" as const, label: "Lưu video", color: "#fff", action: async () => { setVideoOptionsVisible(false); const att = videoAttachments[currentVideoIndex]; const url = getImageUrl(att?.url || ""); if (url) await handleDownload(url, att?.name); } },
+                                    { icon: "arrow-redo-outline" as const, label: "Chuyển tiếp", color: "#fff", action: () => { setVideoOptionsVisible(false); setPreviewVideoIndex(null); setTimeout(() => onForward?.(message), 250); } },
+                                    { icon: "close-circle-outline" as const, label: "Hủy", color: "#ccc", action: () => setVideoOptionsVisible(false) },
+                                ].map((item, i, arr) => (
+                                    <TouchableOpacity
+                                        key={item.label}
+                                        onPress={item.action}
+                                        activeOpacity={0.6}
+                                        style={{
+                                            paddingVertical: 14,
+                                            paddingHorizontal: 20,
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            borderBottomWidth: i === arr.length - 1 ? 0 : 0.5,
+                                            borderBottomColor: "rgba(255,255,255,0.1)",
+                                        }}
+                                    >
+                                        <Ionicons name={item.icon} size={22} color={item.color} style={{ marginRight: 14 }} />
+                                        <Text style={{ color: item.color, fontSize: 16, fontWeight: "500" }}>{item.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </TouchableOpacity>
+                    )}
+                    {toastMsg && (
+                        <View pointerEvents="none" style={{ position: "absolute", bottom: 150, left: 0, right: 0, alignItems: "center", zIndex: 9999999 }}>
+                            <Animated.View style={{ backgroundColor: "rgba(0,0,0,0.9)", paddingHorizontal: 22, paddingVertical: 14, borderRadius: 30, opacity: toastOpacity, elevation: 20 }}>
+                                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{toastMsg}</Text>
+                            </Animated.View>
+                        </View>
+                    )}
+                </View>
+            </Modal>
+
+            {/* ─── File Preview / Quick Action Modal ─── */}
+            <Modal
+                visible={filePreviewVisible}
+                transparent
+                animationType="fade"
+                statusBarTranslucent
+                onRequestClose={() => setFilePreviewVisible(false)}
+            >
+                <TouchableOpacity
+                    activeOpacity={1}
+                    onPress={() => setFilePreviewVisible(false)}
+                    style={{
+                        flex: 1,
+                        backgroundColor: "rgba(0,0,0,0.6)",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        padding: 20,
+                    }}
+                >
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={{
+                            width: "100%",
+                            backgroundColor: colors.card,
+                            borderRadius: 20,
+                            padding: 24,
+                            alignItems: "center",
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 4 },
+                            shadowOpacity: 0.3,
+                            shadowRadius: 8,
+                            elevation: 10,
+                        }}
+                    >
+                        {/* File Icon */}
+                        <View style={{
+                            width: 80,
+                            height: 80,
+                            borderRadius: 20,
+                            backgroundColor: selectedFile?.color + "20" || "#eee",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: 20,
+                        }}>
+                            <Ionicons name={selectedFile?.icon || "document-outline"} size={48} color={selectedFile?.color || colors.primary} />
+                        </View>
+
+                        {/* File Name */}
+                        <Text style={{
+                            color: colors.text,
+                            fontSize: 18,
+                            fontWeight: "700",
+                            textAlign: "center",
+                            marginBottom: 8,
+                        }} numberOfLines={2}>
+                            {selectedFile?.fileName}
+                        </Text>
+
+                        {/* File Meta */}
+                        <Text style={{
+                            color: colors.textSecondary,
+                            fontSize: 14,
+                            marginBottom: 24,
+                        }}>
+                            {formatFileSize(selectedFile?.size || 0)} · {selectedFile?.label || "FILE"}
+                        </Text>
+
+                        {/* Divider */}
+                        <View style={{ width: "100%", height: 1, backgroundColor: colors.border, marginBottom: 20 }} />
+
+                        {/* Actions */}
+                        <View style={{ width: "100%" }}>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    const url = getImageUrl(selectedFile?.url || "");
+                                    // 1. Close modal immediately to avoid native conflict
+                                    setFilePreviewVisible(false);
+                                    // 2. Wait for modal to be fully dismissed before starting native share
+                                    setTimeout(() => {
+                                        handleFileView(url, selectedFile?.fileName);
+                                    }, 500);
+                                }}
+                                style={{
+                                    width: "100%",
+                                    height: 50,
+                                    backgroundColor: colors.primary,
+                                    borderRadius: 12,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    marginBottom: 12,
+                                }}
+                            >
+                                <Ionicons name="eye-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+                                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Xem nội dung</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={() => {
+                                    const url = getImageUrl(selectedFile?.url || "");
+                                    setFilePreviewVisible(false);
+                                    setTimeout(() => {
+                                        handleDownload(url, selectedFile?.fileName);
+                                    }, 500);
+                                }}
+                                style={{
+                                    width: "100%",
+                                    height: 50,
+                                    backgroundColor: theme === 'dark' ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+                                    borderRadius: 12,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                }}
+                            >
+                                <Ionicons name="download-outline" size={20} color={colors.text} style={{ marginRight: 8 }} />
+                                <Text style={{ color: colors.text, fontWeight: "600", fontSize: 16 }}>Tải về</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Close button at bottom */}
+                        <TouchableOpacity
+                            onPress={() => setFilePreviewVisible(false)}
+                            style={{ marginTop: 20, padding: 10 }}
+                        >
+                            <Text style={{ color: colors.textSecondary, fontWeight: "500" }}>Đóng</Text>
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                </TouchableOpacity>
+            </Modal>
+
+            {/* ─── Global Toast Notification (Restored Animation) ─── */}
+            {toastMsg && (
+                <View 
+                    pointerEvents="none"
+                    style={{ 
+                        position: "absolute", 
+                        bottom: 120, 
+                        left: 0, 
+                        right: 0, 
+                        alignItems: "center", 
+                        zIndex: 9999999
+                    }}
+                >
+                    <Animated.View style={{
+                        backgroundColor: "rgba(0, 0, 0, 0.9)",
+                        paddingHorizontal: 22,
+                        paddingVertical: 14,
+                        borderRadius: 30,
+                        opacity: toastOpacity,
+                        elevation: 20,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 3.84,
+                    }}>
+                        <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{toastMsg}</Text>
+                    </Animated.View>
+                </View>
+            )}
         </View>
     );
 }

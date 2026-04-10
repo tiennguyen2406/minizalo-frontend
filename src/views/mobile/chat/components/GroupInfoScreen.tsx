@@ -177,20 +177,30 @@ function AddMemberModal({
                         flexDirection: "row",
                         alignItems: "center",
                         paddingHorizontal: 16,
-                        paddingVertical: 8,
+                        paddingVertical: 10,
                         borderBottomWidth: 1,
                         borderBottomColor: colors.border,
                         backgroundColor: colors.card,
                     }}
                 >
-                    <Ionicons name="search" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
-                    <TextInput
-                        placeholder="Tìm tên bạn bè"
-                        placeholderTextColor={colors.textSecondary}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        style={{ flex: 1, fontSize: 14, color: colors.text, paddingVertical: 4 }}
-                    />
+                    <View style={{
+                        flex: 1,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: colors.searchBg,
+                        borderRadius: 10,
+                        paddingHorizontal: 12,
+                        height: 36,
+                    }}>
+                        <Ionicons name="search" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                        <TextInput
+                            placeholder="Tìm tên bạn bè"
+                            placeholderTextColor={colors.textSecondary}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            style={{ flex: 1, fontSize: 14, color: colors.text, paddingVertical: 0 }}
+                        />
+                    </View>
                 </View>
 
                 {/* List */}
