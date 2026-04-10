@@ -130,4 +130,9 @@ export const chatService = {
         const { data } = await api.get<SearchMessageResponse>(`/chat/${roomId}/search`, { params });
         return data;
     },
+
+    createPrivateRoom: async (userId: string): Promise<ChatRoomResponse> => {
+        const { data } = await api.post<ChatRoomResponse>(`/chat/rooms/private/${userId}`);
+        return data;
+    },
 };

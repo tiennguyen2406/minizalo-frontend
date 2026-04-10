@@ -48,10 +48,11 @@ interface ChatState {
     togglePinRoom: (roomId: string) => void;
     toggleMuteRoom: (roomId: string) => void;
     setHighlightedMessageId: (messageId: string | null) => void;
+    createPrivateRoom: (userId: string) => Promise<import('../types').ChatRoom>;
     clear: () => void;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+export const useChatStore = create<ChatState>((set, get) => ({
     messages: {},
     rooms: [],
     typingUsers: {},
@@ -210,6 +211,45 @@ export const useChatStore = create<ChatState>((set) => ({
     }),
 
     setHighlightedMessageId: (messageId) => set({ highlightedMessageId: messageId }),
+
+    createPrivateRoom: async (userId) => {
+        const { chatService } = await import('../services/chatService');
+        const room = await chatService.createPrivateRoom(userId);
+        
+        // Map backend ChatRoomResponse to frontend ChatRoom type if needed
+        const frontendRoom: import('../types').ChatRoom = {
+            id: room.id,
+            type: room.type === 'DIRECT' ? 'PRIVATE' : room.type,
+            name: room.name,
+            avatarUrl: room.avatarUrl,
+            unreadCount: room.unreadCount || 0,
+            updatedAt: new Date().toISOString(), // Fallback
+            participants: (room.members || []).map((m: any) => ({
+                id: m.user.id,
+                username: m.user.username,
+                fullName: m.user.displayName,
+                avatarUrl: m.user.avatarUrl
+            }))
+        };
+
+        if (room.lastMessage) {
+            frontendRoom.lastMessage = {
+                id: room.lastMessage.messageId,
+                roomId: room.lastMessage.chatRoomId,
+                senderId: room.lastMessage.senderId,
+                senderName: room.lastMessage.senderName,
+                content: room.lastMessage.content,
+                attachments: room.lastMessage.attachments,
+                type: room.lastMessage.type as any,
+                createdAt: room.lastMessage.createdAt,
+                isRecall: room.lastMessage.recalled
+            };
+            frontendRoom.updatedAt = room.lastMessage.createdAt;
+        }
+
+        get().upsertRoom(frontendRoom);
+        return frontendRoom;
+    },
 
     clear: () => set({
         messages: {},

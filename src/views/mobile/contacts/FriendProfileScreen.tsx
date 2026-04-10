@@ -40,10 +40,20 @@ export default function FriendProfileScreen({
     const colors = useThemeColors();
     const avatarInitial = (displayName || "?").charAt(0).toUpperCase();
 
-    const handleMessage = () => {
-        const room = rooms.find(
+    const handleMessage = async () => {
+        let room = rooms.find(
             (r) => r.type === "PRIVATE" && r.participants?.some((p) => p.id === userId)
         );
+
+        if (!room) {
+            try {
+                room = await useChatStore.getState().createPrivateRoom(userId);
+            } catch (error) {
+                console.error("Failed to create room:", error);
+                return;
+            }
+        }
+
         if (room) {
             router.push(
                 `/chat/${room.id}?name=${encodeURIComponent(displayName)}&type=DIRECT` as any

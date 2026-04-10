@@ -10,8 +10,6 @@ import {
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8080/api";
 const WS_URL = API_URL.replace(/^http/, "ws").replace(/\/api$/, "/ws-raw");
 
-console.log("WebSocketService initialized with URL:", WS_URL);
-
 class WebSocketService {
     private client: Client;
     private connected: boolean = false;
@@ -22,9 +20,7 @@ class WebSocketService {
     constructor() {
         this.client = new Client({
             brokerURL: WS_URL,
-            debug: (str) => {
-                if (__DEV__) console.log('STOMP:', str);
-            },
+            debug: () => {},
             reconnectDelay: 5000,
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
@@ -34,7 +30,6 @@ class WebSocketService {
         });
 
         this.client.onConnect = () => {
-            console.log('WebSocket connected');
             this.connected = true;
 
             Object.keys(this.pendingSubscriptions).forEach((dest) => {
@@ -47,7 +42,6 @@ class WebSocketService {
 
         this.client.onStompError = async (frame) => {
             const msg = frame.headers["message"] || "";
-            console.error("Broker reported error: " + msg);
             if (msg.includes("JWT") || msg.includes("expired") || msg.includes("Authorization")) {
                 this.connected = false;
                 this.currentToken = null;
@@ -60,13 +54,11 @@ class WebSocketService {
         };
 
         this.client.onWebSocketError = (event) => {
-            console.error("Error with websocket", event);
         };
 
         this.client.onDisconnect = () => {
             this.connected = false;
             this.subscriptions = {};
-            console.log('WebSocket disconnected');
         };
     }
 
@@ -111,7 +103,6 @@ class WebSocketService {
     /** Subscribe to a topic/destination */
     subscribe(destination: string, callback: (message: IMessage) => void) {
         if (!this.client.connected) {
-            console.log("STOMP client not connected, queueing subscription to", destination);
             this.pendingSubscriptions[destination] = callback;
             return;
         }
@@ -120,7 +111,6 @@ class WebSocketService {
         }
         const subscription = this.client.subscribe(destination, callback);
         this.subscriptions[destination] = subscription;
-        console.log('📩 Subscribed to:', destination);
     }
 
     /** Unsubscribe from a topic/destination */

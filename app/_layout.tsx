@@ -2,10 +2,10 @@ import "../src/shared/styles/global.css";
 import { useEffect, useRef } from "react";
 import { LogBox, Platform } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { 
-    registerForPushNotificationsAsync, 
+import {
+    registerForPushNotificationsAsync,
     addNotificationResponseReceivedListener,
-    initNotificationHandler 
+    initNotificationHandler
 } from "@/services/notificationService";
 import { useAuthStore } from "@/shared/store/authStore";
 
@@ -24,7 +24,7 @@ if (__DEV__) {
     const originalConsoleError = console.error;
     console.error = (...args) => {
         if (typeof args[0] === 'string' && (
-            args[0].includes("expo-notifications") || 
+            args[0].includes("expo-notifications") ||
             args[0].includes("Android Push notifications") ||
             args[0].includes("removed from Expo Go")
         )) {
@@ -54,7 +54,7 @@ export default function RootLayout() {
         // ── Listen for auth changes to re-register ──
         const unsub = useAuthStore.subscribe((state, prevState) => {
             if (state.accessToken && !prevState.accessToken) {
-                registerForPushNotificationsAsync().catch(() => {});
+                registerForPushNotificationsAsync().catch(() => { });
             }
         });
 
@@ -97,8 +97,7 @@ export default function RootLayout() {
                 name="chat/[id]"
                 options={{
                     animation: "slide_from_right",
-                    gestureEnabled: true,
-                    fullScreenGestureEnabled: true,
+                    gestureEnabled: false,
                 }}
             />
         </Stack>

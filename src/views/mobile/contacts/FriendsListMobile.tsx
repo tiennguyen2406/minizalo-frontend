@@ -422,6 +422,20 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
         const rowContent = (
             <TouchableOpacity
                 activeOpacity={0.8}
+                onPress={() => {
+                    router.push({
+                        pathname: "/(tabs)/friend-profile",
+                        params: {
+                            userId: u.id,
+                            displayName: displayName,
+                            avatarUrl: u.avatarUrl || "",
+                            coverPhotoUrl: u.coverPhotoUrl || "",
+                            businessDescription: u.businessDescription || "",
+                            statusMessage: u.statusMessage || "",
+                            phone: u.phone || "",
+                        },
+                    } as any);
+                }}
                 style={{
                     flexDirection: "row",
                     alignItems: "center",
@@ -790,16 +804,29 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                         <Text style={{ color: "#f97373", fontSize: 14, fontWeight: "500" }}>Xóa bạn</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        onPress={() => {
-                                            const room = rooms.find((r) => r.type === "PRIVATE" && r.participants?.some((p) => p.id === actionSheetFriend.user.id));
+                                        onPress={async () => {
+                                            const friendId = actionSheetFriend.user.id;
+                                            const displayName = actionSheetFriend.displayName;
+                                            let room = rooms.find((r) => r.type === "PRIVATE" && r.participants?.some((p) => p.id === friendId));
+                                            
                                             setActionSheetFriend(null);
+                                            
+                                            if (!room) {
+                                                try {
+                                                    room = await useChatStore.getState().createPrivateRoom(friendId);
+                                                } catch (error) {
+                                                    console.error("Failed to create room:", error);
+                                                    return;
+                                                }
+                                            }
+                                            
                                             if (room) {
-                                                router.push(`/chat/${room.id}?name=${encodeURIComponent(actionSheetFriend.displayName)}&type=DIRECT` as any);
+                                                router.push(`/chat/${room.id}?name=${encodeURIComponent(displayName)}&type=DIRECT` as any);
                                             }
                                         }}
                                         style={{ flex: 1, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: 10, alignItems: "center" }}
                                     >
-                                        <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>Nhắn tin</Text>
+                                        <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>Nhắn tin</Text>
                                     </TouchableOpacity>
                                 </View>
                             </TouchableOpacity>
