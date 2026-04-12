@@ -31,6 +31,7 @@ interface ChatState {
     currentRoomId: string | null;
     pinnedRooms: Set<string>; // roomIds that are pinned to top
     mutedRooms: Set<string>; // roomIds that are muted
+    roomPagination: Record<string, { lastKey: string | null, hasMore: boolean, loading: boolean }>; 
 
     highlightedMessageId: string | null;
 
@@ -49,6 +50,8 @@ interface ChatState {
     toggleMuteRoom: (roomId: string) => void;
     setHighlightedMessageId: (messageId: string | null) => void;
     createPrivateRoom: (userId: string) => Promise<import('../types').ChatRoom>;
+    setRoomPagination: (roomId: string, paging: { lastKey: string | null, hasMore: boolean, loading?: boolean }) => void;
+    loadMoreMessages: (roomId: string) => Promise<void>;
     clear: () => void;
 }
 
@@ -59,6 +62,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     currentRoomId: null,
     pinnedRooms: new Set<string>(),
     mutedRooms: new Set<string>(),
+    roomPagination: {},
     highlightedMessageId: null,
 
     setRooms: (rooms) => set({ rooms }),
@@ -250,6 +254,56 @@ export const useChatStore = create<ChatState>((set, get) => ({
         get().upsertRoom(frontendRoom);
         return frontendRoom;
     },
+    
+    setRoomPagination: (roomId, paging) => set((state) => ({
+        roomPagination: {
+            ...state.roomPagination,
+            [roomId]: {
+                ...state.roomPagination[roomId],
+                ...paging,
+                loading: paging.loading ?? (state.roomPagination[roomId]?.loading || false)
+            }
+        }
+    })),
+
+    loadMoreMessages: async (roomId) => {
+        const state = get();
+        const paging = state.roomPagination[roomId] || { lastKey: null, hasMore: true, loading: false };
+        
+        if (paging.loading || !paging.hasMore) return;
+        
+        state.setRoomPagination(roomId, { ...paging, loading: true });
+        
+        try {
+            const { chatService } = await import('../services/chatService');
+            const result = await chatService.getChatHistory(roomId, 20, paging.lastKey || undefined);
+            
+            // Convert backend format to frontend format
+            const frontendMessages: Message[] = (result.messages || []).map(m => ({
+                id: m.messageId,
+                roomId: m.chatRoomId,
+                senderId: m.senderId,
+                senderName: m.senderName,
+                content: m.content,
+                attachments: m.attachments,
+                type: m.type as any,
+                createdAt: m.createdAt,
+                isRecall: m.recalled
+            }));
+
+            // Prepend new (older) messages
+            state.prependMessages(roomId, frontendMessages);
+            
+            state.setRoomPagination(roomId, {
+                lastKey: result.lastEvaluatedKey,
+                hasMore: result.lastEvaluatedKey != null,
+                loading: false
+            });
+        } catch (error) {
+            console.error("Load more messages failed:", error);
+            state.setRoomPagination(roomId, { ...paging, loading: false });
+        }
+    },
 
     clear: () => set({
         messages: {},
@@ -258,6 +312,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentRoomId: null,
         pinnedRooms: new Set(),
         mutedRooms: new Set(),
+        roomPagination: {},
         highlightedMessageId: null,
     }),
 }));

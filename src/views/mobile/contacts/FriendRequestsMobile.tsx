@@ -13,6 +13,8 @@ import type { FriendResponseDto } from "@/shared/services/types";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { Image } from "react-native";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
 
 export default function FriendRequestsMobile() {
     const {
@@ -22,6 +24,7 @@ export default function FriendRequestsMobile() {
         error,
         fetchRequests,
         fetchSentRequests,
+        fetchFriends,
         acceptRequest,
         rejectRequest,
         cancelSentRequest,
@@ -41,6 +44,7 @@ export default function FriendRequestsMobile() {
     const handleAccept = async (id: string) => {
         try {
             await acceptRequest(id);
+            await fetchFriends();
         } catch {
             // lỗi đã nằm trong store
         }
@@ -89,17 +93,25 @@ export default function FriendRequestsMobile() {
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
+                        overflow: "hidden",
                     }}
                 >
-                    <Text
-                        style={{
-                            color: colors.text,
-                            fontWeight: "600",
-                            fontSize: 16,
-                        }}
-                    >
-                        {initial}
-                    </Text>
+                    {user.avatarUrl ? (
+                        <Image
+                            source={{ uri: getImageUrl(user.avatarUrl) }}
+                            style={{ width: 42, height: 42 }}
+                        />
+                    ) : (
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontWeight: "600",
+                                fontSize: 16,
+                            }}
+                        >
+                            {initial}
+                        </Text>
+                    )}
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text
@@ -194,17 +206,25 @@ export default function FriendRequestsMobile() {
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
+                        overflow: "hidden",
                     }}
                 >
-                    <Text
-                        style={{
-                            color: colors.text,
-                            fontWeight: "600",
-                            fontSize: 16,
-                        }}
-                    >
-                        {initial}
-                    </Text>
+                    {user.avatarUrl ? (
+                        <Image
+                            source={{ uri: getImageUrl(user.avatarUrl) }}
+                            style={{ width: 42, height: 42 }}
+                        />
+                    ) : (
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontWeight: "600",
+                                fontSize: 16,
+                            }}
+                        >
+                            {initial}
+                        </Text>
+                    )}
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text

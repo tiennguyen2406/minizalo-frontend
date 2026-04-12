@@ -91,12 +91,13 @@ export default function LoginFormScreen() {
             <StatusBar style={colors.background === "#000000" ? "light" : "dark"} />
 
             <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : undefined}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
             >
                 <ScrollView
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ flexGrow: 1 }}
+                    contentContainerStyle={{ paddingBottom: 60 }}
                     keyboardShouldPersistTaps="handled"
                 >
                     <AuthHeader onBack={() => router.back()} />

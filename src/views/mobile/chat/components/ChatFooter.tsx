@@ -32,7 +32,14 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
     const [isFocused, setIsFocused] = useState(false);
     const [showPasteTooltip, setShowPasteTooltip] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
     const inputRef = useRef<TextInput>(null);
+
+    useEffect(() => {
+        const showSub = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", () => setKeyboardVisible(true));
+        const hideSub = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => setKeyboardVisible(false));
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, []);
 
     const EMOJI_LIST = [
         "😊", "😰", "😍", "😂", "😎", "😭", "😚", "😜",
@@ -220,7 +227,7 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
     }));
 
     return (
-        <View style={{ backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: Platform.OS === 'ios' ? 30 : 10 }}>
+        <View style={{ backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: keyboardVisible ? 4 : (Platform.OS === 'ios' ? 30 : 10) }}>
             {/* Clipboard image preview/paste bar (SHOWN AFTER CLICKING "DÁN") */}
             {clipboardImage && (
                 <View style={{
@@ -432,6 +439,7 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
                     )}
                 </View>
             </View>
+
 
             {/* Emoji Picker Board */}
             {showEmojiPicker && (

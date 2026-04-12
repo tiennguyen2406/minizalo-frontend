@@ -53,6 +53,7 @@ export interface UserProfile {
     updatedAt: string | null;
     roles: string[] | null;
     allowPhoneSearch?: boolean;
+    allowStrangerMessages?: boolean;
 }
 
 export interface UserProfileUpdateRequest {
@@ -65,6 +66,7 @@ export interface UserProfileUpdateRequest {
     dateOfBirth?: string; // "YYYY-MM-DD"
     businessDescription?: string;
     allowPhoneSearch?: boolean;
+    allowStrangerMessages?: boolean;
 }
 
 // -----------------------------

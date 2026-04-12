@@ -423,18 +423,34 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
             <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => {
-                    router.push({
-                        pathname: "/(tabs)/friend-profile",
-                        params: {
-                            userId: u.id,
-                            displayName: displayName,
-                            avatarUrl: u.avatarUrl || "",
-                            coverPhotoUrl: u.coverPhotoUrl || "",
-                            businessDescription: u.businessDescription || "",
-                            statusMessage: u.statusMessage || "",
-                            phone: u.phone || "",
-                        },
-                    } as any);
+                    const existingRoom = rooms.find(r => 
+                        r.type === 'PRIVATE' && 
+                        r.participants.some(p => p.id === u.id)
+                    );
+                    
+                    if (existingRoom) {
+                        router.push({
+                            pathname: "/chat/[id]",
+                            params: { 
+                                id: existingRoom.id,
+                                name: displayName,
+                                type: 'DIRECT'
+                            }
+                        } as any);
+                    } else {
+                        // Trường hợp không tìm thấy phòng (chưa từng chat)
+                        // Chuyển đến chat với tham số targetUserId để ChatScreen tự xử lý tạo phòng ảo
+                        router.push({
+                            pathname: "/chat/[id]",
+                            params: { 
+                                id: "new", 
+                                targetUserId: u.id,
+                                name: displayName,
+                                type: 'DIRECT',
+                                avatarUrl: u.avatarUrl || ""
+                            }
+                        } as any);
+                    }
                 }}
                 style={{
                     flexDirection: "row",

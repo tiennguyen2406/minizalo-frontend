@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState } from "react-native";
+import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, Alert, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { ChatListHeader } from "../components/ChatListHeader";
@@ -13,10 +13,12 @@ import { useChatStore } from "@/shared/store/useChatStore";
 import { useThemeColors } from "@/shared/theme/colors";
 import { showLocalNotification } from "@/services/notificationService";
 import { useAuthStore } from "@/shared/store/authStore";
+import { useFriendStore } from "@/shared/store/friendStore";
 
 export default function ChatListScreen() {
     const router = useRouter();
     const { rooms, setRooms, addMessage } = useChatStore();
+    const { friends } = useFriendStore();
     const colors = useThemeColors();
     const [refreshing, setRefreshing] = useState(false);
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -26,36 +28,20 @@ export default function ChatListScreen() {
     const getImageUrl = (url: string) => {
         if (!url) return url;
         
-        // Xử lý localhost
-        if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
-            const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
-            if (match && match[1]) {
-                return url.replace("localhost", match[1]);
-            }
+        // Handle MinIO relative paths (e.g., "minizalo-bucket/files/...")
+        if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('file:')) {
+            const baseUrl = process.env.EXPO_PUBLIC_API_URL?.replace(':8080', ':9000') || '';
+            const minioBase = baseUrl.includes(':9000') ? baseUrl : `${baseUrl.split(':')[0]}:${baseUrl.split(':')[1]}:9000`;
+            return `${minioBase}/${url}`;
         }
-        
-        // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
+
+        // Fix localhost/IP issues for external URLs
         if (process.env.EXPO_PUBLIC_API_URL) {
             const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
             if (apiMatch && apiMatch[1]) {
                 const apiHost = apiMatch[1];
-                
-                // Thay thế IP address trong URL ảnh bằng API host
-                if (url.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
-                    const urlMatch = url.match(/https?:\/\/([^:\/]+)/);
-                    if (urlMatch && urlMatch[1] !== apiHost) {
-                        return url.replace(urlMatch[1], apiHost);
-                    }
-                }
-                
-                // Thay thế port 9000 (MinIO default) với API port nếu cần
-                if (url.includes(":9000") && !apiHost.includes(":9000")) {
-                    // Giữ nguyên port 9000 vì đây là MinIO server
-                    // Chỉ thay thế hostname
-                    const urlMatch = url.match(/https?:\/\/([^:]+):/);
-                    if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
-                        return url.replace(urlMatch[1], apiHost.split(':')[0]);
-                    }
+                if (url.includes("localhost")) {
+                    return url.replace("localhost", apiHost);
                 }
             }
         }
@@ -111,6 +97,7 @@ export default function ChatListScreen() {
                         avatarUrl: m.user?.avatarUrl || m.avatarUrl || undefined,
                     })),
                     updatedAt: r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
+                    hasInteracted: r.hasInteracted,
                 };
             });
 
@@ -147,34 +134,25 @@ export default function ChatListScreen() {
             const topic = `/topic/chat/${room.id}`;
             webSocketService.subscribe(topic, (stompMsg) => {
                 try {
-                    const dynamo = JSON.parse(stompMsg.body);
-                    const incoming = {
-                        id: dynamo.messageId,
-                        senderId: dynamo.senderId,
-                        senderName: dynamo.senderName || undefined,
+                    const msg = JSON.parse(stompMsg.body);
+                    // Thêm tin nhắn mới vào store room
+                    addMessage(room.id, {
+                        id: msg.messageId,
+                        senderId: msg.senderId,
+                        senderName: msg.senderName,
                         roomId: room.id,
-                        content: dynamo.recalled ? '[Tin nhắn đã thu hồi]' : dynamo.content,
-                        type: (dynamo.type as any) || 'TEXT',
-                        createdAt: dynamo.createdAt,
-                        readBy: dynamo.readBy,
-                    };
-
-                    // addMessage trong store sẽ tự động cập nhật tin nhắn cuối, thời gian, VÀ unreadCount!
-                    useChatStore.getState().addMessage(room.id, incoming);
-
-                    // ── Local notification khi có tin nhắn mới từ người khác ──
-                    const currentRoomId = useChatStore.getState().currentRoomId;
-                    const currentUserId = useAuthStore.getState().user?.id;
-                    const isMyMessage = currentUserId && dynamo.senderId === currentUserId;
-                    const isInThisRoom = currentRoomId === room.id;
-
-                    if (!isMyMessage && !isInThisRoom && !dynamo.recalled) {
-                        const senderName = dynamo.senderName || 'Tin nhắn mới';
-                        let bodyText = dynamo.content || '';
-                        if (dynamo.type === 'IMAGE') bodyText = '[Đã gửi hình ảnh]';
-                        else if (dynamo.type === 'FILE') bodyText = '[Đã gửi tập tin]';
-
-                        showLocalNotification(senderName, bodyText, { roomId: room.id, senderName: senderName });
+                        content: msg.content,
+                        type: (msg.type as any) || 'TEXT',
+                        createdAt: msg.createdAt,
+                        recalled: msg.recalled || false,
+                    });
+                    
+                    // Hiển thị thông báo local nếu tin nhắn từ người khác
+                    if (msg.senderId !== useAuthStore.getState().user?.id) {
+                        showLocalNotification(
+                            msg.senderName || 'Tin nhắn mới',
+                            msg.content || (msg.type === 'IMAGE' ? '[Hình ảnh]' : 'Đã gửi một tin nhắn')
+                        );
                     }
                 } catch (err) {
                     console.error('Lỗi parse tin nhắn WS:', err);
@@ -184,16 +162,16 @@ export default function ChatListScreen() {
         });
 
         return () => {
-            // Không dọn dẹp subscription khi navigate qua ChatScreen, chỉ dọn khi unmount hẳn App
-            // WebChatLayout cũng giữ subscription
+            // Unsubscribe logic if needed
         };
-    }, [rooms.length]);
+    }, [rooms]);
 
     // Auto-fetch when screen is focused + poll every 10s as fallback
     useFocusEffect(
         useCallback(() => {
-            fetchChats(true);
-
+            fetchChats(false);
+            useFriendStore.getState().fetchFriends(); // Đảm bảo list friend mới nhất để phân loại stranger
+            
             // Xóa currentRoomId khi ở màn hình danh sách (để store biết đang ở ngoài, tăng unreadCount bình thường)
             useChatStore.getState().setCurrentRoom(null);
 
@@ -205,7 +183,108 @@ export default function ChatListScreen() {
         }, [])
     );
 
-    const renderItem = ({ item, index }: { item: any; index: number }) => {
+    // Fetch ngay khi user thay đổi (đăng nhập thành công)
+    const user = useAuthStore(s => s.user);
+    useEffect(() => {
+        if (user) {
+            fetchChats(true);
+            useFriendStore.getState().fetchFriends();
+        }
+    }, [user]);
+    
+    // Khi danh sách bạn bè thay đổi (chấp nhận kết bạn), hãy fetch lại danh sách chat
+    // để cập nhật phân loại (Stranger -> Friend)
+    useEffect(() => {
+        if (friends.length > 0) {
+            fetchChats(false);
+        }
+    }, [friends.length]);
+
+    // ─── Grouping rooms into Friend and Stranger ───
+    const currentUserId = useAuthStore.getState().user?.id;
+    const friendIdSet = new Set(
+        friends.map(f => {
+            if (!currentUserId) return f.friend.id;
+            return f.user.id === currentUserId ? f.friend.id : f.user.id;
+        })
+    );
+
+    const { friendRooms, strangerRooms } = rooms.reduce((acc, room) => {
+        // Chat nhóm luôn ở Main list
+        if (room.type === 'GROUP') {
+            acc.friendRooms.push(room);
+            return acc;
+        }
+
+        const otherParticipant = room.participants?.find((p: any) => p.id !== currentUserId);
+        const otherUserId = otherParticipant?.id;
+        const isFriend = otherUserId ? friendIdSet.has(otherUserId) : false;
+
+        // Logic của USER: 
+        // 1. Là bạn bè -> Main list
+        // 2. Không là bạn bè nhưng ĐÃ TỪNG NHẮN TIN (WE sent at least one message) -> Main list
+        // 3. Không là bạn bè và CHƯA TỪNG PHẢN HỒI (nhắn tin lần đầu) -> Stranger list
+        const isStranger = !isFriend && !room.hasInteracted;
+
+        if (isStranger) {
+            acc.strangerRooms.push(room);
+        } else {
+            acc.friendRooms.push(room);
+        }
+        return acc;
+    }, { friendRooms: [] as any[], strangerRooms: [] as any[] });
+
+    // Aggregate stranger room data
+    const totalStrangerUnread = strangerRooms.reduce((sum, r) => sum + (r.unreadCount || 0), 0);
+    const lastStrangerRoom = strangerRooms.length > 0 ? strangerRooms[0] : null;
+
+    const renderStrangerEntry = () => {
+        if (strangerRooms.length === 0) return null;
+        
+        let lastMsg = "Chưa có tin nhắn";
+        if (lastStrangerRoom?.lastMessage) {
+            const lm = lastStrangerRoom.lastMessage;
+            lastMsg = lm.content || (lm.type === 'IMAGE' ? '[Hình ảnh]' : '[Tin nhắn]');
+        }
+
+        return (
+            <ChatItem
+                avatarComponent={
+                    <View style={{ 
+                        width: 52, 
+                        height: 52, 
+                        borderRadius: 26, 
+                        backgroundColor: '#0068FF',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        overflow: 'hidden'
+                    }}>
+                        <View style={{ position: 'relative' }}>
+                            <Ionicons name="person" size={28} color="#fff" />
+                            <View style={{ 
+                                position: 'absolute', 
+                                top: -2, 
+                                right: -8,
+                                backgroundColor: '#0068FF',
+                                borderRadius: 10,
+                                paddingHorizontal: 1
+                            }}>
+                                <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>?</Text>
+                            </View>
+                        </View>
+                    </View>
+                }
+                name="Tin nhắn từ người lạ"
+                message="Gửi từ những người chưa có trong danh bạ MiniZalo"
+                time={lastStrangerRoom?.lastMessage?.createdAt ? formatTime(lastStrangerRoom.lastMessage.createdAt) : ""}
+                unreadCount={totalStrangerUnread}
+                isVerified={false}
+                onPress={() => router.push("/chat/strangers")}
+            />
+        );
+    };
+
+    const renderItem = ({ item }: { item: any }) => {
         const processedAvatar = getImageUrl(item.avatarUrl);
         const avatarUri = processedAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "User")}&background=random&color=fff`;
         // Xử lý hiển thị tin nhắn cuối
@@ -232,6 +311,9 @@ export default function ChatListScreen() {
             timeDisplay = formatTime(item.lastMessage.createdAt);
         }
 
+        const partner = item.type === 'PRIVATE' ? item.participants.find((p: any) => p.id !== currentUserId) : null;
+        const isPartnerStranger = partner && !friendIdSet.has(partner.id);
+
         return (
             <Animated.View style={{ opacity: fadeAnim }}>
                 <ChatItem
@@ -241,7 +323,7 @@ export default function ChatListScreen() {
                     time={timeDisplay}
                     unreadCount={item.unreadCount}
                     isVerified={false}
-                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}`)}
+                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}`)}
                 />
             </Animated.View>
         );
@@ -285,7 +367,7 @@ export default function ChatListScreen() {
                 />
             ) : (
                 <FlatList
-                    data={rooms}
+                    data={friendRooms}
                     keyExtractor={(item) => item.id}
                     refreshControl={
                         <RefreshControl

@@ -9,6 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/shared/services/apiClient';
 import { useFriendStore } from '@/shared/store/friendStore';
 import type { UserProfile } from '@/shared/services/types';
+import UserActionModal from '@/shared/components/UserActionModal';
+import { useRouter } from 'expo-router';
+import { useChatStore } from '@/shared/store/useChatStore';
 
 interface MatchedContact {
     user: UserProfile;
@@ -24,6 +27,11 @@ export default function PhonebookListMobile() {
     const [sendingRequestTo, setSendingRequestTo] = useState<Set<string>>(new Set());
     const [sentIds, setSentIds] = useState<Set<string>>(new Set());
     const { sendRequest, friends, sentRequests, fetchSentRequests } = useFriendStore();
+    const router = useRouter();
+    const { rooms } = useChatStore();
+
+    const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+    const [modalVisible, setModalVisible] = useState(false);
 
     const friendIds = new Set(friends.map(f => f.friend?.id || f.user?.id));
 
@@ -225,15 +233,23 @@ export default function PhonebookListMobile() {
                             </View>
                         )}
 
-                        <View style={{ flex: 1 }}>
-                            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '500' }}>
-                                {item.contactName}
-                            </Text>
-                            <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
-                                {item.user.displayName !== item.contactName ? item.user.displayName + ' · ' : ''}
-                                {item.phoneNumber}
-                            </Text>
-                        </View>
+                        <TouchableOpacity 
+                            style={{ flex: 1 }}
+                            onPress={() => {
+                                setSelectedUser(item.user);
+                                setModalVisible(true);
+                            }}
+                        >
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: colors.text, fontSize: 15, fontWeight: '500' }}>
+                                    {item.contactName}
+                                </Text>
+                                <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                                    {item.user.displayName !== item.contactName ? item.user.displayName + ' · ' : ''}
+                                    {item.phoneNumber}
+                                </Text>
+                            </View>
+                        </TouchableOpacity>
 
                         {isFriend ? (
                             <View style={{ paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.searchBg }}>
@@ -264,6 +280,65 @@ export default function PhonebookListMobile() {
                     </View>
                 );
             }}
+            ListFooterComponent={
+              <UserActionModal 
+                visible={modalVisible}
+                user={selectedUser}
+                isFriend={selectedUser ? friendIds.has(selectedUser.id) : false}
+                isSentRequest={selectedUser ? sentIds.has(selectedUser.id) : false}
+                onClose={() => setModalVisible(false)}
+                onViewProfile={(u) => {
+                  router.push({
+                    pathname: "/(tabs)/friend-profile",
+                    params: {
+                      userId: u.id,
+                      displayName: u.displayName || u.username,
+                      avatarUrl: u.avatarUrl || "",
+                      coverPhotoUrl: u.coverPhotoUrl || "",
+                      businessDescription: u.businessDescription || "",
+                      statusMessage: u.statusMessage || "",
+                      phone: u.phone || "",
+                    },
+                  } as any);
+                }}
+                onMessage={(u) => {
+                  setModalVisible(false);
+                  const isFriend = friendIds.has(u.id);
+                  const existingRoom = rooms.find(r => 
+                      (r.type === 'PRIVATE' || r.type === 'DIRECT') && 
+                      r.participants.some(p => p.id === u.id)
+                  );
+                  
+                  if (existingRoom) {
+                      router.push({
+                          pathname: "/chat/[id]",
+                          params: { 
+                              id: existingRoom.id,
+                              name: u.displayName || u.username,
+                              type: 'DIRECT',
+                              isStranger: isFriend ? "false" : "true",
+                              targetUserId: u.id
+                          }
+                      } as any);
+                  } else {
+                      router.push({
+                          pathname: "/chat/[id]",
+                          params: { 
+                              id: "new", 
+                              targetUserId: u.id,
+                              name: u.displayName || u.username,
+                              type: 'DIRECT',
+                              avatarUrl: u.avatarUrl || "",
+                              isStranger: isFriend ? "false" : "true"
+                          }
+                      } as any);
+                  }
+                }}
+                onAddFriend={(u) => {
+                  handleAddFriend(u.id, u.displayName || u.username || "");
+                }}
+              />
+            }
         />
     );
 }

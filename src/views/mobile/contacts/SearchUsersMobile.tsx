@@ -20,6 +20,8 @@ import { searchService } from "@/shared/services/searchService";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useUserStore } from "@/shared/store/userStore";
 import type { UserProfile } from "@/shared/services/types";
+import UserActionModal from "@/shared/components/UserActionModal";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 type SearchUsersMobileProps = {
     initialQuery?: string;
@@ -41,6 +43,10 @@ export default function SearchUsersMobile({
     const [error, setError] = useState<string | null>(null);
     const { sendRequest, friends, sentRequests } = useFriendStore();
     const { profile } = useUserStore();
+    const { rooms } = useChatStore();
+
+    const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+    const [modalVisible, setModalVisible] = useState(false);
 
     const currentUserId = profile?.id ?? null;
     const inputRef = useRef<TextInput | null>(null);
@@ -166,7 +172,12 @@ export default function SearchUsersMobile({
                     : "Kết bạn";
 
         return (
-            <View
+            <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  setSelectedUser(item);
+                  setModalVisible(true);
+                }}
                 style={{
                     flexDirection: "row",
                     alignItems: "center",
@@ -270,7 +281,7 @@ export default function SearchUsersMobile({
                         </Text>
                     </TouchableOpacity>
                 )}
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -442,6 +453,67 @@ export default function SearchUsersMobile({
                     contentContainerStyle={{ paddingBottom: 24 }}
                 />
             )}
+
+            <UserActionModal 
+              visible={modalVisible}
+              user={selectedUser}
+              isFriend={selectedUser ? friendIdSet.has(selectedUser.id) : false}
+              isSentRequest={selectedUser ? pendingRequestIdSet.has(selectedUser.id) : false}
+              onClose={() => setModalVisible(false)}
+              onViewProfile={(u) => {
+                router.push({
+                    pathname: "/(tabs)/friend-profile",
+                    params: {
+                        userId: u.id,
+                        displayName: u.displayName || u.username,
+                        avatarUrl: u.avatarUrl || "",
+                        coverPhotoUrl: u.coverPhotoUrl || "",
+                        businessDescription: u.businessDescription || "",
+                        statusMessage: u.statusMessage || "",
+                        phone: u.phone || "",
+                    },
+                } as any);
+              }}
+              onMessage={(u) => {
+                // Đóng modal trước
+                setModalVisible(false);
+
+                // Tìm ID của người lạ/bạn trong danh bạ (u.id)
+                const isFriend = friendIdSet.has(u.id);
+                const existingRoom = rooms.find(r => 
+                    (r.type === 'PRIVATE' || r.type === 'DIRECT') && 
+                    r.participants.some(p => p.id === u.id)
+                );
+                
+                if (existingRoom) {
+                    router.push({
+                        pathname: "/chat/[id]",
+                        params: { 
+                            id: existingRoom.id,
+                            name: u.displayName || u.username,
+                            type: 'DIRECT',
+                            isStranger: isFriend ? "false" : "true",
+                            targetUserId: u.id // LUÔN TRUYỀN ID CỦA ĐỐI PHƯƠNG
+                        }
+                    } as any);
+                } else {
+                    router.push({
+                        pathname: "/chat/[id]",
+                        params: { 
+                            id: "new", 
+                            targetUserId: u.id,
+                            name: u.displayName || u.username,
+                            type: 'DIRECT',
+                            avatarUrl: u.avatarUrl || "",
+                            isStranger: isFriend ? "false" : "true"
+                        }
+                    } as any);
+                }
+              }}
+              onAddFriend={(u) => {
+                handleSendRequest(u.id);
+              }}
+            />
         </View>
     );
 }
