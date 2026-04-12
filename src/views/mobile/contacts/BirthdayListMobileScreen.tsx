@@ -9,6 +9,8 @@ import { useUserStore } from "@/shared/store/userStore";
 import type { UserProfile } from "@/shared/services/types";
 import { useThemeColors } from "@/shared/theme/colors";
 
+import { getImageUrl } from "@/shared/utils/mediaUtils";
+
 type BirthdayItem = {
     user: UserProfile;
     date: Date;
@@ -93,7 +95,7 @@ export default function BirthdayListMobileScreen() {
                 >
                     {item.user.avatarUrl ? (
                         <Image
-                            source={{ uri: item.user.avatarUrl }}
+                            source={{ uri: getImageUrl(item.user.avatarUrl) }}
                             style={{ width: 40, height: 40 }}
                         />
                     ) : (

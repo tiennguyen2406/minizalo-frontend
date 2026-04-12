@@ -8,11 +8,12 @@ import { useThemeColors } from "@/shared/theme/colors";
 interface ChatHeaderProps {
     name: string;
     roomType?: string;
+    isStranger?: boolean;
     onBack?: () => void;
     onMenuPress?: () => void;
 }
 
-export default function ChatHeader({ name, roomType, onBack, onMenuPress }: ChatHeaderProps) {
+export default function ChatHeader({ name, roomType, isStranger, onBack, onMenuPress }: ChatHeaderProps) {
     const router = useRouter();
     const colors = useThemeColors();
 
@@ -50,12 +51,14 @@ export default function ChatHeader({ name, roomType, onBack, onMenuPress }: Chat
                         </TouchableOpacity>
 
                         <View style={{ flex: 1 }}>
-                            <Text
-                                style={{ color: colors.headerText, fontSize: 17, fontWeight: "600" }}
-                                numberOfLines={1}
-                            >
-                                {name}
-                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                <Text
+                                    style={{ color: colors.headerText, fontSize: 17, fontWeight: "600" }}
+                                    numberOfLines={1}
+                                >
+                                    {name}
+                                </Text>
+                            </View>
                             <Text style={{ color: colors.headerText, fontSize: 11, opacity: 0.7 }}>
                                 {roomType === "GROUP" ? `Nhóm` : "Vừa mới truy cập"}
                             </Text>

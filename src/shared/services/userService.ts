@@ -12,6 +12,11 @@ export const userService = {
         return data;
     },
 
+    getUserProfile: async (userId: string): Promise<UserProfile> => {
+        const { data } = await api.get<UserProfile>(`/users/profile/${userId}`);
+        return data;
+    },
+
     uploadAvatar: async (file: File): Promise<UserProfile> => {
         const formData = new FormData();
         formData.append("file", file);

@@ -118,6 +118,15 @@ export default function PrivacyScreen() {
                         onPress={() => console.log("Hiển thị trạng thái truy cập pressed")}
                         colors={colors} 
                     />
+                    <SettingsItem 
+                        label="Tin nhắn và cuộc gọi" 
+                        icon="chatbubble-ellipses-outline"
+                        onPress={() => {
+                            console.log("=== MESSAGE AND CALL PRIVACY PRESSED ===");
+                            router.push("/message-call-privacy");
+                        }} 
+                        colors={colors} 
+                    />
                 </View>
             </ScrollView>
         </View>

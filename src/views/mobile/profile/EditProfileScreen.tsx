@@ -1,92 +1,160 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
     View,
     Text,
     TextInput,
     Image,
     TouchableOpacity,
+    Pressable,
     ScrollView,
-    Platform,
     Alert,
     Modal,
     StyleSheet,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    Dimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { profileStyles } from "./styles";
 import type { UserProfile, UserProfileUpdateRequest } from "@/shared/services/types";
-import type { DimensionValue } from "react-native";
 import { useThemeColors, ThemeColors } from "@/shared/theme/colors";
 
-const createEditStyles = (colors: ThemeColors) => StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: "#f5f5f5",
+    },
     header: {
         height: 52,
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
+        justifyContent: "center",
         paddingHorizontal: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        backgroundColor: colors.headerBg,
+        backgroundColor: "#0068FF",
     },
     backButton: {
+        position: "absolute",
+        left: 16,
         paddingVertical: 8,
         paddingRight: 8,
     },
     headerTitle: {
         fontSize: 18,
         fontWeight: "600",
-        color: colors.headerText,
-    },
-    saveButton: {
-        padding: 8,
-    },
-    saveButtonText: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: colors.headerText,
-    },
-    formContent: {
-        padding: 16,
-        paddingBottom: 24,
+        color: "#ffffff",
     },
     avatarSection: {
         alignItems: "center",
-        marginBottom: 24,
+        paddingVertical: 24,
+        backgroundColor: "#ffffff",
     },
     avatarLarge: {
         width: 96,
         height: 96,
         borderRadius: 48,
-        backgroundColor: colors.card,
+        backgroundColor: "#e0e0e0",
     },
-    changeAvatar: {
-        marginTop: 12,
-        paddingVertical: 8,
-        paddingHorizontal: 16,
+    infoCard: {
+        backgroundColor: "#ffffff",
+        marginTop: 8,
+        paddingHorizontal: 20,
     },
-    changeAvatarText: {
-        fontSize: 14,
-        color: colors.primary,
-        fontWeight: "500",
+    infoRow: {
+        paddingVertical: 16,
+        borderBottomWidth: 0.5,
+        borderBottomColor: "#e5e7eb",
     },
-    field: {
+    infoRowLast: {
+        borderBottomWidth: 0,
+    },
+    infoLabel: {
+        fontSize: 13,
+        color: "#8e8e93",
+        marginBottom: 4,
+    },
+    infoValue: {
+        fontSize: 16,
+        color: "#1c1c1e",
+        fontWeight: "400",
+    },
+    infoValuePlaceholder: {
+        fontSize: 16,
+        color: "#c7c7cc",
+        fontStyle: "italic",
+    },
+    editButtonContainer: {
+        paddingHorizontal: 20,
+        paddingVertical: 24,
+    },
+    editButton: {
+        backgroundColor: "#0068FF",
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "row",
+    },
+    editButtonText: {
+        color: "#ffffff",
+        fontSize: 16,
+        fontWeight: "600",
+        marginLeft: 8,
+    },
+
+    // Modal styles
+    modalHandle: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: "#d1d5db",
+        alignSelf: "center",
+        marginBottom: 16,
+    },
+    modalHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 24,
+        paddingHorizontal: 20,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: "700",
+        color: "#1c1c1e",
+    },
+    modalCloseButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: "#f3f4f6",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    modalField: {
         marginBottom: 20,
     },
-    label: {
-        fontSize: 14,
-        color: colors.textSecondary,
+    modalLabel: {
+        fontSize: 13,
+        color: "#8e8e93",
         marginBottom: 8,
+        fontWeight: "500",
     },
-    input: {
-        backgroundColor: colors.searchBg,
-        borderRadius: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
+    modalInput: {
+        backgroundColor: "#f9fafb",
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
         fontSize: 16,
-        color: colors.text,
+        color: "#1c1c1e",
+        borderWidth: 1,
+        borderColor: "#e5e7eb",
+    },
+    modalInputFocused: {
+        borderColor: "#0068FF",
+        backgroundColor: "#f0f7ff",
     },
     genderRow: {
         flexDirection: "row",
@@ -94,122 +162,264 @@ const createEditStyles = (colors: ThemeColors) => StyleSheet.create({
     },
     genderOption: {
         flex: 1,
-        paddingVertical: 10,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: colors.border,
+        paddingVertical: 14,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        borderColor: "#e5e7eb",
+        backgroundColor: "#f9fafb",
         alignItems: "center",
         justifyContent: "center",
     },
     genderOptionActive: {
-        borderColor: "#0068FF", // primary
+        borderColor: "#0068FF",
+        backgroundColor: "#eef4ff",
     },
     genderText: {
-        fontSize: 14,
-        color: colors.textSecondary,
+        fontSize: 15,
+        color: "#8e8e93",
         fontWeight: "500",
     },
     genderTextActive: {
-        color: colors.primary,
+        color: "#0068FF",
+        fontWeight: "600",
     },
     dobDisplay: {
-        backgroundColor: colors.searchBg,
-        borderRadius: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
+        backgroundColor: "#f9fafb",
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
+        borderWidth: 1,
+        borderColor: "#e5e7eb",
     },
     dobText: {
         fontSize: 16,
-        color: colors.text,
+        color: "#1c1c1e",
     },
-    modalBackdrop: {
-        flex: 1,
-        backgroundColor: "rgba(0,0,0,0.6)",
-        justifyContent: "center",
+    modalSaveButton: {
+        backgroundColor: "#0068FF",
+        borderRadius: 12,
+        paddingVertical: 14,
         alignItems: "center",
-    },
-    modalContent: {
-        width: "86%" as DimensionValue,
-        borderRadius: 16,
-        backgroundColor: colors.card,
-        padding: 16,
-    },
-    modalTitle: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: colors.text,
-        marginBottom: 12,
-        textAlign: "center",
-    },
-    dobRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 16,
-    },
-    dobColumn: {
-        flex: 1,
-        alignItems: "center",
-    },
-    dobLabel: {
-        fontSize: 12,
-        color: colors.textSecondary,
-        marginBottom: 4,
-    },
-    dobValueBox: {
-        paddingVertical: 8,
-        paddingHorizontal: 10,
-        borderRadius: 10,
-        backgroundColor: colors.searchBg,
-        minWidth: 64,
-        alignItems: "center",
-    },
-    dobValueText: {
-        fontSize: 16,
-        color: colors.text,
-        fontWeight: "500",
-    },
-    dobAdjustRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
         marginTop: 8,
-        width: "100%" as DimensionValue,
     },
-    dobAdjustButton: {
-        flex: 1,
-        paddingVertical: 6,
-        marginHorizontal: 4,
-        borderRadius: 999,
-        backgroundColor: colors.background === "#ffffff" ? "#f3f4f6" : "#27272f",
-        alignItems: "center",
-    },
-    modalActions: {
-        flexDirection: "row",
-        justifyContent: "flex-end",
-        gap: 8,
-    },
-    modalButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    modalButtonPrimary: {
-        borderColor: colors.primary,
-        backgroundColor: colors.primary,
-    },
-    modalButtonText: {
-        fontSize: 14,
-        color: colors.textSecondary,
-    },
-    modalButtonTextPrimary: {
-        color: "#fff",
+    modalSaveText: {
+        color: "#ffffff",
+        fontSize: 16,
         fontWeight: "600",
     },
 });
+
+/* ─── Calendar Picker (pure RN, no native modules) ─── */
+
+const DAYS_VI = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+const MONTHS_VI = [
+    "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
+    "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
+];
+
+function CalendarPickerModal({
+    visible,
+    initialDate,
+    onConfirm,
+    onCancel,
+}: {
+    visible: boolean;
+    initialDate: Date;
+    onConfirm: (date: Date) => void;
+    onCancel: () => void;
+}) {
+    const [viewYear, setViewYear] = useState(initialDate.getFullYear());
+    const [viewMonth, setViewMonth] = useState(initialDate.getMonth());
+    const [selectedDay, setSelectedDay] = useState(initialDate.getDate());
+    const [showYearPicker, setShowYearPicker] = useState(false);
+
+    useEffect(() => {
+        if (visible) {
+            setViewYear(initialDate.getFullYear());
+            setViewMonth(initialDate.getMonth());
+            setSelectedDay(initialDate.getDate());
+            setShowYearPicker(false);
+        }
+    }, [visible]);
+
+    const today = new Date();
+    const cellSize = Math.floor((Dimensions.get("window").width - 80) / 7);
+
+    const calendarDays = useMemo(() => {
+        const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+        const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+        const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+        const cells: { day: number; inMonth: boolean; disabled: boolean }[] = [];
+
+        for (let i = firstDay - 1; i >= 0; i--) {
+            cells.push({ day: daysInPrevMonth - i, inMonth: false, disabled: true });
+        }
+        for (let d = 1; d <= daysInMonth; d++) {
+            const isFuture =
+                viewYear > today.getFullYear() ||
+                (viewYear === today.getFullYear() && viewMonth > today.getMonth()) ||
+                (viewYear === today.getFullYear() && viewMonth === today.getMonth() && d > today.getDate());
+            cells.push({ day: d, inMonth: true, disabled: isFuture });
+        }
+        const remaining = 7 - (cells.length % 7);
+        if (remaining < 7) {
+            for (let i = 1; i <= remaining; i++) {
+                cells.push({ day: i, inMonth: false, disabled: true });
+            }
+        }
+        return cells;
+    }, [viewYear, viewMonth]);
+
+    const goPrevMonth = () => {
+        if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); }
+        else setViewMonth((m) => m - 1);
+    };
+    const goNextMonth = () => {
+        if (viewYear > today.getFullYear() || (viewYear === today.getFullYear() && viewMonth >= today.getMonth())) return;
+        if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1); }
+        else setViewMonth((m) => m + 1);
+    };
+
+    const years = useMemo(() => {
+        const result: number[] = [];
+        for (let y = today.getFullYear(); y >= 1900; y--) result.push(y);
+        return result;
+    }, []);
+
+    if (!visible) return null;
+
+    return (
+        <Modal transparent visible animationType="fade" onRequestClose={onCancel}>
+            <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" }} onPress={onCancel}>
+                <Pressable
+                    style={{ backgroundColor: "#fff", borderRadius: 16, width: Dimensions.get("window").width - 40, maxHeight: "80%", overflow: "hidden" }}
+                    onPress={() => {}}
+                >
+                    {/* Header */}
+                    <View style={{ backgroundColor: "#0068FF", paddingVertical: 16, paddingHorizontal: 20, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+                        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>Chọn ngày sinh</Text>
+                        <Text style={{ color: "#fff", fontSize: 22, fontWeight: "700", marginTop: 4 }}>
+                            {selectedDay.toString().padStart(2, "0")}/{(viewMonth + 1).toString().padStart(2, "0")}/{viewYear}
+                        </Text>
+                    </View>
+
+                    {!showYearPicker ? (
+                        <View style={{ padding: 16 }}>
+                            {/* Month/Year nav */}
+                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                                <Pressable onPress={goPrevMonth} style={{ padding: 8 }}>
+                                    <Ionicons name="chevron-back" size={22} color="#1c1c1e" />
+                                </Pressable>
+                                <Pressable onPress={() => setShowYearPicker(true)} style={{ flexDirection: "row", alignItems: "center" }}>
+                                    <Text style={{ fontSize: 16, fontWeight: "600", color: "#1c1c1e" }}>
+                                        {MONTHS_VI[viewMonth]} {viewYear}
+                                    </Text>
+                                    <Ionicons name="caret-down" size={14} color="#8e8e93" style={{ marginLeft: 4 }} />
+                                </Pressable>
+                                <Pressable onPress={goNextMonth} style={{ padding: 8 }}>
+                                    <Ionicons name="chevron-forward" size={22} color="#1c1c1e" />
+                                </Pressable>
+                            </View>
+
+                            {/* Day headers */}
+                            <View style={{ flexDirection: "row" }}>
+                                {DAYS_VI.map((d) => (
+                                    <View key={d} style={{ width: cellSize, alignItems: "center", paddingVertical: 4 }}>
+                                        <Text style={{ fontSize: 12, color: "#8e8e93", fontWeight: "600" }}>{d}</Text>
+                                    </View>
+                                ))}
+                            </View>
+
+                            {/* Day grid */}
+                            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                                {calendarDays.map((cell, i) => {
+                                    const isSelected = cell.inMonth && cell.day === selectedDay;
+                                    const isToday = cell.inMonth && cell.day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
+                                    return (
+                                        <Pressable
+                                            key={i}
+                                            disabled={cell.disabled}
+                                            onPress={() => cell.inMonth && setSelectedDay(cell.day)}
+                                            style={{
+                                                width: cellSize,
+                                                height: cellSize,
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                            }}
+                                        >
+                                            <View style={{
+                                                width: 36,
+                                                height: 36,
+                                                borderRadius: 18,
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                backgroundColor: isSelected ? "#0068FF" : "transparent",
+                                                borderWidth: isToday && !isSelected ? 1.5 : 0,
+                                                borderColor: "#0068FF",
+                                            }}>
+                                                <Text style={{
+                                                    fontSize: 15,
+                                                    fontWeight: isSelected || isToday ? "700" : "400",
+                                                    color: isSelected ? "#fff" : cell.inMonth ? (cell.disabled ? "#d1d5db" : "#1c1c1e") : "#d1d5db",
+                                                }}>
+                                                    {cell.day}
+                                                </Text>
+                                            </View>
+                                        </Pressable>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    ) : (
+                        /* Year picker */
+                        <ScrollView style={{ maxHeight: 300, padding: 16 }}>
+                            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center" }}>
+                                {years.map((y) => (
+                                    <Pressable
+                                        key={y}
+                                        onPress={() => { setViewYear(y); setShowYearPicker(false); }}
+                                        style={{
+                                            paddingVertical: 10,
+                                            paddingHorizontal: 16,
+                                            margin: 4,
+                                            borderRadius: 999,
+                                            backgroundColor: y === viewYear ? "#0068FF" : "transparent",
+                                        }}
+                                    >
+                                        <Text style={{
+                                            fontSize: 15,
+                                            fontWeight: y === viewYear ? "700" : "400",
+                                            color: y === viewYear ? "#fff" : "#1c1c1e",
+                                        }}>
+                                            {y}
+                                        </Text>
+                                    </Pressable>
+                                ))}
+                            </View>
+                        </ScrollView>
+                    )}
+
+                    {/* Actions */}
+                    <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 12 }}>
+                        <Pressable onPress={onCancel} style={{ paddingVertical: 10, paddingHorizontal: 20 }}>
+                            <Text style={{ color: "#8e8e93", fontSize: 15, fontWeight: "600" }}>Hủy</Text>
+                        </Pressable>
+                        <Pressable
+                            onPress={() => onConfirm(new Date(viewYear, viewMonth, selectedDay))}
+                            style={{ backgroundColor: "#0068FF", borderRadius: 999, paddingVertical: 10, paddingHorizontal: 24 }}
+                        >
+                            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>Xác nhận</Text>
+                        </Pressable>
+                    </View>
+                </Pressable>
+            </Pressable>
+        </Modal>
+    );
+}
 
 interface EditProfileScreenProps {
     user?: UserProfile | null;
@@ -219,368 +429,316 @@ interface EditProfileScreenProps {
 export default function EditProfileScreen({ user, onSave }: EditProfileScreenProps) {
     const router = useRouter();
     const colors = useThemeColors();
-    const editStyles = createEditStyles(colors);
+    const s = createStyles(colors);
 
-    const [displayName, setDisplayName] = useState(user?.displayName ?? user?.username ?? "");
-    const [statusMessage, setStatusMessage] = useState(user?.statusMessage ?? "");
-    const [phone, setPhone] = useState(user?.phone ?? "");
-    const [gender, setGender] = useState(user?.gender ?? "");
-    const [dateOfBirth, setDateOfBirth] = useState(user?.dateOfBirth ?? "");
-    const [businessDescription, setBusinessDescription] = useState(user?.businessDescription ?? "");
+    const [editModalVisible, setEditModalVisible] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [dobModalVisible, setDobModalVisible] = useState(false);
 
-    // Local state cho picker ngày sinh (ngày/tháng/năm riêng)
-    const initialDate = (() => {
+    const [editName, setEditName] = useState(user?.displayName ?? user?.username ?? "");
+    const [editGender, setEditGender] = useState(user?.gender ?? "");
+    const [editDob, setEditDob] = useState(user?.dateOfBirth ?? "");
+    const [pickerDate, setPickerDate] = useState<Date>(() => {
         if (user?.dateOfBirth) {
             const d = new Date(user.dateOfBirth);
             if (!Number.isNaN(d.getTime())) return d;
         }
-        return new Date(2000, 0, 1); // 01/01/2000 mặc định
-    })();
-    const [dobYear, setDobYear] = useState(initialDate.getFullYear());
-    const [dobMonth, setDobMonth] = useState(initialDate.getMonth() + 1);
-    const [dobDay, setDobDay] = useState(initialDate.getDate());
+        return new Date(2000, 0, 1);
+    });
 
-    // Đồng bộ form khi user được tải (sau fetchProfile)
     useEffect(() => {
         if (user) {
-            setDisplayName(user.displayName ?? user.username ?? "");
-            setStatusMessage(user.statusMessage ?? "");
-            setPhone(user.phone ?? "");
-            setGender(user.gender ?? "");
-            setDateOfBirth(user.dateOfBirth ?? "");
+            setEditName(user.displayName ?? user.username ?? "");
+            setEditGender(user.gender ?? "");
+            setEditDob(user.dateOfBirth ?? "");
             if (user.dateOfBirth) {
                 const d = new Date(user.dateOfBirth);
-                if (!Number.isNaN(d.getTime())) {
-                    setDobYear(d.getFullYear());
-                    setDobMonth(d.getMonth() + 1);
-                    setDobDay(d.getDate());
-                }
+                if (!Number.isNaN(d.getTime())) setPickerDate(d);
             }
-            setBusinessDescription(user.businessDescription ?? "");
         }
     }, [user]);
 
+    const openEditModal = () => {
+        setEditName(user?.displayName ?? user?.username ?? "");
+        setEditGender(user?.gender ?? "");
+        setEditDob(user?.dateOfBirth ?? "");
+        if (user?.dateOfBirth) {
+            const d = new Date(user.dateOfBirth);
+            if (!Number.isNaN(d.getTime())) setPickerDate(d);
+        }
+        setShowDatePicker(false);
+        setEditModalVisible(true);
+    };
+
     const handleSave = async () => {
+        if (!editName.trim()) {
+            Alert.alert("Lỗi", "Tên hiển thị không được để trống.");
+            return;
+        }
         setSaving(true);
         try {
             if (onSave) {
                 await onSave({
-                    displayName: displayName.trim() || undefined,
-                    statusMessage: statusMessage.trim() || undefined,
-                    phone: phone.trim() || undefined,
-                    gender: gender.trim() || undefined,
-                    dateOfBirth: dateOfBirth.trim() || undefined,
-                    businessDescription: businessDescription.trim() || undefined,
+                    displayName: editName.trim(),
+                    gender: editGender || undefined,
+                    dateOfBirth: editDob || undefined,
                 });
             }
-            Alert.alert("Thành công", "Đã lưu thông tin.");
-            router.navigate("/(tabs)/personal-profile" as any);
+            setEditModalVisible(false);
+            Alert.alert("Thành công", "Đã cập nhật thông tin.");
         } catch (e: unknown) {
-            const msg = e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "Không thể lưu.";
+            const msg = e && typeof e === "object" && "message" in e
+                ? String((e as { message: unknown }).message)
+                : "Không thể lưu.";
             Alert.alert("Lỗi", msg);
         } finally {
             setSaving(false);
         }
     };
 
+    const displayName = user?.displayName ?? user?.username ?? "";
+    const phone = user?.phone ?? "";
+    const gender = user?.gender ?? "";
+    const dateOfBirth = user?.dateOfBirth ?? "";
+    const statusMessage = user?.statusMessage ?? "";
+    const businessDescription = user?.businessDescription ?? "";
+
+    const formatDob = (dob: string) => {
+        if (!dob) return "";
+        const d = new Date(dob);
+        if (Number.isNaN(d.getTime())) return dob;
+        return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
+    };
+
     return (
-        <View style={{ flex: 1, backgroundColor: colors.background }}>
-            <StatusBar style={colors.statusBar} />
-            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
-                <View style={editStyles.header}>
+        <View style={s.container}>
+            <StatusBar style="light" />
+            <SafeAreaView style={{ backgroundColor: "#0068FF" }} edges={["top"]}>
+                <View style={s.header}>
                     <TouchableOpacity
-                        style={editStyles.backButton}
+                        style={s.backButton}
                         onPress={() => router.back()}
                         activeOpacity={0.7}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                        <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                        <Ionicons name="chevron-back" size={26} color="#ffffff" />
                     </TouchableOpacity>
-                    <Text style={editStyles.headerTitle}>Chỉnh sửa thông tin</Text>
-                    <TouchableOpacity
-                        style={editStyles.saveButton}
-                        onPress={handleSave}
-                        disabled={saving}
-                    >
-                        <Text style={editStyles.saveButtonText}>
-                            {saving ? "..." : "Lưu"}
-                        </Text>
-                    </TouchableOpacity>
+                    <Text style={s.headerTitle}>Thông tin cá nhân</Text>
                 </View>
             </SafeAreaView>
 
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={editStyles.formContent}
+                contentContainerStyle={{ paddingBottom: 24 }}
                 showsVerticalScrollIndicator={false}
             >
-                <View style={editStyles.avatarSection}>
+                {/* Avatar */}
+                <View style={s.avatarSection}>
                     {user?.avatarUrl ? (
                         <Image
                             source={{ uri: user.avatarUrl as string }}
-                            style={editStyles.avatarLarge}
+                            style={s.avatarLarge}
                         />
                     ) : (
                         <View
                             style={[
-                                editStyles.avatarLarge,
+                                s.avatarLarge,
                                 {
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    backgroundColor: colors.avatarBg,
+                                    backgroundColor: "#0068FF",
                                 },
                             ]}
                         >
-                            <Text
-                                style={{
-                                    color: colors.text,
-                                    fontSize: 32,
-                                    fontWeight: "600",
-                                }}
-                            >
+                            <Text style={{ color: "#ffffff", fontSize: 36, fontWeight: "700" }}>
                                 {(displayName || "U").charAt(0).toUpperCase()}
                             </Text>
                         </View>
                     )}
-                    <TouchableOpacity style={editStyles.changeAvatar}>
-                        <Text style={editStyles.changeAvatarText}>Thay đổi ảnh đại diện</Text>
-                    </TouchableOpacity>
                 </View>
 
-                <View style={editStyles.field}>
-                    <Text style={editStyles.label}>Tên hiển thị</Text>
-                    <TextInput
-                        style={editStyles.input}
-                        value={displayName}
-                        onChangeText={setDisplayName}
-                        placeholder="Nhập tên hiển thị"
-                        placeholderTextColor={colors.textSecondary}
-                    />
-                </View>
+                {/* Info Card */}
+                <View style={s.infoCard}>
+                    <View style={s.infoRow}>
+                        <Text style={s.infoLabel}>Tên hiển thị</Text>
+                        <Text style={s.infoValue}>{displayName || "Chưa cập nhật"}</Text>
+                    </View>
 
-                <View style={editStyles.field}>
-                    <Text style={editStyles.label}>Trạng thái</Text>
-                    <TextInput
-                        style={editStyles.input}
-                        value={statusMessage}
-                        onChangeText={setStatusMessage}
-                        placeholder="Tin nhắn trạng thái"
-                        placeholderTextColor={colors.textSecondary}
-                    />
-                </View>
+                    <View style={s.infoRow}>
+                        <Text style={s.infoLabel}>Giới tính</Text>
+                        <Text style={gender ? s.infoValue : s.infoValuePlaceholder}>
+                            {gender || "Chưa cập nhật"}
+                        </Text>
+                    </View>
 
-                <View style={editStyles.field}>
-                    <Text style={editStyles.label}>Số điện thoại</Text>
-                    <TextInput
-                        style={editStyles.input}
-                        value={phone}
-                        onChangeText={setPhone}
-                        placeholder="Số điện thoại"
-                        placeholderTextColor={colors.textSecondary}
-                        keyboardType="phone-pad"
-                    />
-                </View>
+                    <View style={s.infoRow}>
+                        <Text style={s.infoLabel}>Ngày sinh</Text>
+                        <Text style={dateOfBirth ? s.infoValue : s.infoValuePlaceholder}>
+                            {dateOfBirth ? formatDob(dateOfBirth) : "Chưa cập nhật"}
+                        </Text>
+                    </View>
 
-                <View style={editStyles.field}>
-                    <Text style={editStyles.label}>Giới tính</Text>
-                    <View style={editStyles.genderRow}>
-                        {["Nam", "Nữ"].map((value) => {
-                            const active = gender === value;
-                            return (
-                                <TouchableOpacity
-                                    key={value}
-                                    style={[
-                                        editStyles.genderOption,
-                                        active && editStyles.genderOptionActive,
-                                        active && {
-                                            backgroundColor: colors.background === "#000000" ? "#1d283a" : "#eef2ff"
-                                        }
-                                    ]}
-                                    onPress={() => setGender(value)}
-                                    activeOpacity={0.8}
-                                >
-                                    <Text
-                                        style={[
-                                            editStyles.genderText,
-                                            active && editStyles.genderTextActive,
-                                        ]}
-                                    >
-                                        {value}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
+                    <View style={s.infoRow}>
+                        <Text style={s.infoLabel}>Số điện thoại</Text>
+                        <Text style={phone ? s.infoValue : s.infoValuePlaceholder}>
+                            {phone || "Chưa cập nhật"}
+                        </Text>
+                    </View>
+
+                    {statusMessage ? (
+                        <View style={s.infoRow}>
+                            <Text style={s.infoLabel}>Trạng thái</Text>
+                            <Text style={s.infoValue}>{statusMessage}</Text>
+                        </View>
+                    ) : null}
+
+                    <View style={[s.infoRow, s.infoRowLast]}>
+                        <Text style={s.infoLabel}>Giới thiệu</Text>
+                        <Text style={businessDescription ? s.infoValue : s.infoValuePlaceholder}>
+                            {businessDescription || "Chưa cập nhật"}
+                        </Text>
                     </View>
                 </View>
 
-                <View style={editStyles.field}>
-                    <Text style={editStyles.label}>Ngày sinh</Text>
+                {/* Edit Button */}
+                <View style={s.editButtonContainer}>
                     <TouchableOpacity
+                        style={s.editButton}
                         activeOpacity={0.8}
-                        onPress={() => setDobModalVisible(true)}
-                        style={editStyles.dobDisplay}
+                        onPress={openEditModal}
                     >
-                        <Text style={editStyles.dobText}>
-                            {dateOfBirth || "Chọn ngày sinh"}
-                        </Text>
-                        <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "500" }}>
-                            Thay đổi
-                        </Text>
+                        <Ionicons name="create-outline" size={20} color="#ffffff" />
+                        <Text style={s.editButtonText}>Chỉnh sửa</Text>
                     </TouchableOpacity>
-                </View>
-
-                <View style={editStyles.field}>
-                    <Text style={editStyles.label}>Mô tả công việc / giới thiệu</Text>
-                    <TextInput
-                        style={[editStyles.input, { height: 96, textAlignVertical: "top" as const }]}
-                        value={businessDescription}
-                        onChangeText={setBusinessDescription}
-                        placeholder="Giới thiệu ngắn gọn về bạn"
-                        placeholderTextColor={colors.textSecondary}
-                        multiline
-                        numberOfLines={4}
-                    />
                 </View>
             </ScrollView>
 
-            {/* Modal chọn ngày sinh đơn giản (Ngày/Tháng/Năm) */}
+            {/* ─── Edit Modal ─── */}
             <Modal
                 transparent
-                visible={dobModalVisible}
-                animationType="fade"
-                onRequestClose={() => setDobModalVisible(false)}
+                visible={editModalVisible}
+                animationType="slide"
+                onRequestClose={() => { Keyboard.dismiss(); setEditModalVisible(false); }}
             >
-                <View style={editStyles.modalBackdrop}>
-                    <View style={editStyles.modalContent}>
-                        <Text style={editStyles.modalTitle}>Chọn ngày sinh</Text>
-
-                        <View style={editStyles.dobRow}>
-                            {/* Ngày */}
-                            <View style={editStyles.dobColumn}>
-                                <Text style={editStyles.dobLabel}>Ngày</Text>
-                                <View style={editStyles.dobValueBox}>
-                                    <Text style={editStyles.dobValueText}>
-                                        {dobDay.toString().padStart(2, "0")}
-                                    </Text>
-                                </View>
-                                <View style={editStyles.dobAdjustRow}>
-                                    <TouchableOpacity
-                                        style={editStyles.dobAdjustButton}
-                                        onPress={() =>
-                                            setDobDay((d) => (d > 1 ? d - 1 : 1))
-                                        }
-                                    >
-                                        <Text style={{ color: colors.text, fontSize: 18 }}>-</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={editStyles.dobAdjustButton}
-                                        onPress={() =>
-                                            setDobDay((d) =>
-                                                d < 31 ? d + 1 : 31
-                                            )
-                                        }
-                                    >
-                                        <Text style={{ color: colors.text, fontSize: 18 }}>+</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            {/* Tháng */}
-                            <View style={editStyles.dobColumn}>
-                                <Text style={editStyles.dobLabel}>Tháng</Text>
-                                <View style={editStyles.dobValueBox}>
-                                    <Text style={editStyles.dobValueText}>
-                                        {dobMonth.toString().padStart(2, "0")}
-                                    </Text>
-                                </View>
-                                <View style={editStyles.dobAdjustRow}>
-                                    <TouchableOpacity
-                                        style={editStyles.dobAdjustButton}
-                                        onPress={() =>
-                                            setDobMonth((m) => (m > 1 ? m - 1 : 1))
-                                        }
-                                    >
-                                        <Text style={{ color: colors.text, fontSize: 18 }}>-</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={editStyles.dobAdjustButton}
-                                        onPress={() =>
-                                            setDobMonth((m) =>
-                                                m < 12 ? m + 1 : 12
-                                            )
-                                        }
-                                    >
-                                        <Text style={{ color: colors.text, fontSize: 18 }}>+</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            {/* Năm */}
-                            <View style={editStyles.dobColumn}>
-                                <Text style={editStyles.dobLabel}>Năm</Text>
-                                <View style={editStyles.dobValueBox}>
-                                    <Text style={editStyles.dobValueText}>
-                                        {dobYear}
-                                    </Text>
-                                </View>
-                                <View style={editStyles.dobAdjustRow}>
-                                    <TouchableOpacity
-                                        style={editStyles.dobAdjustButton}
-                                        onPress={() =>
-                                            setDobYear((y) => Math.max(1900, y - 1))
-                                        }
-                                    >
-                                        <Text style={{ color: colors.text, fontSize: 18 }}>-</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={editStyles.dobAdjustButton}
-                                        onPress={() =>
-                                            setDobYear((y) =>
-                                                Math.min(new Date().getFullYear(), y + 1)
-                                            )
-                                        }
-                                    >
-                                        <Text style={{ color: colors.text, fontSize: 18 }}>+</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </View>
-
-                        <View style={editStyles.modalActions}>
-                            <TouchableOpacity
-                                style={editStyles.modalButton}
-                                onPress={() => setDobModalVisible(false)}
-                            >
-                                <Text style={editStyles.modalButtonText}>Hủy</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[
-                                    editStyles.modalButton,
-                                    editStyles.modalButtonPrimary,
-                                ]}
-                                onPress={() => {
-                                    const mm = dobMonth.toString().padStart(2, "0");
-                                    const dd = dobDay.toString().padStart(2, "0");
-                                    const iso = `${dobYear}-${mm}-${dd}`;
-                                    setDateOfBirth(iso);
-                                    setDobModalVisible(false);
-                                }}
-                            >
-                                <Text
-                                    style={[
-                                        editStyles.modalButtonText,
-                                        editStyles.modalButtonTextPrimary,
-                                    ]}
-                                >
-                                    Lưu
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
+                <Pressable
+                    style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.3)" }}
+                    onPress={() => { Keyboard.dismiss(); setEditModalVisible(false); }}
+                />
+                <KeyboardAvoidingView
+                    style={{
+                        backgroundColor: "#ffffff",
+                        borderTopLeftRadius: 20,
+                        borderTopRightRadius: 20,
+                        paddingBottom: Platform.OS === "ios" ? 34 : 24,
+                    }}
+                    behavior={Platform.OS === "ios" ? "padding" : undefined}
+                >
+                    {/* Handle bar */}
+                    <View style={{ alignItems: "center", paddingTop: 10, paddingBottom: 4 }}>
+                        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#d1d5db" }} />
                     </View>
-                </View>
+
+                    <View style={[s.modalHeader, { paddingTop: 8 }]}>
+                        <Text style={s.modalTitle}>Chỉnh sửa thông tin</Text>
+                        <Pressable
+                            style={s.modalCloseButton}
+                            onPress={() => { Keyboard.dismiss(); setEditModalVisible(false); }}
+                        >
+                            <Ionicons name="close" size={18} color="#8e8e93" />
+                        </Pressable>
+                    </View>
+
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        {/* Tên hiển thị */}
+                        <View style={s.modalField}>
+                            <Text style={s.modalLabel}>Tên hiển thị</Text>
+                            <TextInput
+                                style={s.modalInput}
+                                value={editName}
+                                onChangeText={setEditName}
+                                placeholder="Nhập tên hiển thị"
+                                placeholderTextColor="#c7c7cc"
+                                returnKeyType="done"
+                                onSubmitEditing={Keyboard.dismiss}
+                                blurOnSubmit
+                            />
+                        </View>
+
+                        {/* Giới tính */}
+                        <View style={s.modalField}>
+                            <Text style={s.modalLabel}>Giới tính</Text>
+                            <View style={s.genderRow}>
+                                {["Nam", "Nữ"].map((value) => {
+                                    const active = editGender === value;
+                                    return (
+                                        <Pressable
+                                            key={value}
+                                            style={[s.genderOption, active && s.genderOptionActive]}
+                                            onPress={() => { Keyboard.dismiss(); setEditGender(value); }}
+                                        >
+                                            <Text style={[s.genderText, active && s.genderTextActive]}>
+                                                {value}
+                                            </Text>
+                                        </Pressable>
+                                    );
+                                })}
+                            </View>
+                        </View>
+
+                        {/* Ngày sinh */}
+                        <View style={s.modalField}>
+                            <Text style={s.modalLabel}>Ngày sinh</Text>
+                            <Pressable
+                                onPress={() => {
+                                    Keyboard.dismiss();
+                                    setEditModalVisible(false);
+                                    setTimeout(() => setShowDatePicker(true), 350);
+                                }}
+                                style={s.dobDisplay}
+                            >
+                                <Text style={s.dobText}>
+                                    {editDob ? formatDob(editDob) : "Chọn ngày sinh"}
+                                </Text>
+                                <Ionicons name="calendar-outline" size={18} color="#0068FF" />
+                            </Pressable>
+                        </View>
+
+                        {/* Save */}
+                        <Pressable
+                            style={[s.modalSaveButton, saving && { opacity: 0.6 }]}
+                            onPress={() => { Keyboard.dismiss(); handleSave(); }}
+                            disabled={saving}
+                        >
+                            <Text style={s.modalSaveText}>
+                                {saving ? "Đang lưu..." : "Lưu thay đổi"}
+                            </Text>
+                        </Pressable>
+                    </ScrollView>
+                </KeyboardAvoidingView>
             </Modal>
+
+            {/* ─── Calendar Date Picker Modal ─── */}
+            <CalendarPickerModal
+                visible={showDatePicker}
+                initialDate={pickerDate}
+                onConfirm={(date) => {
+                    setPickerDate(date);
+                    const yyyy = date.getFullYear();
+                    const mm = (date.getMonth() + 1).toString().padStart(2, "0");
+                    const dd = date.getDate().toString().padStart(2, "0");
+                    setEditDob(`${yyyy}-${mm}-${dd}`);
+                    setShowDatePicker(false);
+                    setTimeout(() => setEditModalVisible(true), 300);
+                }}
+                onCancel={() => {
+                    setShowDatePicker(false);
+                    setTimeout(() => setEditModalVisible(true), 300);
+                }}
+            />
         </View>
     );
 }
