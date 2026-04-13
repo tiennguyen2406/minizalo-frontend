@@ -98,6 +98,7 @@ interface ChatState {
      * Web: cập nhật trực tiếp `messages` trong store, signal chỉ để trigger effect nếu cần.
      */
     strangerRejectionSignal: { roomId: string; text: string; nonce: number } | null;
+    uploadProgressByRoom: Record<string, { progress: number; text: string; active: boolean }>;
 
     // Actions
     setRooms: (rooms: import('../types').ChatRoom[]) => void;
@@ -121,6 +122,10 @@ interface ChatState {
     clearFriendshipWelcome: (roomId: string) => void;
     /** Gỡ tin optimistic (temp-*) của tôi, thêm dòng SYSTEM (chính sách chỉ bạn bè). */
     applyStrangerMessageRejection: (roomId: string, text: string) => void;
+    setUploadProgress: (
+        roomId: string,
+        payload: { progress: number; text: string; active?: boolean } | null
+    ) => void;
     createPrivateRoom: (userId: string) => Promise<import('../types').ChatRoom>;
     setRoomPagination: (roomId: string, paging: { lastKey: string | null, hasMore: boolean, loading?: boolean }) => void;
     loadMoreMessages: (roomId: string) => Promise<void>;
@@ -140,6 +145,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     pendingOpenDirectInfoRoomId: null,
     friendshipWelcomeByRoomId: {},
     strangerRejectionSignal: null,
+    uploadProgressByRoom: {},
 
     setRooms: (rooms) => set({ rooms }),
 
@@ -383,6 +389,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
             };
         }),
 
+    setUploadProgress: (roomId, payload) =>
+        set((state) => {
+            const next = { ...state.uploadProgressByRoom };
+            if (!payload) {
+                delete next[roomId];
+                return { uploadProgressByRoom: next };
+            }
+            next[roomId] = {
+                progress: payload.progress,
+                text: payload.text,
+                active: payload.active ?? true,
+            };
+            return { uploadProgressByRoom: next };
+        }),
+
     createPrivateRoom: async (userId) => {
         const { chatService } = await import('../services/chatService');
         const room = await chatService.createPrivateRoom(userId);
@@ -495,31 +516,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
         pendingOpenDirectInfoRoomId: null,
         friendshipWelcomeByRoomId: {},
         strangerRejectionSignal: null,
+        uploadProgressByRoom: {},
     }),
 }));
 
 // Khi user/token thay đổi (logout/login), nạp lại pinned/muted theo scope mới.
 {
     let prevScope = `${useAuthStore.getState().user?.id || ''}|${useAuthStore.getState().accessToken || ''}`;
-    useAuthStore.subscribe(
-        (s) => `${s.user?.id || ''}|${s.accessToken || ''}`,
-        (nextScope) => {
-            if (nextScope === prevScope) return;
-            prevScope = nextScope;
-            if (isWeb) {
-                const pinnedRooms = safeLoadSet(getScopedKey('pinnedRooms'));
-                const mutedRooms = safeLoadSet(getScopedKey('mutedRooms'));
+    useAuthStore.subscribe((s) => {
+        const nextScope = `${s.user?.id || ''}|${s.accessToken || ''}`;
+        if (nextScope === prevScope) return;
+        prevScope = nextScope;
+        if (isWeb) {
+            const pinnedRooms = safeLoadSet(getScopedKey('pinnedRooms'));
+            const mutedRooms = safeLoadSet(getScopedKey('mutedRooms'));
+            useChatStore.setState({ pinnedRooms, mutedRooms });
+        } else {
+            Promise.all([
+                mobileRehydrateSet(getScopedKey('pinnedRooms')),
+                mobileRehydrateSet(getScopedKey('mutedRooms')),
+            ]).then(([pinnedRooms, mutedRooms]) => {
                 useChatStore.setState({ pinnedRooms, mutedRooms });
-            } else {
-                Promise.all([
-                    mobileRehydrateSet(getScopedKey('pinnedRooms')),
-                    mobileRehydrateSet(getScopedKey('mutedRooms')),
-                ]).then(([pinnedRooms, mutedRooms]) => {
-                    useChatStore.setState({ pinnedRooms, mutedRooms });
-                });
-            }
+            });
         }
-    );
+    });
 }
 
 // Mobile: rehydrate ngay khi module load

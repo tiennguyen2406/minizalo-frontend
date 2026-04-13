@@ -8,6 +8,7 @@ import { useFriendStore } from "@/shared/store/friendStore";
 import { useAuthStore } from "@/shared/store/authStore";
 import { ChatItem } from "@/views/mobile/chat/components/ChatItem";
 import { formatTime } from "@/shared/utils/dateUtils";
+import { getChatPreviewText } from "@/shared/utils/chatPreview";
 
 export default function StrangerChatsScreen() {
     const router = useRouter();
@@ -39,7 +40,7 @@ export default function StrangerChatsScreen() {
         return url;
     };
 
-    const friendIdSet = new Set(friends.map(f => f.friend?.id || f.user?.id || f.friendUser?.id || f.userProfile?.id));
+    const friendIdSet = new Set(friends.map(f => f.friend?.id || f.user?.id));
 
     const strangerRooms = rooms.filter(room => {
         if (room.type === 'PRIVATE' || (room.type as any) === 'DIRECT') {
@@ -50,11 +51,7 @@ export default function StrangerChatsScreen() {
     });
 
     const renderItem = ({ item }: { item: any }) => {
-        let lastMsg = "Chưa có tin nhắn";
-        if (item.lastMessage) {
-            const lm = item.lastMessage;
-            lastMsg = lm.content || (lm.type === 'IMAGE' ? '[Hình ảnh]' : '[Tin nhắn]');
-        }
+        const lastMsg = getChatPreviewText(item.lastMessage);
 
         const avatarUri = getImageUrl(item.avatarUrl) || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "U")}`;
 

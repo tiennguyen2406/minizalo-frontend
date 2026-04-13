@@ -10,6 +10,8 @@ interface ChatFooterProps {
     onSend?: (message: string) => void;
     onSendImage?: (assets: ImagePicker.ImagePickerAsset[]) => void;
     onSendFile?: (files: DocumentPicker.DocumentPickerAsset[]) => void;
+    uploadProgress?: number | null;
+    uploadText?: string;
     replyTo?: {
         senderName?: string;
         content: string;
@@ -22,7 +24,7 @@ export interface ChatFooterHandle {
 }
 
 const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
-    { onSend, onSendImage, onSendFile, replyTo, onCancelReply }, 
+    { onSend, onSendImage, onSendFile, uploadProgress, uploadText, replyTo, onCancelReply },
     ref
 ) => {
     const [message, setMessage] = useState("");
@@ -363,6 +365,43 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
                             <Ionicons name="close" size={18} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}
+                </View>
+            )}
+
+            {uploadProgress != null && (
+                <View
+                    style={{
+                        paddingHorizontal: 16,
+                        paddingTop: 8,
+                        paddingBottom: 6,
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.border,
+                    }}
+                >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                            {uploadText || "Đang tải tệp..."}
+                        </Text>
+                        <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "700" }}>
+                            {Math.max(0, Math.min(100, Math.round(uploadProgress)))}%
+                        </Text>
+                    </View>
+                    <View
+                        style={{
+                            height: 4,
+                            borderRadius: 999,
+                            backgroundColor: colors.border,
+                            overflow: "hidden",
+                        }}
+                    >
+                        <View
+                            style={{
+                                width: `${Math.max(0, Math.min(100, uploadProgress))}%`,
+                                height: "100%",
+                                backgroundColor: colors.primary,
+                            }}
+                        />
+                    </View>
                 </View>
             )}
 

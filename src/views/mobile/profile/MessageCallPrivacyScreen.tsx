@@ -1,11 +1,17 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, Platform } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, ActivityIndicator } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors, ThemeColors } from "@/shared/theme/colors";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useUserStore } from "@/shared/store/userStore";
+import {
+    PRIVACY_AUDIENCE_OPTIONS,
+    labelForPrivacyAudience,
+    normalizePrivacyAudience,
+} from "@/shared/constants/privacyAudience";
+import type { PrivacyAudience } from "@/shared/services/types";
 
 interface SettingsItemProps {
     label: string;
@@ -40,11 +46,11 @@ function SettingsItem({ label, value, onPress, colors, icon, isHeader }: Setting
             }}
         >
             {icon && (
-                <Ionicons 
-                    name={icon as any} 
-                    size={22} 
-                    color={colors.textSecondary} 
-                    style={{ marginRight: 12 }} 
+                <Ionicons
+                    name={icon as any}
+                    size={22}
+                    color={colors.textSecondary}
+                    style={{ marginRight: 12 }}
                 />
             )}
             <View style={{ flex: 1 }}>
@@ -63,37 +69,47 @@ function SettingsItem({ label, value, onPress, colors, icon, isHeader }: Setting
 export default function MessageCallPrivacyScreen() {
     const router = useRouter();
     const colors = useThemeColors();
-    const [allowMessaging, setAllowMessaging] = useState("Mọi người");
-    const [isBottomSheetVisible, setBottomSheetVisible] = useState(false);
+    const { profile, fetchProfile, updateProfile } = useUserStore();
+    const [updating, setUpdating] = useState(false);
+    const [pickerFor, setPickerFor] = useState<"messages" | "calls" | null>(null);
+    const [messagePrivacyUi, setMessagePrivacyUi] = useState<PrivacyAudience>(() =>
+        normalizePrivacyAudience(undefined),
+    );
+    const [callPrivacyUi, setCallPrivacyUi] = useState<PrivacyAudience>(() =>
+        normalizePrivacyAudience(undefined),
+    );
 
     useEffect(() => {
-        loadSettings();
-    }, []);
+        void fetchProfile();
+    }, [fetchProfile]);
 
-    const loadSettings = async () => {
-        try {
-            const { userService } = await import("@/shared/services/userService");
-            const profile = await userService.getProfile();
-            if (profile.allowStrangerMessages !== undefined) {
-                setAllowMessaging(profile.allowStrangerMessages ? "Mọi người" : "Bạn bè");
+    useEffect(() => {
+        setMessagePrivacyUi(normalizePrivacyAudience(profile?.allowMessagesFrom));
+        setCallPrivacyUi(normalizePrivacyAudience(profile?.allowCallsFrom));
+    }, [profile?.id, profile?.allowMessagesFrom, profile?.allowCallsFrom]);
+
+    const applyPrivacy = useCallback(
+        async (field: "allowMessagesFrom" | "allowCallsFrom", value: PrivacyAudience) => {
+            if (field === "allowMessagesFrom") setMessagePrivacyUi(value);
+            else setCallPrivacyUi(value);
+            setUpdating(true);
+            setPickerFor(null);
+            try {
+                await updateProfile(
+                    field === "allowMessagesFrom"
+                        ? { allowMessagesFrom: value }
+                        : { allowCallsFrom: value },
+                );
+            } catch {
+                const p = useUserStore.getState().profile;
+                setMessagePrivacyUi(normalizePrivacyAudience(p?.allowMessagesFrom));
+                setCallPrivacyUi(normalizePrivacyAudience(p?.allowCallsFrom));
+            } finally {
+                setUpdating(false);
             }
-        } catch (error) {
-            console.error("Error loading privacy settings:", error);
-        }
-    };
-
-    const saveSettings = async (value: string) => {
-        try {
-            const isEveryone = value === "Mọi người";
-            const { userService } = await import("@/shared/services/userService");
-            await userService.updateProfile({ allowStrangerMessages: isEveryone });
-            setAllowMessaging(value);
-        } catch (error) {
-            console.error("Error saving privacy settings:", error);
-            // Revert on error
-            loadSettings();
-        }
-    };
+        },
+        [updateProfile],
+    );
 
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -134,111 +150,121 @@ export default function MessageCallPrivacyScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={{ marginTop: 0 }}>
                     <SettingsItem label="Tin nhắn và cuộc gọi" isHeader colors={colors} />
-                    
-                    <SettingsItem 
-                        label="Hiện trạng thái 'Đã xem'" 
+
+                    <SettingsItem
+                        label="Hiện trạng thái 'Đã xem'"
                         value="Đang bật"
                         icon="eye-outline"
-                        onPress={() => {}} 
-                        colors={colors} 
+                        onPress={() => {}}
+                        colors={colors}
                     />
-                    
-                    <SettingsItem 
-                        label="Cho phép nhắn tin" 
-                        value={allowMessaging}
+
+                    <SettingsItem
+                        label="Cho phép nhắn tin"
+                        value={labelForPrivacyAudience(messagePrivacyUi)}
                         icon="chatbubble-outline"
-                        onPress={() => setBottomSheetVisible(true)} 
-                        colors={colors} 
+                        onPress={() => setPickerFor("messages")}
+                        colors={colors}
                     />
-                    
-                    <SettingsItem 
-                        label="Cho phép gọi điện" 
-                        value="Bạn bè"
+
+                    <SettingsItem
+                        label="Cho phép gọi điện"
+                        value={labelForPrivacyAudience(callPrivacyUi)}
                         icon="call-outline"
-                        onPress={() => {}} 
-                        colors={colors} 
+                        onPress={() => setPickerFor("calls")}
+                        colors={colors}
                     />
                 </View>
+
+                {updating ? (
+                    <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 14 }} />
+                ) : null}
             </ScrollView>
 
-            {/* Bottom Sheet Modal */}
             <Modal
+                visible={pickerFor !== null}
                 transparent
-                visible={isBottomSheetVisible}
-                animationType="slide"
-                onRequestClose={() => setBottomSheetVisible(false)}
+                animationType="fade"
+                onRequestClose={() => setPickerFor(null)}
             >
-                <TouchableOpacity
+                <Pressable
                     style={{
                         flex: 1,
-                        backgroundColor: "rgba(0,0,0,0.5)",
+                        backgroundColor: "rgba(0,0,0,0.45)",
                         justifyContent: "flex-end",
                     }}
-                    activeOpacity={1}
-                    onPress={() => setBottomSheetVisible(false)}
+                    onPress={() => setPickerFor(null)}
                 >
-                    <View
+                    <Pressable
+                        onPress={() => {}}
                         style={{
                             backgroundColor: colors.card,
-                            borderTopLeftRadius: 16,
-                            borderTopRightRadius: 16,
-                            paddingBottom: Platform.OS === "ios" ? 40 : 20,
+                            borderTopLeftRadius: 14,
+                            borderTopRightRadius: 14,
+                            paddingBottom: 28,
+                            paddingTop: 8,
                         }}
                     >
-                        {/* Header */}
-                        <View style={{ alignItems: "center", paddingVertical: 12 }}>
-                            <View style={{ width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2 }} />
-                            <Text style={{ marginTop: 16, fontSize: 17, fontWeight: "600", color: colors.text }}>
-                                Ai được nhắn tin cho bạn?
-                            </Text>
-                        </View>
-
-                        {/* Options */}
-                        <TouchableOpacity
+                        <Text
                             style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                paddingHorizontal: 20,
-                                paddingVertical: 16,
-                                borderBottomWidth: 0.5,
-                                borderBottomColor: colors.border,
-                            }}
-                            onPress={() => {
-                                saveSettings("Bạn bè");
-                                setBottomSheetVisible(false);
+                                textAlign: "center",
+                                fontSize: 13,
+                                color: colors.textSecondary,
+                                paddingVertical: 8,
                             }}
                         >
-                            <Ionicons name="people-outline" size={22} color={colors.text} />
-                            <Text style={{ flex: 1, marginLeft: 16, fontSize: 16, color: colors.text }}>
-                                Bạn bè
-                            </Text>
-                            {allowMessaging === "Bạn bè" && (
-                                <Ionicons name="checkmark" size={24} color="#0068FF" />
-                            )}
-                        </TouchableOpacity>
-
+                            {pickerFor === "messages"
+                                ? "Ai được nhắn tin cho bạn"
+                                : "Ai được gọi điện cho bạn"}
+                        </Text>
+                        {PRIVACY_AUDIENCE_OPTIONS.map((o) => (
+                            <TouchableOpacity
+                                key={o.value}
+                                onPress={() => {
+                                    if (!pickerFor) return;
+                                    void applyPrivacy(
+                                        pickerFor === "messages" ? "allowMessagesFrom" : "allowCallsFrom",
+                                        o.value,
+                                    );
+                                }}
+                                style={{
+                                    paddingVertical: 16,
+                                    paddingHorizontal: 20,
+                                    borderTopWidth: 0.5,
+                                    borderTopColor: colors.border,
+                                }}
+                            >
+                                <Text
+                                    style={{
+                                        fontSize: 16,
+                                        color: colors.text,
+                                        fontWeight:
+                                            (pickerFor === "messages" ? messagePrivacyUi : callPrivacyUi) === o.value
+                                                ? "700"
+                                                : "400",
+                                    }}
+                                >
+                                    {o.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
                         <TouchableOpacity
+                            onPress={() => setPickerFor(null)}
                             style={{
-                                flexDirection: "row",
+                                marginTop: 8,
+                                marginHorizontal: 16,
+                                paddingVertical: 14,
                                 alignItems: "center",
-                                paddingHorizontal: 20,
-                                paddingVertical: 16,
-                            }}
-                            onPress={() => {
-                                saveSettings("Mọi người");
-                                setBottomSheetVisible(false);
+                                borderRadius: 10,
+                                backgroundColor: colors.background,
                             }}
                         >
-                            <Ionicons name="earth-outline" size={22} color={colors.text} />
-                            <Text style={{ flex: 1, marginLeft: 16, fontSize: 16, color: colors.text }}>
-                                Mọi người
+                            <Text style={{ fontSize: 16, color: colors.textSecondary }}>
+                                Hủy
                             </Text>
-                            {allowMessaging === "Mọi người" && (
-                                <Ionicons name="checkmark" size={24} color="#0068FF" />
-                            )}
                         </TouchableOpacity>
-                    </View>
-                </TouchableOpacity>
+                    </Pressable>
+                </Pressable>
             </Modal>
         </View>
     );

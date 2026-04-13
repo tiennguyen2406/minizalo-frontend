@@ -51,7 +51,7 @@ export function InAppNotificationBanner({
     const dismiss = useInAppNotifStore((s) => s.dismiss);
     const translateY = useRef(new Animated.Value(-120)).current;
     const opacity = useRef(new Animated.Value(0)).current;
-    const timer = useRef<ReturnType<typeof setTimeout>>();
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isVisible = useRef(false);
 
     const hideAnim = useCallback(() => {
