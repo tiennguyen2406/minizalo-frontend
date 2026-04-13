@@ -24,6 +24,31 @@ function getMyUserIdFromToken(): string | null {
     }
 }
 
+function getScopedKey(suffix: string): string {
+    const userId = useAuthStore.getState().user?.id || getMyUserIdFromToken() || 'anonymous';
+    return `minizalo:${userId}:${suffix}`;
+}
+
+function safeLoadSet(key: string): Set<string> {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return new Set<string>();
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) return new Set<string>();
+        return new Set(arr.filter((x) => typeof x === 'string' && x.length > 0));
+    } catch {
+        return new Set<string>();
+    }
+}
+
+function safeSaveSet(key: string, value: Set<string>) {
+    try {
+        localStorage.setItem(key, JSON.stringify([...value]));
+    } catch {
+        // ignore
+    }
+}
+
 interface ChatState {
     messages: Record<string, Message[]>; // roomId -> messages
     rooms: import('../types').ChatRoom[];
@@ -78,8 +103,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     rooms: [],
     typingUsers: {},
     currentRoomId: null,
-    pinnedRooms: new Set<string>(),
-    mutedRooms: new Set<string>(),
+    pinnedRooms: safeLoadSet(getScopedKey('pinnedRooms')),
+    mutedRooms: safeLoadSet(getScopedKey('mutedRooms')),
     roomPagination: {},
     highlightedMessageId: null,
     pendingOpenRoomId: null,
@@ -227,12 +252,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     togglePinRoom: (roomId) => set((state) => {
         const next = new Set(state.pinnedRooms);
         if (next.has(roomId)) { next.delete(roomId); } else { next.add(roomId); }
+        safeSaveSet(getScopedKey('pinnedRooms'), next);
         return { pinnedRooms: next };
     }),
 
     toggleMuteRoom: (roomId) => set((state) => {
         const next = new Set(state.mutedRooms);
         if (next.has(roomId)) { next.delete(roomId); } else { next.add(roomId); }
+        safeSaveSet(getScopedKey('mutedRooms'), next);
         return { mutedRooms: next };
     }),
 
@@ -403,8 +430,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         rooms: [],
         typingUsers: {},
         currentRoomId: null,
-        pinnedRooms: new Set(),
-        mutedRooms: new Set(),
+        pinnedRooms: safeLoadSet(getScopedKey('pinnedRooms')),
+        mutedRooms: safeLoadSet(getScopedKey('mutedRooms')),
         roomPagination: {},
         highlightedMessageId: null,
         pendingOpenRoomId: null,

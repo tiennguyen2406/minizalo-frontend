@@ -63,6 +63,13 @@ export interface SearchMessageResponse {
     totalResults: number;
 }
 
+export interface LinkPreviewDto {
+    url: string;
+    title: string | null;
+    description: string | null;
+    imageUrl: string | null;
+}
+
 export interface PaginatedMessageResult {
     messages: MessageDynamo[];
     lastEvaluatedKey: string | null;
@@ -167,10 +174,26 @@ export const chatService = {
         return data;
     },
 
-    searchMessages: async (roomId: string, query: string, limit: number = 20, lastKey?: string): Promise<SearchMessageResponse> => {
-        const params: any = { q: query, limit };
+    searchMessages: async (
+        roomId: string,
+        query: string,
+        limit: number = 20,
+        lastKey?: string,
+        filters?: { senderId?: string; fromDate?: string; toDate?: string }
+    ): Promise<SearchMessageResponse> => {
+        const params: Record<string, string | number> = { limit };
+        const tq = (query || "").trim();
+        if (tq) params.q = tq;
         if (lastKey) params.lastKey = lastKey;
+        if (filters?.senderId) params.senderId = filters.senderId;
+        if (filters?.fromDate) params.fromDate = filters.fromDate;
+        if (filters?.toDate) params.toDate = filters.toDate;
         const { data } = await api.get<SearchMessageResponse>(`/chat/${roomId}/search`, { params });
+        return data;
+    },
+
+    getLinkPreview: async (url: string): Promise<LinkPreviewDto> => {
+        const { data } = await api.get<LinkPreviewDto>("/link-preview", { params: { url } });
         return data;
     },
 

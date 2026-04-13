@@ -1,6 +1,4 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, TouchableOpacity } from "react-native";
-import React, { useState, useCallback, useRef, useEffect } from "react";
 import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, Alert, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -21,7 +19,6 @@ import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 export default function ChatListScreen() {
     const router = useRouter();
     const { rooms, setRooms, addMessage } = useChatStore();
-    const { friends } = useFriendStore();
     const colors = useThemeColors();
     const currentUserId = useAuthStore((s) => s.user?.id);
     const friends = useFriendStore((s) => s.friends);

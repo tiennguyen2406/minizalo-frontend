@@ -6,6 +6,8 @@ import { useFriendStore } from '@/shared/store/friendStore';
 import { ChatRoom } from '@/shared/types';
 import ConfirmModal from './ConfirmModal';
 import { chatService } from '@/shared/services/chatService';
+import ForwardMessageModal from './ForwardMessageModal';
+import { Message } from '@/shared/types';
 
 // ── Mute Duration Modal ─────────────────────────────────────────────────────
 const MUTE_OPTIONS = [
@@ -144,6 +146,8 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
     const [nickname, setNickname] = useState<string | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+    const [mediaMenu, setMediaMenu] = useState<{ open: boolean; message?: Message; top?: number; left?: number } | null>(null);
+    const [forwardingMessages, setForwardingMessages] = useState<Message[] | null>(null);
 
     // Modal states
     const [showMuteModal, setShowMuteModal] = useState(false);
@@ -216,11 +220,14 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
 
     const linkMessages = useMemo(() => {
         const seen = new Set<string>();
-        const links: string[] = [];
+        const links: { url: string; message: Message }[] = [];
         for (const m of [...allMessages].reverse()) {
-            if (m.type === 'TEXT' && m.content) {
+            if (m.type === 'TEXT' && m.content && !m.isRecall) {
                 for (const url of extractUrls(m.content)) {
-                    if (!seen.has(url)) { seen.add(url); links.push(url); }
+                    if (!seen.has(url)) {
+                        seen.add(url);
+                        links.push({ url, message: m });
+                    }
                     if (links.length >= 5) break;
                 }
             }
@@ -347,7 +354,10 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 <ActionButton
                     icon={<Icon.GroupAdd />}
                     label={<span>Tạo nhóm<br />trò chuyện</span>}
-                    onClick={() => { onClose(); openCreateGroup(); }}
+                    onClick={() => {
+                        onClose();
+                        openCreateGroup(partner?.id ? [partner.id] : undefined);
+                    }}
                 />
             </ActionButtonRow>
 
@@ -360,9 +370,25 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                 <button
                                     key={m.id}
                                     onClick={() => setLightboxUrl(m.fileUrl!)}
-                                    className="relative aspect-square w-full overflow-hidden rounded hover:opacity-90 transition-opacity"
+                                    className="relative aspect-square w-full overflow-hidden rounded hover:opacity-90 transition-opacity group"
                                 >
                                     <img src={m.fileUrl} alt="" className="w-full h-full object-cover" />
+                                    <button
+                                        className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/40 hover:bg-black/55 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        title="Tùy chọn"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                                            setMediaMenu({ open: true, message: m, top: rect.bottom + 6, left: Math.max(8, rect.left - 120) });
+                                        }}
+                                    >
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                            <circle cx="5" cy="12" r="2" />
+                                            <circle cx="12" cy="12" r="2" />
+                                            <circle cx="19" cy="12" r="2" />
+                                        </svg>
+                                    </button>
                                 </button>
                             ))}
                         </div>
@@ -384,7 +410,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                         {fileMessages.map((m) => (
                             <div
                                 key={m.id}
-                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer"
+                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer group"
                                 onClick={() => {
                                     useChatStore.getState().setHighlightedMessageId(m.id);
                                 }}
@@ -394,6 +420,21 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                     <div className="text-sm text-gray-800 truncate font-medium">{m.fileName || 'File'}</div>
                                     <div className="text-xs text-gray-400">{formatBytes(m.fileSize)}</div>
                                 </div>
+                                <button
+                                    className="p-1 rounded hover:bg-gray-200 shrink-0 transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Tùy chọn"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                                        setMediaMenu({ open: true, message: m, top: rect.bottom + 6, left: Math.max(8, rect.left - 120) });
+                                    }}
+                                >
+                                    <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                                        <circle cx="5" cy="12" r="2" />
+                                        <circle cx="12" cy="12" r="2" />
+                                        <circle cx="19" cy="12" r="2" />
+                                    </svg>
+                                </button>
                                 <a
                                     href={m.fileUrl}
                                     target="_blank"
@@ -425,21 +466,40 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
             <CollapsibleSection title="Link" defaultOpen={false} badge={linkMessages.length || undefined}>
                 {linkMessages.length > 0 ? (
                     <div className="flex flex-col">
-                        {linkMessages.map((url, i) => (
-                            <a
+                        {linkMessages.map(({ url, message }, i) => (
+                            <div
                                 key={i}
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group"
                             >
-                                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                                    <Icon.Link />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-sm text-blue-600 truncate">{url}</div>
-                                </div>
-                            </a>
+                                <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-3 flex-1 min-w-0"
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                                        <Icon.Link />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm text-blue-600 truncate">{url}</div>
+                                    </div>
+                                </a>
+                                <button
+                                    className="p-1 rounded hover:bg-gray-200 shrink-0 transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Tùy chọn"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                                        setMediaMenu({ open: true, message, top: rect.bottom + 6, left: Math.max(8, rect.left - 120) });
+                                    }}
+                                >
+                                    <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                                        <circle cx="5" cy="12" r="2" />
+                                        <circle cx="12" cy="12" r="2" />
+                                        <circle cx="19" cy="12" r="2" />
+                                    </svg>
+                                </button>
+                            </div>
                         ))}
                         <div className="px-3 pt-1 pb-2">
                             <button className="w-full text-sm text-center py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500 font-medium transition-colors">
@@ -556,6 +616,59 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                         </svg>
                     </button>
                 </div>
+            )}
+
+            {/* Media menu (ellipsis) */}
+            {mediaMenu?.open && mediaMenu.message && (
+                <>
+                    <div
+                        style={{ position: 'fixed', inset: 0, zIndex: 60 }}
+                        onClick={() => setMediaMenu(null)}
+                    />
+                    <div
+                        style={{
+                            position: 'fixed',
+                            top: mediaMenu.top,
+                            left: mediaMenu.left,
+                            zIndex: 61,
+                            minWidth: 190,
+                        }}
+                        className="bg-white rounded-xl shadow-lg border border-gray-200 py-1.5"
+                    >
+                        <button
+                            onClick={() => {
+                                setForwardingMessages([mediaMenu.message!]);
+                                setMediaMenu(null);
+                            }}
+                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                            Chia sẻ
+                        </button>
+                        <button
+                            onClick={() => {
+                                const id = mediaMenu.message?.id;
+                                if (id) {
+                                    useChatStore.getState().setHighlightedMessageId(id);
+                                }
+                                setMediaMenu(null);
+                            }}
+                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Xem tin nhắn gốc
+                        </button>
+                    </div>
+                </>
+            )}
+
+            {/* Forward modal */}
+            {forwardingMessages && (
+                <ForwardMessageModal
+                    messages={forwardingMessages}
+                    currentRoomId={room.id}
+                    onClose={() => setForwardingMessages(null)}
+                />
             )}
         </div>
     );
