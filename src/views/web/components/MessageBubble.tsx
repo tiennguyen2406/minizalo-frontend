@@ -77,6 +77,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [menuPos, setMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
     const [showMessageDetail, setShowMessageDetail] = useState(false);
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
     const moreButtonRef = useRef<HTMLButtonElement>(null);
 
     // Keep picker open if hovered over button OR the picker itself
@@ -409,7 +410,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         maxWidth: 280, maxHeight: 300, borderRadius: 8,
                                         objectFit: 'cover', cursor: 'pointer',
                                     }}
-                                    onClick={() => window.open(effectiveFileUrl, '_blank')}
+                                    onClick={() => setLightboxUrl(effectiveFileUrl)}
                                     onLoad={onImageLoad}
                                 />
                             </div>
@@ -424,12 +425,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             </div>
                         ) : (effectiveType === 'FILE' || effectiveType === 'DOCUMENT') && effectiveFileUrl ? (
                             <div className="flex flex-col gap-1 min-w-[220px] max-w-[300px]">
-                                <a
-                                    href={effectiveFileUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <div
                                     className={clsx(
-                                        "flex items-center gap-3 p-2.5 rounded-lg border transition-colors no-underline",
+                                        "flex items-center gap-3 p-2.5 rounded-lg border transition-colors",
                                         isMine
                                             ? "bg-blue-50/80 border-blue-200 hover:bg-blue-100/80"
                                             : "bg-gray-50 border-gray-200 hover:bg-gray-100"
@@ -450,12 +448,30 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                                 : 'Tải xuống'}
                                         </span>
                                     </div>
-                                    <div className={clsx("p-1.5 rounded-full shrink-0", isMine ? "text-blue-500" : "text-gray-400")}>
+                                    {/* Open file */}
+                                    <a
+                                        href={effectiveFileUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={clsx("px-2 py-1 rounded-md text-xs font-semibold", isMine ? "text-blue-700 hover:bg-blue-200/60" : "text-gray-700 hover:bg-gray-200")}
+                                        onClick={(e) => e.stopPropagation()}
+                                        title="Mở"
+                                    >
+                                        Mở
+                                    </a>
+                                    {/* Download */}
+                                    <a
+                                        href={effectiveFileUrl}
+                                        download
+                                        className={clsx("p-1.5 rounded-full shrink-0", isMine ? "text-blue-700 hover:bg-blue-200/60" : "text-gray-600 hover:bg-gray-200")}
+                                        onClick={(e) => e.stopPropagation()}
+                                        title="Tải xuống"
+                                    >
                                         <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                         </svg>
-                                    </div>
-                                </a>
+                                    </a>
+                                </div>
                             </div>
                         ) : effectiveType === 'TEXT' || effectiveType === 'REPLY' || effectiveType === 'FORWARD' ? (
                             <span className="text-[15px] leading-relaxed pr-8">
@@ -726,6 +742,29 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Lightbox (image) */}
+            {lightboxUrl && (
+                <div
+                    className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center"
+                    onClick={() => setLightboxUrl(null)}
+                >
+                    <img
+                        src={lightboxUrl}
+                        alt=""
+                        className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                    <button
+                        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+                        onClick={() => setLightboxUrl(null)}
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
             )}
         </>

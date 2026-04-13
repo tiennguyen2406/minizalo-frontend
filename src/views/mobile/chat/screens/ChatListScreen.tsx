@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, Alert, TouchableOpacity } from "react-native";
+import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, Alert, TouchableOpacity, Modal, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { ChatListHeader } from "../components/ChatListHeader";
@@ -18,7 +18,7 @@ import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 
 export default function ChatListScreen() {
     const router = useRouter();
-    const { rooms, setRooms, addMessage } = useChatStore();
+    const { rooms, setRooms, addMessage, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, clearConversation } = useChatStore();
     const colors = useThemeColors();
     const currentUserId = useAuthStore((s) => s.user?.id);
     const friends = useFriendStore((s) => s.friends);
@@ -28,6 +28,7 @@ export default function ChatListScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const subscribedRooms = useRef<Set<string>>(new Set());
+    const [actionRoom, setActionRoom] = useState<(typeof rooms)[number] | null>(null);
 
     const displayRooms = useMemo(() => {
         if (!currentUserId || !friendsListReady) {
@@ -41,6 +42,16 @@ export default function ChatListScreen() {
         );
         return inboxTab === "strangers" ? strangerRooms : mainRooms;
     }, [rooms, currentUserId, friends, friendsListReady, inboxTab]);
+
+    const friendIdSet = useMemo(() => {
+        const ids = new Set<string>();
+        for (const f of (friends || []) as any[]) {
+            // f.id is the relationship ID — NOT a user ID, skip it
+            if (f?.user?.id) ids.add(f.user.id);
+            if (f?.friend?.id) ids.add(f.friend.id);
+        }
+        return ids;
+    }, [friends]);
 
     // Helper function to process image URLs (similar to ChatScreen)
     const getImageUrl = (url: string) => {
@@ -233,18 +244,25 @@ export default function ChatListScreen() {
 
         const partner = item.type === 'PRIVATE' ? item.participants.find((p: any) => p.id !== currentUserId) : null;
         const isPartnerStranger = partner && !friendIdSet.has(partner.id);
+        const isPinned = pinnedRooms.has(item.id);
+        const isMuted = mutedRooms.has(item.id);
 
         return (
             <Animated.View style={{ opacity: fadeAnim }}>
-                <ChatItem
-                    avatar={{ uri: avatarUri }}
-                    name={item.name || "Người dùng"}
-                    message={lastMsg}
-                    time={timeDisplay}
-                    unreadCount={item.unreadCount}
-                    isVerified={false}
-                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}`)}
-                />
+                <Pressable
+                    onLongPress={() => setActionRoom(item)}
+                    delayLongPress={250}
+                >
+                    <ChatItem
+                        avatar={{ uri: avatarUri }}
+                        name={item.name || "Người dùng"}
+                        message={lastMsg}
+                        time={timeDisplay}
+                        unreadCount={item.unreadCount}
+                        isVerified={false}
+                        onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}${partner?.id ? `&targetUserId=${partner.id}` : ""}`)}
+                    />
+                </Pressable>
             </Animated.View>
         );
     };
@@ -410,6 +428,76 @@ export default function ChatListScreen() {
                     showsVerticalScrollIndicator={false}
                 />
             )}
+
+            {/* Long-press actions like web (mute/pin/delete) */}
+            <Modal
+                transparent
+                animationType="fade"
+                visible={!!actionRoom}
+                onRequestClose={() => setActionRoom(null)}
+            >
+                <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }} onPress={() => setActionRoom(null)}>
+                    <Pressable
+                        style={{
+                            backgroundColor: colors.card,
+                            borderTopLeftRadius: 24,
+                            borderTopRightRadius: 24,
+                            paddingTop: 10,
+                            paddingBottom: 26,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 999, backgroundColor: colors.border, marginBottom: 12 }} />
+
+                        {actionRoom && (
+                            <>
+                                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800", paddingHorizontal: 18, marginBottom: 10 }} numberOfLines={1}>
+                                    {actionRoom.name || "Hội thoại"}
+                                </Text>
+
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        togglePinRoom(actionRoom.id);
+                                        setActionRoom(null);
+                                    }}
+                                    style={{ paddingHorizontal: 18, paddingVertical: 14 }}
+                                >
+                                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
+                                        {pinnedRooms.has(actionRoom.id) ? "Bỏ ghim hội thoại" : "Ghim hội thoại"}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        toggleMuteRoom(actionRoom.id);
+                                        setActionRoom(null);
+                                    }}
+                                    style={{ paddingHorizontal: 18, paddingVertical: 14 }}
+                                >
+                                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
+                                        {mutedRooms.has(actionRoom.id) ? "Bật thông báo" : "Tắt thông báo"}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 6, marginHorizontal: 18 }} />
+
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        clearConversation(actionRoom.id);
+                                        setActionRoom(null);
+                                    }}
+                                    style={{ paddingHorizontal: 18, paddingVertical: 14 }}
+                                >
+                                    <Text style={{ color: "#ef4444", fontSize: 15, fontWeight: "700" }}>Xóa hội thoại</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </Pressable>
+                </Pressable>
+            </Modal>
         </View>
     );
 }
+

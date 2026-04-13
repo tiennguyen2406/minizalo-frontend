@@ -355,7 +355,8 @@ function NavItem({
             position: "absolute",
             top: 4,
             right: 4,
-            backgroundColor: "#ef4444",
+            // Subtle unread badge (avoid bright red)
+            backgroundColor: "#9ca3af",
             color: "#fff",
             borderRadius: "10px",
             minWidth: 16,

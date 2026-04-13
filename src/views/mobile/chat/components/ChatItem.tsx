@@ -68,7 +68,7 @@ export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadC
                         </View>
                     </View>
                 )}
-                {/* Red dot indicator for unread messages */}
+                {/* Unread dot indicator (subtle) */}
                 {hasUnread && (
                     <View style={{
                         position: 'absolute',
@@ -77,7 +77,7 @@ export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadC
                         width: 14,
                         height: 14,
                         borderRadius: 7,
-                        backgroundColor: '#e74c3c',
+                        backgroundColor: '#9ca3af',
                         borderWidth: 2,
                         borderColor: colors.background,
                     }} />
@@ -111,7 +111,7 @@ export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadC
                             </View>
                         )}
                     </View>
-                    <Text style={{ fontSize: 12, color: hasUnread ? '#e74c3c' : '#7f8c8d', fontWeight: hasUnread ? '600' : '400' }}>{time}</Text>
+                    <Text style={{ fontSize: 12, color: hasUnread ? '#6b7280' : '#7f8c8d', fontWeight: hasUnread ? '600' : '400' }}>{time}</Text>
                 </View>
 
                 {/* Bottom Row: Message + Badge */}
@@ -132,7 +132,7 @@ export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadC
 
                     {unreadCount && unreadCount > 0 ? (
                         <View style={{
-                            backgroundColor: '#e74c3c',
+                            backgroundColor: '#9ca3af',
                             borderRadius: 999,
                             minWidth: 20,
                             height: 20,

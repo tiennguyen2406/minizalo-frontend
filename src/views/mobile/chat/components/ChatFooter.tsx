@@ -9,7 +9,7 @@ import { useThemeColors } from "@/shared/theme/colors";
 interface ChatFooterProps {
     onSend?: (message: string) => void;
     onSendImage?: (assets: ImagePicker.ImagePickerAsset[]) => void;
-    onSendFile?: (file: DocumentPicker.DocumentPickerAsset) => void;
+    onSendFile?: (files: DocumentPicker.DocumentPickerAsset[]) => void;
     replyTo?: {
         senderName?: string;
         content: string;
@@ -190,10 +190,11 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
             const result = await DocumentPicker.getDocumentAsync({
                 type: "*/*",
                 copyToCacheDirectory: true,
+                multiple: true,
             });
 
-            if (!result.canceled && result.assets?.[0]) {
-                onSendFile?.(result.assets[0]);
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                onSendFile?.(result.assets);
             }
         } catch (err) {
             // console.log("Error picking file:", err);

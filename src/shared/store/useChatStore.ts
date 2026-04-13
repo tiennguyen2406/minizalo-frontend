@@ -83,8 +83,10 @@ interface ChatState {
     setTyping: (roomId: string, userId: string, isTyping: boolean) => void;
     clearTyping: (roomId: string) => void;
     markRoomAsRead: (roomId: string) => void;
+    markRoomAsUnread: (roomId: string, count?: number) => void;
     togglePinRoom: (roomId: string) => void;
     toggleMuteRoom: (roomId: string) => void;
+    clearConversation: (roomId: string) => void;
     setHighlightedMessageId: (messageId: string | null) => void;
     setPendingOpenRoomId: (roomId: string | null) => void;
     setPendingOpenDirectInfoRoomId: (roomId: string | null) => void;
@@ -249,6 +251,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return { rooms: newRooms };
     }),
 
+    markRoomAsUnread: (roomId, count = 1) => set((state) => {
+        const newRooms = state.rooms.map((r) => {
+            if (r.id !== roomId) return r;
+            const nextCount = Math.max(count, r.unreadCount || 0, 1);
+            return { ...r, unreadCount: nextCount };
+        });
+        return { rooms: newRooms };
+    }),
+
     togglePinRoom: (roomId) => set((state) => {
         const next = new Set(state.pinnedRooms);
         if (next.has(roomId)) { next.delete(roomId); } else { next.add(roomId); }
@@ -261,6 +272,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (next.has(roomId)) { next.delete(roomId); } else { next.add(roomId); }
         safeSaveSet(getScopedKey('mutedRooms'), next);
         return { mutedRooms: next };
+    }),
+
+    clearConversation: (roomId) => set((state) => {
+        const nextRooms = state.rooms.map((r) => {
+            if (r.id !== roomId) return r;
+            return { ...r, unreadCount: 0, lastMessage: undefined };
+        });
+        return {
+            messages: { ...state.messages, [roomId]: [] },
+            rooms: nextRooms,
+        };
     }),
 
     setHighlightedMessageId: (messageId) => set({ highlightedMessageId: messageId }),
@@ -440,3 +462,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         strangerRejectionSignal: null,
     }),
 }));
+
+// Web: khi user/token thay đổi (logout/login), nạp lại pinned/muted theo scope mới.
+// Tránh trường hợp logout -> clear state (scope anonymous) rồi login nhưng store không rehydrate.
+if (typeof window !== 'undefined') {
+    let prevScope = `${useAuthStore.getState().user?.id || ''}|${useAuthStore.getState().accessToken || ''}`;
+    useAuthStore.subscribe(
+        (s) => `${s.user?.id || ''}|${s.accessToken || ''}`,
+        (nextScope) => {
+            if (nextScope === prevScope) return;
+            prevScope = nextScope;
+            const pinnedRooms = safeLoadSet(getScopedKey('pinnedRooms'));
+            const mutedRooms = safeLoadSet(getScopedKey('mutedRooms'));
+            useChatStore.setState({ pinnedRooms, mutedRooms }, false, 'authScopeChanged');
+        }
+    );
+}

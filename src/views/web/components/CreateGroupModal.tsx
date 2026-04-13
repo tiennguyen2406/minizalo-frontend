@@ -50,13 +50,24 @@ const CreateGroupModal: React.FC = () => {
         setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
     };
 
+    const buildDefaultGroupName = (ids: string[]) => {
+        const picked = [...ids].sort(() => Math.random() - 0.5).slice(0, 3);
+        const names = picked
+            .map((id) => friends.find((f) => f.id === id))
+            .filter(Boolean)
+            .map((f) => (f as Friend).fullName || (f as Friend).username)
+            .filter(Boolean);
+        if (names.length === 0) return 'Nhóm mới';
+        return names.join(', ');
+    };
+
     const handleCreate = async () => {
-        if (groupName.trim().length < 3) { setError('Tên nhóm phải có ít nhất 3 ký tự.'); return; }
-        if (selectedIds.length === 0) { setError('Vui lòng chọn ít nhất 1 thành viên.'); return; }
+        if (selectedIds.length < 3) { setError('Vui lòng chọn ít nhất 3 thành viên.'); return; }
+        const finalName = groupName.trim() ? groupName.trim() : buildDefaultGroupName(selectedIds);
         setIsSubmitting(true);
         setError('');
         try {
-            const newGroup = await groupService.createGroup(groupName.trim(), selectedIds);
+            const newGroup = await groupService.createGroup(finalName, selectedIds);
             upsertRoom({
                 id: newGroup.id,
                 name: newGroup.groupName,
@@ -214,12 +225,12 @@ const CreateGroupModal: React.FC = () => {
                     </button>
                     <button
                         onClick={handleCreate}
-                        disabled={isSubmitting || selectedIds.length === 0 || groupName.trim().length < 3}
+                        disabled={isSubmitting || selectedIds.length < 3}
                         className="px-5 py-2 text-sm rounded-lg font-medium transition-colors"
                         style={{
-                            backgroundColor: (isSubmitting || selectedIds.length === 0 || groupName.trim().length < 3) ? '#93c5fd' : '#0068FF',
+                            backgroundColor: (isSubmitting || selectedIds.length < 3) ? '#93c5fd' : '#0068FF',
                             color: '#fff',
-                            cursor: (isSubmitting || selectedIds.length === 0 || groupName.trim().length < 3) ? 'not-allowed' : 'pointer',
+                            cursor: (isSubmitting || selectedIds.length < 3) ? 'not-allowed' : 'pointer',
                         }}
                     >
                         {isSubmitting ? 'Đang tạo...' : 'Tạo nhóm'}

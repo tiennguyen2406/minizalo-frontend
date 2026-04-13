@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Avatar } from 'zmp-ui';
 import { ChatRoom } from '@/shared/types';
 import { useRouter } from 'expo-router';
@@ -55,6 +55,11 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
     const router = useRouter();
     const isDark = useThemeStore((s) => s.theme === 'dark');
     const isMuted = useChatStore((s) => s.mutedRooms.has(room.id));
+    const { togglePinRoom, toggleMuteRoom, markRoomAsUnread, clearConversation } = useChatStore();
+
+    const [showMenu, setShowMenu] = useState(false);
+    const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+    const moreBtnRef = useRef<HTMLButtonElement>(null);
 
     const onPress = () => {
         if (onSelect) {
@@ -107,7 +112,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
     return (
         <div
             onClick={onPress}
-            className="flex items-center p-3 cursor-pointer"
+            className="flex items-center p-3 cursor-pointer group"
             style={{
                 backgroundColor: isActive ? activeBg : 'transparent',
                 transition: 'background-color 0.15s ease',
@@ -151,6 +156,23 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
             {/* Timestamp + badge + pin + muted */}
             <div className="flex flex-col items-end whitespace-nowrap pl-2">
                 <div className="flex items-center gap-1">
+                    <button
+                        ref={moreBtnRef}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                            setMenuPos({ top: rect.bottom + 6, right: Math.max(8, window.innerWidth - rect.right) });
+                            setShowMenu(true);
+                        }}
+                        className="w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-200/60 transition-all"
+                        title="Tùy chọn"
+                    >
+                        <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                            <circle cx="5" cy="12" r="2" />
+                            <circle cx="12" cy="12" r="2" />
+                            <circle cx="19" cy="12" r="2" />
+                        </svg>
+                    </button>
                     {isPinned && (
                         <svg className="w-3 h-3 text-blue-400 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/>
@@ -175,7 +197,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                 {hasUnread && (
                     <div
                         style={{
-                            backgroundColor: '#ef4444',
+                            // Make unread badge more subtle (less distracting)
+                            backgroundColor: '#9ca3af',
                             minWidth: 20,
                             height: 20,
                             borderRadius: 10,
@@ -187,6 +210,73 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                     </div>
                 )}
             </div>
+
+            {/* More menu */}
+            {showMenu && menuPos && (
+                <>
+                    <div
+                        style={{ position: 'fixed', inset: 0, zIndex: 60 }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMenu(false);
+                            setMenuPos(null);
+                        }}
+                    />
+                    <div
+                        style={{
+                            position: 'fixed',
+                            top: menuPos.top,
+                            right: menuPos.right,
+                            zIndex: 61,
+                            minWidth: 220,
+                        }}
+                        className="bg-white rounded-xl shadow-lg border border-gray-200 py-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700"
+                            onClick={() => {
+                                togglePinRoom(room.id);
+                                setShowMenu(false);
+                                setMenuPos(null);
+                            }}
+                        >
+                            {isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại'}
+                        </button>
+                        <button
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700"
+                            onClick={() => {
+                                markRoomAsUnread(room.id, 1);
+                                setShowMenu(false);
+                                setMenuPos(null);
+                            }}
+                        >
+                            Đánh dấu chưa đọc
+                        </button>
+                        <button
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700"
+                            onClick={() => {
+                                toggleMuteRoom(room.id);
+                                setShowMenu(false);
+                                setMenuPos(null);
+                            }}
+                        >
+                            {isMuted ? 'Bật thông báo' : 'Tắt thông báo'}
+                        </button>
+                        <div className="border-t border-gray-100 my-1" />
+                        <button
+                            className="w-full text-left px-4 py-2 hover:bg-red-50 text-sm text-red-600"
+                            onClick={() => {
+                                clearConversation(room.id);
+                                setShowMenu(false);
+                                setMenuPos(null);
+                            }}
+                        >
+                            Xóa hội thoại
+                        </button>
+                    </div>
+                </>
+            )}
         </div>
     );
 });
