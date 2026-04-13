@@ -1,3 +1,5 @@
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, TouchableOpacity } from "react-native";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, Alert, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
@@ -14,15 +16,34 @@ import { useThemeColors } from "@/shared/theme/colors";
 import { showLocalNotification } from "@/services/notificationService";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useFriendStore } from "@/shared/store/friendStore";
+import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 
 export default function ChatListScreen() {
     const router = useRouter();
     const { rooms, setRooms, addMessage } = useChatStore();
     const { friends } = useFriendStore();
     const colors = useThemeColors();
+    const currentUserId = useAuthStore((s) => s.user?.id);
+    const friends = useFriendStore((s) => s.friends);
+    const fetchFriends = useFriendStore((s) => s.fetchFriends);
+    const [friendsListReady, setFriendsListReady] = useState(false);
+    const [inboxTab, setInboxTab] = useState<"main" | "strangers">("main");
     const [refreshing, setRefreshing] = useState(false);
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const subscribedRooms = useRef<Set<string>>(new Set());
+
+    const displayRooms = useMemo(() => {
+        if (!currentUserId || !friendsListReady) {
+            if (inboxTab === "strangers") return [];
+            return rooms;
+        }
+        const { mainRooms, strangerRooms } = splitRoomsMainAndStrangers(
+            rooms,
+            currentUserId,
+            friends,
+        );
+        return inboxTab === "strangers" ? strangerRooms : mainRooms;
+    }, [rooms, currentUserId, friends, friendsListReady, inboxTab]);
 
     // Helper function to process image URLs (similar to ChatScreen)
     const getImageUrl = (url: string) => {
@@ -169,9 +190,9 @@ export default function ChatListScreen() {
     // Auto-fetch when screen is focused + poll every 10s as fallback
     useFocusEffect(
         useCallback(() => {
-            fetchChats(false);
-            useFriendStore.getState().fetchFriends(); // Đảm bảo list friend mới nhất để phân loại stranger
-            
+            fetchChats(true);
+            void fetchFriends().finally(() => setFriendsListReady(true));
+
             // Xóa currentRoomId khi ở màn hình danh sách (để store biết đang ở ngoài, tăng unreadCount bình thường)
             useChatStore.getState().setCurrentRoom(null);
 
@@ -180,118 +201,20 @@ export default function ChatListScreen() {
             }, 10000);
 
             return () => clearInterval(interval);
-        }, [])
+        }, [fetchFriends])
     );
 
-    // Fetch ngay khi user thay đổi (đăng nhập thành công)
-    const user = useAuthStore(s => s.user);
-    useEffect(() => {
-        if (user) {
-            fetchChats(true);
-            useFriendStore.getState().fetchFriends();
-        }
-    }, [user]);
-    
-    // Khi danh sách bạn bè thay đổi (chấp nhận kết bạn), hãy fetch lại danh sách chat
-    // để cập nhật phân loại (Stranger -> Friend)
-    useEffect(() => {
-        if (friends.length > 0) {
-            fetchChats(false);
-        }
-    }, [friends.length]);
-
-    // ─── Grouping rooms into Friend and Stranger ───
-    const currentUserId = useAuthStore.getState().user?.id;
-    const friendIdSet = new Set(
-        friends.map(f => {
-            if (!currentUserId) return f.friend.id;
-            return f.user.id === currentUserId ? f.friend.id : f.user.id;
-        })
-    );
-
-    const { friendRooms, strangerRooms } = rooms.reduce((acc, room) => {
-        // Chat nhóm luôn ở Main list
-        if (room.type === 'GROUP') {
-            acc.friendRooms.push(room);
-            return acc;
-        }
-
-        const otherParticipant = room.participants?.find((p: any) => p.id !== currentUserId);
-        const otherUserId = otherParticipant?.id;
-        const isFriend = otherUserId ? friendIdSet.has(otherUserId) : false;
-
-        // Logic của USER: 
-        // 1. Là bạn bè -> Main list
-        // 2. Không là bạn bè nhưng ĐÃ TỪNG NHẮN TIN (WE sent at least one message) -> Main list
-        // 3. Không là bạn bè và CHƯA TỪNG PHẢN HỒI (nhắn tin lần đầu) -> Stranger list
-        const isStranger = !isFriend && !room.hasInteracted;
-
-        if (isStranger) {
-            acc.strangerRooms.push(room);
-        } else {
-            acc.friendRooms.push(room);
-        }
-        return acc;
-    }, { friendRooms: [] as any[], strangerRooms: [] as any[] });
-
-    // Aggregate stranger room data
-    const totalStrangerUnread = strangerRooms.reduce((sum, r) => sum + (r.unreadCount || 0), 0);
-    const lastStrangerRoom = strangerRooms.length > 0 ? strangerRooms[0] : null;
-
-    const renderStrangerEntry = () => {
-        if (strangerRooms.length === 0) return null;
-        
-        let lastMsg = "Chưa có tin nhắn";
-        if (lastStrangerRoom?.lastMessage) {
-            const lm = lastStrangerRoom.lastMessage;
-            lastMsg = lm.content || (lm.type === 'IMAGE' ? '[Hình ảnh]' : '[Tin nhắn]');
-        }
-
-        return (
-            <ChatItem
-                avatarComponent={
-                    <View style={{ 
-                        width: 52, 
-                        height: 52, 
-                        borderRadius: 26, 
-                        backgroundColor: '#0068FF',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        overflow: 'hidden'
-                    }}>
-                        <View style={{ position: 'relative' }}>
-                            <Ionicons name="person" size={28} color="#fff" />
-                            <View style={{ 
-                                position: 'absolute', 
-                                top: -2, 
-                                right: -8,
-                                backgroundColor: '#0068FF',
-                                borderRadius: 10,
-                                paddingHorizontal: 1
-                            }}>
-                                <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>?</Text>
-                            </View>
-                        </View>
-                    </View>
-                }
-                name="Tin nhắn từ người lạ"
-                message="Gửi từ những người chưa có trong danh bạ MiniZalo"
-                time={lastStrangerRoom?.lastMessage?.createdAt ? formatTime(lastStrangerRoom.lastMessage.createdAt) : ""}
-                unreadCount={totalStrangerUnread}
-                isVerified={false}
-                onPress={() => router.push("/chat/strangers")}
-            />
-        );
-    };
-
-    const renderItem = ({ item }: { item: any }) => {
-        const processedAvatar = getImageUrl(item.avatarUrl);
+    const renderItem = ({ item }: { item: (typeof rooms)[number] }) => {
+        const processedAvatar = item.avatarUrl ? getImageUrl(item.avatarUrl) : "";
         const avatarUri = processedAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "User")}&background=random&color=fff`;
         // Xử lý hiển thị tin nhắn cuối
         let lastMsg = "Chưa có tin nhắn";
         if (item.lastMessage) {
             const lm = item.lastMessage;
-            if (lm.recalled) {
+            const recalled =
+                lm.isRecall === true ||
+                Boolean((lm as { recalled?: boolean }).recalled);
+            if (recalled) {
                 lastMsg = '[Tin nhắn đã thu hồi]';
             } else if (lm.content === '[Tin nhắn đã thu hồi]') {
                 lastMsg = '[Tin nhắn đã thu hồi]';
@@ -329,9 +252,80 @@ export default function ChatListScreen() {
         );
     };
 
+    const inboxTabRow =
+        !loading && !error && rooms.length > 0 ? (
+            <View
+                style={{
+                    flexDirection: "row",
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    gap: 8,
+                    borderBottomWidth: 0.5,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.background,
+                }}
+            >
+                <TouchableOpacity
+                    onPress={() => setInboxTab("main")}
+                    style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 12,
+                        borderRadius: 20,
+                        backgroundColor:
+                            inboxTab === "main" ? colors.primary + "22" : "transparent",
+                    }}
+                >
+                    <Text
+                        style={{
+                            fontSize: 14,
+                            fontWeight: inboxTab === "main" ? "700" : "500",
+                            color: inboxTab === "main" ? colors.primary : colors.textSecondary,
+                        }}
+                    >
+                        Tất cả
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    onPress={() => setInboxTab("strangers")}
+                    style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 12,
+                        borderRadius: 20,
+                        backgroundColor:
+                            inboxTab === "strangers" ? colors.primary + "22" : "transparent",
+                    }}
+                >
+                    <Text
+                        style={{
+                            fontSize: 14,
+                            fontWeight: inboxTab === "strangers" ? "700" : "500",
+                            color:
+                                inboxTab === "strangers" ? colors.primary : colors.textSecondary,
+                        }}
+                    >
+                        Người lạ
+                    </Text>
+                </TouchableOpacity>
+            </View>
+        ) : null;
+
+    const tabEmptyMessage = () => {
+        if (!friendsListReady && inboxTab === "strangers") {
+            return "Đang tải danh sách…";
+        }
+        if (inboxTab === "strangers") {
+            return "Không có tin nhắn từ người lạ";
+        }
+        if (rooms.length > 0) {
+            return "Không có cuộc trò chuyện ở mục này. Các chat 1-1 chưa kết bạn nằm ở tab Người lạ.";
+        }
+        return "Chưa có cuộc trò chuyện nào";
+    };
+
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
             <ChatListHeader />
+            {inboxTabRow}
             {loading && rooms.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
                     <ActivityIndicator size="large" color={colors.primary} />
@@ -367,7 +361,7 @@ export default function ChatListScreen() {
                 />
             ) : (
                 <FlatList
-                    data={friendRooms}
+                    data={displayRooms}
                     keyExtractor={(item) => item.id}
                     refreshControl={
                         <RefreshControl
@@ -382,8 +376,40 @@ export default function ChatListScreen() {
                             <PinnedCloudItem />
                         </View>
                     )}
+                    ListEmptyComponent={
+                        rooms.length > 0 && displayRooms.length === 0
+                            ? () => (
+                                  <View
+                                      style={{
+                                          alignItems: "center",
+                                          paddingHorizontal: 32,
+                                          paddingTop: 32,
+                                      }}
+                                  >
+                                      <Ionicons
+                                          name="people-outline"
+                                          size={48}
+                                          color={colors.textSecondary}
+                                      />
+                                      <Text
+                                          style={{
+                                              color: colors.textSecondary,
+                                              fontSize: 15,
+                                              marginTop: 12,
+                                              textAlign: "center",
+                                          }}
+                                      >
+                                          {tabEmptyMessage()}
+                                      </Text>
+                                  </View>
+                              )
+                            : undefined
+                    }
                     renderItem={renderItem}
-                    contentContainerStyle={{ paddingBottom: 100 }}
+                    contentContainerStyle={{
+                        paddingBottom: 100,
+                        flexGrow: 1,
+                    }}
                     showsVerticalScrollIndicator={false}
                 />
             )}

@@ -1,5 +1,7 @@
 import { create } from "zustand";
-import friendService from "@/shared/services/friendService";
+import friendService, { type AcceptFriendResult } from "@/shared/services/friendService";
+import { mapChatRoomResponseToFrontend } from "@/shared/services/chatService";
+import { useChatStore } from "@/shared/store/useChatStore";
 import type { FriendResponseDto } from "@/shared/services/types";
 
 type FriendState = {
@@ -10,10 +12,17 @@ type FriendState = {
     loading: boolean;
     error: string | null;
     fetchFriends: () => Promise<void>;
-    fetchRequests: () => Promise<void>;
+    fetchRequests: (opts?: { silent?: boolean }) => Promise<void>;
     fetchSentRequests: () => Promise<void>;
-    sendRequest: (friendId: string) => Promise<void>;
-    acceptRequest: (requestId: string) => Promise<void>;
+    sendRequest: (
+        friendId: string,
+        opts?: {
+            inviteMessage?: string;
+            inviteSource?: string;
+            hideMyTimelineFromFriend?: boolean;
+        },
+    ) => Promise<void>;
+    acceptRequest: (requestId: string) => Promise<AcceptFriendResult>;
     rejectRequest: (requestId: string) => Promise<void>;
     cancelSentRequest: (requestId: string) => Promise<void>;
     removeFriend: (friendId: string) => Promise<void>;
@@ -54,16 +63,23 @@ export const useFriendStore = create<FriendState>((set, get) => ({
         }
     },
 
-    fetchRequests: async () => {
-        set({ loading: true, error: null });
+    fetchRequests: async (opts?: { silent?: boolean }) => {
+        const silent = !!opts?.silent;
+        if (!silent) set({ loading: true, error: null });
         try {
             const requests = await friendService.getPendingRequests();
-            set({ requests, loading: false });
+            if (silent) {
+                set({ requests });
+            } else {
+                set({ requests, loading: false });
+            }
         } catch (e: unknown) {
-            set({
-                loading: false,
-                error: extractErrorMessage(e, "Không tải được lời mời kết bạn."),
-            });
+            if (!silent) {
+                set({
+                    loading: false,
+                    error: extractErrorMessage(e, "Không tải được lời mời kết bạn."),
+                });
+            }
         }
     },
 
@@ -80,13 +96,22 @@ export const useFriendStore = create<FriendState>((set, get) => ({
         }
     },
 
-    sendRequest: async (friendId: string) => {
+    sendRequest: async (
+        friendId: string,
+        opts?: {
+            inviteMessage?: string;
+            inviteSource?: string;
+            hideMyTimelineFromFriend?: boolean;
+        },
+    ) => {
         set({ error: null });
         try {
-            // Gửi lời mời: backend trả về FriendResponseDto (request PENDING).
-            // Lưu lại vào sentRequests để các màn hình khác (Thêm bạn, Lời mời đã gửi...)
-            // có thể hiển thị trạng thái "Đã gửi" và cho phép hủy.
-            const created = await friendService.sendFriendRequest({ friendId });
+            const created = await friendService.sendFriendRequest({
+                friendId,
+                inviteMessage: opts?.inviteMessage,
+                inviteSource: opts?.inviteSource,
+                hideMyTimelineFromFriend: opts?.hideMyTimelineFromFriend,
+            });
             set({
                 sentRequests: [...get().sentRequests, created],
             });
@@ -101,11 +126,24 @@ export const useFriendStore = create<FriendState>((set, get) => ({
     acceptRequest: async (requestId: string) => {
         set({ error: null });
         try {
-            const accepted = await friendService.acceptFriendRequest(requestId);
+            const result = await friendService.acceptFriendRequest(requestId);
             set({
                 requests: get().requests.filter((r) => r.id !== requestId),
-                friends: [...get().friends, accepted],
+                friends: [...get().friends, result.friendship],
             });
+            if (result.chatRoom) {
+                const room = mapChatRoomResponseToFrontend(result.chatRoom);
+                const chat = useChatStore.getState();
+                chat.upsertRoom(room);
+                const sender = result.friendship.user;
+                const partnerName =
+                    sender.displayName?.trim() ||
+                    sender.username ||
+                    "Bạn bè";
+                chat.markFriendshipWelcome(room.id, partnerName);
+                chat.setPendingOpenRoomId(room.id);
+            }
+            return result;
         } catch (e: unknown) {
             set({
                 error: extractErrorMessage(e, "Chấp nhận lời mời kết bạn thất bại."),

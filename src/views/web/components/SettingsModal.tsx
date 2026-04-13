@@ -1,5 +1,11 @@
-import React, { useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { useUserStore } from "@/shared/store/userStore";
+import {
+    PRIVACY_AUDIENCE_OPTIONS,
+    normalizePrivacyAudience,
+} from "@/shared/constants/privacyAudience";
+import type { PrivacyAudience } from "@/shared/services/types";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 const iconClose = (
     <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -90,8 +96,81 @@ const iconSliders = (
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
     const [activeTab, setActiveTab] = useState("privacy");
-    const { profile, updateProfile } = useUserStore();
+    const { profile, updateProfile, fetchProfile } = useUserStore();
+    const rooms = useChatStore((s) => s.rooms);
+
+    useEffect(() => {
+        void fetchProfile();
+    }, [fetchProfile]);
     const [updating, setUpdating] = useState(false);
+
+    // ── Data storage (web) ────────────────────────────────────────────────────
+    // Lưu DirectoryHandle trong memory (session). Trình duyệt chỉ cho persist nếu dùng IndexedDB + permission;
+    // ở đây ưu tiên đơn giản & ổn định: nếu reload trang sẽ cần chọn lại thư mục.
+    const downloadDirHandleRef = useRef<any | null>(null);
+    const [downloadDirLabel, setDownloadDirLabel] = useState<string>("Chưa chọn");
+
+    const canPickDirectory = useMemo(() => {
+        if (typeof window === "undefined") return false;
+        return typeof (window as any).showDirectoryPicker === "function";
+    }, []);
+
+    const pickDownloadDirectory = async () => {
+        try {
+            if (!canPickDirectory) return;
+            const handle = await (window as any).showDirectoryPicker({
+                id: "minizalo-download-dir",
+                mode: "readwrite",
+            });
+            downloadDirHandleRef.current = handle;
+            setDownloadDirLabel(handle?.name ? String(handle.name) : "Đã chọn thư mục");
+        } catch (e) {
+            // user cancelled or not supported
+            console.warn("[SettingsModal] pick directory cancelled/failed", e);
+        }
+    };
+
+    const clearDownloadDirectory = () => {
+        downloadDirHandleRef.current = null;
+        setDownloadDirLabel("Chưa chọn");
+    };
+
+    const saveBlob = async (filename: string, blob: Blob) => {
+        const dir = downloadDirHandleRef.current;
+        // Ưu tiên lưu thẳng vào thư mục đã chọn (File System Access API)
+        if (dir && typeof dir.getFileHandle === "function") {
+            const fileHandle = await dir.getFileHandle(filename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            return;
+        }
+        // Fallback: tải xuống theo mặc định của trình duyệt (Save As/Downloads)
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadData = async () => {
+        try {
+            const payload = {
+                exportedAt: new Date().toISOString(),
+                profile: profile ?? null,
+                rooms,
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], {
+                type: "application/json;charset=utf-8",
+            });
+            await saveBlob(`minizalo-data-${Date.now()}.json`, blob);
+        } catch (e) {
+            console.error("[SettingsModal] download data failed", e);
+        }
+    };
 
     const tabs = [
         { id: "general", label: "Cài đặt chung", icon: iconGear },
@@ -119,7 +198,68 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         }
     };
 
+    /** State cục bộ: tránh <select> controlled bị kẹt EVERYONE khi đang gọi API (re-render trước khi profile cập nhật). */
+    const [messagePrivacyUi, setMessagePrivacyUi] = useState<PrivacyAudience>(() =>
+        normalizePrivacyAudience(undefined),
+    );
+    const [callPrivacyUi, setCallPrivacyUi] = useState<PrivacyAudience>(() =>
+        normalizePrivacyAudience(undefined),
+    );
+
+    useEffect(() => {
+        if (!profile) return;
+        setMessagePrivacyUi(normalizePrivacyAudience(profile.allowMessagesFrom));
+        setCallPrivacyUi(normalizePrivacyAudience(profile.allowCallsFrom));
+    }, [profile?.id, profile?.allowMessagesFrom, profile?.allowCallsFrom]);
+
+    const setMessagePrivacy = async (value: PrivacyAudience) => {
+        if (!profile) return;
+        setMessagePrivacyUi(value);
+        setUpdating(true);
+        try {
+            await updateProfile({ allowMessagesFrom: value });
+        } catch (e) {
+            console.error(e);
+            setMessagePrivacyUi(
+                normalizePrivacyAudience(useUserStore.getState().profile?.allowMessagesFrom),
+            );
+        } finally {
+            setUpdating(false);
+        }
+    };
+
+    const setCallPrivacy = async (value: PrivacyAudience) => {
+        if (!profile) return;
+        setCallPrivacyUi(value);
+        setUpdating(true);
+        try {
+            await updateProfile({ allowCallsFrom: value });
+        } catch (e) {
+            console.error(e);
+            setCallPrivacyUi(
+                normalizePrivacyAudience(useUserStore.getState().profile?.allowCallsFrom),
+            );
+        } finally {
+            setUpdating(false);
+        }
+    };
+
     const allowPhoneSearch = profile?.allowPhoneSearch ?? false;
+
+    const selectStyle: React.CSSProperties = {
+        fontSize: 14,
+        padding: "8px 32px 8px 12px",
+        borderRadius: 8,
+        border: "1px solid var(--border-primary, #e5e7eb)",
+        backgroundColor: "var(--bg-primary, #ffffff)",
+        color: "var(--text-primary, #111)",
+        minWidth: 188,
+        cursor: "pointer",
+        appearance: "none" as const,
+        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "right 10px center",
+    };
 
     return (
         <div
@@ -279,6 +419,234 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                                                     boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
                                                 }}
                                             />
+                                        </button>
+                                    </div>
+
+                                    <h3
+                                        style={{
+                                            margin: "24px 0 12px",
+                                            fontSize: 16,
+                                            fontWeight: 700,
+                                            color: "var(--text-primary, #111827)",
+                                        }}
+                                    >
+                                        Tin nhắn và cuộc gọi
+                                    </h3>
+                                    <div
+                                        style={{
+                                            border: "1px solid var(--border-primary, #e5e7eb)",
+                                            borderRadius: 8,
+                                            overflow: "hidden",
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                padding: 16,
+                                                display: "flex",
+                                                justifyContent: "space-between",
+                                                alignItems: "flex-start",
+                                                gap: 16,
+                                            }}
+                                        >
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div
+                                                    style={{
+                                                        fontSize: 15,
+                                                        fontWeight: 500,
+                                                        color: "var(--text-primary, #111)",
+                                                    }}
+                                                >
+                                                    Cho phép nhắn tin
+                                                </div>
+                                                <div
+                                                    style={{
+                                                        fontSize: 13,
+                                                        color: "var(--text-muted, #6b7280)",
+                                                        marginTop: 4,
+                                                        lineHeight: 1.4,
+                                                    }}
+                                                >
+                                                    Ai được nhắn tin cho bạn
+                                                </div>
+                                            </div>
+                                            <select
+                                                aria-label="Ai được nhắn tin cho bạn"
+                                                value={messagePrivacyUi}
+                                                onChange={(e) =>
+                                                    void setMessagePrivacy(
+                                                        e.target.value as PrivacyAudience,
+                                                    )
+                                                }
+                                                style={selectStyle}
+                                            >
+                                                {PRIVACY_AUDIENCE_OPTIONS.map((o) => (
+                                                    <option key={o.value} value={o.value}>
+                                                        {o.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div
+                                            style={{
+                                                borderTop: "1px solid var(--border-primary, #e5e7eb)",
+                                            }}
+                                        />
+                                        <div
+                                            style={{
+                                                padding: 16,
+                                                display: "flex",
+                                                justifyContent: "space-between",
+                                                alignItems: "flex-start",
+                                                gap: 16,
+                                            }}
+                                        >
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div
+                                                    style={{
+                                                        fontSize: 15,
+                                                        fontWeight: 500,
+                                                        color: "var(--text-primary, #111)",
+                                                    }}
+                                                >
+                                                    Cho phép gọi điện
+                                                </div>
+                                                <div
+                                                    style={{
+                                                        fontSize: 13,
+                                                        color: "var(--text-muted, #6b7280)",
+                                                        marginTop: 4,
+                                                        lineHeight: 1.4,
+                                                    }}
+                                                >
+                                                    Ai được gọi điện cho bạn
+                                                </div>
+                                            </div>
+                                            <select
+                                                aria-label="Ai được gọi điện cho bạn"
+                                                value={callPrivacyUi}
+                                                onChange={(e) =>
+                                                    void setCallPrivacy(
+                                                        e.target.value as PrivacyAudience,
+                                                    )
+                                                }
+                                                style={selectStyle}
+                                            >
+                                                {PRIVACY_AUDIENCE_OPTIONS.map((o) => (
+                                                    <option key={o.value} value={o.value}>
+                                                        {o.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {activeTab === "data" && (
+                            <div>
+                                <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--border-primary, #e5e7eb)", backgroundColor: "var(--bg-secondary, #f9fafb)" }}>
+                                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-secondary, #4b5563)" }}>
+                                        Quản lý dữ liệu
+                                    </h3>
+                                </div>
+
+                                <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+                                    <div
+                                        style={{
+                                            border: "1px solid var(--border-primary, #e5e7eb)",
+                                            borderRadius: 8,
+                                            padding: 16,
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            gap: 16,
+                                        }}
+                                    >
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary, #111)" }}>
+                                                Dữ liệu lưu trữ
+                                            </div>
+                                            <div style={{ fontSize: 13, color: "var(--text-muted, #6b7280)", marginTop: 4, lineHeight: 1.4 }}>
+                                                {canPickDirectory
+                                                    ? `Thư mục đã chọn: ${downloadDirLabel}`
+                                                    : "Trình duyệt chưa hỗ trợ chọn thư mục. Dữ liệu sẽ tải về thư mục mặc định (Downloads/Save As)."}
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => void pickDownloadDirectory()}
+                                                disabled={updating || !canPickDirectory}
+                                                style={{
+                                                    padding: "8px 12px",
+                                                    borderRadius: 8,
+                                                    border: "1px solid var(--border-primary, #e5e7eb)",
+                                                    backgroundColor: "var(--bg-primary, #ffffff)",
+                                                    color: "var(--text-primary, #111)",
+                                                    cursor: updating || !canPickDirectory ? "not-allowed" : "pointer",
+                                                    fontSize: 13,
+                                                    fontWeight: 600,
+                                                }}
+                                            >
+                                                Chọn nơi lưu
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={clearDownloadDirectory}
+                                                disabled={updating || !downloadDirHandleRef.current}
+                                                style={{
+                                                    padding: "8px 12px",
+                                                    borderRadius: 8,
+                                                    border: "1px solid var(--border-primary, #e5e7eb)",
+                                                    backgroundColor: "transparent",
+                                                    color: "var(--text-secondary, #4b5563)",
+                                                    cursor: updating || !downloadDirHandleRef.current ? "not-allowed" : "pointer",
+                                                    fontSize: 13,
+                                                    fontWeight: 600,
+                                                }}
+                                            >
+                                                Bỏ chọn
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        style={{
+                                            border: "1px solid var(--border-primary, #e5e7eb)",
+                                            borderRadius: 8,
+                                            padding: 16,
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            gap: 16,
+                                        }}
+                                    >
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary, #111)" }}>
+                                                Tải dữ liệu
+                                            </div>
+                                            <div style={{ fontSize: 13, color: "var(--text-muted, #6b7280)", marginTop: 4, lineHeight: 1.4 }}>
+                                                Xuất dữ liệu (JSON) và lưu vào nơi bạn đã chọn.
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleDownloadData()}
+                                            disabled={updating}
+                                            style={{
+                                                padding: "10px 14px",
+                                                borderRadius: 8,
+                                                border: "none",
+                                                backgroundColor: "#0068FF",
+                                                color: "#fff",
+                                                cursor: updating ? "wait" : "pointer",
+                                                fontSize: 13,
+                                                fontWeight: 700,
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            Tải dữ liệu
                                         </button>
                                     </div>
                                 </div>

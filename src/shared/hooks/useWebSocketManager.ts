@@ -7,14 +7,66 @@
  */
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import type { IMessage } from '@stomp/stompjs';
 import { useAuthStore } from '@/shared/store/authStore';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { chatService, ChatRoomResponse } from '@/shared/services/chatService';
 import { webSocketService } from '@/shared/services/WebSocketService';
 import { ChatRoom } from '../types';
 import axios from 'axios';
+import {
+    STRANGER_MESSAGES_DEFAULT_TEXT,
+    STRANGER_MESSAGES_NOT_ALLOWED,
+} from '@/shared/utils/chatErrors';
+
+/** Lỗi gửi chat cá nhân (vd: chỉ bạn bè) — subscribe một lần cho web + mobile. */
+function useChatErrorsSubscription() {
+    const accessToken = useAuthStore((s) => s.accessToken);
+
+    useEffect(() => {
+        if (!accessToken) return;
+
+        webSocketService.activate(accessToken);
+        const dest = '/user/queue/chat-errors';
+        const handler = (stompMsg: IMessage) => {
+            try {
+                const raw = stompMsg.body;
+                if (raw == null || String(raw).trim() === '') return;
+                const payload = JSON.parse(String(raw).trim()) as {
+                    code?: string;
+                    roomId?: string;
+                    text?: string;
+                };
+                if (
+                    payload.code === STRANGER_MESSAGES_NOT_ALLOWED &&
+                    payload.roomId != null
+                ) {
+                    const text =
+                        typeof payload.text === 'string' && payload.text.trim()
+                            ? payload.text.trim()
+                            : STRANGER_MESSAGES_DEFAULT_TEXT;
+                    useChatStore
+                        .getState()
+                        .applyStrangerMessageRejection(String(payload.roomId), text);
+                }
+            } catch (err) {
+                console.error(
+                    '[useWebSocketManager] chat-errors parse:',
+                    err,
+                    'body=',
+                    stompMsg.body,
+                );
+            }
+        };
+
+        webSocketService.subscribe(dest, handler);
+        return () => webSocketService.unsubscribe(dest);
+    }, [accessToken]);
+}
 
 export function useWebSocketManager() {
+    useChatErrorsSubscription();
+
     // Chỉ chạy trên web
     if (Platform.OS !== 'web') return;
 

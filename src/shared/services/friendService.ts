@@ -4,6 +4,12 @@ import type {
     MessageResponse,
     SendFriendRequestPayload,
 } from "./types";
+import type { ChatRoomResponse } from "./chatService";
+
+export type AcceptFriendResult = {
+    friendship: FriendResponseDto;
+    chatRoom: ChatRoomResponse;
+};
 
 export const friendService = {
     async sendFriendRequest(payload: SendFriendRequestPayload): Promise<FriendResponseDto> {
@@ -11,8 +17,8 @@ export const friendService = {
         return data;
     },
 
-    async acceptFriendRequest(requestId: string): Promise<FriendResponseDto> {
-        const { data } = await api.post<FriendResponseDto>(
+    async acceptFriendRequest(requestId: string): Promise<AcceptFriendResult> {
+        const { data } = await api.post<AcceptFriendResult>(
             `/friends/accept/${requestId}`,
             {}
         );

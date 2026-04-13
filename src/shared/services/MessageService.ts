@@ -37,11 +37,19 @@ export const MessageService = {
         return response.data;
     },
 
-    uploadFile: async (file: File): Promise<{ fileName: string; fileUrl: string; fileType: string; size: number }> => {
+    uploadFile: async (
+        file: File,
+        onUploadProgress?: (percent: number) => void,
+    ): Promise<{ fileName: string; fileUrl: string; fileType: string; size: number }> => {
         const formData = new FormData();
         formData.append('file', file);
         const response = await api.post('/files/upload', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (evt) => {
+                if (!onUploadProgress || !evt.total) return;
+                const pct = Math.round((evt.loaded * 100) / evt.total);
+                onUploadProgress(Math.min(100, pct));
+            },
         });
         return response.data;
     },

@@ -31,8 +31,23 @@ export const useUserStore = create<UserState>((set, get) => ({
     updateProfile: async (data: UserProfileUpdateRequest) => {
         set({ loading: true, error: null });
         try {
-            const profile = await userService.updateProfile(data);
-            set({ profile, loading: false });
+            const updated = await userService.updateProfile(data);
+            set((state) => {
+                const prev = state.profile;
+                const merged: UserProfile =
+                    prev == null
+                        ? updated
+                        : {
+                              ...prev,
+                              ...updated,
+                              allowMessagesFrom:
+                                  updated.allowMessagesFrom ?? prev.allowMessagesFrom,
+                              allowCallsFrom: updated.allowCallsFrom ?? prev.allowCallsFrom,
+                              allowPhoneSearch:
+                                  updated.allowPhoneSearch ?? prev.allowPhoneSearch,
+                          };
+                return { profile: merged, loading: false };
+            });
         } catch (e: unknown) {
             const message = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Cập nhật thất bại.";
             set({ loading: false, error: message });

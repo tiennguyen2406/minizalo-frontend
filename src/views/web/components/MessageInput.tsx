@@ -1,15 +1,27 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import {
+    deriveFolderNameFromFiles,
+    pickFolderWithShowDirectoryPicker,
+    totalLocalFileBytes,
+} from '../utils/folderSend';
 
 interface MessageInputProps {
     onSend: (text: string) => void;
     onSendFile?: (file: File) => void;
     onSendFiles?: (files: File[]) => void;
+    /** Gửi cả thư mục một tin (upload nhiều tệp, một bubble) */
+    /** folderDisplayName: từ showDirectoryPicker; webkitdirectory để undefined để suy từ path */
+    onSendFolder?: (files: File[], folderDisplayName?: string) => void;
     onSendLike?: () => void;
     onTyping?: (isTyping: boolean) => void;
     replyingTo?: any;
     onCancelReply?: () => void;
     isSendingFile?: boolean;
+    /** 0–100 khi đang upload; null khi không hiển thị thanh tiến trình */
+    fileUploadProgress?: number | null;
+    /** Placeholder ô nhập (ví dụ Zalo: "Nhập @, tin nhắn tới …"). */
+    inputPlaceholder?: string;
 }
 
 const EMOJI_LIST = [
@@ -27,11 +39,14 @@ const MessageInput: React.FC<MessageInputProps> = ({
     onSend,
     onSendFile,
     onSendFiles,
+    onSendFolder,
     onSendLike,
     onTyping,
     replyingTo,
     onCancelReply,
     isSendingFile,
+    fileUploadProgress,
+    inputPlaceholder,
 }) => {
     const [text, setText] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -40,15 +55,24 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const [previewUrls, setPreviewUrls] = useState<string[]>([]);
     const [showEmoji, setShowEmoji] = useState(false);
     const [emojiPos, setEmojiPos] = useState<{ bottom: number; left: number } | null>(null);
+    const [showAttachMenu, setShowAttachMenu] = useState(false);
+    const [attachMenuPos, setAttachMenuPos] = useState<{ bottom: number; left: number } | null>(null);
     const [failedSend, setFailedSend] = useState(false);
+    const [selectedFolderFiles, setSelectedFolderFiles] = useState<File[] | null>(null);
+    /** Tên thư mục khi chọn bằng File System Access API (không có với input webkitdirectory). */
+    const [selectedFolderDisplayName, setSelectedFolderDisplayName] = useState<string | null>(null);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const folderInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const emojiRef = useRef<HTMLDivElement>(null);
     const emojiBtnRef = useRef<HTMLButtonElement>(null);
     const emojiPopupRef = useRef<HTMLDivElement>(null);
+    const attachRef = useRef<HTMLDivElement>(null);
+    const attachBtnRef = useRef<HTMLButtonElement>(null);
+    const attachPopupRef = useRef<HTMLDivElement>(null);
 
     // ── Auto-resize textarea ───────────────────────────────────────────────────
     const resizeTextarea = useCallback(() => {
@@ -64,6 +88,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
         resizeTextarea();
     }, [text, resizeTextarea]);
 
+    useEffect(() => {
+        const el = folderInputRef.current;
+        if (!el) return;
+        el.setAttribute('webkitdirectory', '');
+        el.setAttribute('directory', '');
+    }, []);
+
     // ── Close emoji picker on outside click ───────────────────────────────────
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -78,6 +109,17 @@ const MessageInput: React.FC<MessageInputProps> = ({
         return () => document.removeEventListener('mousedown', handler);
     }, [showEmoji]);
 
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            const target = e.target as Node;
+            const inWrap = attachRef.current?.contains(target);
+            const inPopup = attachPopupRef.current?.contains(target);
+            if (!inWrap && !inPopup) setShowAttachMenu(false);
+        };
+        if (showAttachMenu) document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showAttachMenu]);
+
     // ── Typing indicator with debounce ────────────────────────────────────────
     const notifyTyping = useCallback((val: string) => {
         if (!onTyping) return;
@@ -90,6 +132,19 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     // ── Send ──────────────────────────────────────────────────────────────────
     const handleSend = useCallback(async () => {
+        if (selectedFolderFiles && selectedFolderFiles.length > 0 && onSendFolder) {
+            try {
+                setFailedSend(false);
+                onSendFolder(
+                    selectedFolderFiles,
+                    selectedFolderDisplayName ?? undefined,
+                );
+                clearFilePreview();
+            } catch {
+                setFailedSend(true);
+            }
+            return;
+        }
         // Multi-file send
         if (selectedFiles.length > 0 && onSendFiles) {
             try {
@@ -124,7 +179,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         } catch {
             setFailedSend(true);
         }
-    }, [text, selectedFile, selectedFiles, onSend, onSendFile, onSendFiles, onTyping]);
+    }, [text, selectedFile, selectedFiles, selectedFolderFiles, selectedFolderDisplayName, onSend, onSendFile, onSendFiles, onSendFolder, onTyping]);
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
@@ -145,6 +200,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        setSelectedFolderFiles(null);
+        setSelectedFolderDisplayName(null);
         setSelectedFile(file);
         setSelectedFiles([]);
         previewUrls.forEach(u => URL.revokeObjectURL(u));
@@ -155,6 +212,17 @@ const MessageInput: React.FC<MessageInputProps> = ({
             setPreviewUrl(null);
         }
         e.target.value = '';
+    };
+
+    /** Chọn thư mục — gửi một tin FOLDER (onSendFolder), không tách từng file */
+    const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        const fileArr = Array.from(files);
+        clearFilePreview();
+        e.target.value = '';
+        setSelectedFolderDisplayName(null);
+        setSelectedFolderFiles(fileArr);
     };
 
     // ── Multi-image select ───────────────────────────────────────────────────
@@ -169,6 +237,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
         }
         // Multi files
         clearFilePreview();
+        setSelectedFolderFiles(null);
+        setSelectedFolderDisplayName(null);
         setSelectedFiles(fileArr);
         const urls = fileArr
             .filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'))
@@ -185,6 +255,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
         e.preventDefault();
         const file = imageItem.getAsFile();
         if (!file) return;
+        setSelectedFolderFiles(null);
+        setSelectedFolderDisplayName(null);
         setSelectedFile(file);
         setPreviewUrl(URL.createObjectURL(file));
     }, []);
@@ -194,6 +266,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
         previewUrls.forEach(u => URL.revokeObjectURL(u));
         setSelectedFile(null);
         setSelectedFiles([]);
+        setSelectedFolderFiles(null);
+        setSelectedFolderDisplayName(null);
         setPreviewUrl(null);
         setPreviewUrls([]);
     };
@@ -223,11 +297,15 @@ const MessageInput: React.FC<MessageInputProps> = ({
         setShowEmoji(false);
     };
 
-    const hasContent = text.trim().length > 0 || !!selectedFile || selectedFiles.length > 0;
+    const hasContent =
+        text.trim().length > 0 ||
+        !!selectedFile ||
+        selectedFiles.length > 0 ||
+        !!(selectedFolderFiles && selectedFolderFiles.length > 0);
 
     return (
         <div style={{
-            backgroundColor: 'var(--bg-primary)',
+            backgroundColor: '#ebecf0',
             borderTop: '1px solid var(--border-primary)',
             transition: 'background-color 0.3s ease',
             display: 'flex',
@@ -250,6 +328,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
                             {replyingTo.type === 'IMAGE' ? '🖼️ Ảnh'
                                 : replyingTo.type === 'VIDEO' ? '🎥 Video'
+                                : replyingTo.type === 'FOLDER' ? `📁 ${replyingTo.content || replyingTo.fileName || 'Thư mục'}`
                                 : (replyingTo.type === 'FILE' || replyingTo.type === 'DOCUMENT') ? `📎 ${replyingTo.fileName || 'Tệp đính kèm'}`
                                 : replyingTo.content || '[Tin nhắn]'}
                         </span>
@@ -264,8 +343,40 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 </div>
             )}
 
+            {/* ── Thư mục (một tin FOLDER) ── */}
+            {selectedFolderFiles && selectedFolderFiles.length > 0 && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '8px 12px',
+                    background: '#fffbeb',
+                    borderBottom: '1px solid #fde68a',
+                }}>
+                    <div style={{ width: 48, height: 48, background: '#fcd34d', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="white" aria-hidden>
+                            <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+                        </svg>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#78350f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {(selectedFolderDisplayName && selectedFolderDisplayName.trim()) ||
+                                deriveFolderNameFromFiles(selectedFolderFiles)}
+                        </p>
+                        <p style={{ margin: 0, fontSize: 12, color: '#92400e' }}>
+                            {selectedFolderFiles.length} tệp · {formatFileSize(totalLocalFileBytes(selectedFolderFiles))}
+                        </p>
+                    </div>
+                    <button type="button" onClick={clearFilePreview} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#94a3b8', display: 'flex' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+            )}
+
             {/* ── Multi-image preview ── */}
-            {selectedFiles.length > 1 && (
+            {selectedFiles.length > 1 && !selectedFolderFiles && (
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -302,7 +413,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             )}
 
             {/* ── File / Image preview (single) ── */}
-            {selectedFile && selectedFiles.length === 0 && (
+            {selectedFile && selectedFiles.length === 0 && !selectedFolderFiles && (
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -350,6 +461,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
             {/* ── Hidden file inputs ── */}
             <input ref={imageInputRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }} onChange={handleMultiImageSelect} />
             <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileSelect} />
+            <input
+                ref={folderInputRef}
+                type="file"
+                multiple
+                style={{ display: 'none' }}
+                onChange={handleFolderSelect}
+            />
 
             {/* ── Toolbar ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '6px 8px 2px' }}>
@@ -425,30 +543,155 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     </svg>
                 </button>
 
-                {/* File attach */}
-                <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isSendingFile}
-                    title="Đính kèm tệp"
-                    style={toolbarBtnStyle(false)}
-                >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                </button>
+                {/* File / thư mục */}
+                <div style={{ position: 'relative' }} ref={attachRef}>
+                    <button
+                        ref={attachBtnRef}
+                        type="button"
+                        onClick={() => {
+                            setShowAttachMenu(v => {
+                                const open = !v;
+                                if (open && attachBtnRef.current) {
+                                    const rect = attachBtnRef.current.getBoundingClientRect();
+                                    setAttachMenuPos({
+                                        bottom: window.innerHeight - rect.top + 6,
+                                        left: rect.left,
+                                    });
+                                }
+                                if (!open) setAttachMenuPos(null);
+                                return open;
+                            });
+                        }}
+                        disabled={isSendingFile}
+                        title="Đính kèm"
+                        style={toolbarBtnStyle(showAttachMenu)}
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                    </button>
+
+                    {showAttachMenu && attachMenuPos && createPortal(
+                        <div
+                            ref={attachPopupRef}
+                            style={{
+                                position: 'fixed',
+                                bottom: attachMenuPos.bottom,
+                                left: attachMenuPos.left,
+                                zIndex: 9999,
+                                minWidth: 168,
+                                background: '#fff',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 12,
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                padding: '6px 0',
+                                overflow: 'hidden',
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowAttachMenu(false);
+                                    setAttachMenuPos(null);
+                                    fileInputRef.current?.click();
+                                }}
+                                style={{
+                                    display: 'block',
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '10px 14px',
+                                    fontSize: 14,
+                                    border: 'none',
+                                    background: 'none',
+                                    cursor: 'pointer',
+                                    color: '#1f2937',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#f3f4f6'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                            >
+                                Gửi file
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    setShowAttachMenu(false);
+                                    setAttachMenuPos(null);
+                                    const result = await pickFolderWithShowDirectoryPicker();
+                                    if (result === 'aborted') return;
+                                    if (result === 'unsupported') {
+                                        folderInputRef.current?.click();
+                                        return;
+                                    }
+                                    if (result.files.length === 0) return;
+                                    clearFilePreview();
+                                    setSelectedFolderFiles(result.files);
+                                    setSelectedFolderDisplayName(result.folderName);
+                                }}
+                                style={{
+                                    display: 'block',
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '10px 14px',
+                                    fontSize: 14,
+                                    border: 'none',
+                                    background: 'none',
+                                    cursor: 'pointer',
+                                    color: '#1f2937',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#f3f4f6'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                            >
+                                Gửi thư mục
+                            </button>
+                        </div>,
+                        document.body,
+                    )}
+                </div>
             </div>
+
+            {/* ── Upload progress ── */}
+            {isSendingFile && fileUploadProgress != null && (
+                <div style={{ padding: '4px 12px 8px' }}>
+                    <div style={{
+                        height: 4,
+                        background: 'var(--border-primary, #e5e7eb)',
+                        borderRadius: 2,
+                        overflow: 'hidden',
+                    }}>
+                        <div style={{
+                            height: '100%',
+                            width: `${fileUploadProgress}%`,
+                            background: '#0068ff',
+                            borderRadius: 2,
+                            transition: 'width 0.12s ease-out',
+                        }} />
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                        Đang tải lên… {fileUploadProgress}%
+                    </div>
+                </div>
+            )}
 
             {/* ── Input row ── */}
             <div style={{ display: 'flex', alignItems: 'flex-end', padding: '2px 8px 10px', gap: 6 }}>
                 <div style={{ flex: 1, position: 'relative' }}>
                     <textarea
                         ref={textareaRef}
+                        data-chat-composer
                         value={text}
                         onChange={handleChange}
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
-                        disabled={!!selectedFile}
-                        placeholder={selectedFile ? 'Nhấn gửi để gửi tệp...' : 'Nhập tin nhắn... (Shift+Enter để xuống dòng)'}
+                        disabled={!!selectedFile || selectedFiles.length > 0 || !!(selectedFolderFiles && selectedFolderFiles.length)}
+                        placeholder={
+                            selectedFolderFiles && selectedFolderFiles.length
+                                ? 'Nhấn gửi để gửi thư mục...'
+                                : selectedFile
+                                ? 'Nhấn gửi để gửi tệp...'
+                                : inputPlaceholder?.trim()
+                                  ? inputPlaceholder
+                                  : 'Nhập tin nhắn... (Shift+Enter để xuống dòng)'
+                        }
                         rows={1}
                         style={{
                             width: '100%',

@@ -1,7 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Message, User } from '@/shared/types';
 import clsx from 'clsx';
 import LazyImage from './LazyImage';
+import FileAttachmentBubble from './FileAttachmentBubble';
+import VideoAttachmentBubble from './VideoAttachmentBubble';
+import FolderAttachmentBubble from './FolderAttachmentBubble';
 
 interface MessageBubbleProps {
     message: Message;
@@ -63,6 +66,28 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const [menuPos, setMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
     const [showMessageDetail, setShowMessageDetail] = useState(false);
     const moreButtonRef = useRef<HTMLButtonElement>(null);
+
+    const openMoreMenuFromAnchor = useCallback(
+        (anchor: HTMLElement) => {
+            const rect = anchor.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const menuHeight = 260;
+            const openUpward = spaceBelow < menuHeight;
+            if (openUpward) {
+                setMenuPos({
+                    top: rect.top - menuHeight,
+                    ...(isMine ? { right: window.innerWidth - rect.right } : { left: rect.left }),
+                });
+            } else {
+                setMenuPos({
+                    top: rect.bottom + 4,
+                    ...(isMine ? { right: window.innerWidth - rect.right } : { left: rect.left }),
+                });
+            }
+            setShowMoreMenu(true);
+        },
+        [isMine],
+    );
 
     // Keep picker open if hovered over button OR the picker itself
     const isPickerVisible = showReactPicker || isHoveringReactions;
@@ -212,22 +237,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         onClick={() => {
                                             const btn = moreButtonRef.current;
                                             if (!btn) return;
-                                            const rect = btn.getBoundingClientRect();
-                                            const spaceBelow = window.innerHeight - rect.bottom;
-                                            const menuHeight = 260; // approx
-                                            const openUpward = spaceBelow < menuHeight;
-                                            if (openUpward) {
-                                                setMenuPos({
-                                                    top: rect.top - menuHeight,
-                                                    ...(isMine ? { right: window.innerWidth - rect.right } : { left: rect.left }),
-                                                });
-                                            } else {
-                                                setMenuPos({
-                                                    top: rect.bottom + 4,
-                                                    ...(isMine ? { right: window.innerWidth - rect.right } : { left: rect.left }),
-                                                });
-                                            }
-                                            setShowMoreMenu(true);
+                                            openMoreMenuFromAnchor(btn);
                                         }}
                                         className="bg-white text-gray-500 shadow-sm border border-gray-100 rounded-full w-7 h-7 flex items-center justify-center hover:bg-gray-50 focus:outline-none"
                                         title="Thêm"
@@ -371,49 +381,32 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 />
                             </div>
                         ) : effectiveType === 'VIDEO' && effectiveFileUrl ? (
-                            <div className="flex flex-col gap-1">
-                                <video
-                                    src={effectiveFileUrl}
-                                    controls
-                                    preload="metadata"
-                                    className="max-w-[300px] max-h-[240px] rounded-lg bg-black"
-                                />
-                            </div>
+                            <VideoAttachmentBubble
+                                fileUrl={effectiveFileUrl}
+                                fileName={effectiveFileName}
+                                fileSize={effectiveFileSize}
+                                isMine={isMine}
+                                onOpenMessageMenu={openMoreMenuFromAnchor}
+                            />
+                        ) : effectiveType === 'FOLDER' && message.attachments && message.attachments.length > 0 ? (
+                            <FolderAttachmentBubble
+                                folderName={message.content || effectiveFileName || 'Thư mục'}
+                                totalSize={
+                                    effectiveFileSize ??
+                                    message.attachments.reduce((s, a) => s + (a.size ?? 0), 0)
+                                }
+                                fileCount={message.attachments.length}
+                                attachments={message.attachments}
+                                isMine={isMine}
+                            />
                         ) : (effectiveType === 'FILE' || effectiveType === 'DOCUMENT') && effectiveFileUrl ? (
-                            <div className="flex flex-col gap-1 min-w-[220px] max-w-[300px]">
-                                <a
-                                    href={effectiveFileUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={clsx(
-                                        "flex items-center gap-3 p-2.5 rounded-lg border transition-colors no-underline",
-                                        isMine
-                                            ? "bg-blue-50/80 border-blue-200 hover:bg-blue-100/80"
-                                            : "bg-gray-50 border-gray-200 hover:bg-gray-100"
-                                    )}
-                                >
-                                    <div className={clsx("p-2 rounded-lg shrink-0", isMine ? "bg-blue-500 text-white" : "bg-blue-100 text-blue-500")}>
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
-                                    <div className="flex flex-col flex-1 min-w-0">
-                                        <span className="text-sm font-medium truncate text-gray-800" title={effectiveFileName}>{effectiveFileName || 'Tài liệu'}</span>
-                                        <span className="text-xs text-gray-500">
-                                            {effectiveFileSize
-                                                ? effectiveFileSize < 1024 * 1024
-                                                    ? (effectiveFileSize / 1024).toFixed(1) + ' KB'
-                                                    : (effectiveFileSize / (1024 * 1024)).toFixed(1) + ' MB'
-                                                : 'Tải xuống'}
-                                        </span>
-                                    </div>
-                                    <div className={clsx("p-1.5 rounded-full shrink-0", isMine ? "text-blue-500" : "text-gray-400")}>
-                                        <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                        </svg>
-                                    </div>
-                                </a>
-                            </div>
+                            <FileAttachmentBubble
+                                fileUrl={effectiveFileUrl}
+                                fileName={effectiveFileName}
+                                fileSize={effectiveFileSize}
+                                mimeType={attachment?.type}
+                                isMine={isMine}
+                            />
                         ) : effectiveType === 'TEXT' || effectiveType === 'REPLY' || effectiveType === 'FORWARD' ? (
                             <span className="text-[15px] leading-relaxed pr-8">{message.content}</span>
                         ) : (

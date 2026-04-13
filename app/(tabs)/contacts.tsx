@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, Platform, ScrollView } from "react-native";
+import { useGlobalSearchParams } from "expo-router";
 import { useUserStore } from "@/shared/store/userStore";
+import { useFriendStore } from "@/shared/store/friendStore";
 import { useThemeStore } from "@/shared/store/themeStore";
 import FriendsListScreen from "@/views/web/components/FriendsListScreen";
 import FriendRequestsScreen from "@/views/web/components/FriendRequestsScreen";
@@ -10,15 +12,34 @@ import ContactsMobileScreen from "@/views/mobile/contacts/ContactsMobileScreen";
 
 export default function ContactsScreen() {
   const isWeb = Platform.OS === "web";
+  const params = useGlobalSearchParams<{ phoneSearch?: string | string[] }>();
+  const phoneSearchParam = Array.isArray(params.phoneSearch)
+    ? params.phoneSearch[0]
+    : params.phoneSearch;
+
   const { profile } = useUserStore();
   const currentUserId = profile?.id ?? null;
   const theme = useThemeStore((s) => s.theme);
   const isDark = theme === "dark";
+  const pendingRequestsCount = useFriendStore((s) => s.requests.length);
+  const fetchRequests = useFriendStore((s) => s.fetchRequests);
 
   const [activeNav, setActiveNav] = useState<
     "friends" | "groups" | "friendRequests" | "groupInvites" | "blocked"
   >("friends");
   const [globalSearch, setGlobalSearch] = useState("");
+
+  useEffect(() => {
+    if (!isWeb) return;
+    void fetchRequests({ silent: true });
+  }, [isWeb, fetchRequests]);
+
+  // Mở từ thanh tìm kiếm Tin nhắn (web): ?phoneSearch=...
+  useEffect(() => {
+    if (!isWeb || !phoneSearchParam?.trim()) return;
+    setGlobalSearch(phoneSearchParam.trim());
+    setActiveNav("friends");
+  }, [isWeb, phoneSearchParam]);
 
   if (isWeb) {
     return (
@@ -66,7 +87,8 @@ export default function ContactsScreen() {
                 fontSize: 13,
                 color: "var(--text-tertiary)",
                 flex: 1,
-                transition: "background-color 0.3s ease, border-color 0.3s ease",
+                transition:
+                  "background-color 0.3s ease, border-color 0.3s ease",
               }}
             >
               <span style={{ fontSize: 16, marginRight: 4 }}>🔍</span>
@@ -74,7 +96,7 @@ export default function ContactsScreen() {
                 type="text"
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
-                placeholder="Tìm kiếm"
+                placeholder="Tìm tên hoặc số điện thoại..."
                 style={{
                   flex: 1,
                   border: "none",
@@ -131,11 +153,11 @@ export default function ContactsScreen() {
                     borderRadius: 10,
                     border: "none",
                     backgroundColor: active
-                      ? (isDark ? "rgba(137,180,250,0.15)" : "#e0edff")
+                      ? isDark
+                        ? "rgba(137,180,250,0.15)"
+                        : "#e0edff"
                       : "transparent",
-                    color: active
-                      ? "var(--accent)"
-                      : "var(--text-secondary)",
+                    color: active ? "var(--accent)" : "var(--text-secondary)",
                     cursor: "pointer",
                     fontSize: 14,
                     textAlign: "left" as const,
@@ -143,7 +165,33 @@ export default function ContactsScreen() {
                   }}
                 >
                   <span>{item.icon}</span>
-                  <span>{item.label}</span>
+                  <span
+                    style={{ flex: 1, minWidth: 0, textAlign: "left" as const }}
+                  >
+                    {item.label}
+                  </span>
+                  {item.id === "friendRequests" && pendingRequestsCount > 0 ? (
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        backgroundColor: "#ef4444",
+                        color: "#fff",
+                        borderRadius: 10,
+                        minWidth: 20,
+                        height: 20,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "0 6px",
+                        lineHeight: 1,
+                      }}
+                      aria-label={`${pendingRequestsCount} lời mời`}
+                    >
+                      {pendingRequestsCount > 99 ? "99+" : pendingRequestsCount}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -181,25 +229,37 @@ export default function ContactsScreen() {
               (globalSearch.trim() === "" ? (
                 <FriendsListScreen
                   currentUserId={currentUserId}
-                  onOpenChat={() => { }}
+                  onOpenChat={() => {}}
                 />
               ) : (
                 <SearchUsersScreen
                   externalQuery={globalSearch}
                   hideSearchInput
-                  onOpenChat={() => { }}
+                  onOpenChat={() => {}}
                 />
               ))}
             {activeNav === "friendRequests" && (
               <FriendRequestsScreen currentUserId={currentUserId} />
             )}
             {activeNav === "groups" && (
-              <div style={{ padding: 24, fontSize: 14, color: "var(--text-tertiary)" }}>
+              <div
+                style={{
+                  padding: 24,
+                  fontSize: 14,
+                  color: "var(--text-tertiary)",
+                }}
+              >
                 Danh sách nhóm và cộng đồng sẽ được phát triển sau.
               </div>
             )}
             {activeNav === "groupInvites" && (
-              <div style={{ padding: 24, fontSize: 14, color: "var(--text-tertiary)" }}>
+              <div
+                style={{
+                  padding: 24,
+                  fontSize: 14,
+                  color: "var(--text-tertiary)",
+                }}
+              >
                 Lời mời vào nhóm và cộng đồng sẽ được phát triển sau.
               </div>
             )}

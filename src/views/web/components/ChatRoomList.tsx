@@ -8,14 +8,21 @@ interface ChatRoomListProps {
     rooms: ChatRoom[];
     selectedRoomId?: string | null;
     onSelectRoom?: (roomId: string) => void;
-    filterTab?: 'all' | 'unread';
+    filterTab?: 'all' | 'unread' | 'strangers';
+    /** Đang tải danh sách bạn bè để phân loại chat người lạ (chỉ dùng với tab strangers). */
+    strangersClassifyLoading?: boolean;
 }
 
-const ChatRoomList: React.FC<ChatRoomListProps> = React.memo(({ rooms, selectedRoomId, onSelectRoom, filterTab }) => {
+const ChatRoomList: React.FC<ChatRoomListProps> = React.memo(({ rooms, selectedRoomId, onSelectRoom, filterTab, strangersClassifyLoading }) => {
     const pinnedRooms = useChatStore((s) => s.pinnedRooms);
-    const emptyMessage = filterTab === 'unread'
-        ? 'Không có cuộc trò chuyện chưa đọc'
-        : 'Chưa có cuộc trò chuyện nào';
+    const emptyMessage =
+        strangersClassifyLoading && filterTab === 'strangers'
+            ? 'Đang tải danh sách…'
+            : filterTab === 'unread'
+              ? 'Không có cuộc trò chuyện chưa đọc'
+              : filterTab === 'strangers'
+                ? 'Không có tin nhắn từ người lạ'
+                : 'Chưa có cuộc trò chuyện nào';
 
     // Sort: pinned rooms first (preserve relative order), then rest by updatedAt
     const sorted = [...rooms].sort((a, b) => {
