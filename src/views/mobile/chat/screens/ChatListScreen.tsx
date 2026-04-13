@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, TouchableOpacity } from "react-native";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, Alert, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { ChatListHeader } from "../components/ChatListHeader";
@@ -19,6 +21,7 @@ import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 export default function ChatListScreen() {
     const router = useRouter();
     const { rooms, setRooms, addMessage } = useChatStore();
+    const { friends } = useFriendStore();
     const colors = useThemeColors();
     const currentUserId = useAuthStore((s) => s.user?.id);
     const friends = useFriendStore((s) => s.friends);
@@ -46,36 +49,20 @@ export default function ChatListScreen() {
     const getImageUrl = (url: string) => {
         if (!url) return url;
         
-        // Xử lý localhost
-        if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
-            const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
-            if (match && match[1]) {
-                return url.replace("localhost", match[1]);
-            }
+        // Handle MinIO relative paths (e.g., "minizalo-bucket/files/...")
+        if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('file:')) {
+            const baseUrl = process.env.EXPO_PUBLIC_API_URL?.replace(':8080', ':9000') || '';
+            const minioBase = baseUrl.includes(':9000') ? baseUrl : `${baseUrl.split(':')[0]}:${baseUrl.split(':')[1]}:9000`;
+            return `${minioBase}/${url}`;
         }
-        
-        // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
+
+        // Fix localhost/IP issues for external URLs
         if (process.env.EXPO_PUBLIC_API_URL) {
             const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
             if (apiMatch && apiMatch[1]) {
                 const apiHost = apiMatch[1];
-                
-                // Thay thế IP address trong URL ảnh bằng API host
-                if (url.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
-                    const urlMatch = url.match(/https?:\/\/([^:\/]+)/);
-                    if (urlMatch && urlMatch[1] !== apiHost) {
-                        return url.replace(urlMatch[1], apiHost);
-                    }
-                }
-                
-                // Thay thế port 9000 (MinIO default) với API port nếu cần
-                if (url.includes(":9000") && !apiHost.includes(":9000")) {
-                    // Giữ nguyên port 9000 vì đây là MinIO server
-                    // Chỉ thay thế hostname
-                    const urlMatch = url.match(/https?:\/\/([^:]+):/);
-                    if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
-                        return url.replace(urlMatch[1], apiHost.split(':')[0]);
-                    }
+                if (url.includes("localhost")) {
+                    return url.replace("localhost", apiHost);
                 }
             }
         }
@@ -131,6 +118,7 @@ export default function ChatListScreen() {
                         avatarUrl: m.user?.avatarUrl || m.avatarUrl || undefined,
                     })),
                     updatedAt: r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
+                    hasInteracted: r.hasInteracted,
                 };
             });
 
@@ -167,34 +155,25 @@ export default function ChatListScreen() {
             const topic = `/topic/chat/${room.id}`;
             webSocketService.subscribe(topic, (stompMsg) => {
                 try {
-                    const dynamo = JSON.parse(stompMsg.body);
-                    const incoming = {
-                        id: dynamo.messageId,
-                        senderId: dynamo.senderId,
-                        senderName: dynamo.senderName || undefined,
+                    const msg = JSON.parse(stompMsg.body);
+                    // Thêm tin nhắn mới vào store room
+                    addMessage(room.id, {
+                        id: msg.messageId,
+                        senderId: msg.senderId,
+                        senderName: msg.senderName,
                         roomId: room.id,
-                        content: dynamo.recalled ? '[Tin nhắn đã thu hồi]' : dynamo.content,
-                        type: (dynamo.type as any) || 'TEXT',
-                        createdAt: dynamo.createdAt,
-                        readBy: dynamo.readBy,
-                    };
-
-                    // addMessage trong store sẽ tự động cập nhật tin nhắn cuối, thời gian, VÀ unreadCount!
-                    useChatStore.getState().addMessage(room.id, incoming);
-
-                    // ── Local notification khi có tin nhắn mới từ người khác ──
-                    const currentRoomId = useChatStore.getState().currentRoomId;
-                    const currentUserId = useAuthStore.getState().user?.id;
-                    const isMyMessage = currentUserId && dynamo.senderId === currentUserId;
-                    const isInThisRoom = currentRoomId === room.id;
-
-                    if (!isMyMessage && !isInThisRoom && !dynamo.recalled) {
-                        const senderName = dynamo.senderName || 'Tin nhắn mới';
-                        let bodyText = dynamo.content || '';
-                        if (dynamo.type === 'IMAGE') bodyText = '[Đã gửi hình ảnh]';
-                        else if (dynamo.type === 'FILE') bodyText = '[Đã gửi tập tin]';
-
-                        showLocalNotification(senderName, bodyText, { roomId: room.id, senderName: senderName });
+                        content: msg.content,
+                        type: (msg.type as any) || 'TEXT',
+                        createdAt: msg.createdAt,
+                        recalled: msg.recalled || false,
+                    });
+                    
+                    // Hiển thị thông báo local nếu tin nhắn từ người khác
+                    if (msg.senderId !== useAuthStore.getState().user?.id) {
+                        showLocalNotification(
+                            msg.senderName || 'Tin nhắn mới',
+                            msg.content || (msg.type === 'IMAGE' ? '[Hình ảnh]' : 'Đã gửi một tin nhắn')
+                        );
                     }
                 } catch (err) {
                     console.error('Lỗi parse tin nhắn WS:', err);
@@ -204,10 +183,9 @@ export default function ChatListScreen() {
         });
 
         return () => {
-            // Không dọn dẹp subscription khi navigate qua ChatScreen, chỉ dọn khi unmount hẳn App
-            // WebChatLayout cũng giữ subscription
+            // Unsubscribe logic if needed
         };
-    }, [rooms.length]);
+    }, [rooms]);
 
     // Auto-fetch when screen is focused + poll every 10s as fallback
     useFocusEffect(
@@ -256,6 +234,9 @@ export default function ChatListScreen() {
             timeDisplay = formatTime(item.lastMessage.createdAt);
         }
 
+        const partner = item.type === 'PRIVATE' ? item.participants.find((p: any) => p.id !== currentUserId) : null;
+        const isPartnerStranger = partner && !friendIdSet.has(partner.id);
+
         return (
             <Animated.View style={{ opacity: fadeAnim }}>
                 <ChatItem
@@ -265,7 +246,7 @@ export default function ChatListScreen() {
                     time={timeDisplay}
                     unreadCount={item.unreadCount}
                     isVerified={false}
-                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}`)}
+                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}`)}
                 />
             </Animated.View>
         );

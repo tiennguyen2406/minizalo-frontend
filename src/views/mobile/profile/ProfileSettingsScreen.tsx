@@ -50,11 +50,7 @@ function SettingsItem({ label, onPress, isHeader, colors }: SettingsItemProps) {
 
     return (
         <TouchableOpacity
-            onPress={() => {
-                console.log(`SettingsItem pressed: ${label}`);
-                alert(`Pressed: ${label}`);
-                onPress?.();
-            }}
+            onPress={onPress}
             activeOpacity={0.7}
             style={{
                 paddingHorizontal: 16,
@@ -151,7 +147,6 @@ export default function ProfileSettingsScreen({ user }: ProfileSettingsScreenPro
                     label="Quyền riêng tư" 
                     onPress={() => {
                         console.log("=== PRIVACY PRESSED ===");
-                        alert("Privacy pressed!");
                         router.push("/privacy");
                     }} 
                     colors={colors} 

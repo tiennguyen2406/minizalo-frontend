@@ -96,6 +96,9 @@ interface MessageBubbleProps {
     onTogglePin?: (message: MessageDynamo) => void;
     replyPreview?: ReplyPreview | null;
     senderAvatarUrl?: string | null;
+    isVisible?: boolean;
+    partnerName?: string;
+    onAddFriend?: () => void;
 }
 
 // Tạo màu nhất quán cho mỗi tên (giống Zalo)
@@ -132,6 +135,9 @@ export default function MessageBubble({
     onTogglePin,
     replyPreview,
     senderAvatarUrl,
+    isVisible = false,
+    partnerName,
+    onAddFriend,
 }: MessageBubbleProps) {
     const colors = useThemeColors();
     const theme = useThemeStore(s => s.theme);
@@ -303,33 +309,51 @@ export default function MessageBubble({
         if (!url) return url;
         let finalUrl = url;
 
-        // Xử lý localhost
-        if (finalUrl.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
-            const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
-            if (match && match[1]) {
-                finalUrl = finalUrl.replace("localhost", match[1]);
+        // --- Handle Relative Paths (e.g. minizalo-bucket/files/...) ---
+        if (!finalUrl.startsWith("http") && !finalUrl.startsWith("file://") && !finalUrl.startsWith("data:")) {
+            const apiFullUrl = process.env?.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:8080/api";
+            // Derive MinIO URL: replace port 8080 with 9000 if present, or just use host:9000
+            // Most local setups use 8080 for API and 9000 for MinIO
+            let minioBase = apiFullUrl.replace("/api", "").replace(":8080", ":9000");
+            if (!minioBase.includes(":9000") && !minioBase.includes(":443") && !minioBase.includes(":80")) {
+                // If no port specified, assume we might need :9000 for MinIO
+                // But let's be careful. If it's pure IP/domain, adding 9000 is common.
+                const urlObj = apiFullUrl.split("/");
+                if (urlObj.length >= 3) {
+                    const hostPart = urlObj[2].split(":")[0];
+                    minioBase = `${urlObj[0]}//${hostPart}:9000`;
+                }
             }
+            finalUrl = `${minioBase}/${url}`;
         }
 
-        // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
-        if (process.env.EXPO_PUBLIC_API_URL) {
-            const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
-            if (apiMatch && apiMatch[1]) {
-                const apiHost = apiMatch[1];
-
-                // Thay thế IP address trong URL ảnh bằng API host
-                if (finalUrl.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
-                    const urlMatch = finalUrl.match(/https?:\/\/([^:\/]+)/);
-                    if (urlMatch && urlMatch[1] !== apiHost) {
-                        finalUrl = finalUrl.replace(urlMatch[1], apiHost);
-                    }
+        // --- Handle absolute URLs (localhost/IP fixes) ---
+        if (finalUrl.startsWith("http")) {
+            // Xử lý localhost
+            if (finalUrl.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
+                const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+                if (match && match[1]) {
+                    finalUrl = finalUrl.replace("localhost", match[1]);
                 }
+            }
 
-                // Thay thế port 9000 (MinIO default) với API port nếu cần
-                if (finalUrl.includes(":9000") && !apiHost.includes(":9000")) {
-                    const urlMatch = finalUrl.match(/https?:\/\/([^:]+):/);
-                    if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
-                        finalUrl = finalUrl.replace(urlMatch[1], apiHost.split(':')[0]);
+            // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
+            if (process.env.EXPO_PUBLIC_API_URL) {
+                const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+                if (apiMatch && apiMatch[1]) {
+                    const apiHost = apiMatch[1];
+                    if (finalUrl.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
+                        const urlMatch = finalUrl.match(/https?:\/\/([^:\/]+)/);
+                        if (urlMatch && urlMatch[1] !== apiHost) {
+                            finalUrl = finalUrl.replace(urlMatch[1], apiHost);
+                        }
+                    }
+                    // Port 9000 logic
+                    if (finalUrl.includes(":9000") && !apiHost.includes(":9000")) {
+                        const urlMatch = finalUrl.match(/https?:\/\/([^:]+):/);
+                        if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
+                            finalUrl = finalUrl.replace(urlMatch[1], apiHost.split(':')[0]);
+                        }
                     }
                 }
             }
@@ -337,8 +361,6 @@ export default function MessageBubble({
 
         // Ensure URL is encoded for spaces and special chars
         try {
-            // Check if it looks like it needs encoding (contains spaces or special chars in path)
-            // We use encodeURI because it doesn't encode protocol (http://)
             if (finalUrl.includes(" ") || finalUrl.includes("[") || finalUrl.includes("]")) {
                 return encodeURI(finalUrl);
             }
@@ -611,7 +633,7 @@ export default function MessageBubble({
                                                     ...extraRadius,
                                                 }}>
                                                     <Image
-                                                        source={{ uri: `${getImageUrl(att.url)}?t=${Date.now()}` }}
+                                                        source={{ uri: getImageUrl(att.url) }}
                                                         style={{
                                                             width: thumbSize,
                                                             height: thumbSize,
@@ -708,7 +730,7 @@ export default function MessageBubble({
                                                                 borderRadius: borderRadius,
                                                             }}
                                                             resizeMode={ResizeMode.COVER}
-                                                            shouldPlay={true}
+                                                            shouldPlay={isVisible && !isRecalled}
                                                             isMuted={true}
                                                             isLooping={true}
                                                         />
@@ -1035,6 +1057,65 @@ export default function MessageBubble({
                 </TouchableOpacity>
             )}
 
+            {/* ─── Privacy blocked notice (Zalo-style) ─── */}
+            {isMe && message.privacyBlocked && (
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "flex-start",
+                        alignSelf: "flex-start",
+                        marginTop: 4,
+                        maxWidth: "75%",
+                    }}
+                >
+                    <View
+                        style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 15,
+                            backgroundColor: theme === 'dark' ? "#3a3a3c" : "#e0e0e0",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginRight: 6,
+                            marginTop: 2,
+                        }}
+                    >
+                        {senderAvatarUrl ? (
+                            <Image
+                                source={{ uri: senderAvatarUrl }}
+                                style={{ width: 30, height: 30, borderRadius: 15 }}
+                            />
+                        ) : (
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.textSecondary }}>
+                                {(partnerName || "?").charAt(0).toUpperCase()}
+                            </Text>
+                        )}
+                    </View>
+                    <View
+                        style={{
+                            backgroundColor: theme === 'dark' ? "#2c2c2e" : "#ffffff",
+                            borderRadius: 12,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            flex: 1,
+                            borderWidth: 0.5,
+                            borderColor: theme === 'dark' ? "#3a3a3c" : "#e0e0e0",
+                        }}
+                    >
+                        <Text style={{ color: colors.text, fontSize: 13, lineHeight: 18 }}>
+                            {partnerName || "Người này"} không nhận tin nhắn từ người lạ.{"\n"}
+                            <Text
+                                style={{ color: colors.primary, fontWeight: "600" }}
+                                onPress={onAddFriend}
+                            >
+                                Kết bạn ngay
+                            </Text>
+                            {" để gửi tin nhắn."}
+                        </Text>
+                    </View>
+                </View>
+            )}
+
             {/* ─── Full-screen image gallery with header/footer ─── */}
             <Modal
                 visible={previewIndex !== null}
@@ -1130,7 +1211,7 @@ export default function MessageBubble({
                             </Text>
                             <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 1 }}>
                                 {message.createdAt
-                                    ? `${new Date(message.createdAt).toLocaleDateString("vi-VN")} · ${formatTime(message.createdAt)} · ${getTimeAgo(message.createdAt)}`
+                                    ? `${new Date(message.createdAt).toLocaleDateString("vi-VN")} · ${getTimeAgo(message.createdAt)}`
                                     : ""}
                             </Text>
                         </View>
@@ -1326,7 +1407,7 @@ export default function MessageBubble({
                             </Text>
                             <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 1 }}>
                                 {message.createdAt
-                                    ? `${new Date(message.createdAt).toLocaleDateString("vi-VN")} · ${formatTime(message.createdAt)} · ${getTimeAgo(message.createdAt)}`
+                                    ? `${new Date(message.createdAt).toLocaleDateString("vi-VN")} · ${getTimeAgo(message.createdAt)}`
                                     : ""}
                             </Text>
                         </View>

@@ -65,13 +65,17 @@ export default function SettingsScreen() {
                 {
                     text: "Đăng xuất",
                     style: "destructive",
-                    onPress: async () => {
-                        await logout();
-                        useUserStore.getState().clear();
-                        useChatStore.getState().clear();
-                        useGroupStore.getState().clear();
-                        useFriendStore.getState().clear();
-                        router.replace("/(auth)/login");
+                    onPress: () => {
+                        (async () => {
+                            try { await logout(); } catch { /* ignore */ }
+                            try {
+                                useUserStore.getState().clear();
+                                useChatStore.getState().clear();
+                                useGroupStore.getState().clear();
+                                useFriendStore.getState().clear();
+                            } catch { /* ignore */ }
+                            router.replace("/(auth)/login");
+                        })();
                     },
                 },
             ]

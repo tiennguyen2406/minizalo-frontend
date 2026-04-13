@@ -84,6 +84,11 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     const [recentMedia, setRecentMedia] = useState<{ type: 'image' | 'file' | 'link', url: string }[]>([]);
 
     useEffect(() => {
+        if (!roomId || roomId === "new") {
+            setRecentMedia([]);
+            return;
+        }
+
         const fetchRecentMedia = async () => {
             try {
                 const res = await chatService.getChatHistory(roomId, 50);
@@ -368,8 +373,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
 
                 {/* Group 5: Danger */}
                 <Section>
-                    <OptionRow icon="alert-circle-outline" label="Báo xấu" first />
-                    <OptionRow icon="ban-outline" label="Quản lý chặn" right={<Arrow />} />
+                    <OptionRow icon="ban-outline" label="Quản lý chặn" right={<Arrow />} first />
                     <OptionRow icon="pie-chart-outline" label="Dung lượng trò chuyện" />
                     <OptionRow icon="trash-outline" label="Xóa lịch sử trò chuyện" color="#ef4444" />
                 </Section>

@@ -27,10 +27,62 @@ export interface ReadReceiptRequest {
     messageId: string;
 }
 
+export interface User {
+    id: string;
+    username: string;
+    fullName: string;
+    avatarUrl?: string; // Optional as it might not be in all responses
+}
+
+export interface ChatMessageRequest {
+    receiverId: string;
+    content: string;
+    type: "TEXT" | "IMAGE" | "VIDEO" | "FILE" | "STICKER" | "REPLY" | "FORWARD";
+    replyToId?: string;
+    // Field backend thực sự sử dụng cho reply
+    replyToMessageId?: string;
+    fileUrl?: string;
+}
+
+export interface TypingIndicatorRequest {
+    roomId: string;
+    isTyping: boolean;
+}
+
+export interface ReadReceiptRequest {
+    roomId: string;
+    messageId: string;
+}
+
 export interface ReactionRequest {
     roomId: string;
     messageId: string;
     emoji: string;
+}
+
+// -----------------------------
+// User / Profile
+// -----------------------------
+
+export interface UserProfile {
+    id: string;
+    username: string;
+    email: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    coverPhotoUrl: string | null;
+    statusMessage: string | null;
+    phone: string | null;
+    gender: string | null;
+    dateOfBirth: string | null;
+    businessDescription: string | null;
+    lastSeen: string | null;
+    isOnline: boolean | null;
+    createdAt: string | null;
+    updatedAt: string | null;
+    roles: string[] | null;
+    allowPhoneSearch?: boolean;
+    allowStrangerMessages?: boolean;
 }
 
 export interface PinMessageRequest {
@@ -60,17 +112,31 @@ export interface Message {
     updatedAt?: string;
     isDeleted?: boolean;
     isRecall?: boolean;
+    recalled?: boolean;
     pinned?: boolean;
     reactions?: { userId: string; emoji: string }[];
-    readBy?: string[]; // userIds
+    readBy?: string[]; 
     replyToId?: string;
-    replyMessage?: Message; // recursive optional
+    replyMessage?: Message;
     fileUrl?: string;
     fileName?: string;
     fileSize?: number;
     attachments?: Attachment[];
-    forwardedFromId?: string; // original sender id if forwarded
-    receiverId?: string; // Optional: ID of the receiver for private messages
+    forwardedFromId?: string;
+    receiverId?: string;
+}
+
+export type FriendStatus = "PENDING" | "ACCEPTED" | "BLOCKED";
+
+export interface FriendResponseDto {
+    id: string;
+    user: UserProfile;
+    friend: UserProfile;
+    // Aliases to match some older code if any
+    userProfile?: UserProfile;
+    friendUser?: UserProfile;
+    status: FriendStatus;
+    createdAt: string;
 }
 
 export interface PaginatedMessageResult {
@@ -94,6 +160,7 @@ export interface ChatRoom {
     unreadCount: number;
     participants: User[];
     updatedAt: string;
+    hasInteracted?: boolean;
 }
 
 export type GroupRole = 'ADMIN' | 'MEMBER';

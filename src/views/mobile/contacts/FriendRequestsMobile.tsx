@@ -13,6 +13,8 @@ import type { FriendResponseDto } from "@/shared/services/types";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { Image } from "react-native";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
 
 export default function FriendRequestsMobile() {
   const {
@@ -38,14 +40,14 @@ export default function FriendRequestsMobile() {
     })();
   }, [fetchRequests, fetchSentRequests]);
 
-  const handleAccept = async (id: string) => {
-    try {
-      await acceptRequest(id);
-      router.push("/(tabs)");
-    } catch {
-      // lỗi đã nằm trong store
-    }
-  };
+    const handleAccept = async (id: string) => {
+        try {
+            await acceptRequest(id);
+            await fetchFriends();
+        } catch {
+            // lỗi đã nằm trong store
+        }
+    };
 
   const handleReject = async (id: string) => {
     try {
@@ -140,32 +142,192 @@ export default function FriendRequestsMobile() {
                 fontWeight: "500",
               }}
             >
-              Từ chối
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => handleAccept(item.id)}
-            style={{
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              borderRadius: 999,
-              backgroundColor: colors.primary,
-            }}
-          >
-            <Text
-              style={{
-                color: "#fff",
-                fontSize: 12,
-                fontWeight: "600",
-              }}
+                <View
+                    style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 21,
+                        backgroundColor: colors.searchBg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 12,
+                        overflow: "hidden",
+                    }}
+                >
+                    {user.avatarUrl ? (
+                        <Image
+                            source={{ uri: getImageUrl(user.avatarUrl) }}
+                            style={{ width: 42, height: 42 }}
+                        />
+                    ) : (
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontWeight: "600",
+                                fontSize: 16,
+                            }}
+                        >
+                            {initial}
+                        </Text>
+                    )}
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text
+                        numberOfLines={1}
+                        style={{
+                            color: colors.text,
+                            fontSize: 15,
+                            fontWeight: "500",
+                        }}
+                    >
+                        {displayName}
+                    </Text>
+                    <Text
+                        style={{
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                            marginTop: 2,
+                        }}
+                    >
+                        Muốn kết bạn
+                    </Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TouchableOpacity
+                        onPress={() => handleReject(item.id)}
+                        style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 999,
+                            borderWidth: 1,
+                            borderColor: "#f97373",
+                        }}
+                    >
+                        <Text
+                            style={{
+                                color: "#f97373",
+                                fontSize: 12,
+                                fontWeight: "500",
+                            }}
+                        >
+                            Từ chối
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => handleAccept(item.id)}
+                        style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: 999,
+                            backgroundColor: colors.primary,
+                        }}
+                    >
+                        <Text
+                            style={{
+                                color: "#fff",
+                                fontSize: 12,
+                                fontWeight: "600",
+                            }}
+                        >
+                            Đồng ý
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    };
+
+    const renderSentItem = ({ item }: { item: FriendResponseDto }) => {
+        const user = item.friend; // với request mình gửi, friend = người nhận
+        const displayName = user.displayName || user.username || "Người dùng";
+        const initial =
+            (displayName.charAt(0).toUpperCase() || "?").toUpperCase();
+
+        return (
+            <View
+                style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderBottomWidth: 0.5,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.background,
+                }}
             >
-              Đồng ý
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
+                <View
+                    style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 21,
+                        backgroundColor: colors.searchBg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 12,
+                        overflow: "hidden",
+                    }}
+                >
+                    {user.avatarUrl ? (
+                        <Image
+                            source={{ uri: getImageUrl(user.avatarUrl) }}
+                            style={{ width: 42, height: 42 }}
+                        />
+                    ) : (
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontWeight: "600",
+                                fontSize: 16,
+                            }}
+                        >
+                            {initial}
+                        </Text>
+                    )}
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text
+                        numberOfLines={1}
+                        style={{
+                            color: colors.text,
+                            fontSize: 15,
+                            fontWeight: "500",
+                        }}
+                    >
+                        {displayName}
+                    </Text>
+                    <Text
+                        style={{
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                            marginTop: 2,
+                        }}
+                    >
+                        Bạn đã gửi lời mời
+                    </Text>
+                </View>
+                <TouchableOpacity
+                    onPress={() => handleCancelSent(item.id)}
+                    style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: "#f97373",
+                    }}
+                >
+                    <Text
+                        style={{
+                            color: "#f97373",
+                            fontSize: 12,
+                            fontWeight: "500",
+                        }}
+                    >
+                        Hủy
+                    </Text>
+                </TouchableOpacity>
+            </View>
+        );
+    };
 
   const renderSentItem = ({ item }: { item: FriendResponseDto }) => {
     const user = item.friend; // với request mình gửi, friend = người nhận

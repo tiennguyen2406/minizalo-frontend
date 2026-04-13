@@ -3,7 +3,8 @@ import { View, Text, Image, TouchableOpacity } from "react-native";
 import { useThemeColors } from "@/shared/theme/colors";
 
 interface ChatItemProps {
-    avatar: any; // URL or local require
+    avatar?: any; // URL or local require
+    avatarComponent?: React.ReactNode; 
     name: string;
     message: string;
     time: string;
@@ -13,7 +14,7 @@ interface ChatItemProps {
     onPress?: () => void;
 }
 
-export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified, onPress }: ChatItemProps) => {
+export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadCount, isVerified, onPress }: ChatItemProps) => {
     const colors = useThemeColors();
     const hasUnread = !!(unreadCount && unreadCount > 0);
     return (
@@ -30,16 +31,20 @@ export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified,
         >
             {/* Avatar Container */}
             <View style={{ position: 'relative', marginRight: 12 }}>
-                <Image
-                    source={avatar}
-                    style={{
-                        width: 52,
-                        height: 52,
-                        borderRadius: 26,
-                        backgroundColor: colors.avatarBg,
-                    }}
-                    resizeMode="cover"
-                />
+                {avatarComponent ? (
+                    avatarComponent
+                ) : (
+                    <Image
+                        source={avatar}
+                        style={{
+                            width: 52,
+                            height: 52,
+                            borderRadius: 26,
+                            backgroundColor: colors.avatarBg,
+                        }}
+                        resizeMode="cover"
+                    />
+                )}
                 {isVerified && (
                     <View style={{
                         position: 'absolute',

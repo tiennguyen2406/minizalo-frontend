@@ -40,6 +40,7 @@ export interface MessageDynamo {
     recalled: boolean;
     recalledAt: string;
     pinned: boolean;
+    privacyBlocked?: boolean;
 }
 
 export interface ChatRoomResponse {
@@ -52,6 +53,7 @@ export interface ChatRoomResponse {
     lastMessage?: MessageDynamo;
     unreadCount: number;
     members: any[]; // Define RoomMemberResponse if needed
+    hasInteracted: boolean;
 }
 
 export interface SearchMessageResponse {

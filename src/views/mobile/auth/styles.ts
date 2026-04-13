@@ -29,8 +29,8 @@ export const createAuthStyles = (colors: ThemeColors) => StyleSheet.create({
         color: colors.text,
     },
     content: {
-        flex: 1,
         paddingHorizontal: 24,
+        paddingBottom: 40,
         backgroundColor: colors.background,
     },
     titleContainer: {
