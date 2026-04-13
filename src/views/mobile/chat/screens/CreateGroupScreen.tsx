@@ -101,19 +101,27 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
         );
     }, []);
 
+    const buildDefaultGroupName = useCallback((ids: string[]) => {
+        const picked = [...ids].sort(() => Math.random() - 0.5).slice(0, 3);
+        const names = picked
+            .map((id) => friends.find((f) => f.id === id))
+            .filter(Boolean)
+            .map((f) => (f as Friend).fullName || (f as Friend).username)
+            .filter(Boolean);
+        if (names.length === 0) return "Nhóm mới";
+        return names.join(", ");
+    }, [friends]);
+
     const handleCreate = async () => {
-        if (groupName.trim().length < 3) {
-            Alert.alert("Lỗi", "Tên nhóm phải có ít nhất 3 ký tự.");
+        if (selectedIds.length < 3) {
+            Alert.alert("Lỗi", "Vui lòng chọn ít nhất 3 thành viên.");
             return;
         }
-        if (selectedIds.length === 0) {
-            Alert.alert("Lỗi", "Vui lòng chọn ít nhất 1 thành viên.");
-            return;
-        }
+        const finalName = groupName.trim() ? groupName.trim() : buildDefaultGroupName(selectedIds);
         setIsSubmitting(true);
         try {
             const newGroup = await groupService.createGroup(
-                groupName.trim(),
+                finalName,
                 selectedIds
             );
             upsertRoom({
@@ -213,8 +221,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
 
     const canCreate =
         !isSubmitting &&
-        selectedIds.length > 0 &&
-        groupName.trim().length >= 3;
+        selectedIds.length >= 3;
 
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>

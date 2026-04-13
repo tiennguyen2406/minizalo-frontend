@@ -17,6 +17,7 @@ import { useAuthStore } from '@/shared/store/authStore';
 import { MessageService } from '@/shared/services/MessageService';
 import friendService from '@/shared/services/friendService';
 import { validateFileSize } from '@/shared/constants';
+import { isStrangerMessagesNotAllowedError } from '@/shared/utils/chatErrors';
 
 interface ChatWindowProps {
     roomId: string;
@@ -67,7 +68,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
     const currentRoom = rooms.find((r) => r.id === roomId);
     const isGroupRoom = currentRoom?.type === 'GROUP';
-    const roomName = currentRoom?.name || 'Phòng chat';
+    const roomName = isGroupRoom
+        ? (currentRoom?.name || 'Nhóm chat')
+        : (currentRoom?.participants?.find((p) => p.id !== currentUserId)?.fullName
+            || currentRoom?.participants?.find((p) => p.id !== currentUserId)?.username
+            || currentRoom?.name
+            || 'Phòng chat');
     const roomAvatar =
         currentRoom?.avatarUrl ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(roomName)}&background=${isGroupRoom ? '0068FF' : 'random'}&color=fff&bold=true`;
@@ -77,7 +83,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         ? currentRoom?.participants?.find((p) => p.id !== currentUserId)
         : undefined;
 
-    const isBlocked = blockStatus?.blockedByYou || blockStatus?.blockedByOther || false;
+    const blockedUsers = useFriendStore((s) => s.blockedUsers);
+    const blockSignal = useFriendStore((s) => s.blockSignal);
+    const isBlockedByYouLocal = !!partner?.id && blockedUsers.some((x) => x.friend?.id === partner.id);
+    const isBlocked = isBlockedByYouLocal || blockStatus?.blockedByOther || blockStatus?.blockedByYou || false;
 
     const fetchHistory = useCallback(async () => {
         if (!roomId) return;
@@ -230,7 +239,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     }, [roomId, fetchHistory]);
 
     // Auto-refresh block status when blockedUsers changes (block/unblock from any screen)
-    const blockedUsers = useFriendStore((s) => s.blockedUsers);
     useEffect(() => {
         if (!isGroupRoom && partner?.id) {
             friendService.checkBlockStatus(partner.id)
@@ -238,6 +246,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 .catch((err) => console.error('Failed to re-check block status:', err));
         }
     }, [blockedUsers, partner?.id, isGroupRoom]);
+
+    // Realtime UI update when user blocks/unblocks (optimistic)
+    useEffect(() => {
+        if (isGroupRoom || !partner?.id || !blockSignal) return;
+        if (blockSignal.userId !== partner.id) return;
+        setBlockStatus((prev) => ({
+            blockedByYou: blockSignal.blocked,
+            blockedByOther: prev?.blockedByOther || false,
+            blockerName: prev?.blockerName || null,
+        }));
+    }, [blockSignal, partner?.id, isGroupRoom]);
 
     const handleSend = async (text: string) => {
         if (!roomId || !text.trim()) return;
@@ -252,13 +271,30 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             replyToId: replyingTo?.id,
         };
         addMessage(roomId, optimistic);
-        const sentViaWs = webSocketService.sendChatMessage(roomId, text, 'TEXT', replyingTo?.id);
-        if (!sentViaWs) {
+        if (isGroupRoom) {
+            const sentViaWs = webSocketService.sendChatMessage(roomId, text, 'TEXT', replyingTo?.id);
+            if (!sentViaWs) {
+                try {
+                    await chatService.sendMessage(roomId, text, replyingTo?.id);
+                    await fetchHistory();
+                } catch (err: any) {
+                    console.error('REST send failed:', err?.response?.status, err?.response?.data || err.message);
+                }
+            }
+        } else {
+            // Chat 1-1: gửi qua REST để nhận phản hồi từ server (chặn tin người lạ) ngay lập tức.
             try {
                 await chatService.sendMessage(roomId, text, replyingTo?.id);
                 await fetchHistory();
-            } catch (err: any) {
-                console.error('REST send failed:', err?.response?.status, err?.response?.data || err.message);
+            } catch (err: unknown) {
+                if (isStrangerMessagesNotAllowedError(err)) {
+                    useChatStore.getState().applyStrangerMessageRejection(
+                        roomId,
+                        'Thông báo: người này hiện không nhận tin từ người lạ',
+                    );
+                } else {
+                    console.error('REST send failed:', (err as any)?.response?.status, (err as any)?.response?.data || (err as any)?.message);
+                }
             }
         }
         setReplyingTo(null);
@@ -307,13 +343,36 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             };
             addMessage(roomId, optimistic);
 
-            // 4. Send via WebSocket
-            const sentViaWs = webSocketService.sendChatMessage(
-                roomId, file.name, msgType, replyingTo?.id,
-                [attachment]
-            );
-            if (!sentViaWs) {
-                await fetchHistory();
+            if (isGroupRoom) {
+                // 4. Send via WebSocket (group)
+                const sentViaWs = webSocketService.sendChatMessage(
+                    roomId, file.name, msgType, replyingTo?.id,
+                    [attachment]
+                );
+                if (!sentViaWs) {
+                    await fetchHistory();
+                }
+            } else {
+                // Chat 1-1: gửi qua REST để nhận phản hồi chặn tin người lạ.
+                try {
+                    await chatService.sendMessage(
+                        roomId,
+                        file.name,
+                        replyingTo?.id,
+                        msgType,
+                        [attachment as any],
+                    );
+                    await fetchHistory();
+                } catch (err2: unknown) {
+                    if (isStrangerMessagesNotAllowedError(err2)) {
+                        useChatStore.getState().applyStrangerMessageRejection(
+                            roomId,
+                            'Thông báo: người này hiện không nhận tin từ người lạ',
+                        );
+                    } else {
+                        console.error('REST send file failed:', (err2 as any)?.response?.status, (err2 as any)?.response?.data || (err2 as any)?.message);
+                    }
+                }
             }
             setReplyingTo(null);
         } catch (error) {

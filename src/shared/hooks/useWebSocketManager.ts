@@ -76,6 +76,7 @@ export function useWebSocketManager() {
 
 function _useWebSocketManagerWeb() {
     const accessToken = useAuthStore((s) => s.accessToken);
+    const user = useAuthStore((s) => s.user);
     const rooms = useChatStore((s) => s.rooms);
     const setRooms = useChatStore((s) => s.setRooms);
 
@@ -98,9 +99,16 @@ function _useWebSocketManagerWeb() {
                 const existingRooms = useChatStore.getState().rooms;
                 const allRooms: ChatRoom[] = data.map((r) => {
                     const existing = existingRooms.find(er => er.id === r.id);
+                    let resolvedName = r.name;
+                    if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
+                        const partner = (r.members || []).find(
+                            (m: any) => (m.user?.id || m.id) !== user?.id
+                        );
+                        resolvedName = partner?.user?.displayName || partner?.user?.username || partner?.displayName || partner?.username || 'Người dùng';
+                    }
                     return {
                         id: r.id,
-                        name: r.name || 'Người dùng',
+                        name: resolvedName || 'Người dùng',
                         avatarUrl: r.avatarUrl || undefined,
                         type: r.type === 'DIRECT' ? 'PRIVATE' : 'GROUP',
                         lastMessage: r.lastMessage

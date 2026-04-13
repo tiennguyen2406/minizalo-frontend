@@ -54,7 +54,7 @@ export default function ChatScreen() {
     const theme = useThemeStore(s => s.theme);
     const route = useRoute<any>();
     const router = useRouter();
-    const { id, name, type, targetUserId, isStranger: isStrangerParam, avatarUrl: avatarUrlParam } = (route.params || {}) as any;
+    const { id, name, type, targetUserId, isStranger: isStrangerParam, avatarUrl: avatarUrlParam, showWelcomeTemplates } = (route.params || {}) as any;
     const [activeRoomId, setActiveRoomId] = useState<string | null>(typeof id === "string" && id !== "new" ? id : null);
     const roomId = activeRoomId || "";
     const displayName = typeof name === "string" ? name : "Người dùng";
@@ -68,17 +68,27 @@ export default function ChatScreen() {
     const avatarUrl = typeof avatarUrlParam === "string" ? avatarUrlParam : "";
     const partnerAvatar = avatarUrl || "";
     const targetUserIdStr = typeof targetUserId === "string" ? targetUserId : null;
+    const inferredTargetUserId = useMemo(() => {
+        if (roomType !== "DIRECT") return null;
+        const room = rooms.find((r) => r.id === roomId || r.id === id);
+        const partner = room?.participants?.find((p: any) => p.id !== currentUserId);
+        return partner?.id ?? null;
+    }, [roomType, rooms, roomId, id, currentUserId]);
+    const resolvedTargetUserId = targetUserIdStr || inferredTargetUserId;
 
     // Tính toán isStranger dựa trên kiểm tra trong danh sách bạn bè (Source of truth)
     const isStranger = useMemo(() => {
         // Nếu là GROUP thì không là người lạ (theo logic App hiện tại)
         if (roomType === 'GROUP') return false;
         
-        // Luôn kiểm tra trong store trước nếu có targetUserId
-        if (targetUserIdStr) {
-            const isFriend = friends.some(f => 
-                (f.user?.id === targetUserIdStr) || (f.friend?.id === targetUserIdStr)
-            );
+        // Luôn kiểm tra trong store trước nếu có targetUserId (param hoặc suy luận từ participants)
+        if (resolvedTargetUserId) {
+            const isFriend = friends.some((f: any) => {
+                // f.id is the relationship ID, NOT a user ID — skip it
+                const uid = f?.user?.id;
+                const fid = f?.friend?.id;
+                return uid === resolvedTargetUserId || fid === resolvedTargetUserId;
+            });
             return !isFriend;
         }
 
@@ -86,16 +96,22 @@ export default function ChatScreen() {
         if (isStrangerParam === "true" || isStrangerParam === true) return true;
 
         return false;
-    }, [isStrangerParam, targetUserIdStr, friends, roomType]);
+    }, [isStrangerParam, resolvedTargetUserId, friends, roomType]);
 
     const friendRequestStatus = useMemo(() => {
-        if (!targetUserIdStr) return 'NONE';
-        const isSent = sentRequests.some(r => r.friend?.id === targetUserIdStr);
+        if (!resolvedTargetUserId) return 'NONE';
+        const isSent = sentRequests.some((r: any) => {
+            const id = r?.friend?.id || r?.friendId || r?.user?.id;
+            return id === resolvedTargetUserId;
+        });
         if (isSent) return 'SENT';
-        const isReceived = requests.some(r => r.user?.id === targetUserIdStr);
+        const isReceived = requests.some((r: any) => {
+            const id = r?.user?.id || r?.userId || r?.friend?.id;
+            return id === resolvedTargetUserId;
+        });
         if (isReceived) return 'INCOMING';
         return 'NONE';
-    }, [targetUserIdStr, sentRequests, requests]);
+    }, [resolvedTargetUserId, sentRequests, requests]);
 
     const [messages, setMessages] = useState<(MessageDynamo & { isError?: boolean })[]>([]);
 
@@ -181,6 +197,7 @@ export default function ChatScreen() {
     // ─── Deleted Messages state ───
     const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set());
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+    const [showWelcomePicker, setShowWelcomePicker] = useState(false);
 
     const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
         setToast({ visible: true, message, type });
@@ -188,6 +205,15 @@ export default function ChatScreen() {
             setToast(prev => ({ ...prev, visible: false }));
         }, 2000);
     }, []);
+
+    useEffect(() => {
+        const flag = showWelcomeTemplates === "true" || showWelcomeTemplates === true;
+        if (!flag) return;
+        // Chỉ gợi ý khi chat 1-1 và đã là bạn bè (không phải người lạ)
+        if (roomType !== "DIRECT") return;
+        if (isStranger) return;
+        setShowWelcomePicker(true);
+    }, [showWelcomeTemplates, roomType, isStranger]);
 
     // ─── Load chat history ───
     const fetchMessages = useCallback(async (isLoadMore = false) => {
@@ -352,9 +378,19 @@ export default function ChatScreen() {
                         newMsg.senderId.toLowerCase() === currentUserId.toLowerCase();
 
                     if (isMyMessage) {
-                        const tempMsgs = prev.filter(
-                            (m) => m.messageId.startsWith("temp-") && m.type === newMsg.type
-                        );
+                        const isFileLike = newMsg.type === "FILE" || newMsg.type === "DOCUMENT";
+                        const isMediaLike = newMsg.type === "IMAGE" || newMsg.type === "VIDEO";
+
+                        const tempMsgs = prev.filter((m) => {
+                            if (!m.messageId?.startsWith("temp-")) return false;
+                            if (isFileLike) {
+                                return m.messageId.startsWith("temp-file-") || m.type === "FILE" || m.type === "DOCUMENT";
+                            }
+                            if (isMediaLike) {
+                                return m.messageId.startsWith("temp-media-") || m.type === "IMAGE" || m.type === "VIDEO";
+                            }
+                            return m.type === newMsg.type;
+                        });
 
                         if (tempMsgs.length > 0) {
                             const targetTemp = tempMsgs[tempMsgs.length - 1];
@@ -526,14 +562,14 @@ export default function ChatScreen() {
         
         // Nếu là phòng chat mới (chưa có ID thực), tiến hành tạo phòng backend
         if (!workingRoomId) {
-            if (!targetUserIdStr) {
+            if (!resolvedTargetUserId) {
                 Alert.alert("Lỗi", "Không tìm thấy thông tin người nhận để tạo phòng chat.");
                 return;
             }
             try {
                 setSending(true);
                 const { useChatStore } = await import("@/shared/store/useChatStore");
-                const newRoom = await useChatStore.getState().createPrivateRoom(targetUserIdStr);
+                const newRoom = await useChatStore.getState().createPrivateRoom(resolvedTargetUserId);
                 workingRoomId = newRoom.id;
                 setActiveRoomId(newRoom.id);
             } catch (err) {
@@ -717,7 +753,7 @@ export default function ChatScreen() {
     };
 
     // ─── Send file ───
-    const handleSendFile = async (file: DocumentPicker.DocumentPickerAsset) => {
+    const handleSendFileSingle = async (file: DocumentPicker.DocumentPickerAsset) => {
         if (!roomId || sending) return;
         const fsz = file.size;
         if (fsz != null && fsz > 0) {
@@ -815,6 +851,15 @@ export default function ChatScreen() {
             );
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleSendFile = async (files: DocumentPicker.DocumentPickerAsset[]) => {
+        if (!files || files.length === 0) return;
+        // Gửi tuần tự để giữ đúng trạng thái `sending` + UI optimistic ổn định
+        for (const f of files) {
+            // eslint-disable-next-line no-await-in-loop
+            await handleSendFileSingle(f);
         }
     };
 
@@ -1232,21 +1277,25 @@ export default function ChatScreen() {
                 }}>
                     <TouchableOpacity
                         onPress={() => {
-                            if (targetUserIdStr) {
+                            if (resolvedTargetUserId) {
                                 if (friendRequestStatus === 'NONE') {
-                                    useFriendStore.getState().sendRequest(targetUserIdStr)
+                                    useFriendStore.getState().sendRequest(resolvedTargetUserId)
                                         .then(() => {
                                             fetchSentRequests();
                                             Alert.alert("Thành công", "Đã gửi lời mời kết bạn.");
                                         })
                                         .catch(() => Alert.alert("Lỗi", "Gửi lời mời kết bạn thất bại."));
                                 } else if (friendRequestStatus === 'INCOMING') {
-                                    const req = requests.find(r => r.user?.id === targetUserIdStr);
+                                    const req = requests.find((r: any) => {
+                                        const id = r?.user?.id || r?.userId || r?.friend?.id;
+                                        return id === resolvedTargetUserId;
+                                    });
                                     if (req) {
                                         useFriendStore.getState().acceptRequest(req.id)
                                             .then(() => {
                                                 fetchFriends();
-                                                Alert.alert("Thành công", "Đã chấp nhận lời mời kết bạn.");
+                                                setShowWelcomePicker(true);
+                                                showToast("Đã chấp nhận lời mời kết bạn", "success");
                                             })
                                             .catch(() => Alert.alert("Lỗi", "Chấp nhận lời mời kết bạn thất bại."));
                                     }
@@ -2163,6 +2212,68 @@ export default function ChatScreen() {
                     <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{toast.message}</Text>
                 </View>
             )}
+
+            {/* Welcome templates (after accepting friend request) */}
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showWelcomePicker}
+                onRequestClose={() => setShowWelcomePicker(false)}
+            >
+                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={{ flex: 1 }}
+                        onPress={() => setShowWelcomePicker(false)}
+                    />
+                    <View
+                        style={{
+                            backgroundColor: colors.card,
+                            borderTopLeftRadius: 24,
+                            borderTopRightRadius: 24,
+                            paddingTop: 12,
+                            paddingBottom: 22,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                    >
+                        <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 999, backgroundColor: colors.border, marginBottom: 12 }} />
+                        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800", paddingHorizontal: 18 }}>
+                            Chọn 1 tin nhắn chào mừng
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, paddingHorizontal: 18, marginTop: 4 }}>
+                            Không tự gửi. Bạn chọn 1 mẫu để gửi nhanh.
+                        </Text>
+
+                        {[
+                            "Chào bạn, rất vui được kết bạn với bạn!",
+                            "Hello! Mình vừa chấp nhận lời mời, bạn đang làm gì đó?",
+                            "Chào bạn, mình có thể giúp gì cho bạn không?",
+                        ].map((tpl) => (
+                            <TouchableOpacity
+                                key={tpl}
+                                onPress={() => {
+                                    handleSend(tpl);
+                                    showToast("Đã chọn và gửi tin nhắn chào mừng", "success");
+                                    setShowWelcomePicker(false);
+                                }}
+                                style={{
+                                    marginTop: 10,
+                                    marginHorizontal: 14,
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 12,
+                                    borderRadius: 14,
+                                    backgroundColor: theme === "dark" ? "#2c2c2e" : "#f3f4f6",
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                }}
+                            >
+                                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>{tpl}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            </Modal>
 
             {/* ─── Modal chuyển tiếp tin nhắn (multi-select) ─── */}
             <Modal

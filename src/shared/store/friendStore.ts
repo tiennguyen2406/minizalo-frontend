@@ -9,6 +9,8 @@ type FriendState = {
     requests: FriendResponseDto[];
     sentRequests: FriendResponseDto[];
     blockedUsers: FriendResponseDto[];
+    /** Web: tín hiệu realtime sau khi chặn/bỏ chặn (để ChatWindow cập nhật ngay). */
+    blockSignal: { userId: string; blocked: boolean; nonce: number } | null;
     loading: boolean;
     error: string | null;
     fetchFriends: () => Promise<void>;
@@ -47,6 +49,7 @@ export const useFriendStore = create<FriendState>((set, get) => ({
     requests: [],
     sentRequests: [],
     blockedUsers: [],
+    blockSignal: null,
     loading: false,
     error: null,
 
@@ -207,9 +210,10 @@ export const useFriendStore = create<FriendState>((set, get) => ({
             // Just reload blocked users list
             try {
                 const blockedUsers = await friendService.getBlockedUsers();
-                set({ blockedUsers });
+                set((state) => ({ blockedUsers, blockSignal: { userId, blocked: true, nonce: (state.blockSignal?.nonce ?? 0) + 1 } }));
             } catch {
                 // ignore reload error
+                set((state) => ({ blockSignal: { userId, blocked: true, nonce: (state.blockSignal?.nonce ?? 0) + 1 } }));
             }
         } catch (e: unknown) {
             set({
@@ -223,11 +227,10 @@ export const useFriendStore = create<FriendState>((set, get) => ({
         set({ error: null });
         try {
             await friendService.unblockUser(userId);
-            set({
-                blockedUsers: get().blockedUsers.filter(
-                    (f) => f.friend.id !== userId
-                ),
-            });
+            set((state) => ({
+                blockedUsers: state.blockedUsers.filter((f) => f.friend.id !== userId),
+                blockSignal: { userId, blocked: false, nonce: (state.blockSignal?.nonce ?? 0) + 1 },
+            }));
         } catch (e: unknown) {
             set({
                 error: extractErrorMessage(e, "Bỏ chặn người dùng thất bại."),
@@ -256,6 +259,7 @@ export const useFriendStore = create<FriendState>((set, get) => ({
         requests: [],
         sentRequests: [],
         blockedUsers: [],
+        blockSignal: null,
         loading: false,
         error: null,
     }),

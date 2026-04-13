@@ -480,7 +480,7 @@ export default function MessageBubble({
                 <View
                     style={{
                         alignSelf: "center",
-                        backgroundColor: "rgba(0,0,0,0.05)",
+                        backgroundColor: "rgba(239, 68, 68, 0.10)",
                         paddingHorizontal: 12,
                         paddingVertical: 6,
                         borderRadius: 16,
@@ -488,7 +488,7 @@ export default function MessageBubble({
                         alignItems: "center",
                     }}
                 >
-                    <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: "center" }}>
+                    <Text style={{ fontSize: 13, color: "#b91c1c", textAlign: "center", fontWeight: "600" }}>
                         {message.content}
                     </Text>
                 </View>

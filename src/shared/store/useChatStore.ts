@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Message } from '../types';
 import { useAuthStore } from './authStore';
 
@@ -29,24 +31,49 @@ function getScopedKey(suffix: string): string {
     return `minizalo:${userId}:${suffix}`;
 }
 
+const isWeb = Platform.OS === 'web';
+
+const _mobileCache = new Map<string, Set<string>>();
+
 function safeLoadSet(key: string): Set<string> {
-    try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return new Set<string>();
-        const arr = JSON.parse(raw);
-        if (!Array.isArray(arr)) return new Set<string>();
-        return new Set(arr.filter((x) => typeof x === 'string' && x.length > 0));
-    } catch {
-        return new Set<string>();
+    if (isWeb) {
+        try {
+            const raw = localStorage.getItem(key);
+            if (!raw) return new Set<string>();
+            const arr = JSON.parse(raw);
+            if (!Array.isArray(arr)) return new Set<string>();
+            return new Set(arr.filter((x) => typeof x === 'string' && x.length > 0));
+        } catch {
+            return new Set<string>();
+        }
     }
+    return _mobileCache.get(key) || new Set<string>();
 }
 
 function safeSaveSet(key: string, value: Set<string>) {
-    try {
-        localStorage.setItem(key, JSON.stringify([...value]));
-    } catch {
-        // ignore
+    if (isWeb) {
+        try {
+            localStorage.setItem(key, JSON.stringify([...value]));
+        } catch { /* ignore */ }
+    } else {
+        _mobileCache.set(key, value);
+        AsyncStorage.setItem(key, JSON.stringify([...value])).catch(() => {});
     }
+}
+
+function mobileRehydrateSet(key: string): Promise<Set<string>> {
+    return AsyncStorage.getItem(key).then((raw) => {
+        if (!raw) return new Set<string>();
+        try {
+            const arr = JSON.parse(raw);
+            if (!Array.isArray(arr)) return new Set<string>();
+            const s = new Set(arr.filter((x: unknown) => typeof x === 'string' && (x as string).length > 0));
+            _mobileCache.set(key, s);
+            return s;
+        } catch {
+            return new Set<string>();
+        }
+    }).catch(() => new Set<string>());
 }
 
 interface ChatState {
@@ -83,8 +110,10 @@ interface ChatState {
     setTyping: (roomId: string, userId: string, isTyping: boolean) => void;
     clearTyping: (roomId: string) => void;
     markRoomAsRead: (roomId: string) => void;
+    markRoomAsUnread: (roomId: string, count?: number) => void;
     togglePinRoom: (roomId: string) => void;
     toggleMuteRoom: (roomId: string) => void;
+    clearConversation: (roomId: string) => Promise<void>;
     setHighlightedMessageId: (messageId: string | null) => void;
     setPendingOpenRoomId: (roomId: string | null) => void;
     setPendingOpenDirectInfoRoomId: (roomId: string | null) => void;
@@ -249,6 +278,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return { rooms: newRooms };
     }),
 
+    markRoomAsUnread: (roomId, count = 1) => set((state) => {
+        const newRooms = state.rooms.map((r) => {
+            if (r.id !== roomId) return r;
+            const nextCount = Math.max(count, r.unreadCount || 0, 1);
+            return { ...r, unreadCount: nextCount };
+        });
+        return { rooms: newRooms };
+    }),
+
     togglePinRoom: (roomId) => set((state) => {
         const next = new Set(state.pinnedRooms);
         if (next.has(roomId)) { next.delete(roomId); } else { next.add(roomId); }
@@ -262,6 +300,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
         safeSaveSet(getScopedKey('mutedRooms'), next);
         return { mutedRooms: next };
     }),
+
+    clearConversation: async (roomId) => {
+        set((state) => {
+            const nextRooms = state.rooms.map((r) => {
+                if (r.id !== roomId) return r;
+                return { ...r, unreadCount: 0, lastMessage: undefined };
+            });
+            return {
+                messages: { ...state.messages, [roomId]: [] },
+                rooms: nextRooms,
+            };
+        });
+        try {
+            const { chatService } = await import('../services/chatService');
+            await chatService.clearChatHistory(roomId);
+        } catch (e) {
+            console.error('Failed to clear chat history on server:', e);
+        }
+    },
 
     setHighlightedMessageId: (messageId) => set({ highlightedMessageId: messageId }),
 
@@ -440,3 +497,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
         strangerRejectionSignal: null,
     }),
 }));
+
+// Khi user/token thay đổi (logout/login), nạp lại pinned/muted theo scope mới.
+{
+    let prevScope = `${useAuthStore.getState().user?.id || ''}|${useAuthStore.getState().accessToken || ''}`;
+    useAuthStore.subscribe(
+        (s) => `${s.user?.id || ''}|${s.accessToken || ''}`,
+        (nextScope) => {
+            if (nextScope === prevScope) return;
+            prevScope = nextScope;
+            if (isWeb) {
+                const pinnedRooms = safeLoadSet(getScopedKey('pinnedRooms'));
+                const mutedRooms = safeLoadSet(getScopedKey('mutedRooms'));
+                useChatStore.setState({ pinnedRooms, mutedRooms });
+            } else {
+                Promise.all([
+                    mobileRehydrateSet(getScopedKey('pinnedRooms')),
+                    mobileRehydrateSet(getScopedKey('mutedRooms')),
+                ]).then(([pinnedRooms, mutedRooms]) => {
+                    useChatStore.setState({ pinnedRooms, mutedRooms });
+                });
+            }
+        }
+    );
+}
+
+// Mobile: rehydrate ngay khi module load
+if (!isWeb) {
+    Promise.all([
+        mobileRehydrateSet(getScopedKey('pinnedRooms')),
+        mobileRehydrateSet(getScopedKey('mutedRooms')),
+    ]).then(([pinnedRooms, mutedRooms]) => {
+        useChatStore.setState({ pinnedRooms, mutedRooms });
+    });
+}

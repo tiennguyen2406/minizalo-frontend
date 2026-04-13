@@ -1,25 +1,33 @@
 import React from "react";
 import { View, Text, Image, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
 
 interface ChatItemProps {
-    avatar?: any; // URL or local require
+    avatar?: any;
     avatarComponent?: React.ReactNode; 
     name: string;
     message: string;
     time: string;
     unreadCount?: number;
-    isVerified?: boolean; // For the checkmark
+    isVerified?: boolean;
     isGroup?: boolean;
+    isPinned?: boolean;
+    isMuted?: boolean;
     onPress?: () => void;
+    onLongPress?: () => void;
 }
 
-export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadCount, isVerified, onPress }: ChatItemProps) => {
+export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadCount, isVerified, onPress, onLongPress, isPinned, isMuted }: ChatItemProps) => {
     const colors = useThemeColors();
     const hasUnread = !!(unreadCount && unreadCount > 0);
+    const badgeBg = isMuted ? '#9ca3af' : '#ef4444';
+
     return (
         <TouchableOpacity
             onPress={onPress}
+            onLongPress={onLongPress}
+            delayLongPress={250}
             activeOpacity={0.7}
             style={{
                 flexDirection: 'row',
@@ -68,7 +76,6 @@ export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadC
                         </View>
                     </View>
                 )}
-                {/* Red dot indicator for unread messages */}
                 {hasUnread && (
                     <View style={{
                         position: 'absolute',
@@ -77,7 +84,7 @@ export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadC
                         width: 14,
                         height: 14,
                         borderRadius: 7,
-                        backgroundColor: '#e74c3c',
+                        backgroundColor: badgeBg,
                         borderWidth: 2,
                         borderColor: colors.background,
                     }} />
@@ -93,10 +100,10 @@ export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadC
                 justifyContent: 'center',
                 height: 60,
             }}>
-                {/* Top Row: Name + Time */}
+                {/* Top Row: Name + indicators + Time */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
-                        <Text style={{ fontSize: 16, color: colors.text, fontWeight: hasUnread ? '700' : '400' }} numberOfLines={1}>{name}</Text>
+                        <Text style={{ fontSize: 16, color: colors.text, fontWeight: hasUnread ? '700' : '400', flexShrink: 1 }} numberOfLines={1}>{name}</Text>
                         {isVerified && (
                             <View style={{
                                 marginLeft: 4,
@@ -111,7 +118,15 @@ export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadC
                             </View>
                         )}
                     </View>
-                    <Text style={{ fontSize: 12, color: hasUnread ? '#e74c3c' : '#7f8c8d', fontWeight: hasUnread ? '600' : '400' }}>{time}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        {isPinned && (
+                            <Ionicons name="pin" size={12} color="#60a5fa" />
+                        )}
+                        {isMuted && (
+                            <Ionicons name="volume-mute" size={13} color="#9ca3af" />
+                        )}
+                        <Text style={{ fontSize: 12, color: hasUnread ? '#6b7280' : '#7f8c8d', fontWeight: hasUnread ? '600' : '400' }}>{time}</Text>
+                    </View>
                 </View>
 
                 {/* Bottom Row: Message + Badge */}
@@ -132,7 +147,7 @@ export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadC
 
                     {unreadCount && unreadCount > 0 ? (
                         <View style={{
-                            backgroundColor: '#e74c3c',
+                            backgroundColor: badgeBg,
                             borderRadius: 999,
                             minWidth: 20,
                             height: 20,

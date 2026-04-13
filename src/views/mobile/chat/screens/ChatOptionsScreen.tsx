@@ -9,6 +9,7 @@ import {
     Platform,
     Animated,
     Dimensions,
+    Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -17,6 +18,7 @@ import CreateGroupScreen from "./CreateGroupScreen";
 import AddToGroupModal from "../components/AddToGroupModal";
 import MediaStorageScreen from "./MediaStorageScreen";
 import { chatService } from "@/shared/services/chatService";
+import { useChatStore } from "@/shared/store/useChatStore";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useRouter } from "expo-router";
 
@@ -375,7 +377,28 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                 <Section>
                     <OptionRow icon="ban-outline" label="Quản lý chặn" right={<Arrow />} first />
                     <OptionRow icon="pie-chart-outline" label="Dung lượng trò chuyện" />
-                    <OptionRow icon="trash-outline" label="Xóa lịch sử trò chuyện" color="#ef4444" />
+                    <OptionRow
+                        icon="trash-outline"
+                        label="Xóa lịch sử trò chuyện"
+                        color="#ef4444"
+                        onPress={() => {
+                            Alert.alert(
+                                "Xác nhận",
+                                "Toàn bộ nội dung trò chuyện sẽ bị xóa. Bạn có chắc chắn muốn xóa?",
+                                [
+                                    { text: "Hủy", style: "cancel" },
+                                    {
+                                        text: "Xóa",
+                                        style: "destructive",
+                                        onPress: async () => {
+                                            await useChatStore.getState().clearConversation(roomId);
+                                            onClose();
+                                        },
+                                    },
+                                ]
+                            );
+                        }}
+                    />
                 </Section>
 
                 <View style={{ height: 40 }} />

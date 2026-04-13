@@ -15,6 +15,8 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Image } from "react-native";
 import { getImageUrl } from "@/shared/utils/mediaUtils";
+import { chatService, mapChatRoomResponseToFrontend } from "@/shared/services/chatService";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 export default function FriendRequestsMobile() {
   const {
@@ -28,8 +30,10 @@ export default function FriendRequestsMobile() {
     rejectRequest,
     cancelSentRequest,
     clearError,
+    fetchFriends,
   } = useFriendStore();
   const router = useRouter();
+  const upsertRoom = useChatStore((s) => s.upsertRoom);
   const colors = useThemeColors();
   const [tab, setTab] = useState<"received" | "sent">("received");
 
@@ -40,10 +44,36 @@ export default function FriendRequestsMobile() {
     })();
   }, [fetchRequests, fetchSentRequests]);
 
-    const handleAccept = async (id: string) => {
+    const handleAccept = async (id: string, targetUserId?: string, targetName?: string, targetAvatarUrl?: string) => {
         try {
             await acceptRequest(id);
             await fetchFriends();
+            if (targetUserId) {
+              const room = await chatService.createPrivateRoom(targetUserId);
+              const frontendRoom = mapChatRoomResponseToFrontend(room);
+              upsertRoom(frontendRoom);
+
+              const participants = frontendRoom.participants || [];
+              const partner = participants.find((p: any) => p.id === targetUserId);
+              const displayName =
+                (partner?.fullName && String(partner.fullName).trim()) ||
+                (partner?.username && String(partner.username).trim()) ||
+                (targetName && String(targetName).trim()) ||
+                frontendRoom.name ||
+                "Chat";
+
+              router.push({
+                pathname: `/chat/${frontendRoom.id}`,
+                params: {
+                  name: displayName,
+                  type: "DIRECT",
+                  targetUserId,
+                  isStranger: "false",
+                  avatarUrl: targetAvatarUrl || "",
+                  showWelcomeTemplates: "true",
+                },
+              });
+            }
         } catch {
             // lỗi đã nằm trong store
         }
@@ -147,7 +177,7 @@ export default function FriendRequestsMobile() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => handleAccept(item.id)}
+            onPress={() => handleAccept(item.id, user?.id, displayName, user?.avatarUrl)}
             style={{
               paddingHorizontal: 12,
               paddingVertical: 6,
