@@ -3,11 +3,16 @@ import WebChatLayout from '../components/WebChatLayout';
 import ChatWindow from '../components/ChatWindow';
 import { useGroupStore } from '@/shared/store/useGroupStore';
 import { useChatStore } from '@/shared/store/useChatStore';
+import { useCallStore } from '@/shared/store/useCallStore';
+import IncomingCallNotification from '../components/IncomingCallNotification';
+import CallModal from '../components/CallModal';
+import CallEndNotification from '../components/CallEndNotification';
 
 const HomeWeb = () => {
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
     const { registerOnGroupCreated, unregisterOnGroupCreated } = useGroupStore();
     const { rooms } = useChatStore();
+    const { activeCall } = useCallStore();
 
     // Tự động clear phòng nếu bị out khỏi room (do rời nhóm, vv...)
     useEffect(() => {
@@ -22,6 +27,10 @@ const HomeWeb = () => {
         registerOnGroupCreated((roomId) => setSelectedRoomId(roomId));
         return () => unregisterOnGroupCreated();
     }, []);
+
+    // WebSocket Signaling is now handled globally in WebSocketService.ts
+    // to ensure persistence across all views.
+
 
     return (
         <WebChatLayout
@@ -46,6 +55,11 @@ const HomeWeb = () => {
                     </div>
                 </div>
             )}
+            
+            {/* Global Call UI */}
+            <IncomingCallNotification />
+            <CallEndNotification />
+            {activeCall && <CallModal isOpen={!!activeCall} />}
         </WebChatLayout>
     );
 };

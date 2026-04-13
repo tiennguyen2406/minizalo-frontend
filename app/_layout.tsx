@@ -8,6 +8,9 @@ import {
     initNotificationHandler
 } from "@/services/notificationService";
 import { useAuthStore } from "@/shared/store/authStore";
+import { webSocketService } from "@/shared/services/WebSocketService";
+import IncomingCallModal from "@/views/mobile/chat/components/IncomingCallModal";
+import CallModal from "@/views/mobile/chat/components/CallModal";
 
 // Quyết liệt chặn tất cả các cảnh báo và lỗi liên quan đến expo-notifications trên Expo Go
 LogBox.ignoreLogs([
@@ -44,17 +47,27 @@ export default function RootLayout() {
         // Khởi tạo handler thông báo (đã được bọc an toàn trong notificationService)
         initNotificationHandler();
 
-        // ── Register push notifications ──
-        const accessToken = useAuthStore.getState().accessToken;
-        if (accessToken) {
+        // ── Push Notification & WebSocket ──
+        const setupServices = (token: string) => {
             registerForPushNotificationsAsync()
                 .catch((err) => console.log('[RootLayout] Push registration skipped:', err?.message));
+
+            // WebSocket activation - call queue subscription is handled
+            // automatically inside WebSocketService.onConnect → subscribeCallQueue()
+            webSocketService.activate(token);
+        };
+
+        const currentAuth = useAuthStore.getState();
+        if (currentAuth.accessToken) {
+            setupServices(currentAuth.accessToken);
         }
 
-        // ── Listen for auth changes to re-register ──
+        // ── Listen for auth changes (login, token refresh, logout) ──
         const unsub = useAuthStore.subscribe((state, prevState) => {
-            if (state.accessToken && !prevState.accessToken) {
-                registerForPushNotificationsAsync().catch(() => { });
+            if (state.accessToken && state.accessToken !== prevState.accessToken) {
+                setupServices(state.accessToken);
+            } else if (!state.accessToken && prevState.accessToken) {
+                webSocketService.deactivate();
             }
         });
 
@@ -82,24 +95,29 @@ export default function RootLayout() {
     }, []);
 
     return (
-        <Stack
-            screenOptions={{
-                headerShown: false,
-                animation: "slide_from_right",
-                gestureEnabled: true,
-                gestureDirection: "horizontal",
-                fullScreenGestureEnabled: true,
-            }}
-        >
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen
-                name="chat/[id]"
-                options={{
+        <>
+            <Stack
+                screenOptions={{
+                    headerShown: false,
                     animation: "slide_from_right",
-                    gestureEnabled: false,
+                    gestureEnabled: true,
+                    gestureDirection: "horizontal",
+                    fullScreenGestureEnabled: true,
                 }}
-            />
-        </Stack>
+            >
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen
+                    name="chat/[id]"
+                    options={{
+                        animation: "slide_from_right",
+                        gestureEnabled: false,
+                    }}
+                />
+            </Stack>
+
+            <IncomingCallModal />
+            <CallModal />
+        </>
     );
 }

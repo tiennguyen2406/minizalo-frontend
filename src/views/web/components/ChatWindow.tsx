@@ -13,8 +13,11 @@ import { Message } from '@/shared/types';
 import { webSocketService } from '@/shared/services/WebSocketService';
 import { chatService, MessageDynamo } from '@/shared/services/chatService';
 import { useAuthStore } from '@/shared/store/authStore';
+import { useCallStore } from '../../../shared/store/useCallStore';
 import { MessageService } from '@/shared/services/MessageService';
 import friendService from '@/shared/services/friendService';
+import { callService, CallType } from '@/shared/services/callService';
+import CallModal from './CallModal';
 
 interface ChatWindowProps {
     roomId: string;
@@ -57,6 +60,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         blockedByOther: boolean;
         blockerName: string | null;
     } | null>(null);
+
+    // Call Store Actions
+    const { initiateCall, resetCall } = useCallStore();
+
     const messagesState = messages[roomId] || [];
 
     const currentRoom = rooms.find((r) => r.id === roomId);
@@ -68,7 +75,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
     // Người bạn chat (với 1-1)
     const partner = !isGroupRoom
-        ? currentRoom?.participants?.find((p) => p.id !== currentUserId)
+        ? currentRoom?.participants?.find((p) => String(p.id).toLowerCase() !== String(currentUserId).toLowerCase())
         : undefined;
 
     const isBlocked = blockStatus?.blockedByYou || blockStatus?.blockedByOther || false;
@@ -420,6 +427,33 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
     const infoOpen = isGroupRoom ? isGroupInfoOpen : isInfoOpen;
 
+    const handleCall = async (type: CallType) => {
+        if (!roomId) return;
+        
+        const receiverId = partner?.id;
+        console.log(`[WebCall Debug] My ID: ${currentUserId}`);
+        console.log(`[WebCall Debug] Partner ID: ${receiverId}`);
+        console.log(`[WebCall Debug] Room ID: ${roomId}`);
+
+        if (!receiverId) {
+            alert('Không tìm thấy thông tin người nhận để thực hiện cuộc gọi');
+            return;
+        }
+
+        if (String(receiverId).toLowerCase() === String(currentUserId).toLowerCase()) {
+            console.error('[WebCall Error] Receiver ID is SAME as Current User ID!');
+            alert('Lỗi: Bạn không thể tự gọi cho chính mình.');
+            return;
+        }
+
+        try {
+            console.log(`[WebCall] Initiating ${type} call to: ${receiverId}`);
+            await initiateCall(roomId, receiverId, type, roomName, roomAvatar);
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Không thể thực hiện cuộc gọi. Vui lòng thử lại sau.');
+        }
+    };
+
     return (
         <div className="flex h-full overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', transition: 'background-color 0.3s ease' }}>
             {/* ── Chat area ── */}
@@ -437,18 +471,43 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                             )}
                         </div>
                     </div>
-                    {/* Nút thông tin — hiện cho CẢ 2 loại phòng */}
-                    <button
-                        onClick={handleToggleInfo}
-                        title="Thông tin hội thoại"
-                        className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${infoOpen ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-500'
-                            }`}
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round"
-                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </button>
+                    
+                    <div className="flex items-center gap-2">
+                        {/* Audio Call Button */}
+                        <button
+                            onClick={() => handleCall('VOICE')}
+                            title="Cuộc gọi thoại"
+                            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                        </button>
+
+                        {/* Video Call Button */}
+                        <button
+                            onClick={() => handleCall('VIDEO')}
+                            title="Cuộc gọi video"
+                            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        </button>
+
+                        {/* Nút thông tin — hiện cho CẢ 2 loại phòng */}
+                        <button
+                            onClick={handleToggleInfo}
+                            title="Thông tin hội thoại"
+                            className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${infoOpen ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-500'
+                                }`}
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Pinned Messages Header */}
@@ -641,6 +700,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                     onClose={() => setForwardingMessages(null)}
                 />
             )}
+
         </div>
     );
 };

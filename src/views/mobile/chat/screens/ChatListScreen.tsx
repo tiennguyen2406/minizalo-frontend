@@ -287,7 +287,6 @@ export default function ChatListScreen() {
     const renderItem = ({ item }: { item: any }) => {
         const processedAvatar = getImageUrl(item.avatarUrl);
         const avatarUri = processedAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "User")}&background=random&color=fff`;
-        // Xử lý hiển thị tin nhắn cuối
         let lastMsg = "Chưa có tin nhắn";
         if (item.lastMessage) {
             const lm = item.lastMessage;
@@ -295,6 +294,29 @@ export default function ChatListScreen() {
                 lastMsg = '[Tin nhắn đã thu hồi]';
             } else if (lm.content === '[Tin nhắn đã thu hồi]') {
                 lastMsg = '[Tin nhắn đã thu hồi]';
+            } else if (lm.content && lm.content.trim().startsWith('{') && lm.content.includes('"callType":')) {
+                try {
+                    const parsed = JSON.parse(lm.content);
+                    const isVideo = parsed.callType === 'VIDEO';
+                    const icon = isVideo ? '📹' : '📞';
+                    if (parsed.status === 'MISSED') lastMsg = `${icon} Cuộc gọi nhỡ`;
+                    else if (parsed.status === 'REJECTED' || parsed.status === 'CANCELLED') lastMsg = `${icon} Cuộc gọi bị hủy`;
+                    else if (parsed.duration > 0) {
+                        const m = Math.floor(parsed.duration / 60);
+                        const s = parsed.duration % 60;
+                        const dur = m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+                        lastMsg = `${icon} Cuộc gọi ${isVideo ? 'video' : 'thoại'} - ${dur}`;
+                    } else lastMsg = `${icon} Cuộc gọi ${isVideo ? 'video' : 'thoại'}`;
+                } catch { lastMsg = lm.content; }
+            } else if (lm.type === 'CALL_VOICE' || lm.type === 'CALL_VIDEO') {
+                try {
+                    const parsed = JSON.parse(lm.content);
+                    const isVideo = lm.type === 'CALL_VIDEO';
+                    const icon = isVideo ? '📹' : '📞';
+                    if (parsed.status === 'MISSED') lastMsg = `${icon} Cuộc gọi nhỡ`;
+                    else if (parsed.status === 'REJECTED' || parsed.status === 'CANCELLED') lastMsg = `${icon} Cuộc gọi bị hủy`;
+                    else lastMsg = `${icon} Cuộc gọi ${isVideo ? 'video' : 'thoại'}`;
+                } catch { lastMsg = lm.type === 'CALL_VIDEO' ? '📹 Cuộc gọi video' : '📞 Cuộc gọi thoại'; }
             } else if (lm.type === 'IMAGE') {
                 lastMsg = '[Hình ảnh]';
             } else if (lm.type === 'FILE') {
@@ -313,6 +335,7 @@ export default function ChatListScreen() {
 
         const partner = item.type === 'PRIVATE' ? item.participants.find((p: any) => p.id !== currentUserId) : null;
         const isPartnerStranger = partner && !friendIdSet.has(partner.id);
+        const receiverId = partner?.id || "";
 
         return (
             <Animated.View style={{ opacity: fadeAnim }}>
@@ -323,7 +346,7 @@ export default function ChatListScreen() {
                     time={timeDisplay}
                     unreadCount={item.unreadCount}
                     isVerified={false}
-                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}`)}
+                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}&receiverId=${receiverId}`)}
                 />
             </Animated.View>
         );

@@ -2,6 +2,9 @@ import React, { useState, useRef } from 'react';
 import { Message, User } from '@/shared/types';
 import clsx from 'clsx';
 import LazyImage from './LazyImage';
+import { useCallStore } from '@/shared/store/useCallStore';
+import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed } from 'lucide-react';
+
 
 interface MessageBubbleProps {
     message: Message;
@@ -105,7 +108,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
     // Detect effective type from attachment MIME type if message type is TEXT but has attachments
     let effectiveType = message.type;
-    if ((effectiveType === 'TEXT' || !effectiveType) && effectiveFileUrl && attachment) {
+    
+    // AUTO-DETECT CALL JSON: Thử parse JSON để xác định chính xác loại tin nhắn cuộc gọi
+    let isCallJson = false;
+    if (!message.isRecall && message.content && message.content.trim().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(message.content);
+            if (parsed.status && parsed.callType) {
+                isCallJson = true;
+                effectiveType = (parsed.callType === 'VIDEO' ? 'CALL_VIDEO' : 'CALL_VOICE') as any;
+            }
+        } catch (e) {
+            // Không phải JSON cuộc gọi, bỏ qua
+        }
+    }
+
+    if ((effectiveType === 'TEXT' || !effectiveType) && !isCallJson && effectiveFileUrl && attachment) {
         const mime = (attachment.type || '').toLowerCase();
         if (mime.startsWith('image')) effectiveType = 'IMAGE';
         else if (mime.startsWith('video')) effectiveType = 'VIDEO';
@@ -141,6 +159,83 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
         );
     }
+
+    const renderCallContent = () => {
+        try {
+            const data = JSON.parse(message.content || '{}');
+            const { status, duration, callType, callerId } = data;
+            const isCallFromMe = isMine;
+            const isVideo = callType === 'VIDEO';
+
+            let statusText = '';
+            let Icon = isVideo ? Video : Phone;
+            let iconColor = 'text-blue-500';
+
+            if (status === 'ENDED') {
+                statusText = duration > 0 ? `${Math.floor(duration / 60)} phút ${duration % 60} giây` : 'Cuộc gọi đi';
+                Icon = isCallFromMe ? PhoneOutgoing : PhoneIncoming;
+                iconColor = 'text-green-500';
+            } else if (status === 'REJECTED' || status === 'CANCELLED') {
+                statusText = isCallFromMe ? 'Bạn đã hủy' : 'Cuộc gọi nhỡ';
+                Icon = PhoneMissed;
+                iconColor = 'text-red-500';
+            } else {
+                statusText = isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại';
+            }
+
+            const handleRedial = () => {
+                const receiverId = isMine ? data.receiverId : data.callerId;
+                if (receiverId) {
+                    useCallStore.getState().initiateCall(
+                        message.roomId, // Sử dụng roomId làm conversationId
+                        receiverId,
+                        callType || 'VOICE',
+                        isMine ? undefined : senderName,
+                        isMine ? undefined : senderAvatar
+                    );
+                }
+            };
+
+            return (
+                <div className="flex flex-col py-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <div className={clsx("p-1.5 rounded-full bg-gray-50 flex items-center justify-center", iconColor)}>
+                            <Icon size={15} />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="font-bold text-zinc-800 text-[13px]">
+                                {status === 'ENDED' ? (isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại') : statusText}
+                            </span>
+                            {status === 'ENDED' && (
+                                <div className="flex items-center gap-1 text-zinc-500 text-[11px] mt-0.5">
+                                    <Icon size={10} className={iconColor} />
+                                    <span>{statusText}</span>
+                                </div>
+                            )}
+                            {(status === 'REJECTED' || status === 'CANCELLED') && (
+                                <div className="flex items-center gap-1 text-zinc-500 text-[11px] mt-0.5">
+                                    <PhoneMissed size={10} className="text-red-500" />
+                                    <span>{statusText}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    
+                    <div className="h-[1px] bg-gray-100 w-full mb-1" />
+                    
+                    <button 
+                        onClick={handleRedial}
+                        className="w-full py-0.5 text-blue-600 font-semibold text-[12px] hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-center gap-1"
+                    >
+                        Gọi lại
+                    </button>
+                </div>
+            );
+        } catch (e) {
+            return <span className="text-[15px] italic opacity-80 pr-8">{message.content}</span>;
+        }
+    };
+
 
     return (
         <>
@@ -416,6 +511,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             </div>
                         ) : effectiveType === 'TEXT' || effectiveType === 'REPLY' || effectiveType === 'FORWARD' ? (
                             <span className="text-[15px] leading-relaxed pr-8">{message.content}</span>
+                        ) : (effectiveType as string === 'CALL_VOICE' || effectiveType as string === 'CALL_VIDEO') ? (
+                            renderCallContent()
                         ) : (
                             <span className="text-[15px] italic opacity-80 pr-8">{message.content || '[Loại tin nhắn không hỗ trợ]'}</span>
                         )}

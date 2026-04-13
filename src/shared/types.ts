@@ -105,7 +105,7 @@ export interface Message {
     senderName?: string;
     roomId: string;
     content: string;
-    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'DOCUMENT' | 'STICKER' | 'REPLY' | 'FORWARD' | 'SYSTEM';
+    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'DOCUMENT' | 'STICKER' | 'REPLY' | 'FORWARD' | 'SYSTEM' | 'CALL_VOICE' | 'CALL_VIDEO';
     createdAt: string; 
     updatedAt?: string;
     isDeleted?: boolean;
