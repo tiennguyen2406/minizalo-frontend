@@ -65,7 +65,7 @@ export default function ChatListScreen() {
     // Helper function to process image URLs (similar to ChatScreen)
     const getImageUrl = (url: string) => {
         if (!url) return url;
-        
+
         // Handle MinIO relative paths (e.g., "minizalo-bucket/files/...")
         if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('file:')) {
             const baseUrl = process.env.EXPO_PUBLIC_API_URL?.replace(':8080', ':9000') || '';
@@ -83,7 +83,7 @@ export default function ChatListScreen() {
                 }
             }
         }
-        
+
         return url;
     };
 
@@ -188,7 +188,30 @@ export default function ChatListScreen() {
     const renderItem = ({ item }: { item: (typeof rooms)[number] }) => {
         const processedAvatar = item.avatarUrl ? getImageUrl(item.avatarUrl) : "";
         const avatarUri = processedAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "User")}&background=random&color=fff`;
-        const lastMsg = getChatPreviewText(item.lastMessage as any);
+        let lastMsg = "Chưa có tin nhắn";
+        if (item.lastMessage) {
+            const lm = item.lastMessage;
+            if (lm.recalled || lm.content === '[Tin nhắn đã thu hồi]') {
+                lastMsg = '[Tin nhắn đã thu hồi]';
+            } else if (lm.content && lm.content.trim().startsWith('{') && lm.content.includes('"callType":')) {
+                try {
+                    const parsed = JSON.parse(lm.content);
+                    const isVideo = parsed.callType === 'VIDEO';
+                    const icon = isVideo ? '📹' : '📞';
+                    if (parsed.status === 'MISSED') lastMsg = `${icon} Cuộc gọi nhỡ`;
+                    else if (parsed.status === 'REJECTED' || parsed.status === 'CANCELLED') lastMsg = `${icon} Cuộc gọi bị hủy`;
+                    else if (parsed.duration > 0) {
+                        const m = Math.floor(parsed.duration / 60);
+                        const s = parsed.duration % 60;
+                        const dur = m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+                        lastMsg = `${icon} Cuộc gọi ${isVideo ? 'video' : 'thoại'} - ${dur}`;
+                    } else lastMsg = `${icon} Cuộc gọi ${isVideo ? 'video' : 'thoại'}`;
+                } catch { lastMsg = lm.content; }
+            } else {
+                // Dùng hàm của develop cho các case còn lại
+                lastMsg = getChatPreviewText(item.lastMessage as any);
+            }
+        }
 
         let timeDisplay = "";
         if (item.lastMessage?.createdAt) {
@@ -197,6 +220,7 @@ export default function ChatListScreen() {
 
         const partner = item.type === 'PRIVATE' ? item.participants.find((p: any) => p.id !== currentUserId) : null;
         const isPartnerStranger = partner && !friendIdSet.has(partner.id);
+        const receiverId = partner?.id || "";
         return (
             <Animated.View style={{ opacity: fadeAnim }}>
                 <ChatItem
@@ -209,7 +233,7 @@ export default function ChatListScreen() {
                     isPinned={pinnedRooms.has(item.id)}
                     isMuted={mutedRooms.has(String(item.id))}
                     onLongPress={() => setActionRoom(item)}
-                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}${partner?.id ? `&targetUserId=${partner.id}` : ""}`)}
+                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}${partner?.id ? `&targetUserId=${partner.id}` : ""}&receiverId=${receiverId}`)}
                 />
             </Animated.View>
         );
@@ -342,30 +366,30 @@ export default function ChatListScreen() {
                     ListEmptyComponent={
                         rooms.length > 0 && displayRooms.length === 0
                             ? () => (
-                                  <View
-                                      style={{
-                                          alignItems: "center",
-                                          paddingHorizontal: 32,
-                                          paddingTop: 32,
-                                      }}
-                                  >
-                                      <Ionicons
-                                          name="people-outline"
-                                          size={48}
-                                          color={colors.textSecondary}
-                                      />
-                                      <Text
-                                          style={{
-                                              color: colors.textSecondary,
-                                              fontSize: 15,
-                                              marginTop: 12,
-                                              textAlign: "center",
-                                          }}
-                                      >
-                                          {tabEmptyMessage()}
-                                      </Text>
-                                  </View>
-                              )
+                                <View
+                                    style={{
+                                        alignItems: "center",
+                                        paddingHorizontal: 32,
+                                        paddingTop: 32,
+                                    }}
+                                >
+                                    <Ionicons
+                                        name="people-outline"
+                                        size={48}
+                                        color={colors.textSecondary}
+                                    />
+                                    <Text
+                                        style={{
+                                            color: colors.textSecondary,
+                                            fontSize: 15,
+                                            marginTop: 12,
+                                            textAlign: "center",
+                                        }}
+                                    >
+                                        {tabEmptyMessage()}
+                                    </Text>
+                                </View>
+                            )
                             : undefined
                     }
                     renderItem={renderItem}

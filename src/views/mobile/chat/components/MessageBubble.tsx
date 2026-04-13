@@ -60,7 +60,7 @@ const LinkableText = ({ text, style }: { text: string, style: any }) => {
 const LinkPreview = ({ url, isMe }: { url: string, isMe: boolean }) => {
     const colors = useThemeColors();
     const domain = url.replace(/https?:\/\//, "").split("/")[0];
-    
+
     return (
         <TouchableOpacity
             onPress={() => Linking.openURL(url)}
@@ -297,9 +297,9 @@ export default function MessageBubble({
             const extension = finalUrl.split(".").pop()?.split("?")[0]?.toLowerCase() || "jpg";
             const filename = originalFileName || `cache_${urlHash}.${extension}`;
             const localUri = `${cacheDirectory}${filename}`;
-            
+
             showToast("Đang chuẩn bị ảnh...");
-            
+
             // ─── OPTIMIZE CACHE: Check if file already exists ───
             const info = await FileSystem.getInfoAsync(localUri);
             let targetUri = localUri;
@@ -309,7 +309,7 @@ export default function MessageBubble({
                 if (!downloadRes) throw new Error("Download for copy failed");
                 targetUri = downloadRes.uri;
             }
-            
+
             const base64 = await readAsStringAsync(targetUri, { encoding: EncodingType.Base64 });
             await Clipboard.setImageAsync(base64);
             showToast("Đã sao chép hình ảnh!");
@@ -392,7 +392,7 @@ export default function MessageBubble({
         try {
             const finalUrl = getImageUrl(url);
             showToast("Đang chuẩn bị mở...");
-            
+
             const extension = finalUrl.split(".").pop()?.split("?")[0]?.toLowerCase() || "";
             const filename = originalFileName || `view_${Date.now()}.${extension}`;
             const localUri = `${cacheDirectory}${filename}`;
@@ -479,8 +479,19 @@ export default function MessageBubble({
     /** Gộp nhóm ảnh từ web: ẩn chuỗi tên file xuống dưới — coi như chỉ ảnh để bo bubble đúng */
     const layoutHasText = hasText && !hideFilenameCaption;
 
-    const isMediaOnly = (hasImages || hasVideos || hasFiles) && !layoutHasText && !isRecalled;
+    let isCallMessage = false;
+    let callData: { status?: string; duration?: number; callType?: string; callerId?: string; receiverId?: string } = {};
+    if (hasText && message.content && message.content.trim().startsWith('{') && message.content.includes('"callType":')) {
+        try {
+            const parsed = JSON.parse(message.content);
+            if (parsed.status && parsed.callType) {
+                isCallMessage = true;
+                callData = parsed;
+            }
+        } catch { }
+    }
 
+    const isMediaOnly = (hasImages || hasVideos || hasFiles) && !layoutHasText && !isRecalled && !isCallMessage;
     const bubbleBackground = isRecalled
         ? (theme === 'dark' ? "#1c1c1e" : "#e5e5ea")
         : (isMediaOnly
@@ -497,7 +508,6 @@ export default function MessageBubble({
             onLongPress(message, attachment);
         }
     };
-
     const effectiveType = (message.type === "TEXT" && isGroupActionSystemText(message.content))
         ? "SYSTEM"
         : message.type;
@@ -522,12 +532,12 @@ export default function MessageBubble({
                 alignItems: isMe ? "flex-end" : "flex-start",
                 ...(hl
                     ? {
-                          borderWidth: 3,
-                          borderColor: "#facc15",
-                          borderRadius: 20,
-                          marginVertical: 4,
-                          backgroundColor: "rgba(254, 240, 138, 0.35)",
-                      }
+                        borderWidth: 3,
+                        borderColor: "#facc15",
+                        borderRadius: 20,
+                        marginVertical: 4,
+                        backgroundColor: "rgba(254, 240, 138, 0.35)",
+                    }
                     : {}),
             }}
         >
@@ -977,8 +987,88 @@ export default function MessageBubble({
                             </View>
                         )}
 
+                        {/* Call message bubble */}
+                        {isCallMessage && !isRecalled && (
+                            <View style={{ paddingHorizontal: 8, paddingVertical: 1 }}>
+                                {(() => {
+                                    const isVideo = callData.callType === 'VIDEO';
+                                    const status = callData.status;
+                                    const dur = callData.duration || 0;
+                                    let statusText = isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại';
+                                    let iconName: any = isVideo ? 'videocam' : 'call';
+                                    let iconColor = '#007AFF';
+
+                                    if (status === 'ENDED' && dur > 0) {
+                                        const m = Math.floor(dur / 60);
+                                        const s = dur % 60;
+                                        statusText = m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+                                        iconName = isMe ? 'call-outline' : 'call';
+                                        iconColor = '#34C759';
+                                    } else if (status === 'MISSED') {
+                                        statusText = isMe ? 'Không trả lời' : 'Cuộc gọi nhỡ';
+                                        iconName = 'call';
+                                        iconColor = '#FF3B30';
+                                    } else if (status === 'REJECTED' || status === 'CANCELLED') {
+                                        statusText = isMe ? 'Đã hủy' : 'Cuộc gọi nhỡ';
+                                        iconName = 'call';
+                                        iconColor = '#FF3B30';
+                                    }
+
+                                    const titleText = status === 'ENDED'
+                                        ? (isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại')
+                                        : statusText;
+
+                                    return (
+                                        <>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                                                <View style={{
+                                                    width: 30, height: 30, borderRadius: 15,
+                                                    backgroundColor: isMe ? 'rgba(255,255,255,0.2)' : '#F2F2F7',
+                                                    justifyContent: 'center', alignItems: 'center',
+                                                }}>
+                                                    <Ionicons name={iconName} size={15} color={iconColor} />
+                                                </View>
+                                                <View>
+                                                    <Text style={{ fontWeight: '700', fontSize: 13, color: textColor }}>{titleText}</Text>
+                                                    {status === 'ENDED' && dur > 0 && (
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                                            <Ionicons name={isMe ? 'arrow-up' : 'arrow-down'} size={12} color={iconColor} />
+                                                            <Text style={{ fontSize: 12, color: isMe ? 'rgba(255,255,255,0.7)' : '#8E8E93' }}>{statusText}</Text>
+                                                        </View>
+                                                    )}
+                                                    {(status === 'MISSED' || status === 'REJECTED' || status === 'CANCELLED') && (
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                                            <Ionicons name="close-circle" size={12} color="#FF3B30" />
+                                                            <Text style={{ fontSize: 12, color: isMe ? 'rgba(255,255,255,0.7)' : '#8E8E93' }}>{statusText}</Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            </View>
+                                            <View style={{ height: 1, backgroundColor: isMe ? 'rgba(255,255,255,0.15)' : '#E5E5EA', marginBottom: 4 }} />
+                                            <TouchableOpacity
+                                                style={{ alignItems: 'center', paddingVertical: 2 }}
+                                                onPress={() => {
+                                                    const { useCallStore } = require('@/shared/store/useCallStore');
+                                                    const receiverId = isMe ? callData.receiverId : callData.callerId;
+                                                    if (receiverId) {
+                                                        useCallStore.getState().initiateCall(
+                                                            message.chatRoomId,
+                                                            receiverId,
+                                                            callData.callType || 'VOICE'
+                                                        );
+                                                    }
+                                                }}
+                                            >
+                                                <Text style={{ color: isMe ? '#fff' : '#007AFF', fontWeight: '600', fontSize: 12 }}>Gọi lại</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    );
+                                })()}
+                            </View>
+                        )}
+
                         {/* Text content with Link Detection */}
-                        {(hasText || isRecalled) && !hideFilenameCaption && (
+                        {(hasText && !isCallMessage || isRecalled) && !hideFilenameCaption && (
                             <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
                                 {isRecalled ? (
                                     <Text
@@ -992,187 +1082,199 @@ export default function MessageBubble({
                                         Tin nhắn đã được thu hồi
                                     </Text>
                                 ) : (
-                                    <LinkableText 
-                                        text={message.content || ""} 
+                                    <LinkableText
+                                        text={message.content || ""}
                                         style={{
                                             color: textColor,
                                             fontSize: 15,
                                             lineHeight: 22,
-                                        }} 
+                                        }}
                                     />
                                 )}
                             </View>
-                        )}
+                        )
+                        }
 
                         {/* Link Preview (Simple implementation) */}
-                        {!hideFilenameCaption && !isRecalled && hasText && message.content?.match(/https?:\/\/[^\s]+/) && (
-                            <LinkPreview url={message.content.match(/https?:\/\/[^\s]+/)?.[0] || ""} isMe={isMe} />
-                        )}
+                        {
+                            !hideFilenameCaption && !isRecalled && hasText && message.content?.match(/https?:\/\/[^\s]+/) && (
+                                <LinkPreview url={message.content.match(/https?:\/\/[^\s]+/)?.[0] || ""} isMe={isMe} />
+                            )
+                        }
 
                         {/* Time */}
-                        {time && !isError ? (
-                            <View
-                                style={{
-                                    alignSelf: "flex-end",
-                                    paddingHorizontal: isMediaOnly ? 6 : 12,
-                                    paddingVertical: isMediaOnly ? 2 : 0,
-                                    paddingBottom: isMediaOnly ? 4 : 6,
-                                    marginRight: isMediaOnly ? 8 : 0,
-                                    marginBottom: isMediaOnly ? 8 : 0,
-                                    backgroundColor: isMediaOnly ? "rgba(0,0,0,0.4)" : "transparent",
-                                    borderRadius: 10,
-                                    marginTop: (hasImages || hasVideos) && !layoutHasText ? (isMediaOnly ? -24 : 4) : 0,
-                                    zIndex: 5,
-                                }}
-                            >
-                                <Text
-                                    style={{
-                                        fontSize: 10,
-                                        color: isRecalled
-                                            ? colors.textSecondary
-                                            : (isMediaOnly
-                                                ? "#ffffff"
-                                                : (isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary)),
-                                        textAlign: "right",
-                                    }}
-                                >
-                                    {time}
-                                </Text>
-                            </View>
-                        ) : null}
-                    </View>
-
-                    {/* Error message */}
-                    {isError && (
-                        <Text
-                            style={{
-                                color: "#e74c3c", // Red color
-                                fontSize: 11,
-                                marginTop: 4,
-                                alignSelf: isMe ? "flex-end" : "flex-start",
-                            }}
-                        >
-                            Không gửi được
-                        </Text>
-                    )}
-
-                    {/* Reactions */}
-                    {Array.isArray(message.reactions) && message.reactions.length > 0 && !isRecalled && (
-                        <TouchableOpacity
-                            onPress={() => onPressReactions?.(message)}
-                            activeOpacity={0.8}
-                            style={{
-                                flexDirection: "row",
-                                flexWrap: "wrap",
-                                alignSelf: isMe ? "flex-end" : "flex-start",
-                                marginTop: -10, // Overlap slightly with bubble for premium look
-                                marginRight: isMe ? 12 : 0,
-                                marginLeft: !isMe ? 12 : 0,
-                                backgroundColor: theme === 'dark' ? "#2c2c2e" : "#ffffff",
-                                borderRadius: 14,
-                                paddingHorizontal: 8,
-                                paddingVertical: 4,
-                                borderWidth: 1,
-                                borderColor: colors.border,
-                                maxWidth: '80%',
-                                shadowColor: "#000",
-                                shadowOffset: { width: 0, height: 1 },
-                                shadowOpacity: 0.15,
-                                shadowRadius: 2,
-                                elevation: 3,
-                                zIndex: 10,
-                            }}
-                        >
-                            {Object.entries(
-                                message.reactions.reduce<Record<string, number>>((acc, r) => {
-                                    if (!r?.emoji) return acc;
-                                    acc[r.emoji] = (acc[r.emoji] || 0) + 1;
-                                    return acc;
-                                }, {})
-                            ).map(([emoji, count]) => (
+                        {
+                            time && !isError ? (
                                 <View
-                                    key={emoji}
                                     style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        marginHorizontal: 2,
+                                        alignSelf: "flex-end",
+                                        paddingHorizontal: isMediaOnly ? 6 : 12,
+                                        paddingVertical: isMediaOnly ? 2 : 0,
+                                        paddingBottom: isMediaOnly ? 4 : 6,
+                                        marginRight: isMediaOnly ? 8 : 0,
+                                        marginBottom: isMediaOnly ? 8 : 0,
+                                        backgroundColor: isMediaOnly ? "rgba(0,0,0,0.4)" : "transparent",
+                                        borderRadius: 10,
+                                        marginTop: (hasImages || hasVideos) && !layoutHasText ? (isMediaOnly ? -24 : 4) : 0,
+                                        zIndex: 5,
                                     }}
                                 >
-                                    <Text style={{ fontSize: 11, marginRight: 2 }}>{emoji}</Text>
                                     <Text
                                         style={{
-                                            color: colors.text,
-                                            fontSize: 9,
-                                            fontWeight: "600",
+                                            fontSize: 10,
+                                            color: isRecalled
+                                                ? colors.textSecondary
+                                                : (isMediaOnly
+                                                    ? "#ffffff"
+                                                    : (isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary)),
+                                            textAlign: "right",
                                         }}
                                     >
-                                        {count}
+                                        {time}
                                     </Text>
                                 </View>
-                            ))}
-                        </TouchableOpacity>
-                    )}
-                </TouchableOpacity>
-            )}
+                            ) : null
+                        }
+                    </View >
+
+                    {/* Error message */}
+                    {
+                        isError && (
+                            <Text
+                                style={{
+                                    color: "#e74c3c", // Red color
+                                    fontSize: 11,
+                                    marginTop: 4,
+                                    alignSelf: isMe ? "flex-end" : "flex-start",
+                                }}
+                            >
+                                Không gửi được
+                            </Text>
+                        )
+                    }
+
+                    {/* Reactions */}
+                    {
+                        Array.isArray(message.reactions) && message.reactions.length > 0 && !isRecalled && (
+                            <TouchableOpacity
+                                onPress={() => onPressReactions?.(message)}
+                                activeOpacity={0.8}
+                                style={{
+                                    flexDirection: "row",
+                                    flexWrap: "wrap",
+                                    alignSelf: isMe ? "flex-end" : "flex-start",
+                                    marginTop: -10, // Overlap slightly with bubble for premium look
+                                    marginRight: isMe ? 12 : 0,
+                                    marginLeft: !isMe ? 12 : 0,
+                                    backgroundColor: theme === 'dark' ? "#2c2c2e" : "#ffffff",
+                                    borderRadius: 14,
+                                    paddingHorizontal: 8,
+                                    paddingVertical: 4,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    maxWidth: '80%',
+                                    shadowColor: "#000",
+                                    shadowOffset: { width: 0, height: 1 },
+                                    shadowOpacity: 0.15,
+                                    shadowRadius: 2,
+                                    elevation: 3,
+                                    zIndex: 10,
+                                }}
+                            >
+                                {Object.entries(
+                                    message.reactions.reduce<Record<string, number>>((acc, r) => {
+                                        if (!r?.emoji) return acc;
+                                        acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                                        return acc;
+                                    }, {})
+                                ).map(([emoji, count]) => (
+                                    <View
+                                        key={emoji}
+                                        style={{
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            marginHorizontal: 2,
+                                        }}
+                                    >
+                                        <Text style={{ fontSize: 11, marginRight: 2 }}>{emoji}</Text>
+                                        <Text
+                                            style={{
+                                                color: colors.text,
+                                                fontSize: 9,
+                                                fontWeight: "600",
+                                            }}
+                                        >
+                                            {count}
+                                        </Text>
+                                    </View>
+                                ))}
+                            </TouchableOpacity>
+                        )
+                    }
+                </TouchableOpacity >
+            )
+            }
 
             {/* ─── Privacy blocked notice (Zalo-style) ─── */}
-            {isMe && message.privacyBlocked && (
-                <View
-                    style={{
-                        flexDirection: "row",
-                        alignItems: "flex-start",
-                        alignSelf: "flex-start",
-                        marginTop: 4,
-                        maxWidth: "75%",
-                    }}
-                >
+            {
+                isMe && message.privacyBlocked && (
                     <View
                         style={{
-                            width: 30,
-                            height: 30,
-                            borderRadius: 15,
-                            backgroundColor: theme === 'dark' ? "#3a3a3c" : "#e0e0e0",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            marginRight: 6,
-                            marginTop: 2,
+                            flexDirection: "row",
+                            alignItems: "flex-start",
+                            alignSelf: "flex-start",
+                            marginTop: 4,
+                            maxWidth: "75%",
                         }}
                     >
-                        {senderAvatarUrl ? (
-                            <Image
-                                source={{ uri: senderAvatarUrl }}
-                                style={{ width: 30, height: 30, borderRadius: 15 }}
-                            />
-                        ) : (
-                            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.textSecondary }}>
-                                {(partnerName || "?").charAt(0).toUpperCase()}
+                        <View
+                            style={{
+                                width: 30,
+                                height: 30,
+                                borderRadius: 15,
+                                backgroundColor: theme === 'dark' ? "#3a3a3c" : "#e0e0e0",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                marginRight: 6,
+                                marginTop: 2,
+                            }}
+                        >
+                            {senderAvatarUrl ? (
+                                <Image
+                                    source={{ uri: senderAvatarUrl }}
+                                    style={{ width: 30, height: 30, borderRadius: 15 }}
+                                />
+                            ) : (
+                                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.textSecondary }}>
+                                    {(partnerName || "?").charAt(0).toUpperCase()}
+                                </Text>
+                            )}
+                        </View>
+                        <View
+                            style={{
+                                backgroundColor: theme === 'dark' ? "#2c2c2e" : "#ffffff",
+                                borderRadius: 12,
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
+                                flex: 1,
+                                borderWidth: 0.5,
+                                borderColor: theme === 'dark' ? "#3a3a3c" : "#e0e0e0",
+                            }}
+                        >
+                            <Text style={{ color: colors.text, fontSize: 13, lineHeight: 18 }}>
+                                {partnerName || "Người này"} không nhận tin nhắn từ người lạ.{"\n"}
+                                <Text
+                                    style={{ color: colors.primary, fontWeight: "600" }}
+                                    onPress={onAddFriend}
+                                >
+                                    Kết bạn ngay
+                                </Text>
+                                {" để gửi tin nhắn."}
                             </Text>
-                        )}
+                        </View>
                     </View>
-                    <View
-                        style={{
-                            backgroundColor: theme === 'dark' ? "#2c2c2e" : "#ffffff",
-                            borderRadius: 12,
-                            paddingHorizontal: 12,
-                            paddingVertical: 8,
-                            flex: 1,
-                            borderWidth: 0.5,
-                            borderColor: theme === 'dark' ? "#3a3a3c" : "#e0e0e0",
-                        }}
-                    >
-                        <Text style={{ color: colors.text, fontSize: 13, lineHeight: 18 }}>
-                            {partnerName || "Người này"} không nhận tin nhắn từ người lạ.{"\n"}
-                            <Text
-                                style={{ color: colors.primary, fontWeight: "600" }}
-                                onPress={onAddFriend}
-                            >
-                                Kết bạn ngay
-                            </Text>
-                            {" để gửi tin nhắn."}
-                        </Text>
-                    </View>
-                </View>
-            )}
+                )
+            }
 
             {/* ─── Full-screen image gallery with header/footer ─── */}
             <Modal
@@ -1276,10 +1378,10 @@ export default function MessageBubble({
 
                         {/* Download */}
                         <TouchableOpacity
-                            onPress={() => { 
+                            onPress={() => {
                                 const att = imageAttachments[currentIndex];
-                                const url = getImageUrl(att?.url || ""); 
-                                if (url) handleDownload(url, att?.name); 
+                                const url = getImageUrl(att?.url || "");
+                                if (url) handleDownload(url, att?.name);
                             }}
                             style={{ padding: 8, marginLeft: 4 }}
                         >
@@ -1311,10 +1413,10 @@ export default function MessageBubble({
                             </Text>
                         )}
                         <TouchableOpacity
-                            onPress={() => { 
+                            onPress={() => {
                                 const att = imageAttachments[currentIndex];
-                                const url = getImageUrl(att?.url || ""); 
-                                if (url) handleShare(url, att?.name); 
+                                const url = getImageUrl(att?.url || "");
+                                if (url) handleShare(url, att?.name);
                             }}
                             style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.18)", justifyContent: "center", alignItems: "center" }}
                         >
@@ -1472,10 +1574,10 @@ export default function MessageBubble({
 
                         {/* Download */}
                         <TouchableOpacity
-                            onPress={() => { 
+                            onPress={() => {
                                 const att = videoAttachments[currentVideoIndex];
-                                const url = getImageUrl(att?.url || ""); 
-                                if (url) handleDownload(url, att?.name); 
+                                const url = getImageUrl(att?.url || "");
+                                if (url) handleDownload(url, att?.name);
                             }}
                             style={{ padding: 8, marginLeft: 4 }}
                         >
@@ -1507,10 +1609,10 @@ export default function MessageBubble({
                             </Text>
                         )}
                         <TouchableOpacity
-                            onPress={() => { 
+                            onPress={() => {
                                 const att = videoAttachments[currentVideoIndex];
-                                const url = getImageUrl(att?.url || ""); 
-                                if (url) handleShare(url, att?.name); 
+                                const url = getImageUrl(att?.url || "");
+                                if (url) handleShare(url, att?.name);
                             }}
                             style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.18)", justifyContent: "center", alignItems: "center" }}
                         >
@@ -1695,34 +1797,35 @@ export default function MessageBubble({
             </Modal>
 
             {/* ─── Global Toast Notification (Restored Animation) ─── */}
-            {toastMsg && (
-                <View 
-                    pointerEvents="none"
-                    style={{ 
-                        position: "absolute", 
-                        bottom: 120, 
-                        left: 0, 
-                        right: 0, 
-                        alignItems: "center", 
-                        zIndex: 9999999
-                    }}
-                >
-                    <Animated.View style={{
-                        backgroundColor: "rgba(0, 0, 0, 0.9)",
-                        paddingHorizontal: 22,
-                        paddingVertical: 14,
-                        borderRadius: 30,
-                        opacity: toastOpacity,
-                        elevation: 20,
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.25,
-                        shadowRadius: 3.84,
-                    }}>
-                        <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{toastMsg}</Text>
-                    </Animated.View>
-                </View>
-            )}
+            {
+                toastMsg && (
+                    <View
+                        pointerEvents="none"
+                        style={{
+                            position: "absolute",
+                            bottom: 120,
+                            left: 0,
+                            right: 0,
+                            alignItems: "center",
+                            zIndex: 9999999
+                        }}
+                    >
+                        <Animated.View style={{
+                            backgroundColor: "rgba(0, 0, 0, 0.9)",
+                            paddingHorizontal: 22,
+                            paddingVertical: 14,
+                            borderRadius: 30,
+                            opacity: toastOpacity,
+                            elevation: 20,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.25,
+                            shadowRadius: 3.84,
+                        }}>
+                            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>{toastMsg}</Text>
+                        </Animated.View>
+                    </View>
+                )}
         </View>
     );
 }

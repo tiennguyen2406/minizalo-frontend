@@ -18,7 +18,7 @@ export default function StrangerChatsScreen() {
     const currentUserId = useAuthStore.getState().user?.id;
     const getImageUrl = (url: string | undefined | null) => {
         if (!url) return null;
-        
+
         // Handle MinIO relative paths (e.g., "minizalo-bucket/files/...")
         if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('file:')) {
             const baseUrl = process.env.EXPO_PUBLIC_API_URL?.replace(':8080', ':9000') || '';
@@ -36,7 +36,7 @@ export default function StrangerChatsScreen() {
                 }
             }
         }
-        
+
         return url;
     };
 
@@ -51,7 +51,29 @@ export default function StrangerChatsScreen() {
     });
 
     const renderItem = ({ item }: { item: any }) => {
-        const lastMsg = getChatPreviewText(item.lastMessage);
+        let lastMsg = getChatPreviewText(item.lastMessage);
+
+        // Ghi đè nếu là call message (getChatPreviewText chưa xử lý)
+        if (item.lastMessage) {
+            const lm = item.lastMessage;
+            if (lm.content && lm.content.trim().startsWith('{') && lm.content.includes('"callType":')) {
+                try {
+                    const parsed = JSON.parse(lm.content);
+                    const isVideo = parsed.callType === 'VIDEO';
+                    const icon = isVideo ? '📹' : '📞';
+                    if (parsed.status === 'MISSED') lastMsg = `${icon} Cuộc gọi nhỡ`;
+                    else if (parsed.status === 'REJECTED' || parsed.status === 'CANCELLED') lastMsg = `${icon} Cuộc gọi bị hủy`;
+                    else if (parsed.duration > 0) {
+                        const m = Math.floor(parsed.duration / 60);
+                        const s = parsed.duration % 60;
+                        const dur = m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+                        lastMsg = `${icon} Cuộc gọi ${isVideo ? 'video' : 'thoại'} - ${dur}`;
+                    } else lastMsg = `${icon} Cuộc gọi ${isVideo ? 'video' : 'thoại'}`;
+                } catch { lastMsg = lm.content; }
+            } else if (lm.type === 'CALL_VOICE' || lm.type === 'CALL_VIDEO') {
+                lastMsg = lm.type === 'CALL_VIDEO' ? '📹 Cuộc gọi video' : '📞 Cuộc gọi thoại';
+            }
+        }
 
         const avatarUri = getImageUrl(item.avatarUrl) || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "U")}`;
 
@@ -67,7 +89,7 @@ export default function StrangerChatsScreen() {
                     const partner = item.participants.find((p: any) => p.id !== currentUserId);
                     router.push({
                         pathname: "/chat/[id]",
-                        params: { 
+                        params: {
                             id: item.id,
                             name: item.name || "",
                             type: 'DIRECT',
@@ -83,10 +105,10 @@ export default function StrangerChatsScreen() {
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
             <SafeAreaView style={{ backgroundColor: colors.headerBg }}>
-                <View style={{ 
-                    height: 52, 
-                    flexDirection: 'row', 
-                    alignItems: 'center', 
+                <View style={{
+                    height: 52,
+                    flexDirection: 'row',
+                    alignItems: 'center',
                     paddingHorizontal: 16,
                     borderBottomWidth: 0.5,
                     borderBottomColor: colors.border
