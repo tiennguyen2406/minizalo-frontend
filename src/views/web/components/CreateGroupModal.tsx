@@ -12,7 +12,7 @@ interface Friend {
 }
 
 const CreateGroupModal: React.FC = () => {
-    const { isCreateGroupOpen, closeCreateGroup, onGroupCreated } = useGroupStore();
+    const { isCreateGroupOpen, closeCreateGroup, onGroupCreated, createGroupPreselectedIds } = useGroupStore();
     const { upsertRoom } = useChatStore();
 
     const [groupName, setGroupName] = useState('');
@@ -35,11 +35,11 @@ const CreateGroupModal: React.FC = () => {
             setFriends(mapped);
         }).catch(console.error);
         setGroupName('');
-        setSelectedIds([]);
+        setSelectedIds(Array.isArray(createGroupPreselectedIds) ? [...new Set(createGroupPreselectedIds.filter(Boolean))] : []);
         setSearchQuery('');
         setError('');
         setTimeout(() => inputRef.current?.focus(), 100);
-    }, [isCreateGroupOpen]);
+    }, [isCreateGroupOpen, createGroupPreselectedIds]);
 
     const filteredFriends = friends.filter((f) => {
         const q = searchQuery.toLowerCase();

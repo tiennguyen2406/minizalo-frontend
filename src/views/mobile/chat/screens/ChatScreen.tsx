@@ -42,10 +42,7 @@ import * as Clipboard from "expo-clipboard";
 import * as FileSystem from "expo-file-system/legacy";
 const { documentDirectory, cacheDirectory, downloadAsync, readAsStringAsync, EncodingType } = FileSystem;
 import { useAuthStore } from "@/shared/store/authStore";
-import {
-    isStrangerMessagesNotAllowedError,
-    STRANGER_MESSAGES_DEFAULT_TEXT,
-} from "@/shared/utils/chatErrors";
+import { validateFileSize } from "@/shared/constants";
 import { useLocalSearchParams } from "expo-router";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -166,12 +163,6 @@ export default function ChatScreen() {
             }
         });
     };
-
-    const currentUserId = useUserStore((s) => s.profile?.id);
-    const rooms = useChatStore((s) => s.rooms);
-    const strangerRejectionSignal = useChatStore((s) => s.strangerRejectionSignal);
-    const unblockUser = useFriendStore((s) => s.unblockUser);
-    const blockedUsers = useFriendStore((s) => s.blockedUsers);
 
     const [blockStatus, setBlockStatus] = useState<{
         blockedByYou: boolean;
@@ -329,40 +320,6 @@ export default function ChatScreen() {
             useChatStore.getState().setCurrentRoom(null);
         };
     }, [roomId]);
-
-    // Đồng bộ từ chối tin (chỉ bạn bè): store cập nhật danh sách phòng; đây cập nhật FlatList.
-    useEffect(() => {
-        if (!strangerRejectionSignal || strangerRejectionSignal.roomId !== roomId) return;
-        const text = strangerRejectionSignal.text;
-        setMessages((prev) => {
-            const uid = (currentUserId || "").toLowerCase();
-            const filtered = prev.filter(
-                (m) =>
-                    !(
-                        m.messageId.startsWith("temp-") &&
-                        m.senderId?.toLowerCase() === uid
-                    )
-            );
-            const sys: MessageDynamo = {
-                messageId: `sys-stranger-${strangerRejectionSignal.nonce}`,
-                chatRoomId: roomId,
-                senderId: "system",
-                senderName: "",
-                content: text,
-                attachments: [],
-                type: "SYSTEM",
-                createdAt: new Date().toISOString(),
-                replyToMessageId: "",
-                read: true,
-                readBy: [],
-                reactions: [],
-                recalled: false,
-                recalledAt: "",
-                pinned: false,
-            };
-            return [sys, ...filtered];
-        });
-    }, [strangerRejectionSignal?.nonce, roomId, currentUserId]);
 
     // ─── WebSocket: subscribe to room for realtime ───
     useEffect(() => {
@@ -626,41 +583,20 @@ export default function ChatScreen() {
         }, 100);
 
         try {
-            if (roomType === "GROUP") {
-                // Nhóm: WS trước, REST khi mất kết nối
-                const sentViaWs = webSocketService.sendChatMessage(
-                    roomId,
-                    content,
-                    "TEXT",
-                    replyTo?.messageId
-                );
-                if (!sentViaWs) {
-                    await chatService.sendMessage(roomId, content, replyTo?.messageId);
-                    await fetchMessages();
-                }
-            } else {
-                // Chat 1-1: REST để từ chối ngay (chỉ bạn bè) + thông báo rõ ràng
-                await chatService.sendMessage(roomId, content, replyTo?.messageId);
-                await fetchMessages();
+            const sentViaWs = webSocketService.sendChatMessage(
+                workingRoomId!,
+                content,
+                "TEXT",
+                replyTo?.messageId
+            );
+            if (!sentViaWs) {
+                await chatService.sendMessage(workingRoomId!, content, replyTo?.messageId);
             }
-        } catch (err) {
-            if (isStrangerMessagesNotAllowedError(err)) {
-                const apiMsg = (err as { response?: { data?: { message?: string } } }).response
-                    ?.data?.message;
-                const text =
-                    typeof apiMsg === "string" && apiMsg.trim()
-                        ? apiMsg.trim()
-                        : STRANGER_MESSAGES_DEFAULT_TEXT;
-                useChatStore.getState().applyStrangerMessageRejection(roomId, text);
-                showToast(text, "info");
-            } else {
-                showToast("Gửi tin nhắn thất bại", "error");
-                setMessages((prev) =>
-                    prev.map(m =>
-                        m.messageId === optimisticMsg.messageId ? { ...m, isError: true } : m
-                    )
-                );
-            }
+        } catch (err: any) {
+            showToast("Gửi tin nhắn thất bại", "error");
+            setMessages((prev) =>
+                prev.map(m => m.messageId === optimisticMsg.messageId ? { ...m, isError: true } : m)
+            );
         } finally {
             setSending(false);
             setReplyTo(null);
@@ -670,6 +606,17 @@ export default function ChatScreen() {
     // ─── Send image(s) ───
     const handleSendImage = async (assets: ImagePicker.ImagePickerAsset[]) => {
         if (!roomId || sending || assets.length === 0) return;
+        for (const a of assets) {
+            const sz = a.fileSize;
+            if (sz != null && sz > 0) {
+                const mime = a.mimeType || (a.type === "video" ? "video/mp4" : "image/jpeg");
+                const err = validateFileSize({ size: sz, type: mime });
+                if (err) {
+                    Alert.alert("Giới hạn dung lượng", err);
+                    return;
+                }
+            }
+        }
         setSending(true);
 
         const msgType = assets.some(a => a.type === "video") ? "VIDEO" : "IMAGE";
@@ -747,65 +694,17 @@ export default function ChatScreen() {
                 )
             );
 
-            if (roomType === "GROUP") {
-                const sentViaWs = webSocketService.sendChatMessage(
-                    roomId,
-                    "",
-                    msgType,
-                    undefined,
-                    uploadedAttachments
-                );
-                if (!sentViaWs) {
-                    try {
-                        await chatService.sendMessage(
-                            roomId,
-                            "",
-                            undefined,
-                            msgType as any,
-                            uploadedAttachments,
-                        );
-                        await fetchMessages();
-                    } catch (sendErr) {
-                        if (isStrangerMessagesNotAllowedError(sendErr)) {
-                            const apiMsg = (
-                                sendErr as { response?: { data?: { message?: string } } }
-                            ).response?.data?.message;
-                            const text =
-                                typeof apiMsg === "string" && apiMsg.trim()
-                                    ? apiMsg.trim()
-                                    : STRANGER_MESSAGES_DEFAULT_TEXT;
-                            useChatStore.getState().applyStrangerMessageRejection(roomId, text);
-                            showToast(text, "info");
-                        } else {
-                            throw sendErr;
-                        }
-                    }
-                }
-            } else {
-                try {
-                    await chatService.sendMessage(
-                        roomId,
-                        "",
-                        undefined,
-                        msgType as any,
-                        uploadedAttachments,
-                    );
-                    await fetchMessages();
-                } catch (sendErr) {
-                    if (isStrangerMessagesNotAllowedError(sendErr)) {
-                        const apiMsg = (
-                            sendErr as { response?: { data?: { message?: string } } }
-                        ).response?.data?.message;
-                        const text =
-                            typeof apiMsg === "string" && apiMsg.trim()
-                                ? apiMsg.trim()
-                                : STRANGER_MESSAGES_DEFAULT_TEXT;
-                        useChatStore.getState().applyStrangerMessageRejection(roomId, text);
-                        showToast(text, "info");
-                    } else {
-                        throw sendErr;
-                    }
-                }
+            // Send message with all attachments via WebSocket
+            const sentViaWs = webSocketService.sendChatMessage(
+                roomId,
+                "",
+                msgType,
+                undefined,
+                uploadedAttachments
+            );
+            if (!sentViaWs) {
+                await chatService.sendMessage(roomId, "", undefined, msgType as any, uploadedAttachments);
+                await fetchMessages();
             }
         } catch (err) {
             showToast("Gửi file phương tiện thất bại", "error");
@@ -820,6 +719,14 @@ export default function ChatScreen() {
     // ─── Send file ───
     const handleSendFile = async (file: DocumentPicker.DocumentPickerAsset) => {
         if (!roomId || sending) return;
+        const fsz = file.size;
+        if (fsz != null && fsz > 0) {
+            const err = validateFileSize({ size: fsz, type: file.mimeType || "" });
+            if (err) {
+                Alert.alert("Giới hạn dung lượng", err);
+                return;
+            }
+        }
         setSending(true);
 
         const tempId = `temp-file-${Date.now()}`;
@@ -890,53 +797,16 @@ export default function ChatScreen() {
                 )
             );
 
-            if (roomType === "GROUP") {
-                const sentViaWs = webSocketService.sendChatMessage(
-                    roomId,
-                    "",
-                    "FILE",
-                    undefined,
-                    [attachment]
-                );
-                if (!sentViaWs) {
-                    try {
-                        await chatService.sendMessage(roomId, "", undefined, "FILE", [attachment]);
-                        await fetchMessages();
-                    } catch (sendErr) {
-                        if (isStrangerMessagesNotAllowedError(sendErr)) {
-                            const apiMsg = (
-                                sendErr as { response?: { data?: { message?: string } } }
-                            ).response?.data?.message;
-                            const text =
-                                typeof apiMsg === "string" && apiMsg.trim()
-                                    ? apiMsg.trim()
-                                    : STRANGER_MESSAGES_DEFAULT_TEXT;
-                            useChatStore.getState().applyStrangerMessageRejection(roomId, text);
-                            showToast(text, "info");
-                        } else {
-                            throw sendErr;
-                        }
-                    }
-                }
-            } else {
-                try {
-                    await chatService.sendMessage(roomId, "", undefined, "FILE", [attachment]);
-                    await fetchMessages();
-                } catch (sendErr) {
-                    if (isStrangerMessagesNotAllowedError(sendErr)) {
-                        const apiMsg = (
-                            sendErr as { response?: { data?: { message?: string } } }
-                        ).response?.data?.message;
-                        const text =
-                            typeof apiMsg === "string" && apiMsg.trim()
-                                ? apiMsg.trim()
-                                : STRANGER_MESSAGES_DEFAULT_TEXT;
-                        useChatStore.getState().applyStrangerMessageRejection(roomId, text);
-                        showToast(text, "info");
-                    } else {
-                        throw sendErr;
-                    }
-                }
+            const sentViaWs = webSocketService.sendChatMessage(
+                roomId,
+                "",
+                "FILE",
+                undefined,
+                [attachment]
+            );
+            if (!sentViaWs) {
+                await chatService.sendMessage(roomId, "", undefined, "FILE", [attachment]);
+                await fetchMessages();
             }
         } catch (err: any) {
             showToast("Gửi file thất bại", "error");

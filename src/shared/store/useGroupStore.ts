@@ -8,6 +8,7 @@ interface GroupState {
     isAddMembersOpen: boolean;
     isLoading: boolean;
     error: string | null;
+    createGroupPreselectedIds: string[];
 
     /**
      * Callback được HomeWeb (hoặc bất kỳ screen nào) đăng ký.
@@ -23,7 +24,7 @@ interface GroupState {
     openGroupInfo: () => void;
     closeGroupInfo: () => void;
 
-    openCreateGroup: () => void;
+    openCreateGroup: (preSelectedIds?: string[]) => void;
     closeCreateGroup: () => void;
 
     openAddMembers: () => void;
@@ -45,6 +46,7 @@ export const useGroupStore = create<GroupState>((set) => ({
     isLoading: false,
     error: null,
     onGroupCreated: null,
+    createGroupPreselectedIds: [],
 
     setCurrentGroupDetail: (group) => set({ currentGroupDetail: group }),
     updateCurrentGroupDetail: (group) => set({ currentGroupDetail: group }),
@@ -52,8 +54,11 @@ export const useGroupStore = create<GroupState>((set) => ({
     openGroupInfo: () => set({ isGroupInfoOpen: true }),
     closeGroupInfo: () => set({ isGroupInfoOpen: false, isAddMembersOpen: false }),
 
-    openCreateGroup: () => set({ isCreateGroupOpen: true }),
-    closeCreateGroup: () => set({ isCreateGroupOpen: false }),
+    openCreateGroup: (preSelectedIds) => set({
+        isCreateGroupOpen: true,
+        createGroupPreselectedIds: Array.isArray(preSelectedIds) ? preSelectedIds.filter(Boolean) : [],
+    }),
+    closeCreateGroup: () => set({ isCreateGroupOpen: false, createGroupPreselectedIds: [] }),
 
     openAddMembers: () => set({ isAddMembersOpen: true }),
     closeAddMembers: () => set({ isAddMembersOpen: false }),
@@ -71,5 +76,6 @@ export const useGroupStore = create<GroupState>((set) => ({
         isAddMembersOpen: false,
         isLoading: false,
         error: null,
+        createGroupPreselectedIds: [],
     })
 }));
