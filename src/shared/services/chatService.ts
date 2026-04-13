@@ -1,5 +1,6 @@
 import { api, API_BASE_URL } from "@/shared/services/apiClient";
 import axios from "axios";
+import type { ChatRoom, Message } from "@/shared/types";
 
 // Type definitions based on backend ChatRoomResponse
 export interface UserResponse {
@@ -65,6 +66,46 @@ export interface PaginatedMessageResult {
     lastEvaluatedKey: string | null;
 }
 
+/** Map phòng từ API (sau accept kết bạn / tạo phòng) → model ChatRoom của store. */
+export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom {
+    const id = String(room.id);
+    const type: ChatRoom["type"] = room.type === "GROUP" ? "GROUP" : "PRIVATE";
+    const participants: ChatRoom["participants"] = (room.members || []).map((m: any) => ({
+        id: m.user?.id != null ? String(m.user.id) : "",
+        username: m.user?.username ?? "",
+        fullName: m.user?.displayName ?? m.user?.username ?? "",
+        avatarUrl: m.user?.avatarUrl,
+        businessDescription: m.user?.businessDescription ?? undefined,
+    }));
+    const updatedAt =
+        room.lastMessage?.createdAt ||
+        (room.createdAt ? new Date(room.createdAt).toISOString() : new Date().toISOString());
+    const frontendRoom: ChatRoom = {
+        id,
+        type,
+        name: room.name,
+        avatarUrl: room.avatarUrl,
+        unreadCount: room.unreadCount ?? 0,
+        updatedAt,
+        participants,
+    };
+    if (room.lastMessage) {
+        const lm = room.lastMessage as MessageDynamo;
+        frontendRoom.lastMessage = {
+            id: lm.messageId,
+            roomId: id,
+            senderId: lm.senderId,
+            senderName: lm.senderName,
+            content: lm.content || "",
+            type: (lm.type as Message["type"]) || "TEXT",
+            createdAt: lm.createdAt,
+            isRecall: !!lm.recalled,
+            attachments: lm.attachments,
+        };
+    }
+    return frontendRoom;
+}
+
 export const chatService = {
     getChatRooms: async (): Promise<ChatRoomResponse[]> => {
         console.log("Fetching chat rooms from:", API_BASE_URL + "/chat/rooms");
@@ -100,7 +141,7 @@ export const chatService = {
         roomId: string, 
         content: string, 
         replyToMessageId?: string,
-        type: "TEXT" | "IMAGE" | "FILE" | "VIDEO" = "TEXT",
+        type: "TEXT" | "IMAGE" | "FILE" | "VIDEO" | "FOLDER" = "TEXT",
         attachments?: Attachment[]
     ): Promise<MessageDynamo> => {
         const body: any = {

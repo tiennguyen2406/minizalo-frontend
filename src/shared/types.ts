@@ -3,6 +3,8 @@ export interface User {
     username: string;
     fullName: string;
     avatarUrl?: string; // Optional as it might not be in all responses
+    /** Mô tả doanh nghiệp — hiển thị nhãn Business + panel thông tin. */
+    businessDescription?: string | null;
 }
 
 export interface ChatMessageRequest {
@@ -53,7 +55,7 @@ export interface Message {
     senderName?: string;
     roomId: string;
     content: string;
-    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'DOCUMENT' | 'STICKER' | 'REPLY' | 'FORWARD' | 'SYSTEM';
+    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'DOCUMENT' | 'FOLDER' | 'STICKER' | 'REPLY' | 'FORWARD' | 'SYSTEM';
     createdAt: string; // ISO string
     updatedAt?: string;
     isDeleted?: boolean;

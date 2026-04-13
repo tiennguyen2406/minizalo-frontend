@@ -22,8 +22,15 @@ export default function FriendsListScreen({
   searchText,
   onSearchChange,
 }: FriendsListScreenProps) {
-  const { friends, loading, error, fetchFriends, removeFriend, blockUser, clearError } =
-    useFriendStore();
+  const {
+    friends,
+    loading,
+    error,
+    fetchFriends,
+    removeFriend,
+    blockUser,
+    clearError,
+  } = useFriendStore();
   const isDark = useThemeStore((s) => s.theme === "dark");
   const [internalSearch, setInternalSearch] = useState("");
   const search = searchText ?? internalSearch;
@@ -341,7 +348,7 @@ export default function FriendsListScreen({
       <div
         style={{
           padding: "12px 16px 8px",
-          borderBottom: `1px solid ${isDark ? 'var(--border-primary)' : '#e3e6ea'}`,
+          borderBottom: `1px solid ${isDark ? "var(--border-primary)" : "#e3e6ea"}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -349,14 +356,23 @@ export default function FriendsListScreen({
       >
         <div>
           <h2
-            style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 600,
+              color: "var(--text-primary)",
+            }}
           >
             Danh sách bạn bè
           </h2>
-          <div style={{ marginTop: 4, fontSize: 12, color: "var(--text-tertiary)" }}>
-            {friends.length > 0
-              ? `Bạn bè (${friends.length})`
-              : ""}
+          <div
+            style={{
+              marginTop: 4,
+              fontSize: 12,
+              color: "var(--text-tertiary)",
+            }}
+          >
+            {friends.length > 0 ? `Bạn bè (${friends.length})` : ""}
           </div>
         </div>
       </div>
@@ -365,7 +381,7 @@ export default function FriendsListScreen({
       <div
         style={{
           padding: "8px 16px 12px",
-          borderBottom: `1px solid ${isDark ? 'var(--border-primary)' : '#e5e7eb'}`,
+          borderBottom: `1px solid ${isDark ? "var(--border-primary)" : "#e5e7eb"}`,
           backgroundColor: isDark ? "var(--bg-primary)" : "#f9fafb",
           display: "flex",
           alignItems: "center",
@@ -381,7 +397,7 @@ export default function FriendsListScreen({
             alignItems: "center",
             padding: "6px 10px",
             borderRadius: 999,
-            border: `1px solid ${isDark ? 'var(--border-secondary)' : '#d1d5db'}`,
+            border: `1px solid ${isDark ? "var(--border-secondary)" : "#d1d5db"}`,
             backgroundColor: isDark ? "var(--bg-tertiary)" : "#fff",
             gap: 6,
             transition: "background-color 0.3s ease",
@@ -417,7 +433,7 @@ export default function FriendsListScreen({
           style={{
             padding: "6px 14px",
             borderRadius: 999,
-            border: `1px solid ${isDark ? 'var(--border-secondary)' : '#e5e7eb'}`,
+            border: `1px solid ${isDark ? "var(--border-secondary)" : "#e5e7eb"}`,
             backgroundColor: isDark ? "var(--bg-tertiary)" : "#f3f4f6",
             fontSize: 12,
             color: "var(--text-primary)",
@@ -440,7 +456,7 @@ export default function FriendsListScreen({
             style={{
               padding: "6px 14px",
               borderRadius: 999,
-              border: `1px solid ${isDark ? 'var(--border-secondary)' : '#e5e7eb'}`,
+              border: `1px solid ${isDark ? "var(--border-secondary)" : "#e5e7eb"}`,
               backgroundColor: isDark ? "var(--bg-tertiary)" : "#f3f4f6",
               fontSize: 12,
               color: "var(--text-primary)",
@@ -458,7 +474,9 @@ export default function FriendsListScreen({
               <span style={{ fontSize: 14 }}>⏷</span>
               <span>{selectedCategoryLabel}</span>
             </span>
-            <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>▾</span>
+            <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
+              ▾
+            </span>
           </button>
 
           {categoryMenuOpen && (
@@ -469,7 +487,7 @@ export default function FriendsListScreen({
                 right: 0,
                 width: 240,
                 backgroundColor: "var(--bg-primary)",
-                border: `1px solid ${isDark ? 'var(--border-secondary)' : '#e5e7eb'}`,
+                border: `1px solid ${isDark ? "var(--border-secondary)" : "#e5e7eb"}`,
                 borderRadius: 12,
                 boxShadow: "var(--shadow-lg)",
                 overflow: "hidden",
@@ -496,7 +514,9 @@ export default function FriendsListScreen({
                   color: "var(--text-primary)",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = isDark ? "var(--bg-hover)" : "#f9fafb";
+                  e.currentTarget.style.backgroundColor = isDark
+                    ? "var(--bg-hover)"
+                    : "#f9fafb";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = "transparent";
@@ -528,7 +548,9 @@ export default function FriendsListScreen({
                     color: "var(--text-primary)",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = isDark ? "var(--bg-hover)" : "#f9fafb";
+                    e.currentTarget.style.backgroundColor = isDark
+                      ? "var(--bg-hover)"
+                      : "#f9fafb";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = "transparent";
@@ -548,7 +570,12 @@ export default function FriendsListScreen({
                 </button>
               ))}
 
-              <div style={{ height: 1, backgroundColor: isDark ? "var(--border-primary)" : "#e5e7eb" }} />
+              <div
+                style={{
+                  height: 1,
+                  backgroundColor: isDark ? "var(--border-primary)" : "#e5e7eb",
+                }}
+              />
               <button
                 type="button"
                 onClick={openManageCategories}
@@ -563,7 +590,9 @@ export default function FriendsListScreen({
                   textAlign: "center" as const,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = isDark ? "var(--bg-hover)" : "#f9fafb";
+                  e.currentTarget.style.backgroundColor = isDark
+                    ? "var(--bg-hover)"
+                    : "#f9fafb";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = "transparent";
@@ -589,14 +618,33 @@ export default function FriendsListScreen({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--danger)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="12" y1="8" x2="12" y2="12"></line>
               <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>Lỗi tải dữ liệu</span>
-              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{error}</span>
+              <span
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                }}
+              >
+                Lỗi tải dữ liệu
+              </span>
+              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                {error}
+              </span>
             </div>
           </div>
           <button
@@ -619,62 +667,177 @@ export default function FriendsListScreen({
       )}
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, overflowY: "auto", backgroundColor: isDark ? "var(--bg-secondary)" : "#f9fafb", transition: "background-color 0.3s ease" }}>
-
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          backgroundColor: isDark ? "var(--bg-secondary)" : "#f9fafb",
+          transition: "background-color 0.3s ease",
+        }}
+      >
         {/* Loading state */}
         {loading && (
-          <div style={{ padding: 40, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%" }}>
-            <div style={{
-              width: 32,
-              height: 32,
-              border: "3px solid var(--border-primary)",
-              borderTop: "3px solid var(--accent)",
-              borderRadius: "50%",
-              animation: "spin 1s linear infinite",
-              marginBottom: 16
-            }} />
+          <div
+            style={{
+              padding: 40,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                border: "3px solid var(--border-primary)",
+                borderTop: "3px solid var(--accent)",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+                marginBottom: 16,
+              }}
+            />
             <style>{`
               @keyframes spin {
                 0% { transform: rotate(0deg); }
                 100% { transform: rotate(360deg); }
               }
             `}</style>
-            <span style={{ color: "var(--text-secondary)", fontSize: 14, fontWeight: 500 }}>Đang tải danh sách bạn bè...</span>
+            <span
+              style={{
+                color: "var(--text-secondary)",
+                fontSize: 14,
+                fontWeight: 500,
+              }}
+            >
+              Đang tải danh sách bạn bè...
+            </span>
           </div>
         )}
 
         {/* Empty state */}
         {!loading && !error && friends.length === 0 && (
-          <div style={{ padding: "60px 24px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center" }}>
-            <div style={{ width: 120, height: 120, borderRadius: "50%", backgroundColor: isDark ? "var(--bg-tertiary)" : "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
-              <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <div
+            style={{
+              padding: "60px 24px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                width: 120,
+                height: 120,
+                borderRadius: "50%",
+                backgroundColor: isDark ? "var(--bg-tertiary)" : "#f3f4f6",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 20,
+              }}
+            >
+              <svg
+                width="60"
+                height="60"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--text-muted)"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                 <circle cx="9" cy="7" r="4"></circle>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
               </svg>
             </div>
-            <h3 style={{ margin: "0 0 8px 0", fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>Chưa có bạn bè</h3>
-            <p style={{ margin: 0, fontSize: 14, color: "var(--text-secondary)", maxWidth: 300, lineHeight: 1.5 }}>
-              Tìm kiếm bạn bè bằng số điện thoại để kết nối và trò chuyện cùng nhau.
+            <h3
+              style={{
+                margin: "0 0 8px 0",
+                fontSize: 18,
+                fontWeight: 600,
+                color: "var(--text-primary)",
+              }}
+            >
+              Chưa có bạn bè
+            </h3>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 14,
+                color: "var(--text-secondary)",
+                maxWidth: 300,
+                lineHeight: 1.5,
+              }}
+            >
+              Tìm kiếm bạn bè bằng số điện thoại để kết nối và trò chuyện cùng
+              nhau.
             </p>
           </div>
         )}
 
         {/* Search Not found state */}
-        {!loading && !error && friends.length > 0 && search && groupedFriends.length === 0 && (
-          <div style={{ padding: "40px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-            <div style={{ width: 80, height: 80, borderRadius: "50%", backgroundColor: isDark ? "var(--bg-tertiary)" : "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
+        {!loading &&
+          !error &&
+          friends.length > 0 &&
+          search &&
+          groupedFriends.length === 0 && (
+            <div
+              style={{
+                padding: "40px 24px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: "50%",
+                  backgroundColor: isDark ? "var(--bg-tertiary)" : "#f3f4f6",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 16,
+                }}
+              >
+                <svg
+                  width="40"
+                  height="40"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--text-muted)"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 14,
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Không tìm thấy ai có tên "
+                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                  {search}
+                </span>
+                "
+              </p>
             </div>
-            <p style={{ margin: 0, fontSize: 14, color: "var(--text-secondary)" }}>
-              Không tìm thấy ai có tên "<span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{search}</span>"
-            </p>
-          </div>
-        )}
+          )}
         {groupedFriends.map(([letter, items]) => (
           <div key={letter}>
             {/* Header chữ cái */}
@@ -702,7 +865,7 @@ export default function FriendsListScreen({
                     alignItems: "center",
                     padding: "8px 16px",
                     backgroundColor: "var(--bg-primary)",
-                    borderBottom: `1px solid ${isDark ? 'var(--border-primary)' : '#f3f4f6'}`,
+                    borderBottom: `1px solid ${isDark ? "var(--border-primary)" : "#f3f4f6"}`,
                     cursor: "pointer",
                     transition: "background-color 0.15s ease",
                   }}
@@ -714,7 +877,9 @@ export default function FriendsListScreen({
                       borderRadius: "50%",
                       overflow: "hidden",
                       marginRight: 12,
-                      backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "#e3e7ed",
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.1)"
+                        : "#e3e7ed",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -810,8 +975,10 @@ export default function FriendsListScreen({
                         width: 28,
                         height: 28,
                         borderRadius: 999,
-                        border: `1px solid ${isDark ? 'var(--border-secondary)' : '#e5e7eb'}`,
-                        backgroundColor: isDark ? "var(--bg-tertiary)" : "#f9fafb",
+                        border: `1px solid ${isDark ? "var(--border-secondary)" : "#e5e7eb"}`,
+                        backgroundColor: isDark
+                          ? "var(--bg-tertiary)"
+                          : "#f9fafb",
                         color: "var(--text-secondary)",
                         display: "flex",
                         alignItems: "center",
@@ -833,7 +1000,7 @@ export default function FriendsListScreen({
                           width: 220,
                           backgroundColor: "var(--bg-primary)",
                           borderRadius: 12,
-                          border: `1px solid ${isDark ? 'var(--border-secondary)' : '#e5e7eb'}`,
+                          border: `1px solid ${isDark ? "var(--border-secondary)" : "#e5e7eb"}`,
                           boxShadow: "var(--shadow-lg)",
                           // cần overflow visible để submenu "Phân loại" không bị cắt
                           overflow: "visible",
@@ -853,7 +1020,9 @@ export default function FriendsListScreen({
                             cursor: "pointer",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = isDark ? "var(--bg-hover)" : "#f9fafb";
+                            e.currentTarget.style.backgroundColor = isDark
+                              ? "var(--bg-hover)"
+                              : "#f9fafb";
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor =
@@ -881,7 +1050,9 @@ export default function FriendsListScreen({
                             cursor: "pointer",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = isDark ? "var(--bg-hover)" : "#f9fafb";
+                            e.currentTarget.style.backgroundColor = isDark
+                              ? "var(--bg-hover)"
+                              : "#f9fafb";
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor =
@@ -907,7 +1078,7 @@ export default function FriendsListScreen({
                               width: 240,
                               backgroundColor: "var(--bg-primary)",
                               borderRadius: 12,
-                              border: `1px solid ${isDark ? 'var(--border-secondary)' : '#e5e7eb'}`,
+                              border: `1px solid ${isDark ? "var(--border-secondary)" : "#e5e7eb"}`,
                               boxShadow: "var(--shadow-lg)",
                               overflow: "hidden",
                               zIndex: 61,
@@ -992,7 +1163,12 @@ export default function FriendsListScreen({
                             })}
 
                             <div
-                              style={{ height: 1, backgroundColor: isDark ? "var(--border-primary)" : "#e5e7eb" }}
+                              style={{
+                                height: 1,
+                                backgroundColor: isDark
+                                  ? "var(--border-primary)"
+                                  : "#e5e7eb",
+                              }}
                             />
                             <button
                               type="button"
@@ -1036,7 +1212,9 @@ export default function FriendsListScreen({
                             cursor: "pointer",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = isDark ? "var(--bg-hover)" : "#f9fafb";
+                            e.currentTarget.style.backgroundColor = isDark
+                              ? "var(--bg-hover)"
+                              : "#f9fafb";
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor =
@@ -1051,7 +1229,12 @@ export default function FriendsListScreen({
                         </button>
 
                         <div
-                          style={{ height: 1, backgroundColor: isDark ? "var(--border-primary)" : "#e5e7eb" }}
+                          style={{
+                            height: 1,
+                            backgroundColor: isDark
+                              ? "var(--border-primary)"
+                              : "#e5e7eb",
+                          }}
                         />
 
                         <button
@@ -1067,7 +1250,9 @@ export default function FriendsListScreen({
                             cursor: "pointer",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = isDark ? "var(--bg-hover)" : "#f9fafb";
+                            e.currentTarget.style.backgroundColor = isDark
+                              ? "var(--bg-hover)"
+                              : "#f9fafb";
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor =
@@ -1100,7 +1285,9 @@ export default function FriendsListScreen({
                             cursor: "pointer",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = isDark ? "rgba(239, 68, 68, 0.1)" : "#fef2f2";
+                            e.currentTarget.style.backgroundColor = isDark
+                              ? "rgba(239, 68, 68, 0.1)"
+                              : "#fef2f2";
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor =
@@ -1111,8 +1298,8 @@ export default function FriendsListScreen({
                             handleRemoveClick(
                               friendUser.id,
                               friendUser.displayName ||
-                              friendUser.username ||
-                              "người này",
+                                friendUser.username ||
+                                "người này",
                             );
                           }}
                         >
@@ -1191,8 +1378,8 @@ export default function FriendsListScreen({
               <strong>"{confirmBlock.userName}"</strong>?
               <br />
               <span style={{ fontSize: 13 }}>
-                Người này sẽ không thể nhắn tin cho bạn và bạn cũng không thể nhắn tin cho họ.
-                Bạn bè vẫn được giữ nguyên trong danh sách.
+                Người này sẽ không thể nhắn tin cho bạn và bạn cũng không thể
+                nhắn tin cho họ. Bạn bè vẫn được giữ nguyên trong danh sách.
               </span>
             </p>
             <div
@@ -1208,7 +1395,8 @@ export default function FriendsListScreen({
                 style={{
                   padding: "8px 20px",
                   borderRadius: 10,
-                  border: `1px solid ${isDark ? "var(--border-secondary)" : "#d1d5db"}`, backgroundColor: isDark ? "var(--bg-tertiary)" : "#fff",
+                  border: `1px solid ${isDark ? "var(--border-secondary)" : "#d1d5db"}`,
+                  backgroundColor: isDark ? "var(--bg-tertiary)" : "#fff",
                   color: "var(--text-secondary)",
                   fontSize: 14,
                   fontWeight: 500,
@@ -1307,7 +1495,8 @@ export default function FriendsListScreen({
                 style={{
                   padding: "8px 16px",
                   borderRadius: 8,
-                  border: `1px solid ${isDark ? "var(--border-secondary)" : "#d1d5db"}`, backgroundColor: isDark ? "var(--bg-tertiary)" : "#fff",
+                  border: `1px solid ${isDark ? "var(--border-secondary)" : "#d1d5db"}`,
+                  backgroundColor: isDark ? "var(--bg-tertiary)" : "#fff",
                   color: "var(--text-secondary)",
                   fontSize: 14,
                   fontWeight: 500,
@@ -1372,7 +1561,13 @@ export default function FriendsListScreen({
                 justifyContent: "space-between",
               }}
             >
-              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
+              <div
+                style={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                }}
+              >
                 Quản lý thẻ phân loại
               </div>
               <button
@@ -1476,7 +1671,13 @@ export default function FriendsListScreen({
                         }}
                       />
                     ) : (
-                      <div style={{ flex: 1, fontSize: 14, color: "var(--text-primary)" }}>
+                      <div
+                        style={{
+                          flex: 1,
+                          fontSize: 14,
+                          color: "var(--text-primary)",
+                        }}
+                      >
                         {c.name}
                       </div>
                     )}
@@ -1508,7 +1709,9 @@ export default function FriendsListScreen({
                             padding: "6px 10px",
                             borderRadius: 10,
                             border: `1px solid ${isDark ? "var(--border-primary)" : "#e5e7eb"}`,
-                            backgroundColor: isDark ? "var(--bg-primary)" : "#fff",
+                            backgroundColor: isDark
+                              ? "var(--bg-primary)"
+                              : "#fff",
                             color: "var(--text-secondary)",
                             cursor: "pointer",
                             fontSize: 12,
@@ -1526,7 +1729,9 @@ export default function FriendsListScreen({
                             padding: "6px 10px",
                             borderRadius: 10,
                             border: `1px solid ${isDark ? "var(--border-primary)" : "#e5e7eb"}`,
-                            backgroundColor: isDark ? "var(--bg-primary)" : "#fff",
+                            backgroundColor: isDark
+                              ? "var(--bg-primary)"
+                              : "#fff",
                             color: "var(--text-secondary)",
                             cursor: "pointer",
                             fontSize: 12,
@@ -1540,8 +1745,10 @@ export default function FriendsListScreen({
                           style={{
                             padding: "6px 10px",
                             borderRadius: 10,
-                            border: `1px solid ${isDark ? 'var(--danger)' : '#fecaca'}`,
-                            backgroundColor: isDark ? "rgba(239, 68, 68, 0.1)" : "#fff",
+                            border: `1px solid ${isDark ? "var(--danger)" : "#fecaca"}`,
+                            backgroundColor: isDark
+                              ? "rgba(239, 68, 68, 0.1)"
+                              : "#fff",
                             color: "var(--danger)",
                             cursor: "pointer",
                             fontSize: 12,
@@ -1587,8 +1794,24 @@ export default function FriendsListScreen({
             }}
           >
             {/* Header: Thông tin tài khoản */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${isDark ? 'var(--border-primary)' : '#e5e7eb'}` }}>
-              <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>Thông tin tài khoản</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 16px",
+                borderBottom: `1px solid ${isDark ? "var(--border-primary)" : "#e5e7eb"}`,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                }}
+              >
+                Thông tin tài khoản
+              </span>
               <button
                 onClick={() => setViewingProfile(null)}
                 style={{
@@ -1613,7 +1836,8 @@ export default function FriendsListScreen({
                 style={{
                   height: 140,
                   backgroundColor: "var(--bg-message-own)",
-                  backgroundImage: "url('https://camo.githubusercontent.com/6a17b08ed55cc0d68f23df2a875cfccae5f0c431ab68eab11db428ce0a969eef/68747470733a2f2f7062732e7477696d672e636f6d2f70726f66696c655f62616e6e6572732f313134373436353930353037383038373638302f313436363030383838332f3135303078353030')",
+                  backgroundImage:
+                    "url('https://camo.githubusercontent.com/6a17b08ed55cc0d68f23df2a875cfccae5f0c431ab68eab11db428ce0a969eef/68747470733a2f2f7062732e7477696d672e636f6d2f70726f66696c655f62616e6e6572732f313134373436353930353037383038373638302f313436363030383838332f3135303078353030')",
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                   position: "relative",
@@ -1622,7 +1846,15 @@ export default function FriendsListScreen({
               />
 
               {/* Avatar and Name */}
-              <div style={{ position: "relative", padding: "0 16px", marginTop: -40, display: "flex", alignItems: "flex-end" }}>
+              <div
+                style={{
+                  position: "relative",
+                  padding: "0 16px",
+                  marginTop: -40,
+                  display: "flex",
+                  alignItems: "flex-end",
+                }}
+              >
                 <div
                   style={{
                     width: 72,
@@ -1643,19 +1875,67 @@ export default function FriendsListScreen({
                   {viewingProfile.avatarUrl ? (
                     <img
                       src={viewingProfile.avatarUrl}
-                      alt={viewingProfile.displayName || viewingProfile.username}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      alt={
+                        viewingProfile.displayName || viewingProfile.username
+                      }
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
                     />
                   ) : (
-                    (viewingProfile.displayName || viewingProfile.username || "?").charAt(0).toUpperCase()
+                    (
+                      viewingProfile.displayName ||
+                      viewingProfile.username ||
+                      "?"
+                    )
+                      .charAt(0)
+                      .toUpperCase()
                   )}
                 </div>
-                <div style={{ marginLeft: 16, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 500, color: "var(--text-primary)" }}>
+                <div
+                  style={{
+                    marginLeft: 16,
+                    marginBottom: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: 18,
+                      fontWeight: 500,
+                      color: "var(--text-primary)",
+                    }}
+                  >
                     {viewingProfile.displayName || viewingProfile.username}
                   </h3>
-                  <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", padding: 0, display: "flex" }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                  <button
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--text-secondary)",
+                      padding: 0,
+                      display: "flex",
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 20h9"></path>
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -1686,7 +1966,9 @@ export default function FriendsListScreen({
                     flex: 1,
                     padding: "8px 0",
                     borderRadius: 6,
-                    backgroundColor: isDark ? "rgba(137,180,250,0.15)" : "#e5efff",
+                    backgroundColor: isDark
+                      ? "rgba(137,180,250,0.15)"
+                      : "#e5efff",
                     color: "var(--accent)",
                     border: "none",
                     fontWeight: 600,
@@ -1699,42 +1981,94 @@ export default function FriendsListScreen({
               </div>
 
               {/* Divider */}
-              <div style={{ height: 8, backgroundColor: isDark ? "var(--bg-secondary)" : "#f3f4f6" }} />
+              <div
+                style={{
+                  height: 8,
+                  backgroundColor: isDark ? "var(--bg-secondary)" : "#f3f4f6",
+                }}
+              />
 
               {/* Section: Thông tin cá nhân */}
               <div style={{ padding: "16px" }}>
-                <h4 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>Thông tin cá nhân</h4>
+                <h4
+                  style={{
+                    margin: "0 0 16px 0",
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  Thông tin cá nhân
+                </h4>
 
-                <div style={{ display: "flex", marginBottom: 12, fontSize: 14 }}>
-                  <div style={{ width: 100, color: "var(--text-tertiary)" }}>Giới tính</div>
+                <div
+                  style={{ display: "flex", marginBottom: 12, fontSize: 14 }}
+                >
+                  <div style={{ width: 100, color: "var(--text-tertiary)" }}>
+                    Giới tính
+                  </div>
                   <div style={{ color: "var(--text-primary)" }}>
-                    {viewingProfile.gender === "MALE" ? "Nam" : (viewingProfile.gender === "FEMALE" ? "Nữ" : (viewingProfile.gender || "Chưa cập nhật"))}
+                    {viewingProfile.gender === "MALE"
+                      ? "Nam"
+                      : viewingProfile.gender === "FEMALE"
+                        ? "Nữ"
+                        : viewingProfile.gender || "Chưa cập nhật"}
                   </div>
                 </div>
 
-                <div style={{ display: "flex", marginBottom: 12, fontSize: 14 }}>
-                  <div style={{ width: 100, color: "var(--text-tertiary)" }}>Ngày sinh</div>
+                <div
+                  style={{ display: "flex", marginBottom: 12, fontSize: 14 }}
+                >
+                  <div style={{ width: 100, color: "var(--text-tertiary)" }}>
+                    Ngày sinh
+                  </div>
                   <div style={{ color: "var(--text-primary)" }}>
-                    {viewingProfile.dateOfBirth ? (() => {
-                      try {
-                        const d = new Date(viewingProfile.dateOfBirth);
-                        return d.toLocaleDateString("vi-VN", { day: '2-digit', month: '2-digit', year: 'numeric' });
-                      } catch {
-                        return viewingProfile.dateOfBirth;
-                      }
-                    })() : "••/••/••••"}
+                    {viewingProfile.dateOfBirth
+                      ? (() => {
+                          try {
+                            const d = new Date(viewingProfile.dateOfBirth);
+                            return d.toLocaleDateString("vi-VN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            });
+                          } catch {
+                            return viewingProfile.dateOfBirth;
+                          }
+                        })()
+                      : "••/••/••••"}
                   </div>
                 </div>
 
-                <div style={{ display: "flex", marginBottom: viewingProfile.businessDescription ? 12 : 0, fontSize: 14 }}>
-                  <div style={{ width: 100, color: "var(--text-tertiary)" }}>Điện thoại</div>
-                  <div style={{ color: "var(--text-primary)" }}>{viewingProfile.phone || viewingProfile.username}</div>
+                <div
+                  style={{
+                    display: "flex",
+                    marginBottom: viewingProfile.businessDescription ? 12 : 0,
+                    fontSize: 14,
+                  }}
+                >
+                  <div style={{ width: 100, color: "var(--text-tertiary)" }}>
+                    Điện thoại
+                  </div>
+                  <div style={{ color: "var(--text-primary)" }}>
+                    {viewingProfile.phone || viewingProfile.username}
+                  </div>
                 </div>
 
                 {viewingProfile.businessDescription && (
-                  <div style={{ display: "flex", marginBottom: 0, fontSize: 14 }}>
-                    <div style={{ width: 100, color: "var(--text-tertiary)" }}>Mô tả</div>
-                    <div style={{ color: "var(--text-primary)", flex: 1, whiteSpace: "pre-wrap" }}>
+                  <div
+                    style={{ display: "flex", marginBottom: 0, fontSize: 14 }}
+                  >
+                    <div style={{ width: 100, color: "var(--text-tertiary)" }}>
+                      Mô tả
+                    </div>
+                    <div
+                      style={{
+                        color: "var(--text-primary)",
+                        flex: 1,
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
                       {viewingProfile.businessDescription}
                     </div>
                   </div>
@@ -1742,18 +2076,44 @@ export default function FriendsListScreen({
               </div>
 
               {/* Divider */}
-              <div style={{ height: 8, backgroundColor: isDark ? "var(--bg-secondary)" : "#f3f4f6" }} />
+              <div
+                style={{
+                  height: 8,
+                  backgroundColor: isDark ? "var(--bg-secondary)" : "#f3f4f6",
+                }}
+              />
 
               {/* Section: Hình ảnh */}
               <div style={{ padding: "16px" }}>
-                <h4 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>Hình ảnh</h4>
-                <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-tertiary)", fontSize: 14 }}>
+                <h4
+                  style={{
+                    margin: "0 0 16px 0",
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  Hình ảnh
+                </h4>
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "20px 0",
+                    color: "var(--text-tertiary)",
+                    fontSize: 14,
+                  }}
+                >
                   Chưa có ảnh nào được chia sẻ
                 </div>
               </div>
 
               {/* Divider */}
-              <div style={{ height: 8, backgroundColor: isDark ? "var(--bg-secondary)" : "#f3f4f6" }} />
+              <div
+                style={{
+                  height: 8,
+                  backgroundColor: isDark ? "var(--bg-secondary)" : "#f3f4f6",
+                }}
+              />
 
               {/* Section: List Actions */}
               <div style={{ padding: "8px 0" }}>
@@ -1771,17 +2131,36 @@ export default function FriendsListScreen({
                     fontSize: 14,
                     textAlign: "left",
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? "var(--bg-hover)" : "#f9fafb"}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = isDark
+                      ? "var(--bg-hover)"
+                      : "#f9fafb")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
                   onClick={() => {
                     setViewingProfile(null);
                     setConfirmBlock({
                       userId: viewingProfile.id,
-                      userName: viewingProfile.displayName || viewingProfile.username || "người này"
+                      userName:
+                        viewingProfile.displayName ||
+                        viewingProfile.username ||
+                        "người này",
                     });
                   }}
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-secondary)" }}>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     <circle cx="12" cy="12" r="10"></circle>
                     <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
                   </svg>
@@ -1802,16 +2181,36 @@ export default function FriendsListScreen({
                     fontSize: 14,
                     textAlign: "left",
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDark ? "var(--bg-hover)" : "#f9fafb"}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = isDark
+                      ? "var(--bg-hover)"
+                      : "#f9fafb")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
                   onClick={() => {
-                    if (window.confirm(`Xóa ${viewingProfile.displayName || viewingProfile.username} khỏi danh sách bạn bè?`)) {
+                    if (
+                      window.confirm(
+                        `Xóa ${viewingProfile.displayName || viewingProfile.username} khỏi danh sách bạn bè?`,
+                      )
+                    ) {
                       setViewingProfile(null);
                       removeFriend(viewingProfile.id);
                     }
                   }}
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-secondary)" }}>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     <polyline points="3 6 5 6 21 6"></polyline>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                     <line x1="10" y1="11" x2="10" y2="17"></line>

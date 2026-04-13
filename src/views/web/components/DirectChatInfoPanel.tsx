@@ -122,7 +122,15 @@ function extractUrls(text: string): string[] {
 interface DirectChatInfoPanelProps {
     room: ChatRoom;
     onClose: () => void;
-    partner: { id: string; username: string; fullName?: string; avatarUrl?: string } | undefined;
+    partner:
+        | {
+              id: string;
+              username: string;
+              fullName?: string;
+              avatarUrl?: string;
+              businessDescription?: string | null;
+          }
+        | undefined;
 }
 
 const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose, partner }) => {
@@ -142,12 +150,21 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
     const [showNicknameModal, setShowNicknameModal] = useState(false);
     const [isClearHistoryModalOpen, setIsClearHistoryModalOpen] = useState(false);
     const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+    const [businessDescExpanded, setBusinessDescExpanded] = useState(false);
 
     const isPinned = pinnedRooms.has(room.id);
     const displayName = nickname || partner?.fullName || partner?.username || room.name || 'Người dùng';
     const realName = partner?.fullName || partner?.username || room.name || 'Người dùng';
     const avatarSrc = partner?.avatarUrl ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(realName)}&background=4f46e5&color=fff&bold=true&size=128`;
+
+    const businessDesc = partner?.businessDescription?.trim() || '';
+    const businessDescPreviewLen = 160;
+    const businessDescNeedsMore =
+        businessDesc.length > businessDescPreviewLen && !businessDescExpanded;
+    const businessDescShown = businessDescNeedsMore
+        ? `${businessDesc.slice(0, businessDescPreviewLen)}…`
+        : businessDesc;
 
     const showToast = useCallback((msg: string) => {
         setToast(msg);
@@ -272,6 +289,11 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 {partner?.username && (
                     <span className="text-xs text-gray-400 mt-0.5">@{partner.username}</span>
                 )}
+                {!!businessDesc && (
+                    <span className="mt-2 inline-flex items-center rounded-full bg-[#0068ff]/10 px-2.5 py-0.5 text-xs font-medium text-[#0068ff]">
+                        Business
+                    </span>
+                )}
                 {/* Muted label */}
                 {muteLabel && (
                     <span className="mt-1 text-xs text-gray-400 flex items-center gap-1">
@@ -282,6 +304,31 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                     </span>
                 )}
             </div>
+
+            {!!businessDesc && (
+                <div className="mx-3 mb-3 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                        Thông tin kinh doanh
+                    </div>
+                    <div className="space-y-2 text-sm">
+                        <div>
+                            <div className="text-xs text-gray-400 mb-0.5">Mô tả</div>
+                            <p className="text-gray-800 whitespace-pre-wrap break-words leading-snug">
+                                {businessDescShown}
+                            </p>
+                        </div>
+                        {businessDesc.length > businessDescPreviewLen && (
+                            <button
+                                type="button"
+                                onClick={() => setBusinessDescExpanded((e) => !e)}
+                                className="text-sm font-medium text-[#0068ff] hover:underline"
+                            >
+                                {businessDescExpanded ? 'Thu gọn' : 'Xem thêm'}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Action Buttons */}
             <ActionButtonRow>

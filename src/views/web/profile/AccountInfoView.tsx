@@ -265,36 +265,43 @@ export default function AccountInfoView() {
                                         position: "relative",
                                         width: 120,
                                         height: 120,
-                                        borderRadius: "50%",
-                                        overflow: "hidden",
-                                        border: "4px solid #fff",
-                                        boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
                                         flexShrink: 0,
                                     }}
                                 >
-                                    {avatarUrl ? (
-                                        <img
-                                            src={avatarUrl}
-                                            alt="Avatar"
-                                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                        />
-                                    ) : (
-                                        <div
-                                            style={{
-                                                width: "100%",
-                                                height: "100%",
-                                                backgroundColor: "#e0e0e0",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                color: "#666",
-                                                fontSize: 40,
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            {(displayName && displayName.charAt(0).toUpperCase()) || "?"}
-                                        </div>
-                                    )}
+                                    <div
+                                        style={{
+                                            width: "100%",
+                                            height: "100%",
+                                            borderRadius: "50%",
+                                            overflow: "hidden",
+                                            border: "4px solid #fff",
+                                            boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+                                        }}
+                                    >
+                                        {avatarUrl ? (
+                                            <img
+                                                src={avatarUrl}
+                                                alt="Avatar"
+                                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                            />
+                                        ) : (
+                                            <div
+                                                style={{
+                                                    width: "100%",
+                                                    height: "100%",
+                                                    backgroundColor: "#e0e0e0",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    color: "#666",
+                                                    fontSize: 40,
+                                                    fontWeight: 600,
+                                                }}
+                                            >
+                                                {(displayName && displayName.charAt(0).toUpperCase()) || "?"}
+                                            </div>
+                                        )}
+                                    </div>
                                     <input
                                         ref={fileInputRef}
                                         type="file"
@@ -320,6 +327,8 @@ export default function AccountInfoView() {
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "center",
+                                            zIndex: 2,
+                                            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
                                         }}
                                     >
                                         {iconCamera}
@@ -376,24 +385,6 @@ export default function AccountInfoView() {
                             >
                                 {displayProfile?.businessDescription || "Chưa cập nhật"}
                             </a>
-                            <div style={{ marginTop: 16 }}>
-                                <button
-                                    type="button"
-                                    onClick={() => router.push("/(tabs)/account-edit")}
-                                    style={{
-                                        padding: "10px 20px",
-                                        borderRadius: 10,
-                                        border: "none",
-                                        backgroundColor: "#0068FF",
-                                        color: "#fff",
-                                        fontSize: 16,
-                                        fontWeight: 500,
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    Cập nhật
-                                </button>
-                            </div>
                         </div>
 
                         {/* Thông tin cá nhân */}
@@ -414,14 +405,23 @@ export default function AccountInfoView() {
                             <div style={{ fontSize: 16, color: "#333", marginBottom: 10 }}>
                                 <strong>Điện thoại:</strong> {displayProfile?.phone || "Chưa cập nhật"}
                             </div>
-                            <div style={{ fontSize: 14, color: "#666", marginBottom: 16 }}>
+                            <div style={{ fontSize: 14, color: "#666", marginBottom: 0 }}>
                                 Chỉ bạn bè có lưu số của bạn trong danh bạ mới xem được số này.
                             </div>
+                        </div>
+
+                        <div
+                            style={{
+                                margin: "0 28px 28px",
+                                display: "flex",
+                                justifyContent: "center",
+                            }}
+                        >
                             <button
                                 type="button"
                                 onClick={() => router.push("/(tabs)/account-edit")}
                                 style={{
-                                    padding: "10px 20px",
+                                    padding: "12px 32px",
                                     borderRadius: 10,
                                     border: "none",
                                     backgroundColor: "#0068FF",
@@ -429,6 +429,7 @@ export default function AccountInfoView() {
                                     fontSize: 16,
                                     fontWeight: 500,
                                     cursor: "pointer",
+                                    minWidth: 200,
                                 }}
                             >
                                 Cập nhật

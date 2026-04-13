@@ -34,6 +34,18 @@ interface ChatState {
 
     highlightedMessageId: string | null;
 
+    /** Web: sau accept kết bạn từ Danh bạ → mở tab Tin nhắn đúng phòng. */
+    pendingOpenRoomId: string | null;
+    /** Web: mở panel Thông tin hội thoại sau khi mở chat từ tìm SĐT (giống Zalo). */
+    pendingOpenDirectInfoRoomId: string | null;
+    /** roomId → tên hiển thị đối phương cho thẻ chào bạn mới. */
+    friendshipWelcomeByRoomId: Record<string, string>;
+    /**
+     * Mobile: đồng bộ khi server từ chối tin (người lạ) — ChatScreen merge vào state local.
+     * Web: cập nhật trực tiếp `messages` trong store, signal chỉ để trigger effect nếu cần.
+     */
+    strangerRejectionSignal: { roomId: string; text: string; nonce: number } | null;
+
     // Actions
     setRooms: (rooms: import('../types').ChatRoom[]) => void;
     upsertRoom: (room: import('../types').ChatRoom) => void;
@@ -48,6 +60,12 @@ interface ChatState {
     togglePinRoom: (roomId: string) => void;
     toggleMuteRoom: (roomId: string) => void;
     setHighlightedMessageId: (messageId: string | null) => void;
+    setPendingOpenRoomId: (roomId: string | null) => void;
+    setPendingOpenDirectInfoRoomId: (roomId: string | null) => void;
+    markFriendshipWelcome: (roomId: string, partnerDisplayName: string) => void;
+    clearFriendshipWelcome: (roomId: string) => void;
+    /** Gỡ tin optimistic (temp-*) của tôi, thêm dòng SYSTEM (chính sách chỉ bạn bè). */
+    applyStrangerMessageRejection: (roomId: string, text: string) => void;
     createPrivateRoom: (userId: string) => Promise<import('../types').ChatRoom>;
     clear: () => void;
 }
@@ -60,6 +78,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     pinnedRooms: new Set<string>(),
     mutedRooms: new Set<string>(),
     highlightedMessageId: null,
+    pendingOpenRoomId: null,
+    pendingOpenDirectInfoRoomId: null,
+    friendshipWelcomeByRoomId: {},
+    strangerRejectionSignal: null,
 
     setRooms: (rooms) => set({ rooms }),
 
@@ -212,15 +234,85 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     setHighlightedMessageId: (messageId) => set({ highlightedMessageId: messageId }),
 
+    setPendingOpenRoomId: (roomId) => set({ pendingOpenRoomId: roomId }),
+
+    setPendingOpenDirectInfoRoomId: (roomId) =>
+        set({ pendingOpenDirectInfoRoomId: roomId }),
+
+    markFriendshipWelcome: (roomId, partnerDisplayName) =>
+        set((state) => ({
+            friendshipWelcomeByRoomId: {
+                ...state.friendshipWelcomeByRoomId,
+                [roomId]: partnerDisplayName,
+            },
+        })),
+
+    clearFriendshipWelcome: (roomId) =>
+        set((state) => {
+            const next = { ...state.friendshipWelcomeByRoomId };
+            delete next[roomId];
+            return { friendshipWelcomeByRoomId: next };
+        }),
+
+    applyStrangerMessageRejection: (roomId, text) =>
+        set((state) => {
+            const currentUserId =
+                useAuthStore.getState().user?.id || getMyUserIdFromToken();
+            const roomMessages = state.messages[roomId] || [];
+            const filtered = roomMessages.filter(
+                (m) =>
+                    !(
+                        m.id?.startsWith('temp-') &&
+                        currentUserId != null &&
+                        m.senderId === currentUserId
+                    )
+            );
+            const systemMsg: Message = {
+                id: `sys-stranger-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                senderId: 'system',
+                roomId,
+                content: text,
+                type: 'SYSTEM',
+                createdAt: new Date().toISOString(),
+            };
+            const nextNonce = (state.strangerRejectionSignal?.nonce ?? 0) + 1;
+            const newRooms = state.rooms.map((room) => {
+                if (room.id !== roomId) return room;
+                return {
+                    ...room,
+                    lastMessage: systemMsg,
+                    updatedAt: systemMsg.createdAt,
+                };
+            });
+            newRooms.sort(
+                (a, b) =>
+                    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+            );
+            return {
+                messages: { ...state.messages, [roomId]: [...filtered, systemMsg] },
+                rooms: newRooms,
+                strangerRejectionSignal: { roomId, text, nonce: nextNonce },
+            };
+        }),
+
     createPrivateRoom: async (userId) => {
         const { chatService } = await import('../services/chatService');
         const room = await chatService.createPrivateRoom(userId);
-        
+
+        const members = (room.members || []) as any[];
+        const partnerMember = members.find((m: any) => m.user?.id === userId);
+        const pu = partnerMember?.user;
+        const resolvedName =
+            (typeof room.name === 'string' && room.name.trim()) ||
+            (pu?.displayName && String(pu.displayName).trim()) ||
+            (pu?.username && String(pu.username).trim()) ||
+            'Chat';
+
         // Map backend ChatRoomResponse to frontend ChatRoom type if needed
         const frontendRoom: import('../types').ChatRoom = {
             id: room.id,
             type: room.type === 'DIRECT' ? 'PRIVATE' : room.type,
-            name: room.name,
+            name: resolvedName,
             avatarUrl: room.avatarUrl,
             unreadCount: room.unreadCount || 0,
             updatedAt: new Date().toISOString(), // Fallback
@@ -228,7 +320,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 id: m.user.id,
                 username: m.user.username,
                 fullName: m.user.displayName,
-                avatarUrl: m.user.avatarUrl
+                avatarUrl: m.user.avatarUrl,
+                businessDescription: m.user?.businessDescription ?? undefined,
             }))
         };
 
@@ -259,5 +352,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         pinnedRooms: new Set(),
         mutedRooms: new Set(),
         highlightedMessageId: null,
+        pendingOpenRoomId: null,
+        pendingOpenDirectInfoRoomId: null,
+        friendshipWelcomeByRoomId: {},
+        strangerRejectionSignal: null,
     }),
 }));

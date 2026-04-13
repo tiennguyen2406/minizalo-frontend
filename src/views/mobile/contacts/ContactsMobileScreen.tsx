@@ -79,7 +79,7 @@ export default function ContactsMobileScreen() {
             const intervalId = setInterval(() => {
                 if (!isActive) return;
                 // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                fetchRequests();
+                fetchRequests({ silent: true });
             }, 5000); // 5s một lần; có thể giảm xuống 3s nếu cần nhanh hơn
 
             return () => {

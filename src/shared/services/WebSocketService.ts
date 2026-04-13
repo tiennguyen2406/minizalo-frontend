@@ -15,6 +15,8 @@ class WebSocketService {
     private connected: boolean = false;
     private pendingSubscriptions: Record<string, (message: IMessage) => void> = {};
     private subscriptions: Record<string, any> = {};
+    /** Giữ callback theo destination để sau khi STOMP disconnect/reconnect đăng ký lại (vd: /user/queue/chat-errors). */
+    private subscriptionCallbacks: Record<string, (message: IMessage) => void> = {};
     private currentToken: string | null = null;
 
     constructor() {
@@ -58,6 +60,11 @@ class WebSocketService {
 
         this.client.onDisconnect = () => {
             this.connected = false;
+            // stompjs xóa subscription khi socket đứt; đưa callback vào pending để onConnect subscribe lại
+            Object.keys(this.subscriptions).forEach((dest) => {
+                const cb = this.subscriptionCallbacks[dest];
+                if (cb) this.pendingSubscriptions[dest] = cb;
+            });
             this.subscriptions = {};
         };
     }
@@ -93,6 +100,7 @@ class WebSocketService {
         this.currentToken = null;
         this.subscriptions = {};
         this.pendingSubscriptions = {};
+        this.subscriptionCallbacks = {};
     }
 
     /** Check if connected */
@@ -102,6 +110,7 @@ class WebSocketService {
 
     /** Subscribe to a topic/destination */
     subscribe(destination: string, callback: (message: IMessage) => void) {
+        this.subscriptionCallbacks[destination] = callback;
         if (!this.client.connected) {
             this.pendingSubscriptions[destination] = callback;
             return;
@@ -122,6 +131,7 @@ class WebSocketService {
         if (this.pendingSubscriptions[destination]) {
             delete this.pendingSubscriptions[destination];
         }
+        delete this.subscriptionCallbacks[destination];
     }
 
     /** Gửi tin nhắn chat qua WebSocket, trả về true nếu thành công */

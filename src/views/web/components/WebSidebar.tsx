@@ -3,252 +3,375 @@ import { useRouter, usePathname } from "expo-router";
 import { useUserStore } from "@/shared/store/userStore";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useChatStore } from "@/shared/store/useChatStore";
+import { useFriendStore } from "@/shared/store/friendStore";
 import { useThemeStore } from "@/shared/store/themeStore";
 import SettingsPanel from "./SettingsPanel";
 
 const ICON_SIZE = 24;
 
 const iconMessage = (
-    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
+  <svg
+    width={ICON_SIZE}
+    height={ICON_SIZE}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
 );
 const iconContacts = (
-    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
+  <svg
+    width={ICON_SIZE}
+    height={ICON_SIZE}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
 );
 const iconCloudZ = (
-    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
-    </svg>
+  <svg
+    width={ICON_SIZE}
+    height={ICON_SIZE}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+  </svg>
 );
 const iconFolder = (
-    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
+  <svg
+    width={ICON_SIZE}
+    height={ICON_SIZE}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+  </svg>
 );
 const iconPlus = (
-    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" strokeDasharray="4 2" />
-        <line x1="12" y1="8" x2="12" y2="16" />
-        <line x1="8" y1="12" x2="16" y2="12" />
-    </svg>
+  <svg
+    width={ICON_SIZE}
+    height={ICON_SIZE}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect
+      x="3"
+      y="3"
+      width="18"
+      height="18"
+      rx="2"
+      ry="2"
+      strokeDasharray="4 2"
+    />
+    <line x1="12" y1="8" x2="12" y2="16" />
+    <line x1="8" y1="12" x2="16" y2="12" />
+  </svg>
 );
 const iconBriefcase = (
-    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-    </svg>
+  <svg
+    width={ICON_SIZE}
+    height={ICON_SIZE}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+  </svg>
 );
 const iconSettings = (
-    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
+  <svg
+    width={ICON_SIZE}
+    height={ICON_SIZE}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
 );
 
 const navItems: { href: string; label: string; icon: React.ReactNode }[] = [
-    { href: "/(tabs)", label: "Tin nhắn", icon: iconMessage },
-    { href: "/(tabs)/contacts", label: "Danh bạ", icon: iconContacts },
-    { href: "/(tabs)/zalo-cloud", label: "Zalo Cloud", icon: iconCloudZ },
-    { href: "/(tabs)/files", label: "Thư mục", icon: iconFolder },
-    { href: "/(tabs)/explore", label: "Khám phá", icon: iconPlus },
-    { href: "/(tabs)/work", label: "Công việc", icon: iconBriefcase },
+  { href: "/(tabs)", label: "Tin nhắn", icon: iconMessage },
+  { href: "/(tabs)/contacts", label: "Danh bạ", icon: iconContacts },
+  { href: "/(tabs)/zalo-cloud", label: "Zalo Cloud", icon: iconCloudZ },
+  { href: "/(tabs)/files", label: "Thư mục", icon: iconFolder },
+  { href: "/(tabs)/explore", label: "Khám phá", icon: iconPlus },
+  { href: "/(tabs)/work", label: "Công việc", icon: iconBriefcase },
 ];
 
 export default function WebSidebar() {
-    const router = useRouter();
-    const pathname = usePathname();
-    const [showSettingsPanel, setShowSettingsPanel] = useState(false);
-    const hasToken = !!useAuthStore((s) => s.accessToken);
-    const { profile, fetchProfile } = useUserStore();
-    const totalUnread = useChatStore((s) => s.rooms.reduce((acc, r) => acc + (r.unreadCount || 0), 0));
-    const theme = useThemeStore((s) => s.theme);
-    const isDark = theme === "dark";
+  const router = useRouter();
+  const pathname = usePathname();
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const hasToken = !!useAuthStore((s) => s.accessToken);
+  const { profile, fetchProfile } = useUserStore();
+  const totalUnread = useChatStore((s) =>
+    s.rooms.reduce((acc, r) => acc + (r.unreadCount || 0), 0),
+  );
+  const pendingFriendRequests = useFriendStore((s) => s.requests.length);
+  const fetchRequests = useFriendStore((s) => s.fetchRequests);
+  const theme = useThemeStore((s) => s.theme);
+  const isDark = theme === "dark";
 
-    const SIDEBAR_BG = isDark ? "var(--bg-sidebar)" : "#004A99";
-    const ACTIVE_BG = "var(--bg-sidebar-active)";
+  const SIDEBAR_BG = isDark ? "var(--bg-sidebar)" : "#004A99";
+  const ACTIVE_BG = "var(--bg-sidebar-active)";
 
-    useEffect(() => {
-        if (hasToken && !profile) fetchProfile();
-    }, [hasToken, profile, fetchProfile]);
+  useEffect(() => {
+    if (hasToken && !profile) fetchProfile();
+  }, [hasToken, profile, fetchProfile]);
 
-    const avatarUrl = profile?.avatarUrl || null;
-    const displayName = profile?.displayName || profile?.username || "";
-    const initial = (displayName && displayName.charAt(0).toUpperCase()) || "U";
+  // Lời mời kết bạn đến: làm mới định kỳ để hiển thị chấm đỏ trên Danh bạ (web).
+  useEffect(() => {
+    if (!hasToken) return;
+    void fetchRequests({ silent: true });
+    const id = window.setInterval(() => {
+      void fetchRequests({ silent: true });
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [hasToken, fetchRequests]);
 
-    const isActive = (href: string) => {
-        if (href === "/(tabs)") return pathname === "/(tabs)" || pathname === "/(tabs)/";
-        return pathname.startsWith(href);
-    };
+  const avatarUrl = profile?.avatarUrl || null;
+  const displayName = profile?.displayName || profile?.username || "";
+  const initial = (displayName && displayName.charAt(0).toUpperCase()) || "U";
 
-    return (
-        <div style={{ display: "flex", flexShrink: 0 }}>
-            <aside
-                style={{
-                    width: 72,
-                    minWidth: 72,
-                    backgroundColor: SIDEBAR_BG,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    paddingTop: 16,
-                    paddingBottom: 16,
-                    gap: 4,
-                    flexShrink: 0,
-                    transition: "background-color 0.3s ease",
-                }}
-            >
-                {/* Avatar người dùng */}
-                <button
-                    type="button"
-                    onClick={() => router.push("/(tabs)/account")}
-                    style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: "50%",
-                        marginBottom: 12,
-                        overflow: "hidden",
-                        border: "none",
-                        padding: 0,
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: avatarUrl ? "transparent" : "rgba(255,255,255,0.25)",
-                        color: "#fff",
-                        fontSize: 18,
-                        fontWeight: 600,
-                    }}
-                >
-                    {avatarUrl ? (
-                        <img
-                            src={avatarUrl}
-                            alt="Avatar"
-                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        />
-                    ) : (
-                        initial
-                    )}
-                </button>
+  const isActive = (href: string) => {
+    if (href === "/(tabs)")
+      return pathname === "/(tabs)" || pathname === "/(tabs)/";
+    return pathname.startsWith(href);
+  };
 
-                {/* Tin nhắn - luôn đầu, active khi đang ở tabs */}
-                <NavItem
-                    label="Tin nhắn"
-                    icon={iconMessage}
-                    active={isActive("/(tabs)")}
-                    activeBg={ACTIVE_BG}
-                    onClick={() => router.push("/(tabs)")}
-                    badge={totalUnread}
-                />
+  return (
+    <div style={{ display: "flex", flexShrink: 0, alignSelf: "stretch" }}>
+      <aside
+        style={{
+          width: 72,
+          minWidth: 72,
+          backgroundColor: SIDEBAR_BG,
+          display: "flex",
+          flexDirection: "column",
+          flexShrink: 0,
+          alignSelf: "stretch",
+          alignItems: "center",
+          minHeight: "100vh",
+          overflow: "hidden",
+          paddingTop: 16,
+          paddingBottom: 16,
+          gap: 4,
+          boxShadow: isDark
+            ? "2px 0 16px rgba(0,0,0,0.35)"
+            : "2px 0 12px rgba(0, 74, 153, 0.08)",
+          transition: "background-color 0.3s ease, box-shadow 0.3s ease",
+        }}
+      >
+        {/* Avatar người dùng */}
+        <button
+          type="button"
+          onClick={() => router.push("/(tabs)/account")}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: "50%",
+            marginBottom: 12,
+            overflow: "hidden",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: avatarUrl
+              ? "transparent"
+              : "rgba(255,255,255,0.25)",
+            color: "#fff",
+            fontSize: 18,
+            fontWeight: 600,
+          }}
+        >
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="Avatar"
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          ) : (
+            initial
+          )}
+        </button>
 
-                {/* Danh bạ */}
-                <NavItem
-                    label="Danh bạ"
-                    icon={iconContacts}
-                    active={isActive("/(tabs)/contacts")}
-                    activeBg={ACTIVE_BG}
-                    onClick={() => router.push("/(tabs)/contacts")}
-                />
+        {/* Tin nhắn - luôn đầu, active khi đang ở tabs */}
+        <NavItem
+          label="Tin nhắn"
+          icon={iconMessage}
+          active={isActive("/(tabs)")}
+          activeBg={ACTIVE_BG}
+          onClick={() => router.push("/(tabs)")}
+          badge={totalUnread}
+        />
 
-                {/* Khoảng trống giữa */}
-                <div style={{ flex: 1, minHeight: 24 }} />
+        {/* Danh bạ */}
+        <NavItem
+          label="Danh bạ"
+          icon={iconContacts}
+          active={isActive("/(tabs)/contacts")}
+          activeBg={ACTIVE_BG}
+          onClick={() => router.push("/(tabs)/contacts")}
+          dot={pendingFriendRequests > 0}
+          dotRing={
+            isDark
+              ? "0 0 0 2px rgba(24, 28, 42, 0.95)"
+              : "0 0 0 2px rgba(255, 255, 255, 0.5)"
+          }
+        />
 
-                {/* Zalo Cloud, Thư mục, Khám phá, Công việc */}
-                {navItems.slice(2).map((item) => (
-                    <NavItem
-                        key={item.href}
-                        label={item.label}
-                        icon={item.icon}
-                        active={isActive(item.href)}
-                        activeBg={ACTIVE_BG}
-                        onClick={() => router.push(item.href as any)}
-                    />
-                ))}
+        {/* Khoảng trống giữa */}
+        <div style={{ flex: 1, minHeight: 24 }} />
 
-                {/* Cài đặt - mở panel thay vì chuyển trang */}
-                <NavItem
-                    label="Cài đặt"
-                    icon={iconSettings}
-                    active={showSettingsPanel}
-                    activeBg={ACTIVE_BG}
-                    onClick={() => setShowSettingsPanel((v) => !v)}
-                />
-            </aside>
+        {/* Zalo Cloud, Thư mục, Khám phá, Công việc */}
+        {navItems.slice(2).map((item) => (
+          <NavItem
+            key={item.href}
+            label={item.label}
+            icon={item.icon}
+            active={isActive(item.href)}
+            activeBg={ACTIVE_BG}
+            onClick={() => router.push(item.href as any)}
+          />
+        ))}
 
-            {showSettingsPanel && (
-                <SettingsPanel onClose={() => setShowSettingsPanel(false)} />
-            )}
-        </div>
-    );
+        <NavItem
+          label="Cài đặt"
+          icon={iconSettings}
+          active={showSettingsPanel}
+          activeBg={ACTIVE_BG}
+          onClick={() => setShowSettingsPanel((v) => !v)}
+        />
+      </aside>
+
+      {showSettingsPanel && (
+        <SettingsPanel onClose={() => setShowSettingsPanel(false)} />
+      )}
+    </div>
+  );
 }
 
 function NavItem({
-    label,
-    icon,
-    active,
-    activeBg,
-    onClick,
-    badge,
+  label,
+  icon,
+  active,
+  activeBg,
+  onClick,
+  badge,
+  dot,
+  dotRing,
 }: {
-    label: string;
-    icon: React.ReactNode;
-    active: boolean;
-    activeBg: string;
-    onClick: () => void;
-    badge?: number;
+  label: string;
+  icon: React.ReactNode;
+  active: boolean;
+  activeBg: string;
+  onClick: () => void;
+  badge?: number;
+  /** Chấm đỏ (ví dụ có lời mời kết bạn). */
+  dot?: boolean;
+  dotRing?: string;
 }) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            title={label}
-            style={{
-                width: 44,
-                height: 44,
-                borderRadius: 12,
-                border: "none",
-                background: active ? activeBg : "transparent",
-                color: "#fff",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                position: "relative",
-                transition: "background 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-                if (!active) e.currentTarget.style.background = "var(--bg-sidebar-hover)";
-            }}
-            onMouseLeave={(e) => {
-                if (!active) e.currentTarget.style.background = "transparent";
-            }}
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        border: "none",
+        background: active ? activeBg : "transparent",
+        color: "#fff",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        transition: "background 0.2s ease",
+      }}
+      onMouseEnter={(e) => {
+        if (!active)
+          e.currentTarget.style.background = "var(--bg-sidebar-hover)";
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.background = "transparent";
+      }}
+    >
+      {icon}
+      {dot && (
+        <span
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 6,
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            backgroundColor: "#ef4444",
+            pointerEvents: "none",
+            boxShadow: dotRing ?? "0 0 0 2px rgba(255, 255, 255, 0.45)",
+          }}
+        />
+      )}
+      {badge !== undefined && badge > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: 4,
+            right: 4,
+            backgroundColor: "#ef4444",
+            color: "#fff",
+            borderRadius: "10px",
+            minWidth: 16,
+            height: 16,
+            fontSize: 10,
+            fontWeight: "bold",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0 4px",
+            pointerEvents: "none",
+          }}
         >
-            {icon}
-            {badge !== undefined && badge > 0 && (
-                <div style={{
-                    position: "absolute",
-                    top: 4,
-                    right: 4,
-                    backgroundColor: "#ef4444",
-                    color: "#fff",
-                    borderRadius: "10px",
-                    minWidth: 16,
-                    height: 16,
-                    fontSize: 10,
-                    fontWeight: "bold",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "0 4px",
-                    pointerEvents: "none"
-                }}>
-                    {badge > 99 ? "99+" : badge}
-                </div>
-            )}
-        </button>
-    );
+          {badge > 99 ? "99+" : badge}
+        </div>
+      )}
+    </button>
+  );
 }

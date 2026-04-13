@@ -34,6 +34,9 @@ export interface ApiError {
 // User / Profile
 // -----------------------------
 
+/** Khớp EPrivacyAudience — ai được nhắn tin / gọi tới bạn */
+export type PrivacyAudience = "EVERYONE" | "FRIENDS" | "NO_ONE";
+
 // User profile (khớp UserProfileResponse backend)
 export interface UserProfile {
     id: string;
@@ -53,6 +56,8 @@ export interface UserProfile {
     updatedAt: string | null;
     roles: string[] | null;
     allowPhoneSearch?: boolean;
+    allowMessagesFrom?: PrivacyAudience;
+    allowCallsFrom?: PrivacyAudience;
 }
 
 export interface UserProfileUpdateRequest {
@@ -65,6 +70,8 @@ export interface UserProfileUpdateRequest {
     dateOfBirth?: string; // "YYYY-MM-DD"
     businessDescription?: string;
     allowPhoneSearch?: boolean;
+    allowMessagesFrom?: PrivacyAudience;
+    allowCallsFrom?: PrivacyAudience;
 }
 
 // -----------------------------
@@ -80,9 +87,16 @@ export interface FriendResponseDto {
     friend: UserProfile;
     status: FriendStatus;
     createdAt: string;
+    /** Lời nhắn kèm lời mời (PENDING). */
+    inviteMessage?: string | null;
+    inviteSource?: string | null;
+    hideMyTimelineFromFriend?: boolean | null;
 }
 
 export interface SendFriendRequestPayload {
     friendId: string;
+    inviteMessage?: string;
+    inviteSource?: string;
+    hideMyTimelineFromFriend?: boolean;
 }
 
