@@ -320,7 +320,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
     };
 
     const executeClearHistory = () => {
-        useChatStore.getState().setMessages(roomId, []);
+        useChatStore.getState().clearConversation(roomId);
     };
 
     if (!group) return (

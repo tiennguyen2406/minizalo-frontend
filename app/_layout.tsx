@@ -1,6 +1,6 @@
 import "../src/shared/styles/global.css";
 import { useEffect, useRef } from "react";
-import { LogBox, Platform } from "react-native";
+import { LogBox, Platform, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import {
     registerForPushNotificationsAsync,
@@ -8,6 +8,7 @@ import {
     initNotificationHandler
 } from "@/services/notificationService";
 import { useAuthStore } from "@/shared/store/authStore";
+import { InAppNotificationBanner } from "@/views/mobile/chat/components/InAppNotification";
 
 // Quyết liệt chặn tất cả các cảnh báo và lỗi liên quan đến expo-notifications trên Expo Go
 LogBox.ignoreLogs([
@@ -81,25 +82,38 @@ export default function RootLayout() {
         };
     }, []);
 
+    const isMobile = Platform.OS !== "web";
+
     return (
-        <Stack
-            screenOptions={{
-                headerShown: false,
-                animation: "slide_from_right",
-                gestureEnabled: true,
-                gestureDirection: "horizontal",
-                fullScreenGestureEnabled: true,
-            }}
-        >
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen
-                name="chat/[id]"
-                options={{
+        <View style={{ flex: 1 }}>
+            {isMobile && (
+                <InAppNotificationBanner
+                    onPress={(roomId) => {
+                        if (roomId) {
+                            router.push(`/chat/${roomId}?type=DIRECT`);
+                        }
+                    }}
+                />
+            )}
+            <Stack
+                screenOptions={{
+                    headerShown: false,
                     animation: "slide_from_right",
-                    gestureEnabled: false,
+                    gestureEnabled: true,
+                    gestureDirection: "horizontal",
+                    fullScreenGestureEnabled: true,
                 }}
-            />
-        </Stack>
+            >
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen
+                    name="chat/[id]"
+                    options={{
+                        animation: "slide_from_right",
+                        gestureEnabled: false,
+                    }}
+                />
+            </Stack>
+        </View>
     );
 }

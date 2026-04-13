@@ -237,7 +237,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
     }, [allMessages]);
 
     const executeClearHistory = () => {
-        useChatStore.getState().setMessages(room.id, []);
+        useChatStore.getState().clearConversation(room.id);
     };
 
     return (

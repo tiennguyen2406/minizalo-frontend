@@ -89,10 +89,15 @@ export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom 
     const updatedAt =
         room.lastMessage?.createdAt ||
         (room.createdAt ? new Date(room.createdAt).toISOString() : new Date().toISOString());
+    let resolvedName = room.name;
+    if (type === "PRIVATE" && (!resolvedName || !resolvedName.trim())) {
+        const partnerParticipant = participants.find((p) => p.fullName && p.fullName.trim());
+        resolvedName = partnerParticipant?.fullName || partnerParticipant?.username || "Người dùng";
+    }
     const frontendRoom: ChatRoom = {
         id,
         type,
-        name: room.name,
+        name: resolvedName || room.name,
         avatarUrl: room.avatarUrl,
         unreadCount: room.unreadCount ?? 0,
         updatedAt,
@@ -137,6 +142,10 @@ export const chatService = {
         if (lastKey) params.lastKey = lastKey;
         const { data } = await api.get<PaginatedMessageResult>(`/chat/history/${roomId}`, { params });
         return data;
+    },
+
+    clearChatHistory: async (roomId: string): Promise<void> => {
+        await api.delete(`/chat/history/${roomId}`);
     },
 
     getPinnedMessages: async (roomId: string, limit: number = 20, lastKey?: string): Promise<PaginatedMessageResult> => {

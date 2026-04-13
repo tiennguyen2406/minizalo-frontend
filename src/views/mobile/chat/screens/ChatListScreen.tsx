@@ -11,14 +11,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useThemeColors } from "@/shared/theme/colors";
-import { showLocalNotification } from "@/services/notificationService";
+import { useInAppNotifStore } from "../components/InAppNotification";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 
 export default function ChatListScreen() {
     const router = useRouter();
-    const { rooms, setRooms, addMessage, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, clearConversation } = useChatStore();
+    const { rooms, setRooms, addMessage, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom } = useChatStore();
     const colors = useThemeColors();
     const currentUserId = useAuthStore((s) => s.user?.id);
     const friends = useFriendStore((s) => s.friends);
@@ -29,19 +29,29 @@ export default function ChatListScreen() {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const subscribedRooms = useRef<Set<string>>(new Set());
     const [actionRoom, setActionRoom] = useState<(typeof rooms)[number] | null>(null);
+    const [showMuteDuration, setShowMuteDuration] = useState(false);
+    const [selectedMuteDuration, setSelectedMuteDuration] = useState<string>("1h");
 
     const displayRooms = useMemo(() => {
+        let result: typeof rooms;
         if (!currentUserId || !friendsListReady) {
             if (inboxTab === "strangers") return [];
-            return rooms;
+            result = rooms;
+        } else {
+            const { mainRooms, strangerRooms } = splitRoomsMainAndStrangers(
+                rooms,
+                currentUserId,
+                friends,
+            );
+            result = inboxTab === "strangers" ? strangerRooms : mainRooms;
         }
-        const { mainRooms, strangerRooms } = splitRoomsMainAndStrangers(
-            rooms,
-            currentUserId,
-            friends,
-        );
-        return inboxTab === "strangers" ? strangerRooms : mainRooms;
-    }, [rooms, currentUserId, friends, friendsListReady, inboxTab]);
+        return [...result].sort((a, b) => {
+            const aPinned = pinnedRooms.has(a.id);
+            const bPinned = pinnedRooms.has(b.id);
+            if (aPinned !== bPinned) return aPinned ? -1 : 1;
+            return 0;
+        });
+    }, [rooms, currentUserId, friends, friendsListReady, inboxTab, pinnedRooms]);
 
     const friendIdSet = useMemo(() => {
         const ids = new Set<string>();
@@ -99,9 +109,16 @@ export default function ChatListScreen() {
             // Map sang ChatRoom interface của store (giống Web)
             const storeRooms = data.map((r) => {
                 const existing = existingRooms.find(er => er.id === r.id);
+                let resolvedName = r.name;
+                if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
+                    const partner = (r.members || []).find(
+                        (m: any) => (m.user?.id || m.id) !== currentUserId
+                    );
+                    resolvedName = partner?.user?.displayName || partner?.user?.username || partner?.displayName || partner?.username || 'Người dùng';
+                }
                 return {
                     id: r.id,
-                    name: r.name || 'Người dùng',
+                    name: resolvedName || 'Người dùng',
                     avatarUrl: r.avatarUrl || undefined,
                     type: r.type === 'DIRECT' ? 'PRIVATE' as const : 'GROUP' as const,
                     lastMessage: r.lastMessage
@@ -176,12 +193,22 @@ export default function ChatListScreen() {
                         recalled: msg.recalled || false,
                     });
                     
-                    // Hiển thị thông báo local nếu tin nhắn từ người khác
-                    if (msg.senderId !== useAuthStore.getState().user?.id) {
-                        showLocalNotification(
-                            msg.senderName || 'Tin nhắn mới',
-                            msg.content || (msg.type === 'IMAGE' ? '[Hình ảnh]' : 'Đã gửi một tin nhắn')
-                        );
+                    // Hiển thị in-app toast nếu tin nhắn từ người khác, không ở trong room đó, và room không bị mute
+                    const isCurrentlyViewing = useChatStore.getState().currentRoomId === room.id;
+                    if (msg.senderId !== useAuthStore.getState().user?.id && !isCurrentlyViewing) {
+                        const isMutedRoom = useChatStore.getState().mutedRooms.has(room.id);
+                        if (!isMutedRoom) {
+                            const roomData = useChatStore.getState().rooms.find(r => r.id === room.id);
+                            useInAppNotifStore.getState().show({
+                                title: msg.senderName || 'Tin nhắn mới',
+                                body: msg.type === 'IMAGE' ? '[Hình ảnh]'
+                                    : msg.type === 'VIDEO' ? '[Video]'
+                                    : msg.type === 'FILE' ? '[Tập tin]'
+                                    : msg.content || 'Đã gửi một tin nhắn',
+                                avatarUrl: roomData?.avatarUrl || undefined,
+                                roomId: room.id,
+                            });
+                        }
                     }
                 } catch (err) {
                     console.error('Lỗi parse tin nhắn WS:', err);
@@ -244,25 +271,20 @@ export default function ChatListScreen() {
 
         const partner = item.type === 'PRIVATE' ? item.participants.find((p: any) => p.id !== currentUserId) : null;
         const isPartnerStranger = partner && !friendIdSet.has(partner.id);
-        const isPinned = pinnedRooms.has(item.id);
-        const isMuted = mutedRooms.has(item.id);
-
         return (
             <Animated.View style={{ opacity: fadeAnim }}>
-                <Pressable
+                <ChatItem
+                    avatar={{ uri: avatarUri }}
+                    name={item.name || "Người dùng"}
+                    message={lastMsg}
+                    time={timeDisplay}
+                    unreadCount={item.unreadCount}
+                    isVerified={false}
+                    isPinned={pinnedRooms.has(item.id)}
+                    isMuted={mutedRooms.has(item.id)}
                     onLongPress={() => setActionRoom(item)}
-                    delayLongPress={250}
-                >
-                    <ChatItem
-                        avatar={{ uri: avatarUri }}
-                        name={item.name || "Người dùng"}
-                        message={lastMsg}
-                        time={timeDisplay}
-                        unreadCount={item.unreadCount}
-                        isVerified={false}
-                        onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}${partner?.id ? `&targetUserId=${partner.id}` : ""}`)}
-                    />
-                </Pressable>
+                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}${partner?.id ? `&targetUserId=${partner.id}` : ""}`)}
+                />
             </Animated.View>
         );
     };
@@ -429,11 +451,11 @@ export default function ChatListScreen() {
                 />
             )}
 
-            {/* Long-press actions like web (mute/pin/delete) */}
+            {/* Long-press actions */}
             <Modal
                 transparent
                 animationType="fade"
-                visible={!!actionRoom}
+                visible={!!actionRoom && !showMuteDuration}
                 onRequestClose={() => setActionRoom(null)}
             >
                 <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }} onPress={() => setActionRoom(null)}>
@@ -462,8 +484,9 @@ export default function ChatListScreen() {
                                         togglePinRoom(actionRoom.id);
                                         setActionRoom(null);
                                     }}
-                                    style={{ paddingHorizontal: 18, paddingVertical: 14 }}
+                                    style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 14, gap: 12 }}
                                 >
+                                    <Ionicons name={pinnedRooms.has(actionRoom.id) ? "pin-outline" : "pin"} size={20} color={colors.text} />
                                     <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
                                         {pinnedRooms.has(actionRoom.id) ? "Bỏ ghim hội thoại" : "Ghim hội thoại"}
                                     </Text>
@@ -471,29 +494,99 @@ export default function ChatListScreen() {
 
                                 <TouchableOpacity
                                     onPress={() => {
-                                        toggleMuteRoom(actionRoom.id);
-                                        setActionRoom(null);
+                                        if (mutedRooms.has(actionRoom.id)) {
+                                            toggleMuteRoom(actionRoom.id);
+                                            setActionRoom(null);
+                                        } else {
+                                            setSelectedMuteDuration("1h");
+                                            setShowMuteDuration(true);
+                                        }
                                     }}
-                                    style={{ paddingHorizontal: 18, paddingVertical: 14 }}
+                                    style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 14, gap: 12 }}
                                 >
+                                    <Ionicons name={mutedRooms.has(actionRoom.id) ? "volume-high" : "volume-mute"} size={20} color={colors.text} />
                                     <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
                                         {mutedRooms.has(actionRoom.id) ? "Bật thông báo" : "Tắt thông báo"}
                                     </Text>
                                 </TouchableOpacity>
-
-                                <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 6, marginHorizontal: 18 }} />
-
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        clearConversation(actionRoom.id);
-                                        setActionRoom(null);
-                                    }}
-                                    style={{ paddingHorizontal: 18, paddingVertical: 14 }}
-                                >
-                                    <Text style={{ color: "#ef4444", fontSize: 15, fontWeight: "700" }}>Xóa hội thoại</Text>
-                                </TouchableOpacity>
                             </>
                         )}
+                    </Pressable>
+                </Pressable>
+            </Modal>
+
+            {/* Mute duration picker */}
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showMuteDuration && !!actionRoom}
+                onRequestClose={() => { setShowMuteDuration(false); setActionRoom(null); }}
+            >
+                <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" }} onPress={() => { setShowMuteDuration(false); setActionRoom(null); }}>
+                    <Pressable
+                        style={{
+                            backgroundColor: colors.card,
+                            borderRadius: 20,
+                            paddingTop: 20,
+                            paddingBottom: 14,
+                            width: "82%",
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700", paddingHorizontal: 20, marginBottom: 6 }}>
+                            Tắt thông báo
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 13, paddingHorizontal: 20, marginBottom: 14 }}>
+                            Bạn sẽ không nhận thông báo từ hội thoại này trong:
+                        </Text>
+
+                        {([
+                            { id: "1h", label: "Trong 1 giờ" },
+                            { id: "4h", label: "Trong 4 giờ" },
+                            { id: "8am", label: "Cho đến 8:00 AM" },
+                            { id: "forever", label: "Cho đến khi được mở lại" },
+                        ] as const).map((opt) => (
+                            <TouchableOpacity
+                                key={opt.id}
+                                onPress={() => setSelectedMuteDuration(opt.id)}
+                                style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 12, gap: 12 }}
+                            >
+                                <View style={{
+                                    width: 20, height: 20, borderRadius: 10,
+                                    borderWidth: 2,
+                                    borderColor: selectedMuteDuration === opt.id ? colors.primary : colors.border,
+                                    alignItems: "center", justifyContent: "center",
+                                }}>
+                                    {selectedMuteDuration === opt.id && (
+                                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary }} />
+                                    )}
+                                </View>
+                                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "500" }}>{opt.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+
+                        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12, paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, marginTop: 6 }}>
+                            <TouchableOpacity
+                                onPress={() => { setShowMuteDuration(false); setActionRoom(null); }}
+                                style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.border }}
+                            >
+                                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>Hủy</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    if (actionRoom) {
+                                        if (!mutedRooms.has(actionRoom.id)) toggleMuteRoom(actionRoom.id);
+                                    }
+                                    setShowMuteDuration(false);
+                                    setActionRoom(null);
+                                }}
+                                style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary }}
+                            >
+                                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Đồng ý</Text>
+                            </TouchableOpacity>
+                        </View>
                     </Pressable>
                 </Pressable>
             </Modal>

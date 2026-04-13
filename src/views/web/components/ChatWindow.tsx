@@ -68,7 +68,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
     const currentRoom = rooms.find((r) => r.id === roomId);
     const isGroupRoom = currentRoom?.type === 'GROUP';
-    const roomName = currentRoom?.name || 'Phòng chat';
+    const roomName = isGroupRoom
+        ? (currentRoom?.name || 'Nhóm chat')
+        : (currentRoom?.participants?.find((p) => p.id !== currentUserId)?.fullName
+            || currentRoom?.participants?.find((p) => p.id !== currentUserId)?.username
+            || currentRoom?.name
+            || 'Phòng chat');
     const roomAvatar =
         currentRoom?.avatarUrl ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(roomName)}&background=${isGroupRoom ? '0068FF' : 'random'}&color=fff&bold=true`;

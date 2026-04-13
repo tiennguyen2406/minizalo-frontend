@@ -21,6 +21,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { groupService } from "@/shared/services/groupService";
 import { friendService } from "@/shared/services/friendService";
 import { useAuthStore } from "@/shared/store/authStore";
+import { useChatStore } from "@/shared/store/useChatStore";
 import { GroupDetail } from "@/shared/types";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useRouter } from "expo-router";
@@ -648,6 +649,23 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                 />
                 <TouchableOpacity
                     activeOpacity={0.7}
+                    onPress={() => {
+                        Alert.alert(
+                            "Xác nhận",
+                            "Toàn bộ nội dung trò chuyện sẽ bị xóa. Bạn có chắc chắn muốn xóa?",
+                            [
+                                { text: "Hủy", style: "cancel" },
+                                {
+                                    text: "Xóa",
+                                    style: "destructive",
+                                    onPress: async () => {
+                                        await useChatStore.getState().clearConversation(roomId);
+                                        onClose();
+                                    },
+                                },
+                            ]
+                        );
+                    }}
                     style={{
                         flexDirection: "row",
                         alignItems: "center",

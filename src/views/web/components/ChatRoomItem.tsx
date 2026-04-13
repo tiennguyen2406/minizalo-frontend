@@ -197,8 +197,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                 {hasUnread && (
                     <div
                         style={{
-                            // Make unread badge more subtle (less distracting)
-                            backgroundColor: '#9ca3af',
+                            backgroundColor: isMuted ? '#9ca3af' : '#ef4444',
                             minWidth: 20,
                             height: 20,
                             borderRadius: 10,
