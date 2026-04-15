@@ -127,6 +127,7 @@ interface ChatState {
         payload: { progress: number; text: string; active?: boolean } | null
     ) => void;
     createPrivateRoom: (userId: string) => Promise<import('../types').ChatRoom>;
+    deleteRoom: (roomId: string) => Promise<void>;
     setRoomPagination: (roomId: string, paging: { lastKey: string | null, hasMore: boolean, loading?: boolean }) => void;
     loadMoreMessages: (roomId: string) => Promise<void>;
     clear: () => void;
@@ -449,10 +450,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
             frontendRoom.updatedAt = room.lastMessage.createdAt;
         }
 
+        // Đã filter ở ChatListScreen nên cứ upsert bình thường để store có dữ liệu
         get().upsertRoom(frontendRoom);
         return frontendRoom;
     },
-    
+
+    deleteRoom: async (roomId) => {
+        // 1. Xóa khỏi store ngay lập tức (optimistic UI)
+        set((state) => ({
+            rooms: state.rooms.filter((r) => r.id !== roomId),
+            messages: Object.fromEntries(
+                Object.entries(state.messages).filter(([id]) => id !== roomId)
+            ),
+        }));
+        // 2. Gọi API backend
+        try {
+            const { chatService } = await import('../services/chatService');
+            await chatService.deleteRoom(roomId);
+        } catch (e) {
+            console.error('Failed to delete chat room on server:', e);
+        }
+    },
+
     setRoomPagination: (roomId, paging) => set((state) => ({
         roomPagination: {
             ...state.roomPagination,

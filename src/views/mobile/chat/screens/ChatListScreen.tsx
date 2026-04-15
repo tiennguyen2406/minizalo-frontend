@@ -19,7 +19,7 @@ import { getChatPreviewText } from "@/shared/utils/chatPreview";
 
 export default function ChatListScreen() {
     const router = useRouter();
-    const { rooms, setRooms, addMessage, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom } = useChatStore();
+    const { rooms, setRooms, addMessage, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
     const colors = useThemeColors();
     const currentUserId = useAuthStore((s) => s.user?.id);
     const friends = useFriendStore((s) => s.friends);
@@ -46,12 +46,14 @@ export default function ChatListScreen() {
             );
             result = inboxTab === "strangers" ? strangerRooms : mainRooms;
         }
-        return [...result].sort((a, b) => {
-            const aPinned = pinnedRooms.has(a.id);
-            const bPinned = pinnedRooms.has(b.id);
-            if (aPinned !== bPinned) return aPinned ? -1 : 1;
-            return 0;
-        });
+        return [...result]
+            .filter((r) => !!r.lastMessage) // Chỉ hiện phòng đã có tin nhắn
+            .sort((a, b) => {
+                const aPinned = pinnedRooms.has(a.id);
+                const bPinned = pinnedRooms.has(b.id);
+                if (aPinned !== bPinned) return aPinned ? -1 : 1;
+                return 0;
+            });
     }, [rooms, currentUserId, friends, friendsListReady, inboxTab, pinnedRooms]);
 
     const friendIdSet = useMemo(() => {
@@ -488,6 +490,34 @@ export default function ChatListScreen() {
                                     <Ionicons name={mutedRooms.has(actionRoom.id) ? "volume-high" : "volume-mute"} size={20} color={colors.text} />
                                     <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
                                         {mutedRooms.has(actionRoom.id) ? "Bật thông báo" : "Tắt thông báo"}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 18, marginVertical: 4 }} />
+
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setActionRoom(null);
+                                        const roomId = actionRoom.id;
+                                        const roomName = actionRoom.name || 'đoạn chat này';
+                                        Alert.alert(
+                                            'Xóa đoạn chat',
+                                            `Toàn bộ tin nhắn trong "${roomName}" sẽ bị xóa vĩnh viễn. Bạn có chắc không?`,
+                                            [
+                                                { text: 'Hủy', style: 'cancel' },
+                                                {
+                                                    text: 'Xóa',
+                                                    style: 'destructive',
+                                                    onPress: () => deleteRoom(roomId),
+                                                },
+                                            ]
+                                        );
+                                    }}
+                                    style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 14, gap: 12 }}
+                                >
+                                    <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                                    <Text style={{ color: "#ef4444", fontSize: 15, fontWeight: "600" }}>
+                                        Xóa đoạn chat
                                     </Text>
                                 </TouchableOpacity>
                             </>

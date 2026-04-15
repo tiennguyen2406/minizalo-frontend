@@ -117,7 +117,7 @@ export default function ChatScreen() {
     const isStranger = useMemo(() => {
         // Nếu là GROUP thì không là người lạ (theo logic App hiện tại)
         if (roomType === 'GROUP') return false;
-        
+
         // Luôn kiểm tra trong store trước nếu có targetUserId (param hoặc suy luận từ participants)
         if (resolvedTargetUserId) {
             const isFriend = friends.some((f: any) => {
@@ -155,7 +155,7 @@ export default function ChatScreen() {
     const [sending, setSending] = useState(false);
     const [selectedAttachment, setSelectedAttachment] = useState<any | null>(null);
     const [loaded, setLoaded] = useState(false);
-    
+
     const flatListRef = useRef<FlatList>(null);
     const galleryRef = useRef<FlatList>(null);
     const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
@@ -417,6 +417,46 @@ export default function ChatScreen() {
 
         // Subscribe to room topic (tin nhắn mới)
         const topic = `/topic/chat/${roomId}`;
+
+        // Sau khi subscribe xong, kiểm tra và gửi tin nhắn pending (nếu vừa tạo room mới)
+        const sendPendingMessage = () => {
+            const pending = pendingSendRef.current;
+            if (pending) {
+                pendingSendRef.current = null;
+                // Thêm tin nhắn optimistic
+                const optimisticMsg: any = {
+                    messageId: `temp-${Date.now()}`,
+                    chatRoomId: roomId,
+                    senderId: currentUserId || "",
+                    senderName: "Tôi",
+                    content: pending.content,
+                    attachments: [],
+                    type: "TEXT",
+                    createdAt: new Date().toISOString(),
+                    replyToMessageId: pending.replyToId ?? "",
+                    read: false,
+                    readBy: [],
+                    reactions: [],
+                    recalled: false,
+                    recalledAt: "",
+                    pinned: false,
+                };
+                setMessages((prev) => [optimisticMsg, ...prev]);
+                // Gửi tin nhắn thực tế
+                const sentViaWs = webSocketService.sendChatMessage(
+                    roomId,
+                    pending.content,
+                    "TEXT",
+                    pending.replyToId
+                );
+                if (!sentViaWs) {
+                    chatService.sendMessage(roomId, pending.content, pending.replyToId).then(() => {
+                        void fetchMessages(false);
+                    });
+                }
+                schedulePostSendSync();
+            }
+        };
         const handleIncomingMsg = (stompMessage: any) => {
             try {
                 const newMsg: MessageDynamo = JSON.parse(stompMessage.body);
@@ -573,7 +613,7 @@ export default function ChatScreen() {
                                     return newPinned.length > 0 ? [...curr, ...newPinned] : curr;
                                 });
                             }
-                        }).catch(() => {});
+                        }).catch(() => { });
                         return prev;
                     }
                     return prev.map((m) =>
@@ -582,11 +622,14 @@ export default function ChatScreen() {
                             : m
                     );
                 });
-                showToast(payload.isPinned ? "Đã ghim tin nhắn" : "Đã bỏ ghim");
+                // Không showToast ở đây vì backend sẽ broadcast system message PIN_NOTIFICATION
             } catch (err) {
                 // Error parsing pin WS message
             }
         });
+
+        // Gửi tin nhắn pending (do vừa tạo room mới) sau khi WS subscribe xong
+        setTimeout(sendPendingMessage, 500);
 
         return () => {
             webSocketService.unsubscribe(topic);
@@ -607,11 +650,14 @@ export default function ChatScreen() {
     }, [isStranger, isFocused]);
 
     // ─── Send message ───
+    // Ref để giữ tin nhắn đang chờ gửi khi tạo room mới
+    const pendingSendRef = useRef<{ content: string; replyToId?: string } | null>(null);
+
     const handleSend = async (content: string) => {
         if (sending || !content.trim()) return;
 
         let workingRoomId = activeRoomId;
-        
+
         // Nếu là phòng chat mới (chưa có ID thực), tiến hành tạo phòng backend
         if (!workingRoomId) {
             if (!resolvedTargetUserId) {
@@ -623,7 +669,13 @@ export default function ChatScreen() {
                 const { useChatStore } = await import("@/shared/store/useChatStore");
                 const newRoom = await useChatStore.getState().createPrivateRoom(resolvedTargetUserId);
                 workingRoomId = newRoom.id;
+                // Lưu tin nhắn vào ref, sẽ gửi sau khi useEffect subscribe WS xong
+                pendingSendRef.current = { content: content.trim(), replyToId: replyTo?.messageId };
+                setReplyTo(null);
                 setActiveRoomId(newRoom.id);
+                // RETURN ở đây – useEffect [roomId] sẽ subscribe WS + gọi sendPendingMessage
+                setSending(false);
+                return;
             } catch (err) {
                 Alert.alert("Lỗi", "Không thể khởi tạo phòng chat. Vui lòng thử lại.");
                 setSending(false);
@@ -1215,6 +1267,7 @@ export default function ChatScreen() {
             roomId,
             messageId: target.messageId,
             pin: nextPin,
+            messageType: target.type || "TEXT",
         });
         closeActionSheet();
     };
@@ -1322,6 +1375,22 @@ export default function ChatScreen() {
     }, [allImages]);
 
     // ─── Render ───
+    // Hàm scroll đến tin nhắn được ghim - xử lý đúng với inverted FlatList
+    const scrollToPinnedMessage = useCallback((pinnedMsgId: string) => {
+        const idx = messages.findIndex(m => m.messageId === pinnedMsgId);
+        if (idx === -1) return;
+        try {
+            flatListRef.current?.scrollToIndex({
+                index: idx,
+                animated: true,
+                viewPosition: 0.5,
+            });
+        } catch (e) {
+            // Fallback: tính offset thủ công (estimate)
+            flatListRef.current?.scrollToOffset({ offset: idx * 80, animated: true });
+        }
+    }, [messages]);
+
     const renderMessage = ({ item }: { item: MessageDynamo }) => {
         const isMe = item.senderId === currentUserId;
         const isVisible = visibleMessageIds.has(item.messageId);
@@ -1329,6 +1398,62 @@ export default function ChatScreen() {
         if (item.createdAt) {
             timeDisplay = formatTime(item.createdAt);
         }
+
+        // ─── PIN_NOTIFICATION: hiển thị dạng thông báo hệ thống giữa chat ───
+        if (item.type === "PIN_NOTIFICATION" || (item.senderId === "system" && item.type !== "SYSTEM")) {
+            const pinnedMsgId = item.replyToMessageId;
+            // "đã ghim" xuất hiện trong cả "đã ghim" và "đã bỏ ghim", dùng điều kiện chặt hơn
+            const isPinAction = !!item.content && item.content.includes("đã ghim") && !item.content.includes("bỏ ghim");
+            return (
+                <View
+                    style={{
+                        alignItems: "center",
+                        marginVertical: 6,
+                        paddingHorizontal: 16,
+                    }}
+                >
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+                            borderRadius: 20,
+                            paddingHorizontal: 14,
+                            paddingVertical: 7,
+                            maxWidth: '90%',
+                        }}
+                    >
+                        <Ionicons
+                            name={isPinAction ? "bookmark" : "bookmark-outline"}
+                            size={14}
+                            color={isPinAction ? '#f59e0b' : colors.textSecondary}
+                            style={{ marginRight: 6 }}
+                        />
+                        <Text
+                            style={{
+                                color: colors.textSecondary,
+                                fontSize: 12.5,
+                                flexShrink: 1,
+                            }}
+                            numberOfLines={2}
+                        >
+                            {item.content}
+                        </Text>
+                        {isPinAction && pinnedMsgId && (
+                            <TouchableOpacity
+                                onPress={() => scrollToPinnedMessage(pinnedMsgId)}
+                                style={{ marginLeft: 6 }}
+                            >
+                                <Text style={{ color: colors.primary, fontSize: 12.5, fontWeight: '600' }}>
+                                    Xem
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </View>
+            );
+        }
+
         const replySource =
             item.replyToMessageId &&
             messages.find((m) => m.messageId === item.replyToMessageId);
@@ -1443,16 +1568,16 @@ export default function ChatScreen() {
                             shadowRadius: 2,
                         }}
                     >
-                        <Ionicons 
-                            name={friendRequestStatus === 'SENT' ? "time-outline" : friendRequestStatus === 'INCOMING' ? "person-add" : "person-add"} 
-                            size={18} 
-                            color={friendRequestStatus === 'SENT' ? colors.textSecondary : colors.primary} 
-                            style={{ marginRight: 8 }} 
+                        <Ionicons
+                            name={friendRequestStatus === 'SENT' ? "time-outline" : friendRequestStatus === 'INCOMING' ? "person-add" : "person-add"}
+                            size={18}
+                            color={friendRequestStatus === 'SENT' ? colors.textSecondary : colors.primary}
+                            style={{ marginRight: 8 }}
                         />
-                        <Text style={{ 
-                            color: friendRequestStatus === 'SENT' ? colors.textSecondary : colors.text, 
-                            fontWeight: '600', 
-                            fontSize: 15 
+                        <Text style={{
+                            color: friendRequestStatus === 'SENT' ? colors.textSecondary : colors.text,
+                            fontWeight: '600',
+                            fontSize: 15
                         }}>
                             {friendRequestStatus === 'SENT' ? 'Đã gửi lời mời' : friendRequestStatus === 'INCOMING' ? 'Chấp nhận kết bạn' : 'Kết bạn'}
                         </Text>
@@ -1577,6 +1702,19 @@ export default function ChatScreen() {
                     removeClippedSubviews={Platform.OS === 'android'}
                     onViewableItemsChanged={onViewableItemsChanged}
                     viewabilityConfig={viewabilityConfig}
+                    onScrollToIndexFailed={(info) => {
+                        // Item chưa render trong viewport — scroll đến vị trí ước tính
+                        // rồi retry sau khi layout xong
+                        const offset = info.averageItemLength * info.index;
+                        flatListRef.current?.scrollToOffset({ offset, animated: false });
+                        setTimeout(() => {
+                            flatListRef.current?.scrollToIndex({
+                                index: info.index,
+                                animated: true,
+                                viewPosition: 0.5,
+                            });
+                        }, 200);
+                    }}
                     ListFooterComponent={
                         <View style={{ paddingBottom: 20 }}>
                             {isLoadingMore ? (
