@@ -210,4 +210,9 @@ export const chatService = {
         const { data } = await api.post<ChatRoomResponse>(`/chat/rooms/private/${userId}`);
         return data;
     },
+
+    /** Xóa đoạn chat: xóa toàn bộ tin nhắn + xóa membership của người dùng. */
+    deleteRoom: async (roomId: string): Promise<void> => {
+        await api.delete(`/chat/rooms/${roomId}`);
+    },
 };

@@ -462,32 +462,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
     const handleTogglePin = (messageId: string, currentPinStatus: boolean) => {
         if (!roomId) return;
+
+        // Lấy loại tin nhắn để backend biết hiển thị đúng trong thông báo ghim
+        const currentMsgs = useChatStore.getState().messages[roomId] || [];
+        const targetMsg = currentMsgs.find(m => m.id === messageId);
+        const msgType = targetMsg?.type || 'TEXT';
+
         webSocketService.sendPin({
             roomId,
             messageId,
             pin: !currentPinStatus,
+            messageType: msgType,
         });
-        // Optimistic update
-        const currentMsgs = useChatStore.getState().messages[roomId] || [];
+        // Optimistic update trạng thái ghim
         const newMsgs = currentMsgs.map((m) =>
             m.id === messageId ? { ...m, pinned: !currentPinStatus } : m
         );
-
-        // Add systemic pin/unpin notification locally (chỉ hiển thị cho người nhấn)
-        const targetMessage = currentMsgs.find(m => m.id === messageId);
-        if (targetMessage) {
-            newMsgs.push({
-                id: `sys-${Date.now()}-${Math.random()}`,
-                senderId: 'system',
-                roomId,
-                content: !currentPinStatus ? 'Bạn đã ghim tin nhắn' : 'Bạn đã bỏ ghim tin nhắn',
-                type: 'SYSTEM',
-                createdAt: new Date().toISOString(),
-                isRecall: currentPinStatus,
-                replyToId: !currentPinStatus ? messageId : undefined,
-            });
-        }
-
         setMessages(roomId, newMsgs);
     };
 

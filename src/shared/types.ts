@@ -89,6 +89,7 @@ export interface PinMessageRequest {
     roomId: string;
     messageId: string;
     pin: boolean;
+    messageType?: string; // TEXT, IMAGE, VIDEO, FILE, LINK
 }
 
 export interface Attachment {
@@ -107,7 +108,7 @@ export interface Message {
     senderName?: string;
     roomId: string;
     content: string;
-    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'DOCUMENT' | 'FOLDER' | 'STICKER' | 'REPLY' | 'FORWARD' | 'SYSTEM';
+    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'DOCUMENT' | 'FOLDER' | 'STICKER' | 'REPLY' | 'FORWARD' | 'SYSTEM' | 'PIN_NOTIFICATION';
     createdAt: string; // ISO string
     updatedAt?: string;
     isDeleted?: boolean;
