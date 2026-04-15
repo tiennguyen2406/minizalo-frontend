@@ -15,6 +15,7 @@ import { useInAppNotifStore } from "../components/InAppNotification";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
+import { getChatPreviewText } from "@/shared/utils/chatPreview";
 
 export default function ChatListScreen() {
     const router = useRouter();
@@ -242,27 +243,7 @@ export default function ChatListScreen() {
     const renderItem = ({ item }: { item: (typeof rooms)[number] }) => {
         const processedAvatar = item.avatarUrl ? getImageUrl(item.avatarUrl) : "";
         const avatarUri = processedAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "User")}&background=random&color=fff`;
-        // Xử lý hiển thị tin nhắn cuối
-        let lastMsg = "Chưa có tin nhắn";
-        if (item.lastMessage) {
-            const lm = item.lastMessage;
-            const recalled =
-                lm.isRecall === true ||
-                Boolean((lm as { recalled?: boolean }).recalled);
-            if (recalled) {
-                lastMsg = '[Tin nhắn đã thu hồi]';
-            } else if (lm.content === '[Tin nhắn đã thu hồi]') {
-                lastMsg = '[Tin nhắn đã thu hồi]';
-            } else if (lm.type === 'IMAGE') {
-                lastMsg = '[Hình ảnh]';
-            } else if (lm.type === 'FILE') {
-                lastMsg = '[Tập tin]';
-            } else if (lm.type === 'VIDEO') {
-                lastMsg = '[Video]';
-            } else {
-                lastMsg = lm.content || 'Chưa có tin nhắn';
-            }
-        }
+        const lastMsg = getChatPreviewText(item.lastMessage as any);
 
         let timeDisplay = "";
         if (item.lastMessage?.createdAt) {

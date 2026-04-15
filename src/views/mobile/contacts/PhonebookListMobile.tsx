@@ -304,8 +304,8 @@ export default function PhonebookListMobile() {
                 onMessage={(u) => {
                   setModalVisible(false);
                   const isFriend = friendIds.has(u.id);
-                  const existingRoom = rooms.find(r => 
-                      (r.type === 'PRIVATE' || r.type === 'DIRECT') && 
+                  const existingRoom = rooms.find(r =>
+                      r.type === 'PRIVATE' &&
                       r.participants.some(p => p.id === u.id)
                   );
                   

@@ -177,7 +177,7 @@ export default function FriendRequestsMobile() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => handleAccept(item.id, user?.id, displayName, user?.avatarUrl)}
+            onPress={() => handleAccept(item.id, user.id, displayName, user.avatarUrl ?? undefined)}
             style={{
               paddingHorizontal: 12,
               paddingVertical: 6,

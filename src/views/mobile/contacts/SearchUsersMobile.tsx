@@ -480,8 +480,8 @@ export default function SearchUsersMobile({
 
                 // Tìm ID của người lạ/bạn trong danh bạ (u.id)
                 const isFriend = friendIdSet.has(u.id);
-                const existingRoom = rooms.find(r => 
-                    (r.type === 'PRIVATE' || r.type === 'DIRECT') && 
+                const existingRoom = rooms.find(r =>
+                    r.type === 'PRIVATE' &&
                     r.participants.some(p => p.id === u.id)
                 );
                 

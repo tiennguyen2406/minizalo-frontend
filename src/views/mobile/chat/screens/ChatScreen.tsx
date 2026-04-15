@@ -47,6 +47,43 @@ import { useLocalSearchParams } from "expo-router";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
+// ─── Upload helpers ───────────────────────────────────────────────────────────
+function uploadFileWithXHR(
+    url: string,
+    formData: FormData,
+    token: string,
+    onProgress?: (loaded: number, total: number) => void
+): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", url);
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        if (onProgress) {
+            xhr.upload.onprogress = (e: ProgressEvent) => {
+                if (e.lengthComputable) onProgress(e.loaded, e.total);
+            };
+        }
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try { resolve(JSON.parse(xhr.responseText)); }
+                catch { reject(new Error("Invalid JSON response")); }
+            } else {
+                reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+        };
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.ontimeout = () => reject(new Error("Upload timed out"));
+        xhr.send(formData);
+    });
+}
+
+function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function ChatScreen() {
     const footerRef = useRef<ChatFooterHandle>(null);
     const isFocused = useIsFocused();
@@ -198,6 +235,11 @@ export default function ChatScreen() {
     const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set());
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
     const [showWelcomePicker, setShowWelcomePicker] = useState(false);
+    const uploadState = useChatStore((s) =>
+        roomId ? s.uploadProgressByRoom[roomId] : undefined
+    );
+    const setUploadProgressForRoom = useChatStore((s) => s.setUploadProgress);
+    const isUploadingActive = Boolean(uploadState?.active);
 
     const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
         setToast({ visible: true, message, type });
@@ -283,6 +325,16 @@ export default function ChatScreen() {
             fetchMessages(true);
         }
     };
+
+    // Đồng bộ nền sau khi gửi qua WS để tránh trường hợp UI chưa nhận đủ event realtime.
+    const schedulePostSendSync = useCallback(() => {
+        setTimeout(() => {
+            void fetchMessages(false);
+        }, 1200);
+        setTimeout(() => {
+            void fetchMessages(false);
+        }, 3200);
+    }, [fetchMessages]);
 
     // ─── Check block status & Privacy settings for DIRECT chats ───
     useEffect(() => {
@@ -627,7 +679,9 @@ export default function ChatScreen() {
             );
             if (!sentViaWs) {
                 await chatService.sendMessage(workingRoomId!, content, replyTo?.messageId);
+                void fetchMessages(false);
             }
+            schedulePostSendSync();
         } catch (err: any) {
             showToast("Gửi tin nhắn thất bại", "error");
             setMessages((prev) =>
@@ -641,7 +695,7 @@ export default function ChatScreen() {
 
     // ─── Send image(s) ───
     const handleSendImage = async (assets: ImagePicker.ImagePickerAsset[]) => {
-        if (!roomId || sending || assets.length === 0) return;
+        if (!roomId || sending || isUploadingActive || assets.length === 0) return;
         for (const a of assets) {
             const sz = a.fileSize;
             if (sz != null && sz > 0) {
@@ -654,6 +708,7 @@ export default function ChatScreen() {
             }
         }
         setSending(true);
+        setUploadProgressForRoom(roomId, { progress: 1, text: "Đang tải ảnh/video... 1%" });
 
         const msgType = assets.some(a => a.type === "video") ? "VIDEO" : "IMAGE";
 
@@ -686,11 +741,28 @@ export default function ChatScreen() {
         setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
 
         try {
-            const token = (await import("@/shared/store/authStore")).useAuthStore.getState().accessToken;
+            const token = (await import("@/shared/store/authStore")).useAuthStore.getState().accessToken ?? "";
             const rawBase = process.env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8080/api";
             const apiBase = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
 
-            // Upload all images in parallel
+            // Byte-level parallel progress tracking
+            const fileSizes = assets.map(a => a.fileSize ?? 0);
+            const loadedArr = new Array(assets.length).fill(0) as number[];
+            const totalArr = [...fileSizes] as number[];
+
+            const reportProgress = () => {
+                const sumLoaded = loadedArr.reduce((s, b) => s + b, 0);
+                const sumTotal = totalArr.reduce((s, b) => s + b, 0) || 1;
+                const pct = Math.min(99, Math.max(1, Math.round((sumLoaded / sumTotal) * 100)));
+                const sizePart = sumTotal > 1
+                    ? ` · ${formatBytes(sumLoaded)} / ${formatBytes(sumTotal)}`
+                    : "";
+                setUploadProgressForRoom(roomId, {
+                    progress: pct,
+                    text: `Đang tải ảnh/video... ${pct}%${sizePart}`,
+                });
+            };
+
             const uploadPromises = assets.map(async (asset, i) => {
                 const uri = asset.uri;
                 const ext = asset.type === "video" ? "mp4" : "jpg";
@@ -700,14 +772,19 @@ export default function ChatScreen() {
                 const formData = new FormData();
                 formData.append("file", { uri, name: filename, type } as any);
 
-                const uploadRes = await fetch(`${apiBase}/files/upload`, {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${token}` },
-                    body: formData,
-                });
-
-                if (!uploadRes.ok) throw new Error(`Upload failed for media ${i}`);
-                const uploadData = await uploadRes.json();
+                const uploadData = await uploadFileWithXHR(
+                    `${apiBase}/files/upload`,
+                    formData,
+                    token,
+                    (loaded, total) => {
+                        loadedArr[i] = loaded;
+                        if (total > 0) totalArr[i] = total;
+                        reportProgress();
+                    }
+                );
+                // Mark this file as fully uploaded
+                loadedArr[i] = totalArr[i] || loadedArr[i];
+                reportProgress();
 
                 return {
                     id: "",
@@ -742,28 +819,32 @@ export default function ChatScreen() {
                 await chatService.sendMessage(roomId, "", undefined, msgType as any, uploadedAttachments);
                 await fetchMessages();
             }
+            schedulePostSendSync();
         } catch (err) {
             showToast("Gửi file phương tiện thất bại", "error");
             setMessages((prev) =>
                 prev.map(m => m.messageId === tempId ? { ...m, isError: true } : m)
             );
         } finally {
+            setUploadProgressForRoom(roomId, null);
             setSending(false);
         }
     };
 
-    // ─── Send file ───
-    const handleSendFileSingle = async (file: DocumentPicker.DocumentPickerAsset) => {
-        if (!roomId || sending) return;
-        const fsz = file.size;
-        if (fsz != null && fsz > 0) {
-            const err = validateFileSize({ size: fsz, type: file.mimeType || "" });
-            if (err) {
-                Alert.alert("Giới hạn dung lượng", err);
-                return;
+    const handleSendFile = async (files: DocumentPicker.DocumentPickerAsset[]) => {
+        if (!roomId || sending || isUploadingActive || !files || files.length === 0) return;
+        for (const f of files) {
+            const fsz = f.size;
+            if (fsz != null && fsz > 0) {
+                const err = validateFileSize({ size: fsz, type: f.mimeType || "" });
+                if (err) {
+                    Alert.alert("Giới hạn dung lượng", err);
+                    return;
+                }
             }
         }
         setSending(true);
+        setUploadProgressForRoom(roomId, { progress: 1, text: "Đang tải tệp... 1%" });
 
         const tempId = `temp-file-${Date.now()}`;
         const optimisticMsg: MessageDynamo = {
@@ -772,13 +853,13 @@ export default function ChatScreen() {
             senderId: currentUserId || "",
             senderName: "Tôi",
             content: "",
-            attachments: [{
+            attachments: files.map((f) => ({
                 id: "",
-                url: file.uri, // Tạm thời dùng local URI
-                type: file.mimeType || "application/octet-stream",
-                name: file.name || "file",
-                size: file.size || 0,
-            }],
+                url: f.uri,
+                type: f.mimeType || "application/octet-stream",
+                name: f.name || "file",
+                size: f.size || 0,
+            })),
             type: "FILE",
             createdAt: new Date().toISOString(),
             replyToMessageId: "",
@@ -793,43 +874,63 @@ export default function ChatScreen() {
         setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
 
         try {
-            const uri = file.uri;
-            const filename = file.name || `file_${Date.now()}`;
-            const type = file.mimeType || "application/octet-stream";
-
-            const formData = new FormData();
-            formData.append("file", { uri, name: filename, type } as any);
-
-            const token = (await import("@/shared/store/authStore")).useAuthStore.getState().accessToken;
+            const token = (await import("@/shared/store/authStore")).useAuthStore.getState().accessToken ?? "";
             const rawBase = process.env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8080/api";
             const apiBase = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
 
-            const uploadRes = await fetch(`${apiBase}/files/upload`, {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                },
-                body: formData,
-            });
+            // Byte-level parallel progress tracking
+            const fileSizes = files.map(f => f.size ?? 0);
+            const loadedArr = new Array(files.length).fill(0) as number[];
+            const totalArr = [...fileSizes] as number[];
 
-            if (!uploadRes.ok) throw new Error("Upload failed");
-            const uploadData = await uploadRes.json();
-
-            const attachment = {
-                id: "",
-                name: uploadData.fileName || filename,
-                url: uploadData.fileUrl,
-                type: uploadData.fileType || type,
-                filename: uploadData.fileName || filename,
-                size: uploadData.size || file.size || 0,
+            const reportProgress = () => {
+                const sumLoaded = loadedArr.reduce((s, b) => s + b, 0);
+                const sumTotal = totalArr.reduce((s, b) => s + b, 0) || 1;
+                const pct = Math.min(99, Math.max(1, Math.round((sumLoaded / sumTotal) * 100)));
+                const sizePart = sumTotal > 1
+                    ? ` · ${formatBytes(sumLoaded)} / ${formatBytes(sumTotal)}`
+                    : "";
+                setUploadProgressForRoom(roomId, {
+                    progress: pct,
+                    text: `Đang tải tệp... ${pct}%${sizePart}`,
+                });
             };
 
-            // ✅ Cập nhật optimistic message với server URL
+            const uploadPromises = files.map(async (file, i) => {
+                const filename = file.name || `file_${Date.now()}_${i}`;
+                const type = file.mimeType || "application/octet-stream";
+                const formData = new FormData();
+                formData.append("file", { uri: file.uri, name: filename, type } as any);
+
+                const uploadData = await uploadFileWithXHR(
+                    `${apiBase}/files/upload`,
+                    formData,
+                    token,
+                    (loaded, total) => {
+                        loadedArr[i] = loaded;
+                        if (total > 0) totalArr[i] = total;
+                        reportProgress();
+                    }
+                );
+                // Mark this file as fully uploaded
+                loadedArr[i] = totalArr[i] || loadedArr[i];
+                reportProgress();
+
+                return {
+                    id: "",
+                    name: uploadData.fileName || filename,
+                    url: uploadData.fileUrl,
+                    type: uploadData.fileType || type,
+                    filename: uploadData.fileName || filename,
+                    size: uploadData.size || file.size || 0,
+                };
+            });
+
+            const uploadedAttachments = await Promise.all(uploadPromises);
+
             setMessages((prev) =>
-                prev.map(m =>
-                    m.messageId === tempId
-                        ? { ...m, attachments: [attachment] }
-                        : m
+                prev.map((m) =>
+                    m.messageId === tempId ? { ...m, attachments: uploadedAttachments } : m
                 )
             );
 
@@ -838,28 +939,21 @@ export default function ChatScreen() {
                 "",
                 "FILE",
                 undefined,
-                [attachment]
+                uploadedAttachments
             );
             if (!sentViaWs) {
-                await chatService.sendMessage(roomId, "", undefined, "FILE", [attachment]);
+                await chatService.sendMessage(roomId, "", undefined, "FILE", uploadedAttachments);
                 await fetchMessages();
             }
+            schedulePostSendSync();
         } catch (err: any) {
             showToast("Gửi file thất bại", "error");
             setMessages((prev) =>
-                prev.map(m => m.messageId === tempId ? { ...m, isError: true } : m)
+                prev.map((m) => (m.messageId === tempId ? { ...m, isError: true } : m))
             );
         } finally {
+            setUploadProgressForRoom(roomId, null);
             setSending(false);
-        }
-    };
-
-    const handleSendFile = async (files: DocumentPicker.DocumentPickerAsset[]) => {
-        if (!files || files.length === 0) return;
-        // Gửi tuần tự để giữ đúng trạng thái `sending` + UI optimistic ổn định
-        for (const f of files) {
-            // eslint-disable-next-line no-await-in-loop
-            await handleSendFileSingle(f);
         }
     };
 
@@ -1175,6 +1269,36 @@ export default function ChatScreen() {
         return url;
     };
 
+    const decodeAttachmentName = (raw?: string | null) => {
+        if (!raw) return "";
+        let value = raw.trim();
+        if (!value) return "";
+        // Một số backend/client gửi tên file dạng query-encoded hoặc double-encoded.
+        for (let i = 0; i < 2; i += 1) {
+            try {
+                const normalized = value.replace(/\+/g, "%20");
+                const decoded = decodeURIComponent(normalized);
+                if (decoded === value) break;
+                value = decoded;
+            } catch {
+                break;
+            }
+        }
+        return value;
+    };
+
+    const getPinnedDisplayText = (m: MessageDynamo) => {
+        if (m.recalled) return "Tin nhắn đã thu hồi";
+        if (m.type === "IMAGE") return "[Hình ảnh]";
+        if (m.type === "VIDEO") return "[Video]";
+        if (m.type === "FILE" || m.type === "DOCUMENT" || (m.attachments && m.attachments.length > 0)) {
+            const rawName = m.attachments?.[0]?.name || m.attachments?.[0]?.filename || "Tệp đính kèm";
+            const fileName = decodeAttachmentName(rawName) || "Tệp đính kèm";
+            return `[File] ${fileName}`;
+        }
+        return m.content || "Tin nhắn đã ghim";
+    };
+
     const allImages = useMemo(() => {
         const imgs: string[] = [];
         // messages are newest-first (inverted), reverse to get chronological
@@ -1343,21 +1467,6 @@ export default function ChatScreen() {
                     const latest = pinned[0];
                     if (!latest) return null;
 
-                    const getPinnedDisplay = (m: MessageDynamo) => {
-                        if (m.recalled) return "Tin nhắn đã thu hồi";
-                        if (m.type === "IMAGE") return "[Hình ảnh]";
-                        if (m.type === "VIDEO") return "[Video]";
-                        if (m.type === "FILE" || (m.attachments && m.attachments.length > 0)) {
-                            const name = m.attachments?.[0]?.name || m.attachments?.[0]?.filename || "Đính kèm";
-                            try {
-                                return `[File] ${decodeURIComponent(name)}`;
-                            } catch {
-                                return `[File] ${name}`;
-                            }
-                        }
-                        return m.content || "Tin nhắn đã ghim";
-                    };
-
                     const getIcon = (m: MessageDynamo) => {
                         if (m.type === "IMAGE") return "image-outline";
                         if (m.type === "VIDEO") return "videocam-outline";
@@ -1419,7 +1528,7 @@ export default function ChatScreen() {
                                                 marginTop: -1
                                             }}
                                         >
-                                            {getPinnedDisplay(latest)}
+                                            {getPinnedDisplayText(latest)}
                                         </Text>
                                     </View>
                                 </View>
@@ -1552,6 +1661,8 @@ export default function ChatScreen() {
                         onSend={handleSend}
                         onSendImage={handleSendImage}
                         onSendFile={handleSendFile}
+                        uploadProgress={uploadState?.progress ?? null}
+                        uploadText={uploadState?.text}
                         replyTo={replyTo}
                         onCancelReply={() => setReplyTo(null)}
                     />
@@ -1944,11 +2055,7 @@ export default function ChatScreen() {
                                                     }}
                                                     numberOfLines={1}
                                                 >
-                                                    {m.type === "IMAGE" ? "[Hình ảnh]" :
-                                                        m.type === "VIDEO" ? "[Video]" :
-                                                            (m.type === "FILE" || (m.attachments && m.attachments.length > 0))
-                                                                ? (m.attachments?.[0]?.name || m.attachments?.[0]?.filename || "Tệp đính kèm")
-                                                                : (m.content || "[Tin nhắn]")}
+                                                    {getPinnedDisplayText(m)}
                                                 </Text>
                                                 <Text
                                                     style={{
