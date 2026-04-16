@@ -1,5 +1,5 @@
 import { api } from "@/shared/services/apiClient";
-import { GroupDetail } from "../types";
+import { GroupDetail, GroupSettings, BlockedMember } from "../types";
 
 /** Map GroupResponse (backend) → GroupDetail (frontend) */
 function mapGroupResponse(data: any): GroupDetail {
@@ -16,6 +16,7 @@ function mapGroupResponse(data: any): GroupDetail {
             avatarUrl: m.avatarUrl || undefined,
             role: m.role || "MEMBER",
         })),
+        settings: data.settings,
     };
 }
 
@@ -76,5 +77,55 @@ export const groupService = {
     /** Giải tán nhóm */
     async disbandGroup(groupId: string): Promise<void> {
         await api.delete(`/group/${groupId}`);
+    },
+
+    // ----------------------------------------------------------------------
+    // Group Admin Features
+    // ----------------------------------------------------------------------
+
+    /** Lấy cấu hình nhóm */
+    async getGroupSettings(groupId: string): Promise<GroupSettings> {
+        const { data } = await api.get(`/group/${groupId}/settings`);
+        return data;
+    },
+
+    /** Cập nhật cấu hình nhóm */
+    async updateGroupSettings(settings: Partial<GroupSettings> & { groupId: string }): Promise<GroupSettings> {
+        const { data } = await api.put(`/group/settings`, settings);
+        return data;
+    },
+
+    /** Chuyển nhượng quyền trưởng nhóm */
+    async transferOwnership(groupId: string, newOwnerId: string): Promise<GroupDetail> {
+        const { data } = await api.post(`/group/transfer-ownership`, { groupId, newOwnerId });
+        return mapGroupResponse(data);
+    },
+
+    /** Chặn người dùng khỏi nhóm */
+    async blockMember(groupId: string, targetUserId: string): Promise<void> {
+        await api.post(`/group/block-member`, { groupId, targetUserId });
+    },
+
+    /** Bỏ chặn người dùng */
+    async unblockMember(groupId: string, targetUserId: string): Promise<void> {
+        await api.delete(`/group/${groupId}/block-member/${targetUserId}`);
+    },
+
+    /** Lấy danh sách thành viên bị chặn */
+    async getBlockedMembers(groupId: string): Promise<BlockedMember[]> {
+        const { data } = await api.get(`/group/${groupId}/blocked`);
+        return data;
+    },
+
+    /** Tham gia nhóm bằng link */
+    async joinByLink(joinToken: string): Promise<GroupDetail> {
+        const { data } = await api.post(`/group/join/${joinToken}`);
+        return mapGroupResponse(data);
+    },
+
+    /** Làm mới link tham gia */
+    async refreshJoinLink(groupId: string): Promise<string> {
+        const { data } = await api.post(`/group/${groupId}/refresh-link`);
+        return data.message; // MessageResponse from backend
     },
 };

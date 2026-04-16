@@ -8,6 +8,7 @@ import { MessageService } from '@/shared/services/MessageService';
 import GroupMembersList from './GroupMembersList';
 import ConfirmModal from './ConfirmModal';
 import ForwardMessageModal from './ForwardMessageModal';
+import GroupManagementPanel from './GroupManagementPanel';
 import { Message } from '@/shared/types';
 
 // ── Mute Duration Modal ─────────────────────────────────────────────────
@@ -135,7 +136,7 @@ function extractUrls(text: string): string[] {
 }
 
 const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
-    const { currentGroupDetail, setCurrentGroupDetail, openAddMembers } = useGroupStore();
+    const { currentGroupDetail, setCurrentGroupDetail, openAddMembers, openGroupManagement, isGroupManagementOpen } = useGroupStore();
     const { user } = useAuthStore();
     const { rooms, setRooms, pinnedRooms, togglePinRoom, mutedRooms, toggleMuteRoom, upsertRoom } = useChatStore();
 
@@ -436,10 +437,13 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     <ActionButton
                         icon={<Icon.Settings />}
                         label={<span>Quản lý<br />nhóm</span>}
-                        onClick={() => showToast('Tính năng sắp có')}
+                        onClick={() => openGroupManagement()}
                     />
                 )}
             </ActionButtonRow>
+
+            {/* Group management side panel */}
+            {isGroupManagementOpen && <GroupManagementPanel />}
 
             {/* Thành viên nhóm */}
             <div className="border-t border-gray-100">
@@ -495,13 +499,19 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             {imageMessages.map((m) => {
                                 const imgUrl = m.fileUrl || m.attachments?.[0]?.url;
                                 return (
-                                    <button
+                                    <div
                                         key={m.id}
                                         onClick={() => setLightboxUrl(imgUrl!)}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') setLightboxUrl(imgUrl!);
+                                        }}
                                         className="relative aspect-square w-full overflow-hidden rounded hover:opacity-90 transition-opacity group"
                                     >
                                         <img src={imgUrl} alt="" className="w-full h-full object-cover" />
                                         <button
+                                            type="button"
                                             className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/40 hover:bg-black/55 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                             title="Tùy chọn"
                                             onClick={(e) => {
@@ -517,8 +527,8 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                                                 <circle cx="19" cy="12" r="2" />
                                             </svg>
                                         </button>
-                                    </button>
-                                );
+                                    </div>
+                            );
                             })}
                         </div>
                         <button className="w-full text-sm text-center py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500 font-medium transition-colors">
@@ -737,7 +747,9 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     >
                         <button
                             onClick={() => {
-                                setForwardingMessages([mediaMenu.message]);
+                                if (mediaMenu.message) {
+                                    setForwardingMessages([mediaMenu.message]);
+                                }
                                 setMediaMenu(null);
                             }}
                             className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
