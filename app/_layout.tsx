@@ -1,5 +1,5 @@
 import "../src/shared/styles/global.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LogBox, Platform, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import {
@@ -9,6 +9,7 @@ import {
 } from "@/services/notificationService";
 import { useAuthStore } from "@/shared/store/authStore";
 import { InAppNotificationBanner } from "@/views/mobile/chat/components/InAppNotification";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Quyết liệt chặn tất cả các cảnh báo và lỗi liên quan đến expo-notifications trên Expo Go
 LogBox.ignoreLogs([
@@ -40,6 +41,7 @@ if (__DEV__) {
 export default function RootLayout() {
     const router = useRouter();
     const notificationResponseListener = useRef<{ remove: () => void } | null>(null);
+    const [queryClient] = useState(() => new QueryClient());
 
     useEffect(() => {
         // Khởi tạo handler thông báo (đã được bọc an toàn trong notificationService)
@@ -85,35 +87,37 @@ export default function RootLayout() {
     const isMobile = Platform.OS !== "web";
 
     return (
-        <View style={{ flex: 1 }}>
-            {isMobile && (
-                <InAppNotificationBanner
-                    onPress={(roomId) => {
-                        if (roomId) {
-                            router.push(`/chat/${roomId}?type=DIRECT`);
-                        }
-                    }}
-                />
-            )}
-            <Stack
-                screenOptions={{
-                    headerShown: false,
-                    animation: "slide_from_right",
-                    gestureEnabled: true,
-                    gestureDirection: "horizontal",
-                    fullScreenGestureEnabled: true,
-                }}
-            >
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen
-                    name="chat/[id]"
-                    options={{
+        <QueryClientProvider client={queryClient}>
+            <View style={{ flex: 1 }}>
+                {isMobile && (
+                    <InAppNotificationBanner
+                        onPress={(roomId) => {
+                            if (roomId) {
+                                router.push(`/chat/${roomId}?type=DIRECT`);
+                            }
+                        }}
+                    />
+                )}
+                <Stack
+                    screenOptions={{
+                        headerShown: false,
                         animation: "slide_from_right",
-                        gestureEnabled: false,
+                        gestureEnabled: true,
+                        gestureDirection: "horizontal",
+                        fullScreenGestureEnabled: true,
                     }}
-                />
-            </Stack>
-        </View>
+                >
+                    <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen
+                        name="chat/[id]"
+                        options={{
+                            animation: "slide_from_right",
+                            gestureEnabled: false,
+                        }}
+                    />
+                </Stack>
+            </View>
+        </QueryClientProvider>
     );
 }

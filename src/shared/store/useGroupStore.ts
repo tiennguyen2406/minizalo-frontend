@@ -6,6 +6,10 @@ interface GroupState {
     isGroupInfoOpen: boolean;
     isCreateGroupOpen: boolean;
     isAddMembersOpen: boolean;
+    isGroupManagementOpen: boolean;
+    isTransferOwnershipOpen: boolean;
+    isDisbandGroupOpen: boolean;
+    isBlockedMembersOpen: boolean;
     isLoading: boolean;
     error: string | null;
     createGroupPreselectedIds: string[];
@@ -30,6 +34,18 @@ interface GroupState {
     openAddMembers: () => void;
     closeAddMembers: () => void;
 
+    openGroupManagement: () => void;
+    closeGroupManagement: () => void;
+
+    openTransferOwnership: () => void;
+    closeTransferOwnership: () => void;
+
+    openDisbandGroup: () => void;
+    closeDisbandGroup: () => void;
+
+    openBlockedMembers: () => void;
+    closeBlockedMembers: () => void;
+
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
 
@@ -43,6 +59,10 @@ export const useGroupStore = create<GroupState>((set) => ({
     isGroupInfoOpen: false,
     isCreateGroupOpen: false,
     isAddMembersOpen: false,
+    isGroupManagementOpen: false,
+    isTransferOwnershipOpen: false,
+    isDisbandGroupOpen: false,
+    isBlockedMembersOpen: false,
     isLoading: false,
     error: null,
     onGroupCreated: null,
@@ -63,6 +83,18 @@ export const useGroupStore = create<GroupState>((set) => ({
     openAddMembers: () => set({ isAddMembersOpen: true }),
     closeAddMembers: () => set({ isAddMembersOpen: false }),
 
+    openGroupManagement: () => set({ isGroupManagementOpen: true }),
+    closeGroupManagement: () => set({ isGroupManagementOpen: false }),
+
+    openTransferOwnership: () => set({ isTransferOwnershipOpen: true }),
+    closeTransferOwnership: () => set({ isTransferOwnershipOpen: false }),
+
+    openDisbandGroup: () => set({ isDisbandGroupOpen: true }),
+    closeDisbandGroup: () => set({ isDisbandGroupOpen: false }),
+
+    openBlockedMembers: () => set({ isBlockedMembersOpen: true }),
+    closeBlockedMembers: () => set({ isBlockedMembersOpen: false }),
+
     setLoading: (loading) => set({ isLoading: loading }),
     setError: (error) => set({ error }),
 
@@ -74,6 +106,10 @@ export const useGroupStore = create<GroupState>((set) => ({
         isGroupInfoOpen: false,
         isCreateGroupOpen: false,
         isAddMembersOpen: false,
+        isGroupManagementOpen: false,
+        isTransferOwnershipOpen: false,
+        isDisbandGroupOpen: false,
+        isBlockedMembersOpen: false,
         isLoading: false,
         error: null,
         createGroupPreselectedIds: [],

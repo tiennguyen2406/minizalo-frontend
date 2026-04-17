@@ -7,6 +7,7 @@ import GroupInfoPanel from './GroupInfoPanel';
 import DirectChatInfoPanel from './DirectChatInfoPanel';
 import AddMembersModal from './AddMembersModal';
 import ForwardMessageModal from './ForwardMessageModal';
+import CreatePollModal from './CreatePollModal';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { useGroupStore } from '@/shared/store/useGroupStore';
 import { useFriendStore } from '@/shared/store/friendStore';
@@ -59,6 +60,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     const [historyHasMore, setHistoryHasMore] = useState(false);
     const [loadingOlder, setLoadingOlder] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
+    const [showCreatePoll, setShowCreatePoll] = useState(false);
     const [blockStatus, setBlockStatus] = useState<{
         blockedByYou: boolean;
         blockedByOther: boolean;
@@ -714,6 +716,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                             replyingTo={replyingTo}
                             onCancelReply={handleCancelReply}
                             isSendingFile={isSendingFile}
+                            onCreatePoll={isGroupRoom ? () => setShowCreatePoll(true) : undefined}
                         />
                     )}
                 </Box>
@@ -766,6 +769,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                     messages={forwardingMessages}
                     currentRoomId={roomId}
                     onClose={() => setForwardingMessages(null)}
+                />
+            )}
+
+            {/* Create Poll Modal */}
+            {showCreatePoll && (
+                <CreatePollModal
+                    roomId={roomId}
+                    onClose={() => setShowCreatePoll(false)}
+                    onSuccess={() => fetchHistory()}
                 />
             )}
         </div>

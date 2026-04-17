@@ -3,6 +3,7 @@ import { Message, User } from '@/shared/types';
 import clsx from 'clsx';
 import LazyImage from './LazyImage';
 import LinkPreviewCard from './LinkPreviewCard';
+import PollBubble from './PollBubble';
 import { extractFirstHttpUrl, linkifyText } from '@/shared/utils/linkify';
 
 interface MessageBubbleProps {
@@ -130,19 +131,29 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
     // Handle System Message
     if (effectiveType === 'SYSTEM') {
+        const isPollSystemMessage =
+            !!message.replyToId &&
+            (
+                (message.content || '').includes('cuộc bình chọn') ||
+                (message.content || '').includes('khóa bình chọn')
+            );
+
         return (
             <div className="flex justify-center my-2">
-                <div className="bg-white border border-gray-100 shadow-sm rounded-full px-4 py-2 flex items-center gap-2 text-sm text-gray-600">
-                    <span className="text-orange-500 flex shrink-0">
-                        {message.isRecall ? (
-                            // Bỏ ghim icon
+                <div className="bg-white border border-gray-200 shadow-sm rounded-full px-4 py-2 flex items-center gap-2 text-sm text-gray-600 max-w-[90%]">
+                    <span className={clsx("flex shrink-0", isPollSystemMessage ? "text-emerald-500" : "text-orange-500")}>
+                        {isPollSystemMessage ? (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 17V7m4 10V4m4 13v-6" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 20h16" />
+                            </svg>
+                        ) : message.isRecall ? (
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4l16 16" /></svg>
                         ) : (
-                            // Pin icon
                             <svg className="w-4 h-4 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
                         )}
                     </span>
-                    <span>
+                    <span className="truncate">
                         {message.content}
                         {!message.isRecall && message.replyToId && (
                             <span
@@ -154,6 +165,19 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         )}
                     </span>
                 </div>
+            </div>
+        );
+    }
+
+    // Handle Poll Message
+    if (effectiveType === 'POLL') {
+        return (
+            <div className="flex justify-center my-2">
+                <PollBubble
+                    pollId={message.content || ''}
+                    roomId={message.roomId}
+                    mode="preview"
+                />
             </div>
         );
     }

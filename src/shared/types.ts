@@ -108,7 +108,7 @@ export interface Message {
     senderName?: string;
     roomId: string;
     content: string;
-    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'DOCUMENT' | 'FOLDER' | 'STICKER' | 'REPLY' | 'FORWARD' | 'SYSTEM' | 'PIN_NOTIFICATION';
+    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'DOCUMENT' | 'FOLDER' | 'STICKER' | 'REPLY' | 'FORWARD' | 'SYSTEM' | 'PIN_NOTIFICATION' | 'POLL';
     createdAt: string; // ISO string
     updatedAt?: string;
     isDeleted?: boolean;
@@ -181,4 +181,63 @@ export interface GroupDetail {
     ownerId: string;
     createdAt: string;
     members: GroupMember[];
+    settings?: GroupSettings;
+}
+
+// -----------------------------
+// Group Admin & Features
+// -----------------------------
+
+export interface GroupSettings {
+    id: string;
+    groupId: string;
+    allowMemberChangeName: boolean;
+    allowMemberPin: boolean;
+    allowMemberCreatePoll: boolean;
+    allowMemberSendMessage: boolean;
+    requireApproval: boolean;
+    allowNewMemberReadHistory: boolean;
+    allowJoinByLink: boolean;
+    joinLink: string;
+    updatedAt?: string;
+}
+
+export interface BlockedMember {
+    id: string;
+    userId: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+    blockedAt: string;
+    blockedBy: string;
+}
+
+export interface PollVote {
+    id: string;
+    userId: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+    votedAt: string;
+}
+
+export interface PollOption {
+    id: string;
+    text: string;
+    createdById: string;
+    votes: PollVote[];
+}
+
+export interface Poll {
+    id: string;
+    roomId: string;
+    question: string;
+    allowMultipleChoices: boolean;
+    allowAddOptions: boolean;
+    closed: boolean;
+    createdById: string;
+    createdByName: string;
+    options: PollOption[];
+    createdAt: string;
+    updatedAt: string;
 }
