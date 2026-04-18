@@ -101,9 +101,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         ?.username ||
       currentRoom?.name ||
       "Phòng chat";
+  /** Phòng nhóm: ưu tiên chi tiết nhóm (cập nhật ngay sau đổi avatar trong panel); không chỉ dựa vào rooms[]. */
   const roomAvatar =
-    currentRoom?.avatarUrl ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(roomName)}&background=${isGroupRoom ? "0068FF" : "random"}&color=fff&bold=true`;
+    isGroupRoom &&
+    currentGroupDetail?.id === roomId &&
+    currentGroupDetail.avatarUrl
+      ? currentGroupDetail.avatarUrl
+      : currentRoom?.avatarUrl ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(roomName)}&background=${isGroupRoom ? "0068FF" : "random"}&color=fff&bold=true`;
 
   // Người bạn chat (với 1-1)
   const partner = !isGroupRoom
@@ -756,7 +761,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
           }}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <Avatar src={roomAvatar} />
+            <Avatar src={roomAvatar} key={roomAvatar} />
             <div className="min-w-0 flex flex-col gap-0.5">
               <span
                 className="font-bold text-base block truncate"
