@@ -20,6 +20,7 @@ import {
 import { useRoute, useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import ChatHeader from "../components/ChatHeader";
+import StrangerProfilePreviewCard from "../components/StrangerProfilePreviewCard";
 import ChatFooter, { ChatFooterHandle } from "../components/ChatFooter";
 import MessageBubble from "../components/MessageBubble";
 import { chatService, MessageDynamo, MessageReaction } from "@/shared/services/chatService";
@@ -33,6 +34,8 @@ import ChatOptionsScreen from "./ChatOptionsScreen";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import friendService from "@/shared/services/friendService";
+import { userService } from "@/shared/services/userService";
+import type { UserProfile } from "@/shared/services/types";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -151,6 +154,7 @@ export default function ChatScreen() {
     }, [resolvedTargetUserId, sentRequests, requests]);
 
     const [messages, setMessages] = useState<(MessageDynamo & { isError?: boolean })[]>([]);
+    const [partnerProfileDetail, setPartnerProfileDetail] = useState<UserProfile | null>(null);
 
     const [sending, setSending] = useState(false);
     const [selectedAttachment, setSelectedAttachment] = useState<any | null>(null);
@@ -247,6 +251,88 @@ export default function ChatScreen() {
             setToast(prev => ({ ...prev, visible: false }));
         }, 2000);
     }, []);
+
+    const hasChatActivity = useMemo(() => {
+        return messages.some((m) => {
+            const mid = m.messageId || "";
+            if (mid.startsWith("temp-")) return true;
+            if (m.senderId === "system" || m.type === "SYSTEM") return false;
+            return true;
+        });
+    }, [messages]);
+
+    const isBlockedChat = Boolean(blockStatus?.blockedByYou || blockStatus?.blockedByOther);
+
+    const isStrangerEmptyThread = useMemo(
+        () => roomType === "DIRECT" && isStranger && !isBlockedChat && !hasChatActivity,
+        [roomType, isStranger, isBlockedChat, hasChatActivity],
+    );
+
+    const handleStrangerFriendPress = useCallback(() => {
+        if (!resolvedTargetUserId) return;
+        if (friendRequestStatus === "NONE") {
+            useFriendStore
+                .getState()
+                .sendRequest(resolvedTargetUserId)
+                .then(() => {
+                    fetchSentRequests();
+                    Alert.alert("Thành công", "Đã gửi lời mời kết bạn.");
+                })
+                .catch(() => Alert.alert("Lỗi", "Gửi lời mời kết bạn thất bại."));
+        } else if (friendRequestStatus === "INCOMING") {
+            const req = requests.find((r: any) => {
+                const id = r?.user?.id || r?.userId || r?.friend?.id;
+                return id === resolvedTargetUserId;
+            });
+            if (req) {
+                useFriendStore
+                    .getState()
+                    .acceptRequest(req.id)
+                    .then(() => {
+                        fetchFriends();
+                        setShowWelcomePicker(true);
+                        showToast("Đã chấp nhận lời mời kết bạn", "success");
+                    })
+                    .catch(() => Alert.alert("Lỗi", "Chấp nhận lời mời kết bạn thất bại."));
+            }
+        }
+    }, [
+        resolvedTargetUserId,
+        friendRequestStatus,
+        requests,
+        fetchSentRequests,
+        fetchFriends,
+        showToast,
+    ]);
+
+    useEffect(() => {
+        void fetchFriends();
+    }, [fetchFriends]);
+
+    useEffect(() => {
+        if (!resolvedTargetUserId || !isStrangerEmptyThread) return;
+        void fetchSentRequests();
+        void fetchRequests({ silent: true });
+    }, [resolvedTargetUserId, isStrangerEmptyThread, fetchSentRequests, fetchRequests]);
+
+    useEffect(() => {
+        if (!resolvedTargetUserId || !isStrangerEmptyThread) {
+            setPartnerProfileDetail(null);
+            return;
+        }
+        let cancelled = false;
+        userService
+            .getUserProfile(resolvedTargetUserId)
+            .then((p) => {
+                if (!cancelled) setPartnerProfileDetail(p);
+            })
+            .catch(() => {
+                if (!cancelled) setPartnerProfileDetail(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [resolvedTargetUserId, isStrangerEmptyThread]);
 
     useEffect(() => {
         const flag = showWelcomeTemplates === "true" || showWelcomeTemplates === true;
@@ -1506,6 +1592,7 @@ export default function ChatScreen() {
                 name={displayName}
                 roomType={roomType}
                 isStranger={isStranger}
+                strangerSubtitleRow={isStrangerEmptyThread ? { visible: true } : undefined}
                 onMenuPress={() => {
                     if (roomType === "GROUP") {
                         openGroupInfo();
@@ -1515,8 +1602,65 @@ export default function ChatScreen() {
                 }}
             />
 
-            {/* Banner người lạ - Kết bạn */}
-            {isStranger && roomType === 'DIRECT' && (
+            {/* Thanh trắng Kết bạn — ngay dưới header (hội thoại trống + người lạ), giống Zalo */}
+            {isStrangerEmptyThread && roomType === "DIRECT" && (
+                <View
+                    style={{
+                        backgroundColor: theme === "dark" ? colors.card : "#ffffff",
+                        paddingVertical: 10,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.border,
+                    }}
+                >
+                    <TouchableOpacity
+                        onPress={handleStrangerFriendPress}
+                        disabled={friendRequestStatus === "SENT"}
+                        activeOpacity={0.75}
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                        }}
+                    >
+                        <Ionicons
+                            name={
+                                friendRequestStatus === "SENT"
+                                    ? "time-outline"
+                                    : friendRequestStatus === "INCOMING"
+                                      ? "person-add"
+                                      : "person-add-outline"
+                            }
+                            size={20}
+                            color={
+                                friendRequestStatus === "SENT"
+                                    ? colors.textSecondary
+                                    : colors.primary
+                            }
+                            style={{ marginRight: 8 }}
+                        />
+                        <Text
+                            style={{
+                                fontSize: 15,
+                                fontWeight: "600",
+                                color:
+                                    friendRequestStatus === "SENT"
+                                        ? colors.textSecondary
+                                        : colors.text,
+                            }}
+                        >
+                            {friendRequestStatus === "SENT"
+                                ? "Đã gửi lời mời"
+                                : friendRequestStatus === "INCOMING"
+                                  ? "Chấp nhận kết bạn"
+                                  : "Kết bạn"}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* Banner người lạ - Kết bạn (khi đã có hoạt động trong hội thoại — tránh trùng với hàng header + thẻ preview) */}
+            {isStranger && roomType === 'DIRECT' && !isStrangerEmptyThread && (
                 <View style={{
                     backgroundColor: theme === 'dark' ? '#1c1c1e' : '#f0f2f5',
                     paddingVertical: 10,
@@ -1684,7 +1828,9 @@ export default function ChatScreen() {
                 behavior={Platform.OS === "ios" ? "height" : undefined}
                 style={{ flex: 1 }}
             >
-                <FlatList
+                <View style={{ flex: 1 }}>
+                    <FlatList
+                    style={{ flex: 1 }}
                     ref={flatListRef}
                     data={messages}
                     inverted
@@ -1726,12 +1872,28 @@ export default function ChatScreen() {
                     }
                     ListEmptyComponent={() => (
                         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", transform: [{ scaleY: -1 }] }}>
-                            <Text style={{ color: colors.textSecondary }}>
-                                {loaded ? "Hãy gửi tin nhắn đầu tiên! 👋" : "Đang tải tin nhắn..."}
-                            </Text>
+                            {loaded && isStrangerEmptyThread ? (
+                                <View style={{ height: 1 }} />
+                            ) : loaded ? (
+                                <Text style={{ color: colors.textSecondary }}>
+                                    Hãy gửi tin nhắn đầu tiên! 👋
+                                </Text>
+                            ) : (
+                                <Text style={{ color: colors.textSecondary }}>Đang tải tin nhắn...</Text>
+                            )}
                         </View>
                     )}
-                />
+                    />
+                    {isStrangerEmptyThread ? (
+                        <StrangerProfilePreviewCard
+                            displayName={
+                                partnerProfileDetail?.displayName?.trim() || displayName
+                            }
+                            avatarUrl={(partnerProfileDetail?.avatarUrl ?? partnerAvatar) || null}
+                            coverPhotoUrl={partnerProfileDetail?.coverPhotoUrl ?? null}
+                        />
+                    ) : null}
+                </View>
                 {roomType === "DIRECT" &&
                     blockStatus &&
                     (blockStatus.blockedByYou || blockStatus.blockedByOther) ? (
