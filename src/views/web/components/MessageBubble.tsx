@@ -262,10 +262,74 @@ async function saveFileWithPickerDialog(
     onSaved?.();
 }
 
-function openFileFromCard(url: string, ev: React.MouseEvent | React.KeyboardEvent) {
+function isPdfAttachment(url: string, fileName?: string, mime?: string): boolean {
+    const m = (mime || '').toLowerCase();
+    if (m.includes('pdf') || m === 'application/pdf') return true;
+    const name = (fileName || '').trim().toLowerCase();
+    if (name.endsWith('.pdf')) return true;
+    try {
+        const path = new URL(url, typeof window !== 'undefined' ? window.location.href : undefined).pathname;
+        return /\.pdf$/i.test(path);
+    } catch {
+        const base = url.split(/[?#]/)[0];
+        return /\.pdf$/i.test(base);
+    }
+}
+
+/** Windows: trình khác Edge có thể mở PDF trong Edge qua URI microsoft-edge: */
+function isWindowsOs(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    return /Windows/i.test(navigator.userAgent);
+}
+
+function isMicrosoftEdgeBrowser(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    return /\bEdg\//i.test(navigator.userAgent);
+}
+
+function openFileFromCard(
+    url: string,
+    ev: React.MouseEvent | React.KeyboardEvent,
+    opts?: { fileName?: string; mime?: string },
+) {
     ev.preventDefault();
     ev.stopPropagation();
-    window.open(url, '_blank', 'noopener,noreferrer');
+
+    let abs: string;
+    try {
+        abs = new URL(url, window.location.href).href;
+    } catch {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+    }
+
+    const pdf = isPdfAttachment(url, opts?.fileName, opts?.mime);
+    const httpsLike = abs.startsWith('http://') || abs.startsWith('https://');
+
+    if (
+        pdf &&
+        httpsLike &&
+        isWindowsOs() &&
+        !isMicrosoftEdgeBrowser()
+    ) {
+        const edgeUri = `microsoft-edge:${abs}`;
+        const opened = window.open(edgeUri, '_blank', 'noopener,noreferrer');
+        if (opened) return;
+        try {
+            const a = document.createElement('a');
+            a.href = edgeUri;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            return;
+        } catch {
+            /* fallback */
+        }
+    }
+
+    window.open(abs, '_blank', 'noopener,noreferrer');
 }
 
 const getAvatarUrl = (name: string, avatarUrl?: string) => {
@@ -768,11 +832,19 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         role="button"
                                         tabIndex={0}
                                         className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg py-0.5 text-left hover:bg-white/55 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0068ff]/25"
-                                        title="Mở file (PDF/ảnh trong tab; Office tuỳ trình duyệt)"
-                                        onClick={(e) => openFileFromCard(effectiveFileUrl, e)}
+                                        title="Mở file — PDF trên Windows sẽ ưu tiên Microsoft Edge (khi đang dùng trình duyệt khác)"
+                                        onClick={(e) =>
+                                            openFileFromCard(effectiveFileUrl, e, {
+                                                fileName: fileDisplayName,
+                                                mime: attachment?.type,
+                                            })
+                                        }
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter' || e.key === ' ') {
-                                                openFileFromCard(effectiveFileUrl, e);
+                                                openFileFromCard(effectiveFileUrl, e, {
+                                                    fileName: fileDisplayName,
+                                                    mime: attachment?.type,
+                                                });
                                             }
                                         }}
                                     >
