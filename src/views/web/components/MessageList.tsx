@@ -3,6 +3,7 @@ import MessageBubble from './MessageBubble';
 import ImageGroupBubble from './ImageGroupBubble';
 import { Message, User } from '@/shared/types';
 import { useChatStore } from '@/shared/store/useChatStore';
+import { getImageAttachmentUrls } from '@/shared/utils/messageAttachments';
 import LazyImage from './LazyImage';
 
 interface MessageListProps {
@@ -156,6 +157,7 @@ type RenderItem =
     | { type: 'imageGroup'; messages: Message[]; startIndex: number };
 
 function getEffectiveType(msg: Message): string {
+    if (getImageAttachmentUrls(msg).length > 0) return 'IMAGE';
     let type: string = msg.type;
     if ((type === 'TEXT' || !type) && msg.fileUrl && msg.attachments?.[0]) {
         const mime = (msg.attachments[0].type || '').toLowerCase();

@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Message, User } from '@/shared/types';
 import clsx from 'clsx';
 import LazyImage from './LazyImage';
 import LinkPreviewCard from './LinkPreviewCard';
 import PollBubble from './PollBubble';
 import { extractFirstHttpUrl, linkifyText } from '@/shared/utils/linkify';
+import { getImageAttachmentUrls } from '@/shared/utils/messageAttachments';
 
 interface MessageBubbleProps {
     message: Message;
@@ -32,6 +33,7 @@ interface MessageBubbleProps {
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
 
 function effectiveTypeForMessage(msg: Message): string {
+    if (getImageAttachmentUrls(msg).length > 0) return 'IMAGE';
     const attachment = msg.attachments?.[0];
     const fileUrl = msg.fileUrl || attachment?.url;
     let t: string = msg.type as string;
@@ -42,6 +44,29 @@ function effectiveTypeForMessage(msg: Message): string {
         else t = 'FILE';
     }
     return t;
+}
+
+const MULTI_IMG_MAX = 4;
+
+function multiImageGridStyle(count: number): React.CSSProperties {
+    if (count === 1) return { display: 'grid', gridTemplateColumns: '1fr', gap: 2 };
+    if (count === 2) return { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 };
+    if (count === 3) return { display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: 'auto auto', gap: 2 };
+    return { display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: 'auto auto', gap: 2 };
+}
+
+function multiImageCellStyle(count: number, index: number): React.CSSProperties {
+    const base: React.CSSProperties = {
+        width: '100%',
+        objectFit: 'cover',
+        cursor: 'pointer',
+        borderRadius: 8,
+    };
+    if (count === 1) return { ...base, maxWidth: 280, maxHeight: 300 };
+    if (count === 2) return { ...base, height: 140 };
+    if (count === 3 && index === 0) return { ...base, height: 180, gridRow: '1 / 3' };
+    if (count === 3) return { ...base, height: 88 };
+    return { ...base, height: 120 };
 }
 
 const getAvatarUrl = (name: string, avatarUrl?: string) => {
@@ -78,7 +103,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [menuPos, setMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
     const [showMessageDetail, setShowMessageDetail] = useState(false);
-    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+    const [imageLightbox, setImageLightbox] = useState<{ urls: string[]; index: number } | null>(
+        null,
+    );
     const moreButtonRef = useRef<HTMLButtonElement>(null);
 
     // Keep picker open if hovered over button OR the picker itself
@@ -114,15 +141,17 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
     const displayName = senderName || 'Unknown';
 
-    // Resolve file info from attachments as fallback (raw WebSocket messages may not have fileUrl mapped)
+    const imageUrls = useMemo(() => getImageAttachmentUrls(message), [message]);
+
     const attachment = message.attachments?.[0];
     const effectiveFileUrl = message.fileUrl || attachment?.url;
     const effectiveFileName = message.fileName || attachment?.name || attachment?.filename;
     const effectiveFileSize = message.fileSize || attachment?.size;
 
-    // Detect effective type from attachment MIME type if message type is TEXT but has attachments
-    let effectiveType = message.type;
-    if ((effectiveType === 'TEXT' || !effectiveType) && effectiveFileUrl && attachment) {
+    let effectiveType = message.type as string;
+    if (imageUrls.length > 0) {
+        effectiveType = 'IMAGE';
+    } else if ((effectiveType === 'TEXT' || !effectiveType) && effectiveFileUrl && attachment) {
         const mime = (attachment.type || '').toLowerCase();
         if (mime.startsWith('image')) effectiveType = 'IMAGE';
         else if (mime.startsWith('video')) effectiveType = 'VIDEO';
@@ -425,16 +454,77 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
                         {message.isRecall ? (
                             <span className="text-sm italic opacity-80">{message.content}</span>
-                        ) : effectiveType === 'IMAGE' && effectiveFileUrl ? (
+                        ) : effectiveType === 'IMAGE' && imageUrls.length > 1 ? (
+                            (() => {
+                                const visibleCount = Math.min(imageUrls.length, MULTI_IMG_MAX);
+                                const show = imageUrls.slice(0, visibleCount);
+                                const extra = imageUrls.length - visibleCount;
+                                return (
+                                    <div
+                                        className="max-w-[300px]"
+                                        style={multiImageGridStyle(visibleCount)}
+                                    >
+                                        {show.map((url, index) => (
+                                            <div
+                                                key={`${message.id}-img-${index}`}
+                                                className="relative overflow-hidden"
+                                                style={
+                                                    visibleCount === 3 && index === 0
+                                                        ? { gridRow: '1 / 3' }
+                                                        : undefined
+                                                }
+                                            >
+                                                <LazyImage
+                                                    src={url}
+                                                    alt={`${effectiveFileName || 'Ảnh'} ${index + 1}`}
+                                                    style={multiImageCellStyle(visibleCount, index)}
+                                                    onClick={() =>
+                                                        setImageLightbox({ urls: imageUrls, index })
+                                                    }
+                                                    onLoad={index === 0 ? onImageLoad : undefined}
+                                                />
+                                                {index === visibleCount - 1 && extra > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-md cursor-pointer border-0 p-0"
+                                                        aria-label={`Thêm ${extra} ảnh`}
+                                                        onClick={() =>
+                                                            setImageLightbox({
+                                                                urls: imageUrls,
+                                                                index: visibleCount - 1,
+                                                            })
+                                                        }
+                                                    >
+                                                        <span className="text-white text-xl font-bold">
+                                                            +{extra}
+                                                        </span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()
+                        ) : effectiveType === 'IMAGE' &&
+                          (imageUrls.length === 1 || !!effectiveFileUrl) ? (
                             <div className="flex flex-col gap-1">
                                 <LazyImage
-                                    src={effectiveFileUrl}
+                                    src={imageUrls[0] || effectiveFileUrl!}
                                     alt={effectiveFileName || 'Ảnh'}
                                     style={{
-                                        maxWidth: 280, maxHeight: 300, borderRadius: 8,
-                                        objectFit: 'cover', cursor: 'pointer',
+                                        maxWidth: 280,
+                                        maxHeight: 300,
+                                        borderRadius: 8,
+                                        objectFit: 'cover',
+                                        cursor: 'pointer',
                                     }}
-                                    onClick={() => setLightboxUrl(effectiveFileUrl)}
+                                    onClick={() =>
+                                        setImageLightbox({
+                                            urls:
+                                                imageUrls.length > 0 ? imageUrls : [effectiveFileUrl!],
+                                            index: 0,
+                                        })
+                                    }
                                     onLoad={onImageLoad}
                                 />
                             </div>
@@ -769,21 +859,72 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </div>
             )}
 
-            {/* Lightbox (image) */}
-            {lightboxUrl && (
+            {/* Lightbox (image — hỗ trợ nhiều ảnh trong một tin) */}
+            {imageLightbox && imageLightbox.urls.length > 0 && (
                 <div
                     className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center"
-                    onClick={() => setLightboxUrl(null)}
+                    onClick={() => setImageLightbox(null)}
+                    role="presentation"
                 >
                     <img
-                        src={lightboxUrl}
+                        src={imageLightbox.urls[imageLightbox.index]}
                         alt=""
                         className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     />
+                    {imageLightbox.urls.length > 1 && (
+                        <>
+                            <button
+                                type="button"
+                                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setImageLightbox((prev) =>
+                                        prev
+                                            ? {
+                                                  ...prev,
+                                                  index:
+                                                      (prev.index - 1 + prev.urls.length) %
+                                                      prev.urls.length,
+                                              }
+                                            : null,
+                                    );
+                                }}
+                                aria-label="Ảnh trước"
+                            >
+                                ‹
+                            </button>
+                            <button
+                                type="button"
+                                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setImageLightbox((prev) =>
+                                        prev
+                                            ? {
+                                                  ...prev,
+                                                  index: (prev.index + 1) % prev.urls.length,
+                                              }
+                                            : null,
+                                    );
+                                }}
+                                aria-label="Ảnh sau"
+                            >
+                                ›
+                            </button>
+                            <span className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white text-sm bg-black/40 px-3 py-1 rounded-full">
+                                {imageLightbox.index + 1} / {imageLightbox.urls.length}
+                            </span>
+                        </>
+                    )}
                     <button
+                        type="button"
                         className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
-                        onClick={() => setLightboxUrl(null)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setImageLightbox(null);
+                        }}
+                        aria-label="Đóng"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
