@@ -184,6 +184,16 @@ export default function ChatListScreen() {
             webSocketService.subscribe(topic, (stompMsg) => {
                 try {
                     const msg = JSON.parse(stompMsg.body);
+                    if (msg.roomListEvent === 'REMOVED' && msg.roomId) {
+                        const uid = useAuthStore.getState().user?.id;
+                        if (msg.forUserId && msg.forUserId !== uid) return;
+                        useChatStore.getState().removeRoomLocal(String(msg.roomId));
+                        return;
+                    }
+                    if (msg.roomListEvent === 'ADDED' && msg.roomId) {
+                        fetchChats(false);
+                        return;
+                    }
                     // Thêm tin nhắn mới vào store room
                     addMessage(room.id, {
                         id: msg.messageId,

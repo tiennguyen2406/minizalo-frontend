@@ -72,7 +72,7 @@ export const useGroupStore = create<GroupState>((set) => ({
     updateCurrentGroupDetail: (group) => set({ currentGroupDetail: group }),
 
     openGroupInfo: () => set({ isGroupInfoOpen: true }),
-    closeGroupInfo: () => set({ isGroupInfoOpen: false, isAddMembersOpen: false }),
+    closeGroupInfo: () => set({ isGroupInfoOpen: false, isAddMembersOpen: false, isGroupManagementOpen: false }),
 
     openCreateGroup: (preSelectedIds) => set({
         isCreateGroupOpen: true,

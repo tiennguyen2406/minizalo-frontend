@@ -19,6 +19,74 @@ import {
     STRANGER_MESSAGES_NOT_ALLOWED,
 } from '@/shared/utils/chatErrors';
 
+function mapChatRoomResponsesToStore(
+    currentUserId: string | undefined,
+    data: ChatRoomResponse[],
+    existingRooms: ChatRoom[],
+): ChatRoom[] {
+    const allRooms: ChatRoom[] = data.map((r) => {
+        const existing = existingRooms.find((er) => er.id === r.id);
+        let resolvedName = r.name;
+        if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
+            const partner = (r.members || []).find(
+                (m: any) => (m.user?.id || m.id) !== currentUserId,
+            );
+            resolvedName =
+                partner?.user?.displayName ||
+                partner?.user?.username ||
+                partner?.displayName ||
+                partner?.username ||
+                'Người dùng';
+        }
+        return {
+            id: r.id,
+            name: resolvedName || 'Người dùng',
+            avatarUrl: r.avatarUrl || undefined,
+            type: r.type === 'DIRECT' ? 'PRIVATE' : 'GROUP',
+            lastMessage: r.lastMessage
+                ? {
+                      id: r.lastMessage.messageId,
+                      senderId: r.lastMessage.senderId,
+                      senderName: r.lastMessage.senderName || undefined,
+                      roomId: r.id,
+                      content: r.lastMessage.content,
+                      type: (r.lastMessage.type as any) || 'TEXT',
+                      createdAt: r.lastMessage.createdAt,
+                  }
+                : undefined,
+            unreadCount: Math.max(
+                existing ? (existing.unreadCount ?? 0) : 0,
+                r.unreadCount || 0,
+            ),
+            participants: (r.members || []).map((m: any) => ({
+                id: m.user?.id || m.id || '',
+                username: m.user?.username || m.username || '',
+                fullName:
+                    m.user?.displayName ||
+                    m.user?.fullName ||
+                    m.displayName ||
+                    m.fullName ||
+                    '',
+                avatarUrl: m.user?.avatarUrl || m.avatarUrl || undefined,
+            })),
+            updatedAt: r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
+        };
+    });
+    allRooms.sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+    return allRooms;
+}
+
+async function fetchRoomsMergeWithStore(): Promise<void> {
+    const user = useAuthStore.getState().user;
+    const data: ChatRoomResponse[] = await chatService.getChatRooms();
+    const existingRooms = useChatStore.getState().rooms;
+    useChatStore
+        .getState()
+        .setRooms(mapChatRoomResponsesToStore(user?.id, data, existingRooms));
+}
+
 /** Lỗi gửi chat cá nhân (vd: chỉ bạn bè) — subscribe một lần cho web + mobile. */
 function useChatErrorsSubscription() {
     const accessToken = useAuthStore((s) => s.accessToken);
@@ -64,8 +132,53 @@ function useChatErrorsSubscription() {
     }, [accessToken]);
 }
 
+/** Realtime cập nhật danh sách phòng (thêm/xóa) — dùng cho web + mobile. */
+function useRoomUpdatesSubscription() {
+    const accessToken = useAuthStore((s) => s.accessToken);
+
+    useEffect(() => {
+        if (!accessToken) return;
+        webSocketService.activate(accessToken);
+        const dest = '/user/queue/rooms';
+
+        const handler = async (stompMsg: IMessage) => {
+            try {
+                const raw = String(stompMsg.body || '').trim();
+                if (!raw) return;
+                let payload: { action?: 'ADDED' | 'REMOVED'; roomId?: string } | null = null;
+                try {
+                    payload = JSON.parse(raw);
+                } catch {
+                    // Fallback nếu backend gửi kiểu "action=REMOVED, roomId=..." (phòng hờ)
+                    const mAction = raw.match(/action["']?\s*[:=]\s*["']?(ADDED|REMOVED)/i);
+                    const mRoom = raw.match(/roomId["']?\s*[:=]\s*["']?([0-9a-fA-F-]{16,})/i);
+                    payload = {
+                        action: (mAction?.[1]?.toUpperCase() as any) || undefined,
+                        roomId: mRoom?.[1],
+                    };
+                }
+                if (!payload?.action || !payload?.roomId) return;
+
+                if (payload.action === 'REMOVED') {
+                    useChatStore.getState().removeRoomLocal(payload.roomId);
+                    return;
+                }
+
+                // ADDED: refetch rooms list so it appears immediately
+                await fetchRoomsMergeWithStore();
+            } catch (err) {
+                console.error('[useWebSocketManager] rooms update parse:', err);
+            }
+        };
+
+        webSocketService.subscribe(dest, handler);
+        return () => webSocketService.unsubscribe(dest);
+    }, [accessToken]);
+}
+
 export function useWebSocketManager() {
     useChatErrorsSubscription();
+    useRoomUpdatesSubscription();
 
     // Chỉ chạy trên web
     if (Platform.OS !== 'web') return;
@@ -160,6 +273,15 @@ function _useWebSocketManagerWeb() {
     useEffect(() => {
         if (rooms.length === 0) return;
 
+        // Unsubscribe các room đã bị xóa khỏi list (realtime REMOVED)
+        const currentIds = new Set(rooms.map(r => r.id));
+        subscribedRoomIds.current.forEach((rid) => {
+            if (!currentIds.has(rid)) {
+                webSocketService.unsubscribe(`/topic/chat/${rid}`);
+                subscribedRoomIds.current.delete(rid);
+            }
+        });
+
         rooms.forEach((room) => {
             if (subscribedRoomIds.current.has(room.id)) return;
 
@@ -169,17 +291,27 @@ function _useWebSocketManagerWeb() {
             webSocketService.subscribe(topic, (stompMsg) => {
                 try {
                     const dynamo = JSON.parse(stompMsg.body);
+                    if (dynamo.roomListEvent === 'REMOVED' && dynamo.roomId) {
+                        const uid = useAuthStore.getState().user?.id;
+                        if (dynamo.forUserId && dynamo.forUserId !== uid) return;
+                        useChatStore.getState().removeRoomLocal(String(dynamo.roomId));
+                        return;
+                    }
+                    if (dynamo.roomListEvent === 'ADDED' && dynamo.roomId) {
+                        void fetchRoomsMergeWithStore();
+                        return;
+                    }
                     const attachments = Array.isArray(dynamo.attachments) ? dynamo.attachments : [];
                     const firstAttachment = attachments[0];
 
                     const incoming = {
                         id: dynamo.messageId,
                         senderId: dynamo.senderId,
-                        senderName: dynamo.senderName || undefined,
+                        senderName: dynamo.senderName || dynamo.senderUsername || undefined,
                         roomId,
                         content: dynamo.recalled ? '[Tin nhắn đã thu hồi]' : (dynamo.content || ''),
                         type: (dynamo.type as any) || 'TEXT',
-                        createdAt: dynamo.createdAt,
+                        createdAt: dynamo.createdAt || dynamo.timestamp,
                         readBy: dynamo.readBy,
                         isRecall: !!dynamo.recalled,
                         pinned: !!dynamo.pinned,

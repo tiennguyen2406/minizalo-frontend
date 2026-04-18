@@ -128,6 +128,8 @@ interface ChatState {
     ) => void;
     createPrivateRoom: (userId: string) => Promise<import('../types').ChatRoom>;
     deleteRoom: (roomId: string) => Promise<void>;
+    /** Chỉ xóa local (dùng cho realtime ROOM_REMOVED) */
+    removeRoomLocal: (roomId: string) => void;
     setRoomPagination: (roomId: string, paging: { lastKey: string | null, hasMore: boolean, loading?: boolean }) => void;
     loadMoreMessages: (roomId: string) => Promise<void>;
     clear: () => void;
@@ -470,6 +472,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         } catch (e) {
             console.error('Failed to delete chat room on server:', e);
         }
+    },
+
+    removeRoomLocal: (roomId) => {
+        set((state) => ({
+            rooms: state.rooms.filter((r) => r.id !== roomId),
+            messages: Object.fromEntries(
+                Object.entries(state.messages).filter(([id]) => id !== roomId)
+            ),
+            currentRoomId: state.currentRoomId === roomId ? null : state.currentRoomId,
+        }));
     },
 
     setRoomPagination: (roomId, paging) => set((state) => ({

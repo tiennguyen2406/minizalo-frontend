@@ -115,8 +115,10 @@ class WebSocketService {
             this.pendingSubscriptions[destination] = callback;
             return;
         }
+        // Thay callback mới (effect chạy lại) — stompjs giữ subscription cũ nếu không unsubscribe
         if (this.subscriptions[destination]) {
-            return; // Already subscribed
+            this.subscriptions[destination].unsubscribe();
+            delete this.subscriptions[destination];
         }
         const subscription = this.client.subscribe(destination, callback);
         this.subscriptions[destination] = subscription;

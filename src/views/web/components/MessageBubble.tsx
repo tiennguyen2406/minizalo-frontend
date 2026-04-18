@@ -44,6 +44,17 @@ function effectiveTypeForMessage(msg: Message): string {
     return t;
 }
 
+function isGroupActionSystemText(text?: string | null): boolean {
+    const t = String(text || '').trim();
+    if (!t) return false;
+    // Heuristic: các câu thông báo thao tác quản lý nhóm (để render như SYSTEM)
+    return (
+        /đã phong .* làm phó nhóm/i.test(t) ||
+        /đã xóa quyền phó nhóm/i.test(t) ||
+        /đã chặn .* khỏi nhóm/i.test(t)
+    );
+}
+
 const getAvatarUrl = (name: string, avatarUrl?: string) => {
     if (avatarUrl) return avatarUrl;
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4A90D9&color=fff&size=64`;
@@ -127,6 +138,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         if (mime.startsWith('image')) effectiveType = 'IMAGE';
         else if (mime.startsWith('video')) effectiveType = 'VIDEO';
         else effectiveType = 'FILE';
+    }
+
+    // Một số thông báo quản lý nhóm được backend lưu như TEXT → hiển thị như SYSTEM (pill)
+    if ((effectiveType === 'TEXT' || !effectiveType) && isGroupActionSystemText(message.content)) {
+        effectiveType = 'SYSTEM';
     }
 
     // Handle System Message
