@@ -21,6 +21,8 @@ import friendService from "@/shared/services/friendService";
 import { validateFileSize } from "@/shared/constants";
 import { isStrangerMessagesNotAllowedError } from "@/shared/utils/chatErrors";
 import { isStrangerPrivateRoom } from "@/shared/utils/strangerChatRooms";
+import { addIncomingChatMessageFromStomp } from "@/shared/utils/chatWebSocketInbound";
+import type { IMessage } from "@stomp/stompjs";
 
 interface ChatWindowProps {
   roomId: string;
@@ -294,6 +296,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     webSocketService.activate();
     fetchHistory();
 
+    /** Tin nhắn mới — backup realtime khi subscribe toàn cục chưa kịp (multicast). */
+    const chatTopic = `/topic/chat/${roomId}`;
+    const onInboundChat = (stompMessage: IMessage) => {
+      const raw = stompMessage.body;
+      if (raw == null) return;
+      addIncomingChatMessageFromStomp(roomId, String(raw));
+    };
+    webSocketService.subscribe(chatTopic, onInboundChat);
+
     // Subscribe to recall events
     const recallTopic = `/topic/chat/${roomId}/recall`;
     webSocketService.subscribe(recallTopic, (stompMessage) => {
@@ -402,6 +413,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     }
 
     return () => {
+      webSocketService.unsubscribe(chatTopic, onInboundChat);
       webSocketService.unsubscribe(recallTopic);
       webSocketService.unsubscribe(reactionTopic);
       webSocketService.unsubscribe(pinTopic);
