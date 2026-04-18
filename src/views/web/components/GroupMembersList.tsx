@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GroupMember, GroupRole } from '@/shared/types';
 import { friendService } from '@/shared/services/friendService';
+import { groupService } from '@/shared/services/groupService';
 
 interface GroupMembersListProps {
     members: GroupMember[];
@@ -8,6 +9,8 @@ interface GroupMembersListProps {
     currentUserId?: string;
     onChangeRole?: (userId: string, newRole: GroupRole) => void;
     onRemoveMember?: (userId: string) => void;
+    onTransferOwnership?: (userId: string) => void;
+    onBlockMember?: (userId: string) => void;
     visible: boolean;
     onClose: () => void;
 }
@@ -18,6 +21,8 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
     currentUserId,
     onChangeRole,
     onRemoveMember,
+    onTransferOwnership,
+    onBlockMember,
     visible,
     onClose,
 }) => {
@@ -220,6 +225,23 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                 const isAdminMember = member.role === 'ADMIN';
                                 return (
                                     <>
+                                        {onTransferOwnership && (
+                                            <button
+                                                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors"
+                                                onClick={() => {
+                                                    const ok = confirm(`Chuyển quyền trưởng nhóm cho "${member.fullName || member.username}"?`);
+                                                    if (!ok) return;
+                                                    onTransferOwnership(member.userId);
+                                                    setMenuOpenFor(null);
+                                                    setMenuPos(null);
+                                                }}
+                                            >
+                                                <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8L13 15M3 17V7a2 2 0 012-2h6" />
+                                                </svg>
+                                                Chọn làm trưởng nhóm
+                                            </button>
+                                        )}
                                         {isAdminMember ? (
                                             <button
                                                 className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors"
@@ -249,22 +271,40 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                                 Phong làm phó nhóm
                                             </button>
                                         )}
-                                        {onRemoveMember && (
+                                        {(onBlockMember || onRemoveMember) && (
                                             <>
                                                 <div className="border-t border-gray-100 my-0.5" />
-                                                <button
-                                                    className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
-                                                    onClick={() => {
-                                                        onRemoveMember(member.userId);
-                                                        setMenuOpenFor(null);
-                                                        setMenuPos(null);
-                                                    }}
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
-                                                    </svg>
-                                                    Xóa khỏi nhóm
-                                                </button>
+                                                {onBlockMember ? (
+                                                    <button
+                                                        className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
+                                                        onClick={() => {
+                                                            const ok = confirm(`Chặn "${member.fullName || member.username}" khỏi nhóm?`);
+                                                            if (!ok) return;
+                                                            onBlockMember(member.userId);
+                                                            setMenuOpenFor(null);
+                                                            setMenuPos(null);
+                                                        }}
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
+                                                        </svg>
+                                                        Chặn khỏi nhóm
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
+                                                        onClick={() => {
+                                                            onRemoveMember?.(member.userId);
+                                                            setMenuOpenFor(null);
+                                                            setMenuPos(null);
+                                                        }}
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                                                        </svg>
+                                                        Xóa khỏi nhóm
+                                                    </button>
+                                                )}
                                             </>
                                         )}
                                     </>

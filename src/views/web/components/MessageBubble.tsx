@@ -46,6 +46,17 @@ function effectiveTypeForMessage(msg: Message): string {
     return t;
 }
 
+function isGroupActionSystemText(text?: string | null): boolean {
+    const t = String(text || '').trim();
+    if (!t) return false;
+    // Heuristic: các câu thông báo thao tác quản lý nhóm (để render như SYSTEM)
+    return (
+        /đã phong .* làm phó nhóm/i.test(t) ||
+        /đã xóa quyền phó nhóm/i.test(t) ||
+        /đã chặn .* khỏi nhóm/i.test(t)
+    );
+}
+
 const MULTI_IMG_MAX = 4;
 
 function multiImageGridStyle(count: number): React.CSSProperties {
@@ -431,6 +442,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         if (mime.startsWith('image')) effectiveType = 'IMAGE';
         else if (mime.startsWith('video')) effectiveType = 'VIDEO';
         else effectiveType = 'FILE';
+    }
+
+    // Một số thông báo quản lý nhóm được backend lưu như TEXT → hiển thị như SYSTEM (pill)
+    if ((effectiveType === 'TEXT' || !effectiveType) && isGroupActionSystemText(message.content)) {
+        effectiveType = 'SYSTEM';
     }
 
     const fileDisplayName =

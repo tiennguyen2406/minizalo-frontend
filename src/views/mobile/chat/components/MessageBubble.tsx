@@ -15,6 +15,16 @@ import { useThemeStore } from "@/shared/store/themeStore";
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
+function isGroupActionSystemText(text?: string | null): boolean {
+    const t = String(text || "").trim();
+    if (!t) return false;
+    return (
+        /đã phong .* làm phó nhóm/i.test(t) ||
+        /đã xóa quyền phó nhóm/i.test(t) ||
+        /đã chặn .* khỏi nhóm/i.test(t)
+    );
+}
+
 function formatFileSize(bytes: number): string {
     if (!bytes || bytes <= 0) return "0 B";
     const units = ["B", "KB", "MB", "GB"];
@@ -494,6 +504,10 @@ export default function MessageBubble({
         }
     };
 
+    const effectiveType = (message.type === "TEXT" && isGroupActionSystemText(message.content))
+        ? "SYSTEM"
+        : message.type;
+
     return (
         <View
             style={{
@@ -502,7 +516,7 @@ export default function MessageBubble({
                 alignItems: isMe ? "flex-end" : "flex-start",
             }}
         >
-            {message.type === "SYSTEM" ? (
+            {effectiveType === "SYSTEM" ? (
                 <View
                     style={{
                         alignSelf: "center",

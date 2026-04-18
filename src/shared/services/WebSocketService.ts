@@ -136,6 +136,7 @@ class WebSocketService {
             this.pendingSubscriptions[destination] = fanOut;
             return;
         }
+        // Một subscription STOMP / destination; fanOut đọc listenerSets cập nhật runtime
         if (this.subscriptions[destination]) {
             return;
         }

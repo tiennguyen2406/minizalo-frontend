@@ -8,14 +8,20 @@ export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string)
         const attachments = Array.isArray(dynamo.attachments) ? dynamo.attachments : [];
         const firstAttachment = attachments[0];
 
+        const rawId = dynamo.messageId;
+        const messageId =
+            typeof rawId === 'string' && rawId.length > 0
+                ? rawId
+                : `ws-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
         const incoming: Message = {
-            id: dynamo.messageId,
+            id: messageId,
             senderId: dynamo.senderId,
-            senderName: dynamo.senderName || undefined,
+            senderName: (dynamo.senderName || dynamo.senderUsername) as string | undefined,
             roomId,
             content: dynamo.recalled ? '[Tin nhắn đã thu hồi]' : dynamo.content || '',
             type: (dynamo.type as Message['type']) || 'TEXT',
-            createdAt: dynamo.createdAt,
+            createdAt: dynamo.createdAt || dynamo.timestamp || new Date().toISOString(),
             readBy: dynamo.readBy,
             isRecall: !!dynamo.recalled,
             pinned: !!dynamo.pinned,

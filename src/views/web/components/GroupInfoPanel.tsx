@@ -223,6 +223,31 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
         }
     }, [roomId, currentGroupDetail, setCurrentGroupDetail, showToast]);
 
+    const handleTransferOwnership = useCallback(async (userId: string) => {
+        if (!roomId || !currentGroupDetail) return;
+        try {
+            const updatedGroup = await groupService.transferOwnership(roomId, userId);
+            setCurrentGroupDetail(updatedGroup);
+            showToast('Đã chuyển quyền trưởng nhóm');
+        } catch (err: any) {
+            console.error('Failed to transfer ownership:', err);
+            showToast('Chuyển quyền thất bại');
+        }
+    }, [roomId, currentGroupDetail, setCurrentGroupDetail, showToast]);
+
+    const handleBlockMember = useCallback(async (userId: string) => {
+        if (!roomId || !currentGroupDetail) return;
+        try {
+            await groupService.blockMember(roomId, userId);
+            const refreshed = await groupService.getGroupDetails(roomId);
+            setCurrentGroupDetail(refreshed);
+            showToast('Đã chặn thành viên khỏi nhóm');
+        } catch (err: any) {
+            console.error('Failed to block member:', err);
+            showToast('Chặn thành viên thất bại');
+        }
+    }, [roomId, currentGroupDetail, setCurrentGroupDetail, showToast]);
+
     useEffect(() => {
         if (!roomId) return;
         groupService.getGroupDetails(roomId)
@@ -344,7 +369,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
 
     return (
         <div
-            className="flex flex-col h-full bg-white border-l border-gray-200 overflow-y-auto"
+            className={`flex flex-col h-full bg-white border-l border-gray-200 ${isGroupManagementOpen ? 'overflow-hidden min-h-0' : 'overflow-y-auto'}`}
             style={{ width: 300, minWidth: 300 }}
         >
             {/* Toast notification */}
@@ -354,6 +379,10 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                 </div>
             )}
 
+            {isGroupManagementOpen ? (
+                <GroupManagementPanel onClosePanel={onClose} />
+            ) : (
+            <>
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0 sticky top-0 bg-white z-10">
                 <span className="font-semibold text-gray-800 text-sm">Thông tin nhóm</span>
@@ -446,9 +475,6 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                 )}
             </ActionButtonRow>
 
-            {/* Group management side panel */}
-            {isGroupManagementOpen && <GroupManagementPanel />}
-
             {/* Thành viên nhóm */}
             <div className="border-t border-gray-100">
                 {/* Group join link */}
@@ -491,6 +517,8 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                 currentUserId={user?.id}
                 onChangeRole={handleChangeRole}
                 onRemoveMember={handleRemoveMember}
+                onTransferOwnership={isOwner ? handleTransferOwnership : undefined}
+                onBlockMember={isOwner ? handleBlockMember : undefined}
                 visible={showMembersModal}
                 onClose={() => setShowMembersModal(false)}
             />
@@ -783,6 +811,8 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     currentRoomId={roomId}
                     onClose={() => setForwardingMessages(null)}
                 />
+            )}
+            </>
             )}
         </div>
     );

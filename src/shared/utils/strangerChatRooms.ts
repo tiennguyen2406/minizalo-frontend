@@ -14,6 +14,18 @@ export function getPrivateChatPartnerId(
     return other?.id != null ? String(other.id) : undefined;
 }
 
+/** Tên hiển thị đối phương trong chat 1-1 (dùng cho copy thông báo privacy). */
+export function getDirectChatPartnerDisplayName(
+    room: ChatRoom | undefined,
+    currentUserId: string | null | undefined,
+): string {
+    if (!room || room.type !== "PRIVATE") return "Người này";
+    const me = currentUserId != null ? String(currentUserId) : "";
+    const other = room.participants?.find((p) => p.id && String(p.id) !== me);
+    const name = other?.fullName?.trim() || other?.username?.trim();
+    return name || "Người này";
+}
+
 /** Đã là bạn ACCEPTED (hai chiều trong bảng friends). */
 export function isAcceptedFriendWith(
     partnerId: string | undefined,

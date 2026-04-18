@@ -129,12 +129,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
   const realMessageCount = useMemo(
     () =>
-      messagesState.filter(
-        (m) =>
-          !m.id.startsWith("temp-") &&
-          !m.id.startsWith("failed-") &&
-          m.senderId !== "system",
-      ).length,
+      messagesState.filter((m) => {
+        const id = m.id;
+        if (typeof id !== "string") return m.senderId !== "system";
+        return (
+          !id.startsWith("temp-") &&
+          !id.startsWith("failed-") &&
+          m.senderId !== "system"
+        );
+      }).length,
     [messagesState],
   );
 
@@ -240,7 +243,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         );
       const historyMessages = sorted.map((m) => mapDynamoToMessage(m, roomId));
       const currentMsgs = useChatStore.getState().messages[roomId] || [];
-      const liveMessages = currentMsgs.filter((m) => !m.id.startsWith("temp-"));
+      const liveMessages = currentMsgs.filter(
+        (m) => typeof m.id !== "string" || !m.id.startsWith("temp-"),
+      );
       const merged = [...historyMessages];
       for (const liveMsg of liveMessages) {
         if (!merged.some((m) => m.id === liveMsg.id)) merged.push(liveMsg);
