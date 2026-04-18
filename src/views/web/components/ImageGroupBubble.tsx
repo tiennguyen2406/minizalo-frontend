@@ -10,7 +10,8 @@ interface ImageGroupBubbleProps {
     senderAvatar?: string;
     participants?: User[];
     onImageLoad?: () => void;
-    onRecall?: (messageId: string) => void;
+    /** Thu hồi cả nhóm: truyền mọi messageId ảnh trong lượt gửi */
+    onRecall?: (messageIds: string | string[]) => void;
     onDeleteForMe?: (messageId: string) => void;
     onForward?: (message: Message | Message[]) => void;
     onReply?: (message: Message) => void;
@@ -238,7 +239,12 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
                                 <div className="border-t border-gray-100 my-1" />
                                 {isMine && onRecall && (
                                     <button
-                                        onClick={() => { onRecall(representativeMsg.id); setShowMoreMenu(false); setMenuPos(null); }}
+                                        onClick={() => {
+                                            const ids = messages.map((m) => m.id).filter(Boolean);
+                                            onRecall(ids.length ? ids : representativeMsg.id);
+                                            setShowMoreMenu(false);
+                                            setMenuPos(null);
+                                        }}
                                         className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>

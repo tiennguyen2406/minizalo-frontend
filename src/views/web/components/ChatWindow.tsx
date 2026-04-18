@@ -389,20 +389,28 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         webSocketService.sendTyping({ roomId, isTyping });
     };
 
-    const handleRecall = async (messageId: string) => {
+    const handleRecall = async (messageId: string | string[]) => {
         if (!roomId) return;
-        try {
-            await MessageService.recallMessage(roomId, messageId);
-            const currentMsgs = useChatStore.getState().messages[roomId] || [];
-            const newMsgs = currentMsgs.map((m) =>
-                m.id === messageId
-                    ? { ...m, isRecall: true, content: '[Tin nhắn đã thu hồi]' }
-                    : m
-            );
-            setMessages(roomId, newMsgs);
-        } catch (error) {
-            console.error('Failed to recall message', error);
+        const ids = (Array.isArray(messageId) ? messageId : [messageId]).filter(Boolean);
+        if (ids.length === 0) return;
+        const results = await Promise.allSettled(
+            ids.map((id) => MessageService.recallMessage(roomId, id))
+        );
+        const ok = new Set<string>();
+        results.forEach((r, i) => {
+            if (r.status === 'fulfilled') ok.add(ids[i]);
+        });
+        if (ok.size === 0) {
+            console.error('Failed to recall message(s)', results);
+            return;
         }
+        const currentMsgs = useChatStore.getState().messages[roomId] || [];
+        const newMsgs = currentMsgs.map((m) =>
+            ok.has(m.id)
+                ? { ...m, isRecall: true, content: '[Tin nhắn đã thu hồi]' }
+                : m
+        );
+        setMessages(roomId, newMsgs);
     };
 
     const handleReact = (messageId: string, emoji: string) => {

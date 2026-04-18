@@ -10,7 +10,7 @@ interface MessageListProps {
     currentUserId: string;
     roomId?: string;
     participants?: User[];
-    onRecall?: (messageId: string) => void;
+    onRecall?: (messageId: string | string[]) => void;
     onReact?: (messageId: string, emoji: string) => void;
     onReply?: (message: Message) => void;
     onTogglePin?: (messageId: string, currentPinStatus: boolean) => void;
