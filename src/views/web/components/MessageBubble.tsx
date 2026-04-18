@@ -69,6 +69,205 @@ function multiImageCellStyle(count: number, index: number): React.CSSProperties 
     return { ...base, height: 120 };
 }
 
+/** Hiển thị thẻ file: màu preview + nhãn loại (PDF, Word, …) */
+function getFilePresentation(fileName: string, mime?: string): {
+    label: string;
+    gradient: string;
+    badgeClass: string;
+    iconTint: string;
+} {
+    const ext = (fileName.split('.').pop() || '').toLowerCase();
+    const m = (mime || '').toLowerCase();
+    if (m.includes('pdf') || ext === 'pdf') {
+        return {
+            label: 'PDF',
+            gradient: 'from-rose-50 via-red-50 to-orange-50',
+            badgeClass: 'bg-[#ff453a] shadow-sm',
+            iconTint: 'text-red-300/90',
+        };
+    }
+    if (m.includes('word') || ext === 'doc' || ext === 'docx') {
+        return {
+            label: 'WORD',
+            gradient: 'from-blue-50 via-indigo-50 to-slate-50',
+            badgeClass: 'bg-[#007aff]',
+            iconTint: 'text-blue-300/90',
+        };
+    }
+    if (m.includes('sheet') || ext === 'xls' || ext === 'xlsx' || ext === 'csv') {
+        return {
+            label: 'XLS',
+            gradient: 'from-emerald-50 via-green-50 to-teal-50',
+            badgeClass: 'bg-[#34c759]',
+            iconTint: 'text-emerald-300/90',
+        };
+    }
+    if (m.includes('presentation') || ext === 'ppt' || ext === 'pptx') {
+        return {
+            label: 'PPTX',
+            gradient: 'from-amber-50 via-orange-50 to-yellow-50',
+            badgeClass: 'bg-[#ff9500]',
+            iconTint: 'text-amber-300/90',
+        };
+    }
+    if (m.includes('zip') || ext === 'zip' || ext === 'rar' || ext === '7z') {
+        return {
+            label: 'ZIP',
+            gradient: 'from-violet-50 via-purple-50 to-fuchsia-50',
+            badgeClass: 'bg-[#af52de]',
+            iconTint: 'text-violet-300/90',
+        };
+    }
+    if (m.startsWith('text/') || ext === 'txt' || ext === 'md' || ext === 'json') {
+        return {
+            label: 'TXT',
+            gradient: 'from-gray-50 to-slate-100',
+            badgeClass: 'bg-gray-500',
+            iconTint: 'text-gray-400',
+        };
+    }
+    if (m.startsWith('audio/') || ['mp3', 'wav', 'm4a', 'aac', 'flac'].includes(ext)) {
+        return {
+            label: 'AUDIO',
+            gradient: 'from-indigo-50 to-violet-100',
+            badgeClass: 'bg-[#5856d6]',
+            iconTint: 'text-indigo-300/90',
+        };
+    }
+    if (ext) {
+        return {
+            label: ext.slice(0, 5).toUpperCase(),
+            gradient: 'from-slate-50 to-gray-100',
+            badgeClass: 'bg-slate-600',
+            iconTint: 'text-slate-400',
+        };
+    }
+    return {
+        label: 'FILE',
+        gradient: 'from-slate-50 to-gray-100',
+        badgeClass: 'bg-slate-600',
+        iconTint: 'text-slate-400',
+    };
+}
+
+function formatFileSizeBytes(n?: number): string {
+    if (n == null || n <= 0) return '';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(2)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+/** Tải file về thư mục Tải xuống mặc định của trình duyệt (không chọn đường dẫn). */
+async function downloadFileToDeviceCore(url: string, suggestedName: string): Promise<void> {
+    const safe = suggestedName.replace(/[<>:"/\\|?*]/g, '_') || 'download';
+    try {
+        const res = await fetch(url, { mode: 'cors' });
+        if (!res.ok) throw new Error('fetch failed');
+        const blob = await res.blob();
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = href;
+        a.download = safe;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(href);
+    } catch {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.download = safe;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+}
+
+async function downloadFileToDevice(url: string, suggestedName: string, ev: React.MouseEvent) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    await downloadFileToDeviceCore(url, suggestedName);
+}
+
+/** Hộp thoại Lưu thành… (Chrome/Edge): chọn đường dẫn trước → fetch blob → ghi ngay. Không API / lỗi → tải về thư mục mặc định. */
+async function saveFileWithPickerDialog(
+    url: string,
+    suggestedName: string,
+    ev: React.MouseEvent,
+    onSaved?: () => void,
+) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const safe = suggestedName.replace(/[<>:"/\\|?*]/g, '_') || 'download';
+
+    const extWithDot =
+        safe.includes('.') && safe.lastIndexOf('.') > 0 ? safe.slice(safe.lastIndexOf('.')) : '';
+
+    const w = window as Window & {
+        showSaveFilePicker?: (options?: {
+            suggestedName?: string;
+            types?: Array<{ description: string; accept: Record<string, string[]> }>;
+        }) => Promise<FileSystemFileHandle>;
+    };
+
+    let fileHandle: FileSystemFileHandle | undefined;
+    if (typeof w.showSaveFilePicker === 'function') {
+        try {
+            fileHandle = await w.showSaveFilePicker({
+                suggestedName: safe,
+                types: extWithDot
+                    ? [
+                          {
+                              description: 'Tệp',
+                              accept: {
+                                  'application/octet-stream': [extWithDot],
+                              },
+                          },
+                      ]
+                    : undefined,
+            });
+        } catch (err: unknown) {
+            const name = err && typeof err === 'object' && 'name' in err ? (err as { name: string }).name : '';
+            if (name === 'AbortError') return;
+        }
+    }
+
+    let blob: Blob;
+    try {
+        const res = await fetch(url, { mode: 'cors' });
+        if (!res.ok) throw new Error('fetch failed');
+        blob = await res.blob();
+    } catch {
+        await downloadFileToDeviceCore(url, suggestedName);
+        onSaved?.();
+        return;
+    }
+
+    if (fileHandle) {
+        try {
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            onSaved?.();
+            return;
+        } catch {
+            await downloadFileToDeviceCore(url, suggestedName);
+            onSaved?.();
+            return;
+        }
+    }
+
+    await downloadFileToDeviceCore(url, suggestedName);
+    onSaved?.();
+}
+
+function openFileFromCard(url: string, ev: React.MouseEvent | React.KeyboardEvent) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 const getAvatarUrl = (name: string, avatarUrl?: string) => {
     if (avatarUrl) return avatarUrl;
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4A90D9&color=fff&size=64`;
@@ -106,7 +305,19 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const [imageLightbox, setImageLightbox] = useState<{ urls: string[]; index: number } | null>(
         null,
     );
+    /** Hướng dẫn xem danh sách / vị trí file đã tải (web không mở được Explorer trực tiếp) */
+    const [downloadsHelpOpen, setDownloadsHelpOpen] = useState(false);
+    /** Vừa tự tải về thư mục mặc định trước khi mở modal (để hiển thị gợi ý phù hợp) */
+    const [downloadsHelpJustFetched, setDownloadsHelpJustFetched] = useState(false);
+    const [downloadsHelpBusy, setDownloadsHelpBusy] = useState(false);
+    /** Đã có bản trên máy (qua “Chọn nơi lưu” hoặc tải mặc định / nút “Nơi tải xuống”) — hiển thị “Đã có trên máy” */
+    const [fileSavedOnDevice, setFileSavedOnDevice] = useState(false);
     const moreButtonRef = useRef<HTMLButtonElement>(null);
+
+    const closeDownloadsHelp = () => {
+        setDownloadsHelpOpen(false);
+        setDownloadsHelpJustFetched(false);
+    };
 
     // Keep picker open if hovered over button OR the picker itself
     const isPickerVisible = showReactPicker || isHoveringReactions;
@@ -157,6 +368,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         else if (mime.startsWith('video')) effectiveType = 'VIDEO';
         else effectiveType = 'FILE';
     }
+
+    const fileDisplayName =
+        effectiveFileName || message.content?.trim() || 'Tệp đính kèm';
+    const filePresentation =
+        (effectiveType === 'FILE' || effectiveType === 'DOCUMENT') && effectiveFileUrl
+            ? getFilePresentation(fileDisplayName, attachment?.type)
+            : null;
 
     // Handle System Message
     if (effectiveType === 'SYSTEM') {
@@ -537,54 +755,182 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     className="max-w-[300px] max-h-[240px] rounded-lg bg-black"
                                 />
                             </div>
-                        ) : (effectiveType === 'FILE' || effectiveType === 'DOCUMENT') && effectiveFileUrl ? (
-                            <div className="flex flex-col gap-1 min-w-[220px] max-w-[300px]">
-                                <div
-                                    className={clsx(
-                                        "flex items-center gap-3 p-2.5 rounded-lg border transition-colors",
-                                        isMine
-                                            ? "bg-blue-50/80 border-blue-200 hover:bg-blue-100/80"
-                                            : "bg-gray-50 border-gray-200 hover:bg-gray-100"
-                                    )}
-                                >
-                                    <div className={clsx("p-2 rounded-lg shrink-0", isMine ? "bg-blue-500 text-white" : "bg-blue-100 text-blue-500")}>
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
-                                    <div className="flex flex-col flex-1 min-w-0">
-                                        <span className="text-sm font-medium truncate text-gray-800" title={effectiveFileName}>{effectiveFileName || 'Tài liệu'}</span>
-                                        <span className="text-xs text-gray-500">
-                                            {effectiveFileSize
-                                                ? effectiveFileSize < 1024 * 1024
-                                                    ? (effectiveFileSize / 1024).toFixed(1) + ' KB'
-                                                    : (effectiveFileSize / (1024 * 1024)).toFixed(1) + ' MB'
-                                                : 'Tải xuống'}
-                                        </span>
-                                    </div>
-                                    {/* Open file */}
-                                    <a
-                                        href={effectiveFileUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={clsx("px-2 py-1 rounded-md text-xs font-semibold", isMine ? "text-blue-700 hover:bg-blue-200/60" : "text-gray-700 hover:bg-gray-200")}
-                                        onClick={(e) => e.stopPropagation()}
-                                        title="Mở"
+                        ) : (effectiveType === 'FILE' || effectiveType === 'DOCUMENT') &&
+                          effectiveFileUrl &&
+                          filePresentation ? (
+                            <div
+                                className="box-border w-[300px] max-w-full shrink-0 rounded-xl border border-sky-300/90 bg-sky-50/95 shadow-sm select-none"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="flex items-center gap-1 pl-2 pr-1 py-2">
+                                    {/* Badge + giờ | tên + meta: bấm để mở file */}
+                                    <div
+                                        role="button"
+                                        tabIndex={0}
+                                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg py-0.5 text-left hover:bg-white/55 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0068ff]/25"
+                                        title="Mở file (PDF/ảnh trong tab; Office tuỳ trình duyệt)"
+                                        onClick={(e) => openFileFromCard(effectiveFileUrl, e)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                openFileFromCard(effectiveFileUrl, e);
+                                            }
+                                        }}
                                     >
-                                        Mở
-                                    </a>
-                                    {/* Download */}
-                                    <a
-                                        href={effectiveFileUrl}
-                                        download
-                                        className={clsx("p-1.5 rounded-full shrink-0", isMine ? "text-blue-700 hover:bg-blue-200/60" : "text-gray-600 hover:bg-gray-200")}
-                                        onClick={(e) => e.stopPropagation()}
-                                        title="Tải xuống"
-                                    >
-                                        <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                        </svg>
-                                    </a>
+                                        <div className="flex shrink-0 flex-col items-center gap-1">
+                                            <div
+                                                className={clsx(
+                                                    'flex h-11 w-10 shrink-0 items-center justify-center rounded-lg px-1 text-[10px] font-bold leading-tight text-white',
+                                                    filePresentation.badgeClass,
+                                                )}
+                                                title={filePresentation.label}
+                                            >
+                                                {filePresentation.label}
+                                            </div>
+                                            <span className="text-[10px] leading-none text-gray-400 tabular-nums">
+                                                {new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                })}
+                                            </span>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div
+                                                className="truncate text-sm font-semibold text-gray-900"
+                                                title={fileDisplayName}
+                                            >
+                                                {fileDisplayName}
+                                            </div>
+                                            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                                                <span className="text-gray-500">
+                                                    {formatFileSizeBytes(effectiveFileSize) || 'Không rõ dung lượng'}
+                                                </span>
+                                                {fileSavedOnDevice && (
+                                                    <span className="inline-flex items-center gap-0.5 font-medium text-emerald-600">
+                                                        <svg
+                                                            className="h-3.5 w-3.5 shrink-0"
+                                                            viewBox="0 0 20 20"
+                                                            fill="currentColor"
+                                                            aria-hidden
+                                                        >
+                                                            <path
+                                                                fillRule="evenodd"
+                                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                                                clipRule="evenodd"
+                                                            />
+                                                        </svg>
+                                                        Đã có trên máy
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex shrink-0 items-center gap-1">
+                                        <button
+                                            type="button"
+                                            className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white p-0 text-gray-600 shadow-sm hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-60"
+                                            title="Xem nơi tải xuống — nếu chưa tải sẽ tải vào thư mục mặc định rồi hướng dẫn (Ctrl+J)"
+                                            aria-label={
+                                                downloadsHelpBusy
+                                                    ? 'Đang chuẩn bị hướng dẫn nơi tải'
+                                                    : 'Nơi tải xuống và hướng dẫn'
+                                            }
+                                            disabled={downloadsHelpBusy}
+                                            aria-busy={downloadsHelpBusy}
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                if (!effectiveFileUrl) {
+                                                    setDownloadsHelpJustFetched(false);
+                                                    setDownloadsHelpOpen(true);
+                                                    return;
+                                                }
+                                                let justFetched = false;
+                                                if (!fileSavedOnDevice) {
+                                                    setDownloadsHelpBusy(true);
+                                                    try {
+                                                        await downloadFileToDeviceCore(
+                                                            effectiveFileUrl,
+                                                            fileDisplayName,
+                                                        );
+                                                        setFileSavedOnDevice(true);
+                                                        justFetched = true;
+                                                    } finally {
+                                                        setDownloadsHelpBusy(false);
+                                                    }
+                                                }
+                                                setDownloadsHelpJustFetched(justFetched);
+                                                setDownloadsHelpOpen(true);
+                                            }}
+                                        >
+                                            {downloadsHelpBusy ? (
+                                                <svg
+                                                    className="h-5 w-5 animate-spin text-gray-500"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    aria-hidden
+                                                >
+                                                    <circle
+                                                        className="opacity-25"
+                                                        cx="12"
+                                                        cy="12"
+                                                        r="10"
+                                                        stroke="currentColor"
+                                                        strokeWidth="4"
+                                                    />
+                                                    <path
+                                                        className="opacity-75"
+                                                        fill="currentColor"
+                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                    />
+                                                </svg>
+                                            ) : (
+                                                <svg
+                                                    className="h-5 w-5"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                    aria-hidden
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={2}
+                                                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                                                    />
+                                                </svg>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white p-0 text-[#0068ff] shadow-sm hover:bg-sky-50"
+                                            title="Chọn nơi lưu (Chrome / Edge). Trình khác: tải về Tải xuống mặc định."
+                                            aria-label="Tải xuống — chọn nơi lưu"
+                                            onClick={(e) =>
+                                                saveFileWithPickerDialog(
+                                                    effectiveFileUrl,
+                                                    fileDisplayName,
+                                                    e,
+                                                    () => setFileSavedOnDevice(true),
+                                                )
+                                            }
+                                        >
+                                            {/* Arrow down tray — biểu tượng tải xuống quen thuộc */}
+                                            <svg
+                                                className="h-5 w-5"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                strokeWidth={2}
+                                                aria-hidden
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75v-2.25M12 4.5v15m0 0l-4.5-4.5M12 19.5l4.5-4.5"
+                                                />
+                                            </svg>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ) : effectiveType === 'TEXT' || effectiveType === 'REPLY' || effectiveType === 'FORWARD' ? (
@@ -599,13 +945,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             <span className="text-[15px] italic opacity-80 pr-8">{message.content || '[Loại tin nhắn không hỗ trợ]'}</span>
                         )}
 
-                        {/* Thời gian hiển thị bên trong khung chữ, góc bên trái */}
-                        <span className="text-[11px] text-gray-400 mt-1.5 self-start leading-none">
-                            {new Date(message.createdAt).toLocaleTimeString('vi-VN', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                            })}
-                        </span>
+                        {/* Thời gian (tin file đã có giờ trong thẻ file) */}
+                        {!filePresentation && (
+                            <span className="text-[11px] text-gray-400 mt-1.5 self-start leading-none">
+                                {new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                })}
+                            </span>
+                        )}
                     </div>
 
                     {/* Reactions Pill and Inline Like - Nằm đè lên viền Đáy Phải (Bottom-Right) */}
@@ -930,6 +1278,62 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
+                </div>
+            )}
+
+            {/* Hướng dẫn xem thư mục / danh sách tải xuống (web không mở được Explorer) */}
+            {downloadsHelpOpen && (
+                <div
+                    className="fixed inset-0 z-[75] flex items-center justify-center bg-black/45 px-4"
+                    onClick={closeDownloadsHelp}
+                    role="presentation"
+                >
+                    <div
+                        className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 border border-gray-100"
+                        onClick={(e) => e.stopPropagation()}
+                        role="dialog"
+                        aria-labelledby="downloads-help-title"
+                    >
+                        <h3 id="downloads-help-title" className="text-base font-semibold text-gray-900 mb-2">
+                            Xem file đã tải ở đâu?
+                        </h3>
+                        {downloadsHelpJustFetched ? (
+                            <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                                File vừa được tải xuống vào thư mục <strong>Tải xuống</strong> mặc định (đúng theo nơi lưu bạn đã cấu hình trong trình duyệt).
+                                Trang web không thể mở sẵn File Explorer; dùng phím tắt bên dưới để mở danh sách tải và thấy đường dẫn file.
+                            </p>
+                        ) : (
+                            <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                                Trình duyệt không cho phép trang web mở trực tiếp thư mục <strong>Tải xuống</strong> trên máy (giống File Explorer).
+                                Bạn có thể xem danh sách và đường dẫn như sau:
+                            </p>
+                        )}
+                        <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1.5 mb-4">
+                            <li>
+                                <strong>Chrome / Edge:</strong> nhấn <kbd className="px-1 py-0.5 rounded bg-gray-100 text-xs font-mono">Ctrl</kbd>{' '}
+                                + <kbd className="px-1 py-0.5 rounded bg-gray-100 text-xs font-mono">J</kbd>
+                            </li>
+                            <li>
+                                <strong>Firefox:</strong>{' '}
+                                <kbd className="px-1 py-0.5 rounded bg-gray-100 text-xs font-mono">Ctrl</kbd> +{' '}
+                                <kbd className="px-1 py-0.5 rounded bg-gray-100 text-xs font-mono">Shift</kbd> +{' '}
+                                <kbd className="px-1 py-0.5 rounded bg-gray-100 text-xs font-mono">Y</kbd>
+                            </li>
+                            <li>
+                                <strong>Safari (Mac):</strong> menu Window → Downloads
+                            </li>
+                        </ul>
+                        <p className="text-xs text-gray-500 mb-4">
+                            Sau khi file đã có trên máy, double-click trong thư mục để mở bằng Word, WPS hoặc phần mềm mặc định của hệ điều hành.
+                        </p>
+                        <button
+                            type="button"
+                            className="w-full py-2.5 rounded-lg bg-[#0068ff] text-white text-sm font-semibold hover:bg-[#0056d6]"
+                            onClick={closeDownloadsHelp}
+                        >
+                            Đã hiểu
+                        </button>
+                    </div>
                 </div>
             )}
         </>
