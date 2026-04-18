@@ -362,7 +362,7 @@ const MessageList: React.FC<MessageListProps> = ({
     return (
         <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto bg-gray-50"
+            className="flex-1 overflow-y-auto bg-[var(--bg-chat-messages)]"
             onScroll={handleScroll}
             style={{ scrollBehavior: 'auto', minHeight: 0 }}
         >

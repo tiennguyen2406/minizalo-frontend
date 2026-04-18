@@ -1022,7 +1022,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         <Box
           className="flex-1 overflow-hidden flex flex-col"
           style={{
-            backgroundColor: "var(--bg-primary)",
+            backgroundColor: "var(--bg-chat-messages)",
             transition: "background-color 0.3s ease",
           }}
         >
