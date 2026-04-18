@@ -15,9 +15,10 @@ import { webSocketService } from '@/shared/services/WebSocketService';
 import { ChatRoom } from '../types';
 import axios from 'axios';
 import {
-    STRANGER_MESSAGES_DEFAULT_TEXT,
+    formatStrangerPrivacyRejectionMessage,
     STRANGER_MESSAGES_NOT_ALLOWED,
 } from '@/shared/utils/chatErrors';
+import { getDirectChatPartnerDisplayName } from '@/shared/utils/strangerChatRooms';
 
 /** Lỗi gửi chat cá nhân (vd: chỉ bạn bè) — subscribe một lần cho web + mobile. */
 function useChatErrorsSubscription() {
@@ -41,13 +42,16 @@ function useChatErrorsSubscription() {
                     payload.code === STRANGER_MESSAGES_NOT_ALLOWED &&
                     payload.roomId != null
                 ) {
-                    const text =
-                        typeof payload.text === 'string' && payload.text.trim()
-                            ? payload.text.trim()
-                            : STRANGER_MESSAGES_DEFAULT_TEXT;
+                    const roomIdStr = String(payload.roomId);
+                    const uid = useAuthStore.getState().user?.id ?? null;
+                    const room = useChatStore
+                        .getState()
+                        .rooms.find((r) => r.id === roomIdStr);
+                    const label = getDirectChatPartnerDisplayName(room, uid);
+                    const text = formatStrangerPrivacyRejectionMessage(label);
                     useChatStore
                         .getState()
-                        .applyStrangerMessageRejection(String(payload.roomId), text);
+                        .applyStrangerMessageRejection(roomIdStr, text);
                 }
             } catch (err) {
                 console.error(

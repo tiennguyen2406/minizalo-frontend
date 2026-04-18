@@ -62,6 +62,10 @@ const {
 } = FileSystem;
 import { useAuthStore } from "@/shared/store/authStore";
 import { validateFileSize } from "@/shared/constants";
+import {
+  formatStrangerPrivacyRejectionMessage,
+  isStrangerMessagesNotAllowedError,
+} from "@/shared/utils/chatErrors";
 import { useLocalSearchParams } from "expo-router";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -317,6 +321,55 @@ export default function ChatScreen() {
     [],
   );
 
+  const strangerRejectionSignal = useChatStore((s) => s.strangerRejectionSignal);
+  const processedStrangerKeys = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    processedStrangerKeys.current.clear();
+  }, [roomId]);
+
+  /** Store gọi applyStrangerMessageRejection (chat-errors / REST 403) — ChatScreen dùng state local nên đồng bộ tin SYSTEM + gỡ temp. */
+  useEffect(() => {
+    if (!roomId || !strangerRejectionSignal) return;
+    if (strangerRejectionSignal.roomId !== roomId) return;
+    const n = strangerRejectionSignal.nonce;
+    const dedupeKey = `${roomId}:${n}`;
+    if (processedStrangerKeys.current.has(dedupeKey)) return;
+    processedStrangerKeys.current.add(dedupeKey);
+    const text = strangerRejectionSignal.text;
+    const uid = currentUserId ?? "";
+    setMessages((prev) => {
+      const filtered = prev.filter((m) => {
+        const mid = m.messageId ?? "";
+        const isTemp =
+          mid.startsWith("temp-") ||
+          mid.startsWith("temp-media-") ||
+          mid.startsWith("temp-file-");
+        if (!isTemp) return true;
+        return m.senderId !== uid;
+      });
+      const sysMsg: MessageDynamo = {
+        messageId: `sys-stranger-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        chatRoomId: roomId,
+        senderId: "SYSTEM",
+        senderName: "SYSTEM",
+        content: text,
+        attachments: [],
+        type: "SYSTEM",
+        createdAt: new Date().toISOString(),
+        replyToMessageId: "",
+        read: false,
+        readBy: [],
+        reactions: [],
+        recalled: false,
+        recalledAt: "",
+        pinned: false,
+      };
+      return [sysMsg, ...filtered];
+    });
+    showToast("Không gửi được tin nhắn", "error");
+  }, [strangerRejectionSignal?.nonce, roomId, currentUserId, showToast]);
+
   const hasChatActivity = useMemo(() => {
     return messages.some((m) => {
       const mid = m.messageId || "";
@@ -491,7 +544,21 @@ export default function ChatScreen() {
             const extraPinned = pinnedMsgs.filter(
               (m) => !historyIds.has(m.messageId),
             );
-            setMessages([...filtered, ...extraPinned]);
+            setMessages((prev) => {
+              const strangerSysLocal = prev.filter(
+                (m) =>
+                  typeof m.messageId === "string" &&
+                  m.messageId.startsWith("sys-stranger-"),
+              );
+              const merged = [...filtered, ...extraPinned];
+              const mergedIds = new Set(
+                merged.map((m) => m.messageId).filter(Boolean),
+              );
+              const keep = strangerSysLocal.filter(
+                (m) => m.messageId && !mergedIds.has(m.messageId),
+              );
+              return [...keep, ...merged];
+            });
           }
 
           lastKeyRef.current = result.lastEvaluatedKey;
@@ -642,6 +709,14 @@ export default function ChatScreen() {
             .sendMessage(roomId, pending.content, pending.replyToId)
             .then(() => {
               void fetchMessages(false);
+            })
+            .catch((err: unknown) => {
+              if (isStrangerMessagesNotAllowedError(err)) {
+                useChatStore.getState().applyStrangerMessageRejection(
+                  roomId,
+                  formatStrangerPrivacyRejectionMessage(displayName),
+                );
+              }
             });
         }
         schedulePostSendSync();
@@ -858,7 +933,7 @@ export default function ChatScreen() {
       webSocketService.unsubscribe(reactionTopic);
       webSocketService.unsubscribe(pinTopic);
     };
-  }, [roomId, fetchMessages, currentUserId]);
+  }, [roomId, fetchMessages, currentUserId, displayName]);
 
   useEffect(() => {
     if (isStranger && isFocused) {
@@ -966,13 +1041,20 @@ export default function ChatScreen() {
         void fetchMessages(false);
       }
       schedulePostSendSync();
-    } catch (err: any) {
-      showToast("Gửi tin nhắn thất bại", "error");
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.messageId === optimisticMsg.messageId ? { ...m, isError: true } : m,
-        ),
-      );
+    } catch (err: unknown) {
+      if (isStrangerMessagesNotAllowedError(err)) {
+        useChatStore.getState().applyStrangerMessageRejection(
+          workingRoomId!,
+          formatStrangerPrivacyRejectionMessage(displayName),
+        );
+      } else {
+        showToast("Gửi tin nhắn thất bại", "error");
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.messageId === optimisticMsg.messageId ? { ...m, isError: true } : m,
+          ),
+        );
+      }
     } finally {
       setSending(false);
       setReplyTo(null);
@@ -1129,11 +1211,18 @@ export default function ChatScreen() {
         await fetchMessages();
       }
       schedulePostSendSync();
-    } catch (err) {
-      showToast("Gửi file phương tiện thất bại", "error");
-      setMessages((prev) =>
-        prev.map((m) => (m.messageId === tempId ? { ...m, isError: true } : m)),
-      );
+    } catch (err: unknown) {
+      if (isStrangerMessagesNotAllowedError(err)) {
+        useChatStore.getState().applyStrangerMessageRejection(
+          roomId,
+          formatStrangerPrivacyRejectionMessage(displayName),
+        );
+      } else {
+        showToast("Gửi file phương tiện thất bại", "error");
+        setMessages((prev) =>
+          prev.map((m) => (m.messageId === tempId ? { ...m, isError: true } : m)),
+        );
+      }
     } finally {
       setUploadProgressForRoom(roomId, null);
       setSending(false);
@@ -1280,11 +1369,18 @@ export default function ChatScreen() {
         await fetchMessages();
       }
       schedulePostSendSync();
-    } catch (err: any) {
-      showToast("Gửi file thất bại", "error");
-      setMessages((prev) =>
-        prev.map((m) => (m.messageId === tempId ? { ...m, isError: true } : m)),
-      );
+    } catch (err: unknown) {
+      if (isStrangerMessagesNotAllowedError(err)) {
+        useChatStore.getState().applyStrangerMessageRejection(
+          roomId,
+          formatStrangerPrivacyRejectionMessage(displayName),
+        );
+      } else {
+        showToast("Gửi file thất bại", "error");
+        setMessages((prev) =>
+          prev.map((m) => (m.messageId === tempId ? { ...m, isError: true } : m)),
+        );
+      }
     } finally {
       setUploadProgressForRoom(roomId, null);
       setSending(false);
