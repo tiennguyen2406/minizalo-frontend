@@ -3,6 +3,7 @@ import MessageBubble from './MessageBubble';
 import ImageGroupBubble from './ImageGroupBubble';
 import { Message, User } from '@/shared/types';
 import { useChatStore } from '@/shared/store/useChatStore';
+import { getImageAttachmentUrls } from '@/shared/utils/messageAttachments';
 import LazyImage from './LazyImage';
 
 interface MessageListProps {
@@ -10,7 +11,7 @@ interface MessageListProps {
     currentUserId: string;
     roomId?: string;
     participants?: User[];
-    onRecall?: (messageId: string) => void;
+    onRecall?: (messageId: string | string[]) => void;
     onReact?: (messageId: string, emoji: string) => void;
     onReply?: (message: Message) => void;
     onTogglePin?: (messageId: string, currentPinStatus: boolean) => void;
@@ -156,6 +157,7 @@ type RenderItem =
     | { type: 'imageGroup'; messages: Message[]; startIndex: number };
 
 function getEffectiveType(msg: Message): string {
+    if (getImageAttachmentUrls(msg).length > 0) return 'IMAGE';
     let type: string = msg.type;
     if ((type === 'TEXT' || !type) && msg.fileUrl && msg.attachments?.[0]) {
         const mime = (msg.attachments[0].type || '').toLowerCase();
@@ -360,7 +362,7 @@ const MessageList: React.FC<MessageListProps> = ({
     return (
         <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto bg-gray-50"
+            className="flex-1 overflow-y-auto bg-[var(--bg-chat-messages)]"
             onScroll={handleScroll}
             style={{ scrollBehavior: 'auto', minHeight: 0 }}
         >

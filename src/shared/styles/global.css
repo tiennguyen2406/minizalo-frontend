@@ -11,6 +11,8 @@
     --bg-sidebar-active: rgba(255, 255, 255, 0.18);
     --bg-sidebar-hover: rgba(255, 255, 255, 0.1);
     --bg-chat-header: #ffffff;
+    /** Vùng cuộn tin nhắn (đoạn chat) */
+    --bg-chat-messages: #ebecf0;
     --bg-input: #ffffff;
     --bg-hover: #f3f4f6;
     --bg-message-own: #dbf5ff;
@@ -48,6 +50,7 @@
     --bg-sidebar-active: rgba(255, 255, 255, 0.12);
     --bg-sidebar-hover: rgba(255, 255, 255, 0.06);
     --bg-chat-header: #1e1e2e;
+    --bg-chat-messages: #181825;
     --bg-input: #313244;
     --bg-hover: #313244;
     --bg-message-own: #1e3a5f;

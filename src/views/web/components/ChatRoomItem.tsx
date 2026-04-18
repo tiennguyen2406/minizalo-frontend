@@ -55,7 +55,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
     const router = useRouter();
     const isDark = useThemeStore((s) => s.theme === 'dark');
     const isMuted = useChatStore((s) => s.mutedRooms.has(room.id));
-    const { togglePinRoom, toggleMuteRoom, markRoomAsUnread, clearConversation } = useChatStore();
+    const { togglePinRoom, toggleMuteRoom, markRoomAsUnread, deleteRoom } = useChatStore();
 
     const [showMenu, setShowMenu] = useState(false);
     const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
@@ -266,12 +266,12 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                         <button
                             className="w-full text-left px-4 py-2 hover:bg-red-50 text-sm text-red-600"
                             onClick={() => {
-                                clearConversation(room.id);
+                                deleteRoom(room.id);
                                 setShowMenu(false);
                                 setMenuPos(null);
                             }}
                         >
-                            Xóa hội thoại
+                            Xóa đoạn chat
                         </button>
                     </div>
                 </>

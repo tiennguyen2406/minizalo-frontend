@@ -15,7 +15,9 @@ class WebSocketService {
     private connected: boolean = false;
     private pendingSubscriptions: Record<string, (message: IMessage) => void> = {};
     private subscriptions: Record<string, any> = {};
-    /** Giữ callback theo destination để sau khi STOMP disconnect/reconnect đăng ký lại (vd: /user/queue/chat-errors). */
+    /** Nhiều listener / cùng destination (multicast) — reconnect dùng fanOut đã lưu. */
+    private listenerSets: Record<string, Set<(message: IMessage) => void>> = {};
+    /** Fan-out cho mỗi destination (một subscription STOMP duy nhất). */
     private subscriptionCallbacks: Record<string, (message: IMessage) => void> = {};
     private currentToken: string | null = null;
 
@@ -101,6 +103,7 @@ class WebSocketService {
         this.subscriptions = {};
         this.pendingSubscriptions = {};
         this.subscriptionCallbacks = {};
+        this.listenerSets = {};
     }
 
     /** Check if connected */
@@ -108,31 +111,58 @@ class WebSocketService {
         return this.connected && this.client.connected;
     }
 
-    /** Subscribe to a topic/destination */
+    /** Subscribe to a topic/destination (nhiều listener cùng destination được gọi tuần tự). */
     subscribe(destination: string, callback: (message: IMessage) => void) {
-        this.subscriptionCallbacks[destination] = callback;
+        if (!this.listenerSets[destination]) {
+            this.listenerSets[destination] = new Set();
+        }
+        this.listenerSets[destination].add(callback);
+
+        const fanOut = (msg: IMessage) => {
+            const set = this.listenerSets[destination];
+            if (!set) return;
+            set.forEach((cb) => {
+                try {
+                    cb(msg);
+                } catch (e) {
+                    console.error('[WebSocketService] listener error', destination, e);
+                }
+            });
+        };
+
+        this.subscriptionCallbacks[destination] = fanOut;
+
         if (!this.client.connected) {
-            this.pendingSubscriptions[destination] = callback;
+            this.pendingSubscriptions[destination] = fanOut;
             return;
         }
-        // Thay callback mới (effect chạy lại) — stompjs giữ subscription cũ nếu không unsubscribe
+        // Một subscription STOMP / destination; fanOut đọc listenerSets cập nhật runtime
         if (this.subscriptions[destination]) {
-            this.subscriptions[destination].unsubscribe();
-            delete this.subscriptions[destination];
+            return;
         }
-        const subscription = this.client.subscribe(destination, callback);
+        const subscription = this.client.subscribe(destination, fanOut);
         this.subscriptions[destination] = subscription;
     }
 
-    /** Unsubscribe from a topic/destination */
-    unsubscribe(destination: string) {
+    /**
+     * Gỡ subscription: nếu truyền `callback` chỉ gỡ listener đó;
+     * không truyền thì gỡ toàn bộ destination (như logout / dọn layout).
+     */
+    unsubscribe(destination: string, callback?: (message: IMessage) => void) {
+        if (callback) {
+            this.listenerSets[destination]?.delete(callback);
+            if (this.listenerSets[destination] && this.listenerSets[destination].size > 0) {
+                return;
+            }
+        }
+
+        delete this.listenerSets[destination];
+
         if (this.subscriptions[destination]) {
             this.subscriptions[destination].unsubscribe();
             delete this.subscriptions[destination];
         }
-        if (this.pendingSubscriptions[destination]) {
-            delete this.pendingSubscriptions[destination];
-        }
+        delete this.pendingSubscriptions[destination];
         delete this.subscriptionCallbacks[destination];
     }
 

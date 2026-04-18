@@ -311,10 +311,13 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
         try {
             const uploadResult = await MessageService.uploadFile(file);
             const newAvatarUrl = uploadResult.fileUrl;
-            await groupService.updateGroupAvatar(roomId, newAvatarUrl);
-            setCurrentGroupDetail({ ...currentGroupDetail, avatarUrl: newAvatarUrl });
-            const room = rooms.find((r) => r.id === roomId);
-            if (room) upsertRoom({ ...room, avatarUrl: newAvatarUrl });
+            const updated = await groupService.updateGroupAvatar(roomId, newAvatarUrl);
+            setCurrentGroupDetail(updated);
+            const { rooms: latestRooms, upsertRoom: patchRoom } = useChatStore.getState();
+            const room = latestRooms.find((r) => r.id === roomId);
+            if (room && updated.avatarUrl) {
+                patchRoom({ ...room, avatarUrl: updated.avatarUrl });
+            }
             showToast('Đã cập nhật ảnh nhóm');
         } catch {
             showToast('Cập nhật ảnh nhóm thất bại');
@@ -322,7 +325,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             setIsUploadingAvatar(false);
             if (avatarInputRef.current) avatarInputRef.current.value = '';
         }
-    }, [roomId, currentGroupDetail, setCurrentGroupDetail, rooms, upsertRoom, showToast]);
+    }, [roomId, currentGroupDetail, setCurrentGroupDetail, showToast]);
 
     const joinLink = `${window.location.origin}/join/${roomId}`;
 
@@ -394,6 +397,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             <div className="flex flex-col items-center py-5 px-4 border-b border-gray-100">
                 <div className="relative mb-2">
                     <img
+                        key={avatarSrc}
                         src={avatarSrc}
                         alt={group.groupName}
                         className="w-16 h-16 rounded-full object-cover shadow-sm"

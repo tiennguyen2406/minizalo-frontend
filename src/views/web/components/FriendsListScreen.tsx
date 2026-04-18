@@ -3,6 +3,9 @@ import { useFriendStore } from "@/shared/store/friendStore";
 import { useThemeStore } from "@/shared/store/themeStore";
 import friendCategoryService from "@/shared/services/friendCategoryService";
 import type { FriendResponseDto } from "@/shared/services/types";
+import WebSearchInputBar, {
+  WEB_SEARCH_PLACEHOLDER,
+} from "@/views/web/components/WebSearchInputBar";
 
 function getFriendUser(item: FriendResponseDto, currentUserId?: string | null) {
   if (!currentUserId) return item.friend;
@@ -14,6 +17,8 @@ type FriendsListScreenProps = {
   onOpenChat?: (userId: string) => void;
   searchText?: string;
   onSearchChange?: (value: string) => void;
+  /** Ẩn ô tìm (khi trang Danh bạ đã có thanh tìm chung bên sidebar) */
+  hideSearchField?: boolean;
 };
 
 export default function FriendsListScreen({
@@ -21,6 +26,7 @@ export default function FriendsListScreen({
   onOpenChat,
   searchText,
   onSearchChange,
+  hideSearchField = false,
 }: FriendsListScreenProps) {
   const {
     friends,
@@ -389,40 +395,17 @@ export default function FriendsListScreen({
           transition: "background-color 0.3s ease",
         }}
       >
-        {/* Ô tìm kiếm bạn bè với icon kính lúp */}
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            padding: "6px 10px",
-            borderRadius: 999,
-            border: `1px solid ${isDark ? "var(--border-secondary)" : "#d1d5db"}`,
-            backgroundColor: isDark ? "var(--bg-tertiary)" : "#fff",
-            gap: 6,
-            transition: "background-color 0.3s ease",
-          }}
-        >
-          <span style={{ fontSize: 14, color: "var(--text-muted)" }}>🔍</span>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => {
-              onSearchChange
-                ? onSearchChange(e.target.value)
-                : setInternalSearch(e.target.value);
-            }}
-            placeholder="Tìm bạn"
-            style={{
-              flex: 1,
-              border: "none",
-              outline: "none",
-              fontSize: 13,
-              backgroundColor: "transparent",
-              color: "var(--text-primary)",
-            }}
-          />
-        </div>
+        {!hideSearchField ? (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <WebSearchInputBar
+              value={search}
+              onValueChange={(v) =>
+                onSearchChange ? onSearchChange(v) : setInternalSearch(v)
+              }
+              placeholder={WEB_SEARCH_PLACEHOLDER}
+            />
+          </div>
+        ) : null}
 
         {/* Sắp xếp theo tên A-Z / Z-A */}
         <button

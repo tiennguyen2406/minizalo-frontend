@@ -16,10 +16,11 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 import { getChatPreviewText } from "@/shared/utils/chatPreview";
+import { addIncomingChatMessageFromStomp } from "@/shared/utils/chatWebSocketInbound";
 
 export default function ChatListScreen() {
     const router = useRouter();
-    const { rooms, setRooms, addMessage, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
+    const { rooms, setRooms, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
     const colors = useThemeColors();
     const currentUserId = useAuthStore((s) => s.user?.id);
     const friends = useFriendStore((s) => s.friends);
@@ -55,6 +56,15 @@ export default function ChatListScreen() {
                 return 0;
             });
     }, [rooms, currentUserId, friends, friendsListReady, inboxTab, pinnedRooms]);
+
+    const chatRoomIdsKey = useMemo(
+        () =>
+            rooms
+                .map((r) => r.id)
+                .sort()
+                .join("|"),
+        [rooms],
+    );
 
     const friendIdSet = useMemo(() => {
         const ids = new Set<string>();
@@ -183,7 +193,13 @@ export default function ChatListScreen() {
             const topic = `/topic/chat/${room.id}`;
             webSocketService.subscribe(topic, (stompMsg) => {
                 try {
-                    const msg = JSON.parse(stompMsg.body);
+                    const raw = stompMsg.body ?? "";
+                    let msg: Record<string, unknown>;
+                    try {
+                        msg = JSON.parse(String(raw)) as Record<string, unknown>;
+                    } catch {
+                        return;
+                    }
                     if (msg.roomListEvent === 'REMOVED' && msg.roomId) {
                         const uid = useAuthStore.getState().user?.id;
                         if (msg.forUserId && msg.forUserId !== uid) return;
@@ -194,30 +210,28 @@ export default function ChatListScreen() {
                         fetchChats(false);
                         return;
                     }
-                    // Thêm tin nhắn mới vào store room
-                    addMessage(room.id, {
-                        id: msg.messageId,
-                        senderId: msg.senderId,
-                        senderName: msg.senderName,
-                        roomId: room.id,
-                        content: msg.content,
-                        type: (msg.type as any) || 'TEXT',
-                        createdAt: msg.createdAt,
-                        recalled: msg.recalled || false,
-                    });
-                    
+                    addIncomingChatMessageFromStomp(room.id, String(raw));
+
                     // Hiển thị in-app toast nếu tin nhắn từ người khác, không ở trong room đó, và room không bị mute
                     const isCurrentlyViewing = useChatStore.getState().currentRoomId === room.id;
-                    if (msg.senderId !== useAuthStore.getState().user?.id && !isCurrentlyViewing) {
+                    const senderId = typeof msg.senderId === 'string' ? msg.senderId : '';
+                    const myId = useAuthStore.getState().user?.id;
+                    if (senderId && myId && senderId !== myId && !isCurrentlyViewing) {
                         const isMutedRoom = useChatStore.getState().mutedRooms.has(room.id);
                         if (!isMutedRoom) {
                             const roomData = useChatStore.getState().rooms.find(r => r.id === room.id);
+                            const senderLabel =
+                                (typeof msg.senderName === 'string' && msg.senderName) ||
+                                (typeof msg.senderUsername === 'string' && msg.senderUsername) ||
+                                'Tin nhắn mới';
+                            const msgType = typeof msg.type === 'string' ? msg.type : '';
+                            const msgContent = typeof msg.content === 'string' ? msg.content : '';
                             useInAppNotifStore.getState().show({
-                                title: msg.senderName || 'Tin nhắn mới',
-                                body: msg.type === 'IMAGE' ? '[Hình ảnh]'
-                                    : msg.type === 'VIDEO' ? '[Video]'
-                                    : msg.type === 'FILE' ? '[Tập tin]'
-                                    : msg.content || 'Đã gửi một tin nhắn',
+                                title: senderLabel,
+                                body: msgType === 'IMAGE' ? '[Hình ảnh]'
+                                    : msgType === 'VIDEO' ? '[Video]'
+                                    : msgType === 'FILE' ? '[Tập tin]'
+                                    : msgContent || 'Đã gửi một tin nhắn',
                                 avatarUrl: roomData?.avatarUrl || undefined,
                                 roomId: room.id,
                             });
@@ -233,7 +247,7 @@ export default function ChatListScreen() {
         return () => {
             // Unsubscribe logic if needed
         };
-    }, [rooms]);
+    }, [chatRoomIdsKey]);
 
     // Auto-fetch when screen is focused + poll every 10s as fallback
     useFocusEffect(
