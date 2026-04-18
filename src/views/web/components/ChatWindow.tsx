@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import SearchMessagePanel from './SearchMessagePanel';
 import { Box, Avatar } from 'zmp-ui';
 import MessageList from './MessageList';
@@ -8,6 +8,7 @@ import DirectChatInfoPanel from './DirectChatInfoPanel';
 import AddMembersModal from './AddMembersModal';
 import ForwardMessageModal from './ForwardMessageModal';
 import CreatePollModal from './CreatePollModal';
+import SendFriendRequestModalWeb from './SendFriendRequestModalWeb';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { useGroupStore } from '@/shared/store/useGroupStore';
 import { useFriendStore } from '@/shared/store/friendStore';
@@ -19,6 +20,7 @@ import { MessageService } from '@/shared/services/MessageService';
 import friendService from '@/shared/services/friendService';
 import { validateFileSize } from '@/shared/constants';
 import { isStrangerMessagesNotAllowedError } from '@/shared/utils/chatErrors';
+import { isStrangerPrivateRoom } from '@/shared/utils/strangerChatRooms';
 
 interface ChatWindowProps {
     roomId: string;
@@ -66,7 +68,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         blockedByOther: boolean;
         blockerName: string | null;
     } | null>(null);
+    const [friendsListReady, setFriendsListReady] = useState(false);
+    const [friendInviteOpen, setFriendInviteOpen] = useState(false);
     const messagesState = messages[roomId] || [];
+
+    const fetchFriends = useFriendStore((s) => s.fetchFriends);
+    const friends = useFriendStore((s) => s.friends);
+    const sentRequests = useFriendStore((s) => s.sentRequests);
+    const requests = useFriendStore((s) => s.requests);
+    const sendFriendInvite = useFriendStore((s) => s.sendRequest);
+    const acceptFriendRequest = useFriendStore((s) => s.acceptRequest);
+    const fetchSentRequests = useFriendStore((s) => s.fetchSentRequests);
+    const fetchFriendRequests = useFriendStore((s) => s.fetchRequests);
 
     const currentRoom = rooms.find((r) => r.id === roomId);
     const isGroupRoom = currentRoom?.type === 'GROUP';
@@ -89,6 +102,103 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     const blockSignal = useFriendStore((s) => s.blockSignal);
     const isBlockedByYouLocal = !!partner?.id && blockedUsers.some((x) => x.friend?.id === partner.id);
     const isBlocked = isBlockedByYouLocal || blockStatus?.blockedByOther || blockStatus?.blockedByYou || false;
+
+    const realMessageCount = useMemo(
+        () =>
+            messagesState.filter(
+                (m) =>
+                    !m.id.startsWith('temp-') &&
+                    !m.id.startsWith('failed-') &&
+                    m.senderId !== 'system',
+            ).length,
+        [messagesState],
+    );
+
+    const isStrangerEmptyThread = useMemo(() => {
+        if (isGroupRoom || !currentRoom || !friendsListReady || !partner?.id) return false;
+        if (isBlocked) return false;
+        if (realMessageCount > 0) return false;
+        return isStrangerPrivateRoom(currentRoom, currentUserId, friends);
+    }, [
+        isGroupRoom,
+        currentRoom,
+        friendsListReady,
+        partner?.id,
+        isBlocked,
+        realMessageCount,
+        currentUserId,
+        friends,
+    ]);
+
+    const friendRequestStatus = useMemo((): 'NONE' | 'SENT' | 'INCOMING' => {
+        if (!partner?.id || isGroupRoom) return 'NONE';
+        const incoming = requests.find((r) => {
+            const id = r.user?.id ?? r.friend?.id;
+            return id != null && String(id) === String(partner.id);
+        });
+        if (incoming) return 'INCOMING';
+        const sent = sentRequests.some((r) => {
+            const id = r.friend?.id ?? (r as { friendId?: string }).friendId ?? r.user?.id;
+            return id != null && String(id) === String(partner.id);
+        });
+        if (sent) return 'SENT';
+        return 'NONE';
+    }, [partner?.id, isGroupRoom, requests, sentRequests]);
+
+    const incomingFriendRequest = useMemo(
+        () =>
+            !partner?.id
+                ? undefined
+                : requests.find((r) => {
+                      const id = r.user?.id ?? r.friend?.id;
+                      return id != null && String(id) === String(partner.id);
+                  }),
+        [requests, partner?.id],
+    );
+
+    useEffect(() => {
+        let cancelled = false;
+        void fetchFriends().finally(() => {
+            if (!cancelled) setFriendsListReady(true);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [fetchFriends]);
+
+    useEffect(() => {
+        if (
+            isGroupRoom ||
+            !partner?.id ||
+            !friendsListReady ||
+            !currentRoom ||
+            realMessageCount > 0 ||
+            !isStrangerPrivateRoom(currentRoom, currentUserId, friends)
+        ) {
+            return;
+        }
+        void fetchSentRequests();
+        void fetchFriendRequests({ silent: true });
+    }, [
+        isGroupRoom,
+        partner?.id,
+        friendsListReady,
+        currentRoom,
+        realMessageCount,
+        currentUserId,
+        friends,
+        fetchSentRequests,
+        fetchFriendRequests,
+    ]);
+
+    const handleAcceptIncomingFriend = async () => {
+        if (!incomingFriendRequest) return;
+        try {
+            await acceptFriendRequest(incomingFriendRequest.id);
+        } catch {
+            window.alert('Không thể chấp nhận lời mời kết bạn.');
+        }
+    };
 
     const fetchHistory = useCallback(async () => {
         if (!roomId) return;
@@ -136,6 +246,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             setLoadingOlder(false);
         }
     }, [roomId, historyLastKey, historyHasMore, loadingOlder, prependMessages]);
+
+    useEffect(() => {
+        setFriendInviteOpen(false);
+    }, [roomId]);
 
     useEffect(() => {
         if (!roomId) return;
@@ -541,8 +655,45 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 <div className="h-16 flex items-center px-4 shrink-0 justify-between" style={{ borderBottom: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-primary)', boxShadow: 'var(--shadow-sm)', transition: 'background-color 0.3s ease' }}>
                     <div className="flex items-center gap-3 min-w-0">
                         <Avatar src={roomAvatar} />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex flex-col gap-0.5">
                             <span className="font-bold text-base block truncate" style={{ color: 'var(--text-primary)' }}>{roomName}</span>
+                            {isStrangerEmptyThread && (
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span
+                                        className="inline-flex items-center text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border"
+                                        style={{
+                                            color: 'var(--text-muted)',
+                                            borderColor: 'var(--border-primary)',
+                                            backgroundColor: 'var(--bg-tertiary)',
+                                        }}
+                                    >
+                                        Người lạ
+                                    </span>
+                                    {friendRequestStatus === 'NONE' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setFriendInviteOpen(true)}
+                                            className="text-xs font-semibold px-3 py-1 rounded-full text-white bg-[#0068ff] hover:bg-[#0056d6] transition-colors"
+                                        >
+                                            Kết bạn
+                                        </button>
+                                    )}
+                                    {friendRequestStatus === 'SENT' && (
+                                        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                            Đã gửi lời mời
+                                        </span>
+                                    )}
+                                    {friendRequestStatus === 'INCOMING' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleAcceptIncomingFriend()}
+                                            className="text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                                        >
+                                            Chấp nhận kết bạn
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             {isGroupRoom && currentRoom && (
                                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                                     {(currentGroupDetail?.id === roomId ? currentGroupDetail.members.length : currentRoom.participants?.length) || 0} thành viên
@@ -786,6 +937,33 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                     roomId={roomId}
                     onClose={() => setShowCreatePoll(false)}
                     onSuccess={() => fetchHistory()}
+                />
+            )}
+
+            {partner && (
+                <SendFriendRequestModalWeb
+                    open={friendInviteOpen}
+                    target={{
+                        id: partner.id,
+                        displayName: partner.fullName || partner.username || roomName,
+                        avatarUrl: partner.avatarUrl ?? null,
+                        coverPhotoUrl: null,
+                    }}
+                    currentDisplayName={user?.fullName || user?.username || 'Bạn'}
+                    variant="chat_window"
+                    onClose={() => setFriendInviteOpen(false)}
+                    onOpenProfile={() => {
+                        setFriendInviteOpen(false);
+                        setIsInfoOpen(true);
+                    }}
+                    onConfirmSend={async (message, opts) => {
+                        await sendFriendInvite(partner.id, {
+                            inviteMessage: message,
+                            inviteSource: 'WEB_CHAT',
+                            hideMyTimelineFromFriend: opts.hideMyTimelineFromFriend,
+                        });
+                        await fetchSentRequests();
+                    }}
                 />
             )}
         </div>
