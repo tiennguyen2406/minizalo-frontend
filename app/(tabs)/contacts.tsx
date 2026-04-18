@@ -9,6 +9,7 @@ import FriendRequestsScreen from "@/views/web/components/FriendRequestsScreen";
 import SearchUsersScreen from "@/views/web/components/SearchUsersScreen";
 import BlockedUsersScreen from "@/views/web/components/BlockedUsersScreen";
 import ContactsMobileScreen from "@/views/mobile/contacts/ContactsMobileScreen";
+import WebSearchInputBar from "@/views/web/components/WebSearchInputBar";
 
 export default function ContactsScreen() {
   const isWeb = Platform.OS === "web";
@@ -67,61 +68,11 @@ export default function ContactsScreen() {
             transition: "background-color 0.3s ease, border-color 0.3s ease",
           }}
         >
-          {/* Ô tìm kiếm bạn */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <div
-              style={{
-                padding: 8,
-                borderRadius: 999,
-                backgroundColor: isDark ? "var(--bg-tertiary)" : "#fff",
-                border: "1px solid var(--border-primary)",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                fontSize: 13,
-                color: "var(--text-tertiary)",
-                flex: 1,
-                transition:
-                  "background-color 0.3s ease, border-color 0.3s ease",
-              }}
-            >
-              <span style={{ fontSize: 16, marginRight: 4 }}>🔍</span>
-              <input
-                type="text"
-                value={globalSearch}
-                onChange={(e) => setGlobalSearch(e.target.value)}
-                placeholder="Tìm tên hoặc số điện thoại..."
-                style={{
-                  flex: 1,
-                  border: "none",
-                  outline: "none",
-                  fontSize: 13,
-                  backgroundColor: "transparent",
-                  color: "var(--text-primary)",
-                }}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setGlobalSearch("")}
-              style={{
-                border: "none",
-                background: "none",
-                color: "var(--text-primary)",
-                fontSize: 13,
-                cursor: "pointer",
-                padding: "4px 6px",
-              }}
-            >
-              Đóng
-            </button>
-          </div>
+          {/* Thanh tìm kiếm — cùng kiểu với Tin nhắn (WebSearchInputBar) */}
+          <WebSearchInputBar
+            value={globalSearch}
+            onValueChange={setGlobalSearch}
+          />
 
           {/* Danh sách mục điều hướng */}
           <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -230,6 +181,9 @@ export default function ContactsScreen() {
                 <FriendsListScreen
                   currentUserId={currentUserId}
                   onOpenChat={() => {}}
+                  searchText={globalSearch}
+                  onSearchChange={setGlobalSearch}
+                  hideSearchField
                 />
               ) : (
                 <SearchUsersScreen

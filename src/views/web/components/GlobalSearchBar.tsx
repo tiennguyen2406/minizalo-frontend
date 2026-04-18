@@ -12,6 +12,7 @@ import { useThemeStore } from "@/shared/store/themeStore";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { UserProfile } from "@/shared/services/types";
 import { Message, ChatRoom } from "@/shared/types";
+import WebSearchInputBar from "@/views/web/components/WebSearchInputBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -228,16 +229,6 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
   const hasAny = totalContacts + totalMessages + totalFiles > 0;
   const isLoading = query.trim() !== debouncedQuery.trim() || isApiLoading;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setQuery(val);
-    setIsOpen(val.trim().length > 0);
-    if (!val.trim()) {
-      setApiContacts([]);
-      setApiMessages([]);
-    }
-  };
-
   const handleClose = useCallback(() => {
     setIsOpen(false);
     setQuery("");
@@ -316,8 +307,6 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
   }, [handleClose]);
 
   // ── Styles ─────────────────────────────────────────────────────────────────
-  const inputBg = isDark ? "rgba(255,255,255,0.07)" : "#f1f3f4";
-  const inputBgFocus = isDark ? "rgba(255,255,255,0.11)" : "#e8f0fe";
   const dropBg = isDark ? "#1e2130" : "#ffffff";
   const border = isDark ? "rgba(255,255,255,0.1)" : "#e2e6ea";
   const hoverBg = isDark ? "rgba(255,255,255,0.06)" : "#f5f6f7";
@@ -354,100 +343,44 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
 
   return (
     <div style={{ position: "relative", width: "100%" }}>
-      {/* Input */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          background: isOpen ? inputBgFocus : inputBg,
-          border: `1.5px solid ${isOpen ? "#0068ff" : "transparent"}`,
-          borderRadius: 8,
-          padding: "0 10px",
-          transition: "background 0.2s, border-color 0.2s",
+      {/* Input — dùng chung WebSearchInputBar với Danh bạ */}
+      <WebSearchInputBar
+        value={query}
+        onValueChange={(val) => {
+          setQuery(val);
+          setIsOpen(val.trim().length > 0);
+          if (!val.trim()) {
+            setApiContacts([]);
+            setApiMessages([]);
+          }
         }}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={isOpen ? "#0068ff" : textMuted}
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ flexShrink: 0, transition: "stroke 0.2s" }}
-        >
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={handleChange}
-          onFocus={() => {
-            if (query.trim()) setIsOpen(true);
-          }}
-          placeholder="Tìm tin nhắn, tên hoặc số điện thoại..."
-          style={{
-            flex: 1,
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            fontSize: 13,
-            color: textPrimary,
-            padding: "7px 0",
-          }}
-        />
-
-        {query && (
-          <button
-            onClick={handleClose}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 2,
-              color: textMuted,
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
+        borderActive={isOpen}
+        inputRef={inputRef}
+        onInputFocus={() => {
+          if (query.trim()) setIsOpen(true);
+        }}
+        onClear={handleClose}
+        trailingSlot={
+          isOpen ? (
+            <button
+              type="button"
+              onClick={handleClose}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "4px 6px",
+                color: "#0068ff",
+                fontSize: 12,
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+              }}
             >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        )}
-
-        {isOpen && (
-          <button
-            onClick={handleClose}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: "4px 6px",
-              color: "#0068ff",
-              fontSize: 12,
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-            }}
-          >
-            Đóng
-          </button>
-        )}
-      </div>
+              Đóng
+            </button>
+          ) : null
+        }
+      />
 
       {/* Dropdown */}
       {isOpen && (

@@ -16,10 +16,11 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 import { getChatPreviewText } from "@/shared/utils/chatPreview";
+import { addIncomingChatMessageFromStomp } from "@/shared/utils/chatWebSocketInbound";
 
 export default function ChatListScreen() {
     const router = useRouter();
-    const { rooms, setRooms, addMessage, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
+    const { rooms, setRooms, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
     const colors = useThemeColors();
     const currentUserId = useAuthStore((s) => s.user?.id);
     const friends = useFriendStore((s) => s.friends);
@@ -55,6 +56,15 @@ export default function ChatListScreen() {
                 return 0;
             });
     }, [rooms, currentUserId, friends, friendsListReady, inboxTab, pinnedRooms]);
+
+    const chatRoomIdsKey = useMemo(
+        () =>
+            rooms
+                .map((r) => r.id)
+                .sort()
+                .join("|"),
+        [rooms],
+    );
 
     const friendIdSet = useMemo(() => {
         const ids = new Set<string>();
@@ -183,19 +193,10 @@ export default function ChatListScreen() {
             const topic = `/topic/chat/${room.id}`;
             webSocketService.subscribe(topic, (stompMsg) => {
                 try {
-                    const msg = JSON.parse(stompMsg.body);
-                    // Thêm tin nhắn mới vào store room
-                    addMessage(room.id, {
-                        id: msg.messageId,
-                        senderId: msg.senderId,
-                        senderName: msg.senderName,
-                        roomId: room.id,
-                        content: msg.content,
-                        type: (msg.type as any) || 'TEXT',
-                        createdAt: msg.createdAt,
-                        recalled: msg.recalled || false,
-                    });
-                    
+                    const raw = stompMsg.body ?? "";
+                    const msg = JSON.parse(raw);
+                    addIncomingChatMessageFromStomp(room.id, String(raw));
+
                     // Hiển thị in-app toast nếu tin nhắn từ người khác, không ở trong room đó, và room không bị mute
                     const isCurrentlyViewing = useChatStore.getState().currentRoomId === room.id;
                     if (msg.senderId !== useAuthStore.getState().user?.id && !isCurrentlyViewing) {
@@ -223,7 +224,7 @@ export default function ChatListScreen() {
         return () => {
             // Unsubscribe logic if needed
         };
-    }, [rooms]);
+    }, [chatRoomIdsKey]);
 
     // Auto-fetch when screen is focused + poll every 10s as fallback
     useFocusEffect(
