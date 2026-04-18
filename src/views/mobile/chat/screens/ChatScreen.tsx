@@ -39,6 +39,10 @@ import { webSocketService } from "@/shared/services/WebSocketService";
 import { useUserStore } from "@/shared/store/userStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatTime } from "@/shared/utils/dateUtils";
+import {
+  buildMobileChatRows,
+  type MobileChatRow,
+} from "@/shared/utils/mobileChatRows";
 import GroupInfoScreen from "../components/GroupInfoScreen";
 import ChatOptionsScreen from "./ChatOptionsScreen";
 import { useChatStore } from "@/shared/store/useChatStore";
@@ -199,6 +203,8 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<
     (MessageDynamo & { isError?: boolean })[]
   >([]);
+  /** Gom các tin IMAGE liên tiếp (web gửi từng ảnh một) để hiển thị một cụm giống web */
+  const chatRows = useMemo(() => buildMobileChatRows(messages), [messages]);
   const [partnerProfileDetail, setPartnerProfileDetail] =
     useState<UserProfile | null>(null);
 
@@ -250,9 +256,15 @@ export default function ChatScreen() {
   }).current;
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    const ids = new Set<string>(
-      viewableItems.map((v: any) => v.item.messageId),
-    );
+    const ids = new Set<string>();
+    for (const v of viewableItems) {
+      const row = v.item as MobileChatRow;
+      if (row.kind === "imageGroup") {
+        row.messages.forEach((m) => ids.add(m.messageId));
+      } else {
+        ids.add(row.message.messageId);
+      }
+    }
     setVisibleMessageIds(ids);
   }).current;
 
@@ -1791,7 +1803,11 @@ export default function ChatScreen() {
   // Hàm scroll đến tin nhắn được ghim - xử lý đúng với inverted FlatList
   const scrollToPinnedMessage = useCallback(
     (pinnedMsgId: string) => {
-      const idx = messages.findIndex((m) => m.messageId === pinnedMsgId);
+      const idx = chatRows.findIndex((row) =>
+        row.kind === "imageGroup"
+          ? row.messages.some((m) => m.messageId === pinnedMsgId)
+          : row.message.messageId === pinnedMsgId,
+      );
       if (idx === -1) return;
       try {
         flatListRef.current?.scrollToIndex({
@@ -1807,28 +1823,84 @@ export default function ChatScreen() {
         });
       }
     },
-    [messages],
+    [chatRows],
   );
 
-  const renderMessage = ({ item }: { item: MessageDynamo }) => {
-    const isMe = item.senderId === currentUserId;
-    const isVisible = visibleMessageIds.has(item.messageId);
-    let timeDisplay = "";
-    if (item.createdAt) {
-      timeDisplay = formatTime(item.createdAt);
+  const renderMessage = ({ item }: { item: MobileChatRow }) => {
+    if (item.kind === "imageGroup") {
+      const newest = item.messages[0];
+      const isMe = newest.senderId === currentUserId;
+      const isVisible = item.messages.some((m) =>
+        visibleMessageIds.has(m.messageId),
+      );
+
+      const replySource =
+        newest.replyToMessageId &&
+        messages.find((m) => m.messageId === newest.replyToMessageId);
+
+      const room = rooms.find((r) => r.id === roomId);
+      const sender = room?.participants?.find(
+        (p: any) => p.id === newest.senderId,
+      ) as any;
+      const senderAvatarUrl = sender?.avatarUrl || "";
+
+      return (
+        <MessageBubble
+          message={newest}
+          imageGroupMessages={item.messages}
+          isMe={isMe}
+          showSenderName={roomType === "GROUP"}
+          onPress={handleMessagePress}
+          onLongPress={handleMessageLongPress}
+          onPressReactions={(msg) => setReactionListMessage(msg)}
+          onForward={handleOpenForward}
+          onRecall={handleRecall}
+          onDelete={handleDeleteMessage}
+          onReply={handleStartReply}
+          onTogglePin={handleTogglePin}
+          senderAvatarUrl={senderAvatarUrl}
+          isVisible={isVisible}
+          replyPreview={
+            replySource
+              ? {
+                  senderName: replySource.senderName,
+                  content: replySource.content || "[Tin nhắn]",
+                }
+              : null
+          }
+          partnerName={displayName}
+          onAddFriend={() => {
+            if (targetUserIdStr) {
+              useFriendStore
+                .getState()
+                .sendRequest(targetUserIdStr)
+                .then(() => {
+                  fetchSentRequests();
+                  showToast("Đã gửi lời mời kết bạn", "success");
+                })
+                .catch(() => showToast("Gửi lời mời kết bạn thất bại", "error"));
+            }
+          }}
+          onImagePress={(url) => handleGalleryOpen(url)}
+        />
+      );
     }
+
+    const itemMsg = item.message;
+    const isMe = itemMsg.senderId === currentUserId;
+    const isVisible = visibleMessageIds.has(itemMsg.messageId);
 
     // ─── PIN_NOTIFICATION: hiển thị dạng thông báo hệ thống giữa chat ───
     if (
-      item.type === "PIN_NOTIFICATION" ||
-      (item.senderId === "system" && item.type !== "SYSTEM")
+      itemMsg.type === "PIN_NOTIFICATION" ||
+      (itemMsg.senderId === "system" && itemMsg.type !== "SYSTEM")
     ) {
-      const pinnedMsgId = item.replyToMessageId;
+      const pinnedMsgId = itemMsg.replyToMessageId;
       // "đã ghim" xuất hiện trong cả "đã ghim" và "đã bỏ ghim", dùng điều kiện chặt hơn
       const isPinAction =
-        !!item.content &&
-        item.content.includes("đã ghim") &&
-        !item.content.includes("bỏ ghim");
+        !!itemMsg.content &&
+        itemMsg.content.includes("đã ghim") &&
+        !itemMsg.content.includes("bỏ ghim");
       return (
         <View
           style={{
@@ -1865,7 +1937,7 @@ export default function ChatScreen() {
               }}
               numberOfLines={2}
             >
-              {item.content}
+              {itemMsg.content}
             </Text>
             {isPinAction && pinnedMsgId && (
               <TouchableOpacity
@@ -1889,18 +1961,18 @@ export default function ChatScreen() {
     }
 
     const replySource =
-      item.replyToMessageId &&
-      messages.find((m) => m.messageId === item.replyToMessageId);
+      itemMsg.replyToMessageId &&
+      messages.find((m) => m.messageId === itemMsg.replyToMessageId);
 
     const room = rooms.find((r) => r.id === roomId);
     const sender = room?.participants?.find(
-      (p: any) => p.id === item.senderId,
+      (p: any) => p.id === itemMsg.senderId,
     ) as any;
     const senderAvatarUrl = sender?.avatarUrl || "";
 
     return (
       <MessageBubble
-        message={item}
+        message={itemMsg}
         isMe={isMe}
         showSenderName={roomType === "GROUP"}
         onPress={handleMessagePress}
@@ -2262,9 +2334,13 @@ export default function ChatScreen() {
           <FlatList
             style={{ flex: 1 }}
             ref={flatListRef}
-            data={messages}
+            data={chatRows}
             inverted
-            keyExtractor={(item) => item.messageId}
+            keyExtractor={(row) =>
+              row.kind === "imageGroup"
+                ? `ig-${row.messages.map((m) => m.messageId).join("-")}`
+                : row.message.messageId
+            }
             renderItem={renderMessage}
             contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
@@ -2827,8 +2903,12 @@ export default function ChatScreen() {
                         borderBottomColor: colors.border,
                       }}
                       onPress={() => {
-                        const index = messages.findIndex(
-                          (x) => x.messageId === m.messageId,
+                        const index = chatRows.findIndex((row) =>
+                          row.kind === "imageGroup"
+                            ? row.messages.some(
+                                (x) => x.messageId === m.messageId,
+                              )
+                            : row.message.messageId === m.messageId,
                         );
                         if (index >= 0) {
                           flatListRef.current?.scrollToIndex({

@@ -1,6 +1,6 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import { View, Text, TouchableOpacity, Image, Modal, Dimensions, Linking, FlatList, Animated, Alert, Share, Platform, StatusBar, Pressable, useColorScheme } from "react-native";
-import type { MessageDynamo } from "@/shared/services/chatService";
+import type { Attachment, MessageDynamo } from "@/shared/services/chatService";
 import { formatTime } from "@/shared/utils/dateUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
@@ -83,6 +83,8 @@ interface ReplyPreview {
 
 interface MessageBubbleProps {
     message: MessageDynamo & { isError?: boolean };
+    /** Nhiều tin IMAGE liên tiếp (web gửi từng ảnh một) — `message` là tin mới nhất trong nhóm */
+    imageGroupMessages?: MessageDynamo[];
     isMe: boolean;
     showSenderName?: boolean; // for group chats
     onLongPress?: (message: MessageDynamo, attachment?: any) => void;
@@ -122,6 +124,7 @@ function getNameColor(name: string): string {
 
 export default function MessageBubble({
     message,
+    imageGroupMessages,
     isMe,
     showSenderName,
     onLongPress,
@@ -444,12 +447,35 @@ export default function MessageBubble({
     const videoAttachments = (message.attachments || []).filter(
         (a) => a.type?.startsWith("video") || a.type === "VIDEO"
     );
-    const hasImages = imageAttachments.length > 0 && !isRecalled;
+
+    const burstImagePairs = useMemo(() => {
+        if (!imageGroupMessages || imageGroupMessages.length < 2) return null;
+        const chronological = [...imageGroupMessages].reverse();
+        const pairs: { msg: MessageDynamo; att: Attachment }[] = [];
+        for (const m of chronological) {
+            const imgs = (m.attachments || []).filter(
+                (a) => a.type?.startsWith("image") || a.type === "IMAGE",
+            );
+            if (imgs[0]) pairs.push({ msg: m, att: imgs[0] });
+        }
+        return pairs.length >= 2 ? pairs : null;
+    }, [imageGroupMessages]);
+
+    const imageCells = useMemo((): { msg: MessageDynamo; att: Attachment }[] => {
+        if (burstImagePairs && burstImagePairs.length >= 2) return burstImagePairs;
+        return imageAttachments.map((att) => ({ msg: message, att }));
+    }, [burstImagePairs, imageAttachments, message]);
+
+    const hasImages = imageCells.length > 0 && !isRecalled;
     const hasVideos = videoAttachments.length > 0 && !isRecalled;
     const hasFiles = fileAttachments.length > 0 && !isRecalled;
     const hasText = !!message.content && !isRecalled;
+    const hideFilenameCaption =
+        !!imageGroupMessages && imageGroupMessages.length >= 2;
+    /** Gộp nhóm ảnh từ web: ẩn chuỗi tên file xuống dưới — coi như chỉ ảnh để bo bubble đúng */
+    const layoutHasText = hasText && !hideFilenameCaption;
 
-    const isMediaOnly = (hasImages || hasVideos || hasFiles) && !hasText;
+    const isMediaOnly = (hasImages || hasVideos || hasFiles) && !layoutHasText && !isRecalled;
 
     const bubbleBackground = isRecalled
         ? (theme === 'dark' ? "#1c1c1e" : "#e5e5ea")
@@ -505,7 +531,7 @@ export default function MessageBubble({
                             maxWidth: SCREEN_WIDTH * 0.75,
                             backgroundColor: bubbleBackground,
                             borderRadius: 16,
-                            padding: ((hasImages || hasVideos) && !hasText) ? 0 : 12, // Ensure padding for recalled messages
+                            padding: ((hasImages || hasVideos) && !layoutHasText) ? 0 : 12, // Ensure padding for recalled messages
                             borderWidth: 1,
                             borderColor: isRecalled ? (theme === 'dark' ? "#3a3a3c" : "#d1d1d6") : (isMe ? "transparent" : colors.border),
                         }}
@@ -567,7 +593,7 @@ export default function MessageBubble({
 
                         {/* Image attachments */}
                         {hasImages && (() => {
-                            const count = imageAttachments.length;
+                            const count = imageCells.length;
                             const isSingle = count === 1;
                             // Choose columns: 2 imgs → 2 cols, 3 → 3 cols, 4+ → 4 cols
                             const GRID_COLS = isSingle ? 1 : count <= 2 ? 2 : count <= 3 ? 3 : 4;
@@ -587,25 +613,23 @@ export default function MessageBubble({
                                     width: gridWidth,
                                     padding: 2,
                                 }}>
-                                    {imageAttachments.map((att, idx) => {
+                                    {imageCells.map(({ msg: srcMsg, att }, idx) => {
                                         const isPressed = pressedImageIndex === idx;
-                                        const borderRadius = isSingle ? (hasText ? 0 : 16) : 4;
-                                        const extraRadius = isSingle && isMe && !hasText
+                                        const borderRadius = isSingle ? (layoutHasText ? 0 : 16) : 4;
+                                        const extraRadius = isSingle && isMe && !layoutHasText
                                             ? { borderBottomRightRadius: 4 }
-                                            : isSingle && !isMe && !hasText
+                                            : isSingle && !isMe && !layoutHasText
                                                 ? { borderBottomLeftRadius: 4 }
                                                 : {};
                                         return (
                                             <TouchableOpacity
-                                                key={idx}
+                                                key={`${srcMsg.messageId}-${idx}`}
                                                 activeOpacity={1}
                                                 delayLongPress={250}
                                                 onPressIn={() => setPressedImageIndex(idx)}
                                                 onPressOut={() => setPressedImageIndex(null)}
                                                 onLongPress={() => {
-                                                    // Giữ trạng thái highlight và gọi long press của message
-                                                    handleLongPress(att);
-                                                    // Tắt highlight sau 500ms
+                                                    onLongPress?.(srcMsg, att);
                                                     setTimeout(() => setPressedImageIndex(null), 500);
                                                 }}
                                                 onPress={() => {
@@ -688,7 +712,7 @@ export default function MessageBubble({
                                     backgroundColor: "transparent",
                                     borderRadius: 16,
                                     overflow: "hidden",
-                                    marginBottom: hasText ? 8 : 0,
+                                    marginBottom: layoutHasText ? 8 : 0,
                                 } : {
                                     flexDirection: "row",
                                     flexWrap: "wrap",
@@ -920,7 +944,7 @@ export default function MessageBubble({
                         )}
 
                         {/* Text content with Link Detection */}
-                        {(hasText || isRecalled) && (
+                        {(hasText || isRecalled) && !hideFilenameCaption && (
                             <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
                                 {isRecalled ? (
                                     <Text
@@ -947,7 +971,7 @@ export default function MessageBubble({
                         )}
 
                         {/* Link Preview (Simple implementation) */}
-                        {!isRecalled && hasText && message.content?.match(/https?:\/\/[^\s]+/) && (
+                        {!hideFilenameCaption && !isRecalled && hasText && message.content?.match(/https?:\/\/[^\s]+/) && (
                             <LinkPreview url={message.content.match(/https?:\/\/[^\s]+/)?.[0] || ""} isMe={isMe} />
                         )}
 
@@ -963,7 +987,7 @@ export default function MessageBubble({
                                     marginBottom: isMediaOnly ? 8 : 0,
                                     backgroundColor: isMediaOnly ? "rgba(0,0,0,0.4)" : "transparent",
                                     borderRadius: 10,
-                                    marginTop: (hasImages || hasVideos) && !hasText ? (isMediaOnly ? -24 : 4) : 0,
+                                    marginTop: (hasImages || hasVideos) && !layoutHasText ? (isMediaOnly ? -24 : 4) : 0,
                                     zIndex: 5,
                                 }}
                             >
