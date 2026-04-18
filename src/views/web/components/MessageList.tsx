@@ -511,9 +511,12 @@ const MessageList: React.FC<MessageListProps> = ({
                             : undefined;
                         const isLatestMessage = index === messages.length - 1;
 
-                        // Optimistic: temp- prefix = sending
-                        const isOptimistic = msg.id.startsWith('temp-');
-                        const isFailed = msg.id.startsWith('failed-');
+                        // Optimistic: temp- prefix = sending (id có thể thiếu với payload WS lệch)
+                        const msgId = msg.id;
+                        const isOptimistic =
+                            typeof msgId === 'string' && msgId.startsWith('temp-');
+                        const isFailed =
+                            typeof msgId === 'string' && msgId.startsWith('failed-');
                         const readCount = msg.readBy?.filter(id => id !== currentUserId).length ?? 0;
                         const isRead = readCount > 0;
 
