@@ -670,6 +670,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         }
     }
 
+    const isCallMessage = effectiveType === 'CALL_VOICE' || effectiveType === 'CALL_VIDEO';
+
     if ((effectiveType === 'TEXT' || !effectiveType) && !isCallJson && effectiveFileUrl && attachment) {
         const mime = (attachment.type || '').toLowerCase();
         if (mime.startsWith('image')) effectiveType = 'IMAGE';
@@ -854,14 +856,14 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 : (message.isRecall ? 'bg-gray-100 text-gray-500 italic border border-transparent' : 'bg-white text-gray-900 shadow-sm border border-gray-100')
                         )}
                         onContextMenu={(e) => {
-                            if (!message.isRecall) {
+                            if (!message.isRecall && !isCallMessage) {
                                 e.preventDefault();
                                 setShowMoreMenu(true);
                             }
                         }}
                     >
                         {/* Hành động tin nhắn (hiện khi hover): Reply + ⋯ */}
-                        {!message.isRecall && (
+                        {!message.isRecall && !isCallMessage && (
                             <div className={clsx(
                                 "absolute top-1/2 -translate-y-1/2 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex items-center gap-1",
                                 isMine ? "right-full mr-2" : "left-full ml-2"
@@ -917,7 +919,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         )}
 
                         {/* Fixed-position menu — position:fixed escapes any overflow:hidden ancestor */}
-                        {showMoreMenu && menuPos && (
+                        {showMoreMenu && menuPos && !isCallMessage && (
                             <>
                                 {/* Backdrop */}
                                 <div
@@ -944,7 +946,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         Copy tin nhắn
                                     </button>
                                     {/* Pin */}
-                                    {onTogglePin && (
+                                    {onTogglePin && !isCallMessage && (
                                         <button
                                             onClick={() => { onTogglePin(message.id, !!message.pinned); setShowMoreMenu(false); setMenuPos(null); }}
                                             className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -954,7 +956,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         </button>
                                     )}
                                     {/* Reply */}
-                                    {onReply && (
+                                    {onReply && !isCallMessage && (
                                         <button
                                             onClick={() => { onReply(message); setShowMoreMenu(false); setMenuPos(null); }}
                                             className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -964,13 +966,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         </button>
                                     )}
                                     {/* Share / Forward */}
-                                    <button
-                                        onClick={() => { onForward?.(message); setShowMoreMenu(false); setMenuPos(null); }}
-                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                    >
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-                                        Chia sẻ
-                                    </button>
+                                    {!isCallMessage && (
+                                        <button
+                                            onClick={() => { onForward?.(message); setShowMoreMenu(false); setMenuPos(null); }}
+                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                                            Chia sẻ
+                                        </button>
+                                    )}
                                     {/* View Detail */}
                                     <button
                                         onClick={() => { setShowMessageDetail(true); setShowMoreMenu(false); setMenuPos(null); }}
@@ -981,7 +985,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     </button>
                                     <div className="border-t border-gray-100 my-1" />
                                     {/* Recall - own messages only */}
-                                    {isMine && onRecall && (
+                                    {isMine && onRecall && !isCallMessage && (
                                         <button
                                             onClick={() => { onRecall(message.id); setShowMoreMenu(false); setMenuPos(null); }}
                                             className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
@@ -991,13 +995,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         </button>
                                     )}
                                     {/* Delete for me */}
-                                    <button
-                                        onClick={() => { onDeleteForMe?.(message.id); setShowMoreMenu(false); setMenuPos(null); }}
-                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        Xoá ở phía tôi
-                                    </button>
+                                    {!isCallMessage && (
+                                        <button
+                                            onClick={() => { onDeleteForMe?.(message.id); setShowMoreMenu(false); setMenuPos(null); }}
+                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            Xoá ở phía tôi
+                                        </button>
+                                    )}
                                 </div>
                             </>
                         )}

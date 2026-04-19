@@ -490,6 +490,9 @@ export default function MessageBubble({
             }
         } catch { }
     }
+    if (message.type === "CALL_VOICE" || message.type === "CALL_VIDEO") {
+        isCallMessage = true;
+    }
 
     const isMediaOnly = (hasImages || hasVideos || hasFiles) && !layoutHasText && !isRecalled && !isCallMessage;
     const bubbleBackground = isRecalled
@@ -504,6 +507,8 @@ export default function MessageBubble({
     const recalledTextColor = theme === 'dark' ? "#8e8e93" : "#6e6e73";
 
     const handleLongPress = (attachment?: any) => {
+        // Tin nhắn cuộc gọi: không cho thao tác ghim/chia sẻ/trả lời/copy/thu hồi/xóa phía tôi
+        if (isCallMessage) return;
         if (onLongPress) {
             onLongPress(message, attachment);
         }
