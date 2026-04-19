@@ -111,14 +111,21 @@ export const ActionButtonRow: React.FC<{ children: React.ReactNode }> = ({ child
 );
 
 /** Toggle switch nhỏ gọn */
-export const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void }> = ({ checked, onChange }) => (
+export const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; disabled?: boolean }> = ({
+    checked,
+    onChange,
+    disabled,
+}) => (
     <button
-        onClick={onChange}
+        type="button"
+        onClick={disabled ? undefined : onChange}
+        disabled={disabled}
         className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ${
-            checked ? 'bg-blue-500' : 'bg-gray-300'
-        }`}
+            disabled ? 'cursor-not-allowed opacity-45' : ''
+        } ${checked ? 'bg-blue-500' : 'bg-gray-300'}`}
         role="switch"
         aria-checked={checked}
+        aria-disabled={disabled || undefined}
     >
         <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
             checked ? 'translate-x-[18px]' : 'translate-x-0.5'

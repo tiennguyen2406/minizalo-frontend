@@ -58,6 +58,88 @@ const MuteModal: React.FC<{ onClose: () => void; onConfirm: (id: string) => void
 };
 
 // ── Rename Group Modal ─────────────────────────────────────────────────
+/** Trưởng nhóm rời nhóm: phải chọn một thành viên còn lại làm trưởng nhóm mới */
+const PickSuccessorLeaveModal: React.FC<{
+    members: { userId: string; username: string; fullName?: string; avatarUrl?: string }[];
+    currentUserId: string;
+    selectedUserId: string | null;
+    onSelectUserId: (id: string | null) => void;
+    onClose: () => void;
+    onConfirm: () => void;
+    loading: boolean;
+}> = ({
+    members,
+    currentUserId,
+    selectedUserId,
+    onSelectUserId,
+    onClose,
+    onConfirm,
+    loading,
+}) => {
+    const candidates = members.filter((m) => m.userId !== currentUserId);
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={onClose}>
+            <div
+                className="bg-white rounded-2xl shadow-xl w-[400px] max-h-[85vh] overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+                    <span className="font-semibold text-gray-800">Chọn trưởng nhóm mới</span>
+                    <button onClick={onClose} type="button" className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <div className="px-5 py-3 border-b border-gray-50">
+                    <p className="text-sm text-gray-600">
+                        Bạn đang là trưởng nhóm. Chọn một thành viên để nhường quyền trước khi rời nhóm.
+                    </p>
+                </div>
+                <div className="flex-1 overflow-y-auto min-h-[120px] max-h-[320px] styled-scrollbar">
+                    {candidates.length === 0 ? (
+                        <div className="px-5 py-8 text-sm text-gray-500 text-center">Không có thành viên khác trong nhóm.</div>
+                    ) : (
+                        candidates.map((m) => {
+                            const label = m.fullName?.trim() || m.username;
+                            const avatar =
+                                m.avatarUrl ||
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(label)}&background=0068FF&color=fff&bold=true`;
+                            const sel = selectedUserId === m.userId;
+                            return (
+                                <button
+                                    key={m.userId}
+                                    type="button"
+                                    onClick={() => onSelectUserId(m.userId)}
+                                    className={`w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 ${sel ? 'bg-blue-50' : ''}`}
+                                >
+                                    <img src={avatar} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium text-gray-800 truncate">{label}</div>
+                                        <div className="text-xs text-gray-400 truncate">@{m.username}</div>
+                                    </div>
+                                    <input type="radio" readOnly checked={sel} className="w-4 h-4 accent-blue-600 shrink-0" />
+                                </button>
+                            );
+                        })
+                    )}
+                </div>
+                <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-100 shrink-0">
+                    <button type="button" onClick={onClose} className="px-5 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">
+                        Hủy
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onConfirm}
+                        disabled={loading || !selectedUserId || candidates.length === 0}
+                        className="px-5 py-2 text-sm text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg font-medium transition-colors"
+                    >
+                        {loading ? 'Đang xử lý...' : 'Nhường quyền và rời nhóm'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const RenameGroupModal: React.FC<{
     currentName: string;
     onClose: () => void;
@@ -156,6 +238,8 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
     const [showRenameModal, setShowRenameModal] = useState(false);
     const [isClearHistoryModalOpen, setIsClearHistoryModalOpen] = useState(false);
     const [isLeaveGroupModalOpen, setIsLeaveGroupModalOpen] = useState(false);
+    const [pickSuccessorLeaveOpen, setPickSuccessorLeaveOpen] = useState(false);
+    const [leaveSuccessorUserId, setLeaveSuccessorUserId] = useState<string | null>(null);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -335,17 +419,56 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
         setTimeout(() => setCopiedLink(false), 2000);
     }, [joinLink]);
 
+    const getApiErrorMessage = (err: unknown, fallback: string) => {
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        const msg = e?.response?.data?.message || e?.message;
+        return typeof msg === 'string' && msg.trim() ? msg.trim() : fallback;
+    };
+
     const executeLeaveGroup = async () => {
         setIsLeaving(true);
         try {
             await groupService.leaveGroup(roomId);
             setRooms(rooms.filter((r) => r.id !== roomId));
+            setIsLeaveGroupModalOpen(false);
             onClose();
-        } catch (err: any) {
-            alert(err?.response?.data?.message || 'Rời nhóm thất bại.');
+        } catch (err: unknown) {
+            showToast(getApiErrorMessage(err, 'Rời nhóm thất bại.'));
         } finally {
             setIsLeaving(false);
         }
+    };
+
+    /** Trưởng nhóm có thành viên khác: nhường quyền rồi rời */
+    const executeTransferAndLeave = async () => {
+        if (!leaveSuccessorUserId || !currentGroupDetail) return;
+        setIsLeaving(true);
+        try {
+            await groupService.transferOwnership(roomId, leaveSuccessorUserId);
+            await groupService.leaveGroup(roomId);
+            setRooms(rooms.filter((r) => r.id !== roomId));
+            setPickSuccessorLeaveOpen(false);
+            setLeaveSuccessorUserId(null);
+            setIsLeaveGroupModalOpen(false);
+            showToast('Đã nhường quyền và rời nhóm');
+            onClose();
+        } catch (err: unknown) {
+            showToast(getApiErrorMessage(err, 'Không thể rời nhóm. Vui lòng thử lại.'));
+        } finally {
+            setIsLeaving(false);
+        }
+    };
+
+    const handleOpenLeaveFlow = () => {
+        if (!group || !user?.id) return;
+        const others = group.members.filter((m) => m.userId !== user.id);
+        const ownerLeavingNeedsSuccessor = user.id === group.ownerId && others.length > 0;
+        if (ownerLeavingNeedsSuccessor) {
+            setLeaveSuccessorUserId(null);
+            setPickSuccessorLeaveOpen(true);
+            return;
+        }
+        setIsLeaveGroupModalOpen(true);
     };
 
     const executeClearHistory = () => {
@@ -369,7 +492,9 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
 
     return (
         <div
-            className={`flex flex-col h-full bg-white border-l border-gray-200 ${isGroupManagementOpen ? 'overflow-hidden min-h-0' : 'overflow-y-auto'}`}
+            className={`flex flex-col h-full bg-white border-l border-gray-200 ${
+                isGroupManagementOpen || showMembersModal ? 'overflow-hidden min-h-0' : 'overflow-y-auto'
+            }`}
             style={{ width: 300, minWidth: 300 }}
         >
             {/* Toast notification */}
@@ -381,6 +506,26 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
 
             {isGroupManagementOpen ? (
                 <GroupManagementPanel onClosePanel={onClose} />
+            ) : showMembersModal ? (
+                <GroupMembersList
+                    embedded
+                    members={group.members}
+                    ownerId={group.ownerId}
+                    currentUserId={user?.id}
+                    onChangeRole={handleChangeRole}
+                    onRemoveMember={handleRemoveMember}
+                    onTransferOwnership={isOwner ? handleTransferOwnership : undefined}
+                    onBlockMember={isOwnerOrAdmin ? handleBlockMember : undefined}
+                    pendingJoinRequests={group.pendingJoinRequests}
+                    canApproveJoinRequests={isOwnerOrAdmin}
+                    groupId={roomId}
+                    onPendingChanged={async () => {
+                        const refreshed = await groupService.getGroupDetails(roomId);
+                        setCurrentGroupDetail(refreshed);
+                    }}
+                    visible={showMembersModal}
+                    onClose={() => setShowMembersModal(false)}
+                />
             ) : (
             <>
             {/* Header */}
@@ -409,12 +554,16 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             accept="image/*"
                             className="hidden"
                             onChange={handleChangeAvatar}
+                            disabled={!isOwnerOrAdmin}
                         />
                         <button
+                            type="button"
                             onClick={() => avatarInputRef.current?.click()}
-                            disabled={isUploadingAvatar}
-                            className="absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 shadow-sm hover:bg-gray-50 text-gray-600 transition-colors disabled:opacity-50"
-                            title="Đổi ảnh nhóm"
+                            disabled={isUploadingAvatar || !isOwnerOrAdmin}
+                            className={`absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 shadow-sm text-gray-600 transition-colors disabled:opacity-35 ${
+                                isOwnerOrAdmin ? 'hover:bg-gray-50' : 'cursor-not-allowed opacity-45'
+                            }`}
+                            title={isOwnerOrAdmin ? 'Đổi ảnh nhóm' : 'Chỉ trưởng/phó nhóm đổi ảnh nhóm'}
                         >
                                 {isUploadingAvatar ? (
                                     <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -435,9 +584,13 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     </span>
                     {/* Edit pencil — opens rename modal */}
                     <button
-                        onClick={() => setShowRenameModal(true)}
-                        className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-                        title="Sửa tên nhóm"
+                        type="button"
+                        onClick={() => isOwnerOrAdmin && setShowRenameModal(true)}
+                        disabled={!isOwnerOrAdmin}
+                        className={`w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors ${
+                            isOwnerOrAdmin ? 'hover:bg-gray-200' : 'opacity-40 cursor-not-allowed'
+                        }`}
+                        title={isOwnerOrAdmin ? 'Sửa tên nhóm' : 'Chỉ trưởng/phó nhóm đổi tên nhóm'}
                     >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -502,26 +655,27 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
                 >
                     <Icon.Users />
-                    <span className="flex-1 text-sm text-gray-700 font-medium">Thành viên nhóm</span>
-                    <span className="text-xs text-gray-400 font-medium mr-1">{group.members.length}</span>
-                    <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <div className="flex-1 min-w-0 text-left">
+                        <span className="text-sm text-gray-700 font-medium">Thành viên nhóm</span>
+                        <p className="text-xs text-gray-400 mt-0.5">{group.members.length} thành viên</p>
+                    </div>
+                    <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
                 </button>
+                {isOwnerOrAdmin && (group.pendingJoinRequestCount ?? 0) > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setShowMembersModal(true)}
+                        className="w-full flex items-start gap-2 pl-12 pr-4 py-2 hover:bg-gray-50 text-left"
+                    >
+                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                        <span className="text-sm text-blue-600 font-medium">
+                            Có {group.pendingJoinRequestCount} yêu cầu tham gia nhóm
+                        </span>
+                    </button>
+                )}
             </div>
-
-            {/* Members Modal */}
-            <GroupMembersList
-                members={group.members}
-                ownerId={group.ownerId}
-                currentUserId={user?.id}
-                onChangeRole={handleChangeRole}
-                onRemoveMember={handleRemoveMember}
-                onTransferOwnership={isOwner ? handleTransferOwnership : undefined}
-                onBlockMember={isOwner ? handleBlockMember : undefined}
-                visible={showMembersModal}
-                onClose={() => setShowMembersModal(false)}
-            />
 
             {/* Ảnh/Video */}
             <CollapsibleSection title="Ảnh/Video" badge={imageMessages.length || undefined}>
@@ -700,7 +854,8 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     <span className="text-sm text-red-500">Xóa lịch sử trò chuyện</span>
                 </button>
                 <button
-                    onClick={() => setIsLeaveGroupModalOpen(true)}
+                    type="button"
+                    onClick={handleOpenLeaveFlow}
                     disabled={isLeaving}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 transition-colors disabled:opacity-50 text-left"
                 >
@@ -728,6 +883,23 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                 confirmText="Rời nhóm"
                 isDanger={true}
             />
+
+            {pickSuccessorLeaveOpen && group && user?.id && (
+                <PickSuccessorLeaveModal
+                    members={group.members}
+                    currentUserId={user.id}
+                    selectedUserId={leaveSuccessorUserId}
+                    onSelectUserId={setLeaveSuccessorUserId}
+                    onClose={() => {
+                        if (!isLeaving) {
+                            setPickSuccessorLeaveOpen(false);
+                            setLeaveSuccessorUserId(null);
+                        }
+                    }}
+                    onConfirm={executeTransferAndLeave}
+                    loading={isLeaving}
+                />
+            )}
 
             {/* Mute Duration Modal */}
             {showMuteModal && (

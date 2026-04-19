@@ -100,6 +100,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
 
     const handleToggle = async (key: keyof typeof settings, value: boolean) => {
         if (!settings) return;
+        if (key === 'requireApproval' && !isOwner) return;
         setLoading(true);
         try {
             const newSettings = await groupService.updateGroupSettings({
@@ -210,7 +211,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
             await groupService.changeRole(currentGroupDetail.id, targetUserId, 'MEMBER');
             const refreshed = await groupService.getGroupDetails(currentGroupDetail.id);
             updateCurrentGroupDetail(refreshed);
-            pushSystemMessage(`${actorName} đã xóa quyền phó nhóm của ${targetName}.`);
+            // Tránh duplicate: backend đã broadcast SYSTEM message cho sự kiện đổi role
             showToast('Đã xóa phó nhóm');
         } catch (err) {
             console.error('Failed to remove admin role:', err);
@@ -336,9 +337,21 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                         {/* Admission Section */}
                         <div className="mt-2 bg-white px-4 py-3">
                             <h3 className="text-sm font-semibold text-blue-600 mb-3 uppercase">Quản lý thành viên mới</h3>
-                            <div className="flex justify-between items-center py-2">
-                                <span className="text-sm">Phê duyệt thành viên mới</span>
-                                <ToggleSwitch checked={settings.requireApproval} onChange={() => handleToggle('requireApproval', !settings.requireApproval)} />
+                            <div
+                                className={`flex justify-between items-center py-2 gap-3 ${!isOwner ? 'opacity-55' : ''}`}
+                                title={!isOwner ? 'Chỉ trưởng nhóm mới bật/tắt chế độ duyệt' : undefined}
+                            >
+                                <div className="min-w-0">
+                                    <span className="text-sm">Phê duyệt thành viên mới</span>
+                                    {!isOwner && (
+                                        <div className="text-[11px] text-gray-400 mt-0.5">Chỉ trưởng nhóm</div>
+                                    )}
+                                </div>
+                                <ToggleSwitch
+                                    checked={settings.requireApproval}
+                                    disabled={!isOwner}
+                                    onChange={() => handleToggle('requireApproval', !settings.requireApproval)}
+                                />
                             </div>
                             <div className="flex justify-between items-center py-2">
                                 <div className="flex flex-col">
@@ -390,9 +403,16 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             </button>
                             <button
                                 type="button"
-                                className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
-                                onClick={() => setIsDisbandModalOpen(true)}
-                                disabled={loading}
+                                className={`w-full text-left px-4 py-3 text-sm transition-colors font-medium border-t border-gray-100 ${
+                                    isOwner
+                                        ? 'text-red-600 hover:bg-red-50'
+                                        : 'text-gray-400 cursor-not-allowed bg-gray-50/80'
+                                }`}
+                                onClick={() => {
+                                    if (isOwner) setIsDisbandModalOpen(true);
+                                }}
+                                disabled={loading || !isOwner}
+                                title={!isOwner ? 'Chỉ trưởng nhóm mới có thể giải tán nhóm' : undefined}
                             >
                                 Giải tán nhóm
                             </button>
