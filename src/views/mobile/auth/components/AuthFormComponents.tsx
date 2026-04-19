@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, TextInputProps } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { createAuthStyles, COLORS } from "../styles";
 import { useThemeColors } from "@/shared/theme/colors";

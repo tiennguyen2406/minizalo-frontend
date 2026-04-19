@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 import { View, Text, FlatList, TouchableOpacity, Image } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFriendStore } from "@/shared/store/friendStore";

@@ -1,6 +1,7 @@
 import "../src/shared/styles/global.css";
 import { useEffect, useRef, useState } from "react";
-import { LogBox, Platform, View } from "react-native";
+import { LogBox, Platform, View, StyleSheet } from "react-native";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import {
     registerForPushNotificationsAsync,
@@ -102,47 +103,52 @@ export default function RootLayout() {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <View style={{ flex: 1 }}>
-                {isMobile && (
-                    <InAppNotificationBanner
-                        onPress={(roomId) => {
-                            if (!roomId) return;
-                            const room = useChatStore
-                                .getState()
-                                .rooms.find((r) => String(r.id) === String(roomId));
-                            const t = room?.type === "GROUP" ? "GROUP" : "DIRECT";
-                            const nm = encodeURIComponent(room?.name?.trim() || "Chat");
-                            router.push(`/chat/${roomId}?name=${nm}&type=${t}`);
-                        }}
-                    />
-                )}
-                <Stack
-                    screenOptions={{
-                        headerShown: false,
-                        animation: "slide_from_right",
-                        gestureEnabled: true,
-                        gestureDirection: "horizontal",
-                        fullScreenGestureEnabled: true,
-                    }}
-                >
-                    <Stack.Screen name="(tabs)" />
-                    <Stack.Screen name="(auth)" />
-                    <Stack.Screen
-                        name="chat/[id]"
-                        options={{
+            <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+                <View style={{ flex: 1 }}>
+                    {isMobile && (
+                        <InAppNotificationBanner
+                            onPress={(roomId) => {
+                                if (!roomId) return;
+                                const room = useChatStore
+                                    .getState()
+                                    .rooms.find((r) => String(r.id) === String(roomId));
+                                const t = room?.type === "GROUP" ? "GROUP" : "DIRECT";
+                                const nm = encodeURIComponent(room?.name?.trim() || "Chat");
+                                router.push(`/chat/${roomId}?name=${nm}&type=${t}`);
+                            }}
+                        />
+                    )}
+                    <Stack
+                        screenOptions={{
+                            headerShown: false,
                             animation: "slide_from_right",
-                            gestureEnabled: false,
+                            gestureEnabled: true,
+                            gestureDirection: "horizontal",
+                            fullScreenGestureEnabled: true,
                         }}
-                    />
-                </Stack>
+                    >
+                        <Stack.Screen name="(tabs)" />
+                        <Stack.Screen name="(auth)" />
+                        <Stack.Screen
+                            name="chat/[id]"
+                            options={{
+                                animation: "slide_from_right",
+                                gestureEnabled: false,
+                            }}
+                        />
+                    </Stack>
 
-                {isMobile && (
-                    <>
-                        <IncomingCallModal />
-                        <CallModal />
-                    </>
-                )}
-            </View>
+                    {isMobile && <IncomingCallModal />}
+                    {isMobile && (
+                        <View
+                            style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]}
+                            pointerEvents="box-none"
+                        >
+                            <CallModal />
+                        </View>
+                    )}
+                </View>
+            </SafeAreaProvider>
         </QueryClientProvider>
     );
 }

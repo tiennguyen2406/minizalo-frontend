@@ -167,7 +167,6 @@ export default function ChatListScreen() {
             setLoading(false);
         }
     };
-
     // Auto-fetch when screen is focused + poll every 10s as fallback
     useFocusEffect(
         useCallback(() => {

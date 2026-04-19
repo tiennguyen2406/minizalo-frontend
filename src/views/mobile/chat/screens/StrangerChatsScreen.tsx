@@ -1,17 +1,26 @@
 import React from "react";
-import { View, FlatList, Text, TouchableOpacity, SafeAreaView } from "react-native";
+import { View, FlatList, Text, TouchableOpacity } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useAuthStore } from "@/shared/store/authStore";
+import type { FriendResponseDto } from "@/shared/services/types";
 import { ChatItem } from "@/views/mobile/chat/components/ChatItem";
 import { formatTime } from "@/shared/utils/dateUtils";
 import { getChatPreviewText } from "@/shared/utils/chatPreview";
 
+/** Đối tượng là "bạn" trong một FriendResponseDto so với user đăng nhập */
+function partnerUserId(f: FriendResponseDto, currentUserId: string | undefined): string {
+    if (!currentUserId) return f.friend.id;
+    return f.user.id === currentUserId ? f.friend.id : f.user.id;
+}
+
 export default function StrangerChatsScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const colors = useThemeColors();
     const { rooms } = useChatStore();
     const { friends } = useFriendStore();
@@ -40,7 +49,7 @@ export default function StrangerChatsScreen() {
         return url;
     };
 
-    const friendIdSet = new Set(friends.map(f => f.friend?.id || f.user?.id));
+    const friendIdSet = new Set(friends.map((f) => partnerUserId(f, currentUserId)));
 
     const strangerRooms = rooms.filter(room => {
         if (room.type === 'PRIVATE' || (room.type as any) === 'DIRECT') {
@@ -104,11 +113,11 @@ export default function StrangerChatsScreen() {
 
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
-            <SafeAreaView style={{ backgroundColor: colors.headerBg }}>
+            <View style={{ backgroundColor: colors.headerBg, paddingTop: insets.top }}>
                 <View style={{
                     height: 52,
-                    flexDirection: 'row',
-                    alignItems: 'center',
+                    flexDirection: "row",
+                    alignItems: "center",
                     paddingHorizontal: 16,
                     borderBottomWidth: 0.5,
                     borderBottomColor: colors.border
@@ -116,11 +125,11 @@ export default function StrangerChatsScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
                         <Ionicons name="chevron-back" size={28} color={colors.headerText} />
                     </TouchableOpacity>
-                    <Text style={{ color: colors.headerText, fontSize: 18, fontWeight: 'bold' }}>
+                    <Text style={{ color: colors.headerText, fontSize: 18, fontWeight: "bold" }}>
                         Tin nhắn từ người lạ
                     </Text>
                 </View>
-            </SafeAreaView>
+            </View>
 
             {strangerRooms.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>

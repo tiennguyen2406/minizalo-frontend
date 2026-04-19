@@ -6,6 +6,10 @@ import { useAuthStore } from '@/shared/store/authStore';
 import { Mic, MicOff, Video, VideoOff, PhoneOff } from 'lucide-react';
 import { CallType } from '@/shared/services/callService';
 
+/** Remote: contain để giữ tỉ lệ (mobile dọc → pillarbox); phần thừa do container bg-[#0068FF] */
+const WEB_REMOTE_VIDEO_OPTS = { fit: 'contain' as const };
+const WEB_LOCAL_PIP_OPTS = { fit: 'cover' as const };
+
 interface CallModalProps {
     isOpen: boolean;
     callType?: CallType;
@@ -21,7 +25,7 @@ const CallModal: React.FC<CallModalProps> = ({
     avatarUrl,
     onEnd,
 }) => {
-    const { activeCall, callStatus, resetCall, endCall } = useCallStore();
+    const { activeCall, callStatus, resetCall, endCall, cancelCall } = useCallStore();
     const user = useAuthStore(state => state.user);
     const accessToken = useAuthStore(state => state.accessToken);
 
@@ -48,6 +52,10 @@ const CallModal: React.FC<CallModalProps> = ({
     const remoteGoneRetryRef = React.useRef<number | null>(null);
     const remoteGoneAttemptsRef = React.useRef(0);
     const remotePlayRetryRef = React.useRef<number | null>(null);
+    const webPointerResumeRef = React.useRef<(() => void) | null>(null);
+    const webAutoplayFailedPrevRef = React.useRef<
+        typeof AgoraRTC.onAutoplayFailed | undefined | null
+    >(undefined);
 
     /**
      * Stable hash function to convert UUID string to a number for Agora UID
@@ -72,6 +80,29 @@ const CallModal: React.FC<CallModalProps> = ({
             const rtcClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
             setClient(rtcClient);
             clientRef.current = rtcClient;
+
+            const playAllRemoteAudio = () => {
+                for (const ru of rtcClient.remoteUsers) {
+                    try {
+                        ru.audioTrack?.play();
+                    } catch {
+                        /* autoplay / transient */
+                    }
+                }
+            };
+
+            webAutoplayFailedPrevRef.current = AgoraRTC.onAutoplayFailed ?? null;
+            const resumeRemoteAudio = () => playAllRemoteAudio();
+            webPointerResumeRef.current = resumeRemoteAudio;
+
+            AgoraRTC.onAutoplayFailed = () => {
+                console.warn('[WebAgora] Autoplay blocked — tap/chạm màn hình một lần để nghe âm thanh');
+                playAllRemoteAudio();
+                const prev = webAutoplayFailedPrevRef.current;
+                if (typeof prev === 'function') prev();
+            };
+
+            window.addEventListener('pointerdown', resumeRemoteAudio, { passive: true });
 
             const cancelRemoteGoneTimer = () => {
                 if (remoteGoneRetryRef.current) {
@@ -112,7 +143,7 @@ const CallModal: React.FC<CallModalProps> = ({
                 await rtcClient.subscribe(remUser, mediaType);
                 if (mediaType === 'video') {
                     setRemoteUser(remUser);
-                    remUser.videoTrack?.play('remote-video-container');
+                    remUser.videoTrack?.play('remote-video-container', WEB_REMOTE_VIDEO_OPTS);
                 }
                 if (mediaType === 'audio') {
                     remUser.audioTrack?.play();
@@ -133,34 +164,42 @@ const CallModal: React.FC<CallModalProps> = ({
             });
 
             try {
-                // IMPORTANT: Backend uses buildTokenWithUserAccount (String),
-                // so we MUST join using the User UUID String, not a number.
                 const userUid = user?.id || 'anonymous';
-                console.log('[WebAgora] Joining with User Account (String):', userUid);
+                console.log('[WebAgora] Creating local tracks before join…');
 
-                await rtcClient.join(
-                    activeCall.appId, 
-                    activeCall.channelName, 
-                    activeCall.token, 
-                    userUid
-                );
-                
-                // Create local tracks
-                const audio = await AgoraRTC.createMicrophoneAudioTrack();
+                // TẠO TRACK TRƯỚC để camera người gọi bật/hiển thị ngay, không chờ bên kia bắt máy.
+                const audio = await AgoraRTC.createMicrophoneAudioTrack({
+                    AEC: true,
+                    AGC: true,
+                    ANS: true,
+                });
                 setLocalAudioTrack(audio);
                 audioTrackRef.current = audio;
 
+                let video: ICameraVideoTrack | null = null;
                 if (finalCallType === 'VIDEO') {
                     try {
-                        const video = await AgoraRTC.createCameraVideoTrack();
+                        video = await AgoraRTC.createCameraVideoTrack();
                         setLocalVideoTrack(video);
                         videoTrackRef.current = video;
-                        await rtcClient.publish([audio, video]);
-                        video.play('local-video-pip');
+                        // Play preview NGAY (trước cả join)
+                        requestAnimationFrame(() => {
+                            video?.play('local-video-pip', WEB_LOCAL_PIP_OPTS);
+                        });
                     } catch (camErr) {
                         console.warn('[WebAgora] Camera unavailable, continuing audio-only:', camErr);
-                        await rtcClient.publish([audio]);
                     }
+                }
+
+                await rtcClient.join(
+                    activeCall.appId,
+                    activeCall.channelName,
+                    activeCall.token,
+                    userUid
+                );
+
+                if (video) {
+                    await rtcClient.publish([audio, video]);
                 } else {
                     await rtcClient.publish([audio]);
                 }
@@ -177,7 +216,7 @@ const CallModal: React.FC<CallModalProps> = ({
                             if ((ru as any).hasVideo) {
                                 await rtcClient.subscribe(ru, 'video');
                                 setRemoteUser(ru);
-                                ru.videoTrack?.play('remote-video-container');
+                                ru.videoTrack?.play('remote-video-container', WEB_REMOTE_VIDEO_OPTS);
                             }
                         }
                     } catch (e) {
@@ -192,6 +231,12 @@ const CallModal: React.FC<CallModalProps> = ({
         init();
 
         return () => {
+            AgoraRTC.onAutoplayFailed = webAutoplayFailedPrevRef.current ?? undefined;
+            webAutoplayFailedPrevRef.current = undefined;
+            if (webPointerResumeRef.current) {
+                window.removeEventListener('pointerdown', webPointerResumeRef.current);
+                webPointerResumeRef.current = null;
+            }
             if (remoteGoneRetryRef.current) {
                 window.clearTimeout(remoteGoneRetryRef.current);
                 remoteGoneRetryRef.current = null;
@@ -236,7 +281,7 @@ const CallModal: React.FC<CallModalProps> = ({
         const tryPlay = (attempt: number) => {
             const el = document.getElementById('remote-video-container');
             if (el) {
-                remoteUser.videoTrack?.play('remote-video-container');
+                remoteUser.videoTrack?.play('remote-video-container', WEB_REMOTE_VIDEO_OPTS);
                 return;
             }
             if (attempt >= 5) return;
@@ -251,6 +296,22 @@ const CallModal: React.FC<CallModalProps> = ({
             }
         };
     }, [finalCallType, remoteUser?.uid, !!remoteUser?.videoTrack]);
+
+    // Re-attach local preview khi DOM mount xong (fix: preview trắng đen vì track tạo trước element).
+    useEffect(() => {
+        if (finalCallType !== 'VIDEO') return;
+        if (!localVideoTrack) return;
+        let tries = 0;
+        const retry = () => {
+            const el = document.getElementById('local-video-pip');
+            if (el) {
+                try { localVideoTrack.play('local-video-pip', WEB_LOCAL_PIP_OPTS); } catch { /* */ }
+                return;
+            }
+            if (tries++ < 8) window.setTimeout(retry, 120);
+        };
+        retry();
+    }, [finalCallType, localVideoTrack]);
 
     // NOTE: không auto-end ngay khi reload/tab close.
     // Bên còn lại sẽ tự kết thúc sau 1–2 lần retry nếu remote rời kênh (event user-left).
@@ -283,7 +344,8 @@ const CallModal: React.FC<CallModalProps> = ({
 
     const handleEndCall = async () => {
         if (activeCall) {
-            await endCall(activeCall.callSessionId);
+            if (callStatus === 'calling') await cancelCall(activeCall.callSessionId);
+            else await endCall(activeCall.callSessionId);
         }
         await stopAndCloseTracks();
         finalOnEnd();
@@ -313,7 +375,7 @@ const CallModal: React.FC<CallModalProps> = ({
                 setLocalVideoTrack(video);
                 videoTrackRef.current = video;
                 await rtcClient.publish([video]);
-                video.play('local-video-pip');
+                video.play('local-video-pip', WEB_LOCAL_PIP_OPTS);
                 setIsVideoOff(false);
             } catch (err) {
                 console.warn('[WebAgora] Cannot enable camera:', err);
@@ -332,108 +394,152 @@ const CallModal: React.FC<CallModalProps> = ({
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center transition-all">
-            {/* Backdrop */}
-            <div 
-                className="absolute inset-0 bg-black/60 backdrop-blur-md"
-                onClick={(e) => {
-                    if (e.target === e.currentTarget) handleEndCall();
-                }}
+    const videoStage = (
+        <div className="relative flex min-h-0 flex-1 w-full flex-col bg-[#0068FF]">
+            <div
+                id="remote-video-container"
+                className="relative flex min-h-0 flex-1 w-full items-center justify-center bg-[#0068FF] [&_video]:max-h-full [&_video]:max-w-full [&_video]:object-contain"
             />
-
-            {/* Modal Content */}
-            <div 
-                className={`relative ${finalCallType === 'VIDEO' ? 'bg-zinc-900 w-[1000px] h-[700px]' : 'w-[400px] h-[580px]'} rounded-3xl shadow-2xl flex flex-col items-center overflow-hidden border border-white/10 transition-all duration-500`}
-                style={finalCallType === 'VOICE' ? { background: 'linear-gradient(180deg, #0068FF 0%, #004BBB 100%)' } : undefined}
-            >
-                {/* --- VIDEO LAYER (WEB) --- */}
-                {finalCallType === 'VIDEO' && (
-                    <div className="absolute inset-0 bg-black">
-                        {/* Remote Video Container */}
-                        <div id="remote-video-container" className="w-full h-full" />
-
-                        {/* Local Video PIP */}
-                        <div 
-                            id="local-video-pip" 
-                            className={`absolute top-6 right-6 w-48 h-64 rounded-2xl border-2 border-white/20 shadow-2xl overflow-hidden bg-zinc-800 z-10 transition-opacity ${isVideoOff ? 'opacity-0' : 'opacity-100'}`}
+            {!remoteUser && (
+                <div className="pointer-events-none absolute inset-0 z-[5] flex flex-col items-center justify-center bg-[#0068FF]/55 px-6">
+                    <div className="relative mb-5">
+                        {isWaiting && (
+                            <div className="absolute inset-0 -m-4 animate-ping rounded-full border-4 border-blue-400/25" />
+                        )}
+                        <Avatar
+                            src={
+                                finalAvatarUrl ||
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(finalUserName)}&background=0068FF&color=fff&size=128`
+                            }
+                            size={128}
+                            className="relative z-10 h-28 w-28 shadow-xl ring-4 ring-white/15 sm:h-32 sm:w-32"
                         />
                     </div>
-                )}
-
-                {/* --- UI OVERLAY --- */}
-                <div className="relative z-20 w-full h-full flex flex-col items-center">
-                    {/* Header */}
-                    <div className="mt-12 text-center bg-black/20 backdrop-blur-sm px-6 py-2 rounded-full">
-                        <p className="text-white/60 text-[10px] uppercase tracking-[0.2em] font-medium">
-                            {isConnected ? `Cuộc gọi ${finalCallType === 'VIDEO' ? 'Video' : 'Thoại'}` : 'Đang kết nối...'}
-                        </p>
-                        {isConnected && (
-                            <p className="text-white text-xl font-semibold tabular-nums">
-                                {formatDuration(duration)}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Profile (Only for VOICE or when waiting for remote video) */}
-                    {(finalCallType === 'VOICE' || (finalCallType === 'VIDEO' && !remoteUser)) && (
-                        <div className="flex-1 flex flex-col items-center justify-center w-full px-8">
-                            <div className="relative mb-6">
-                                {isWaiting && (
-                                    <div className="absolute inset-0 -m-4 border-4 border-blue-500/20 rounded-full animate-ping" />
-                                )}
-                                <div className="relative z-10">
-                                    <Avatar 
-                                        src={finalAvatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(finalUserName)}&background=0068FF&color=fff&size=128`} 
-                                        size={128}
-                                        className="w-32 h-32 ring-4 ring-white/10 shadow-2xl"
-                                    />
-                                </div>
-                            </div>
-                            <h2 className="text-white text-2xl font-bold truncate max-w-full mb-2">{finalUserName}</h2>
-                            <p className="text-white/40 text-sm">{isWaiting ? 'Đang chờ đối phương...' : ''}</p>
-                        </div>
+                    <h2 className="max-w-full truncate text-center text-lg font-bold text-white sm:text-xl">{finalUserName}</h2>
+                    <p className="mt-2 text-center text-sm text-white/60">{isWaiting ? 'Đang chờ đối phương…' : ''}</p>
+                </div>
+            )}
+            <div
+                id="local-video-pip"
+                className={`absolute right-3 top-3 z-10 h-[min(28vh,220px)] w-[min(34vw,180px)] overflow-hidden rounded-xl border-2 border-white/25 bg-black/40 shadow-xl transition-opacity sm:right-5 sm:top-5 sm:h-[min(30vh,260px)] sm:w-[min(240px,22vw)] ${
+                    isVideoOff ? 'pointer-events-none opacity-0' : 'opacity-100'
+                }`}
+            />
+            <div className="pointer-events-none absolute left-0 right-0 top-3 z-20 flex justify-center px-4 pt-[env(safe-area-inset-top)]">
+                <div className="pointer-events-auto rounded-full bg-black/45 px-5 py-2 text-center backdrop-blur-md">
+                    <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/70">
+                        {isConnected ? 'Cuộc gọi video' : 'Đang kết nối…'}
+                    </p>
+                    {isConnected && (
+                        <p className="mt-0.5 text-lg font-semibold tabular-nums text-white">{formatDuration(duration)}</p>
                     )}
-                    
-                    {/* Spacer for Video call to push actions to bottom */}
-                    {finalCallType === 'VIDEO' && remoteUser && <div className="flex-1" />}
+                </div>
+            </div>
+        </div>
+    );
 
-                    {/* Actions */}
-                    <div className="w-full pb-14 px-10 flex flex-col items-center">
-                        <div className="flex items-center justify-center gap-12 w-full max-w-md bg-black/40 backdrop-blur-md p-6 rounded-3xl border border-white/5">
-                            {/* Mic Button */}
+    return (
+        <div className="fixed inset-0 z-[1000] h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#0068FF]">
+            {finalCallType === 'VIDEO' ? (
+                <>
+                    {/* Video stage chiếm TOÀN màn hình; controls nổi floating ở đáy */}
+                    <div className="absolute inset-0 flex flex-col">{videoStage}</div>
+
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+                        <div className="pointer-events-auto flex items-end justify-center gap-10 rounded-full bg-black/45 px-8 py-3 shadow-xl backdrop-blur-md sm:gap-16">
                             <button
+                                type="button"
                                 onClick={toggleMute}
-                                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                                className={`flex flex-col items-center gap-1.5 ${isMuted ? 'text-white' : 'text-white/90'}`}
+                            >
+                                <span
+                                    className={`flex h-14 w-14 items-center justify-center rounded-full transition-colors ${
+                                        isMuted ? 'bg-red-500' : 'bg-white/15 hover:bg-white/25'
+                                    }`}
+                                >
+                                    {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
+                                </span>
+                                <span className="text-xs text-white/80">Mic</span>
+                            </button>
+                            <button type="button" onClick={handleEndCall} className="flex flex-col items-center gap-1.5 text-white">
+                                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-red-600 shadow-lg shadow-red-900/50 transition-colors hover:bg-red-700 active:scale-95">
+                                    <PhoneOff size={32} />
+                                </span>
+                                <span className="text-xs text-white/90">Kết thúc</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={toggleVideo}
+                                className={`flex flex-col items-center gap-1.5 ${isVideoOff ? 'text-white' : 'text-white/90'}`}
+                            >
+                                <span
+                                    className={`flex h-14 w-14 items-center justify-center rounded-full transition-colors ${
+                                        isVideoOff ? 'bg-red-500' : 'bg-white/15 hover:bg-white/25'
+                                    }`}
+                                >
+                                    {isVideoOff ? <VideoOff size={24} /> : <Video size={24} />}
+                                </span>
+                                <span className="text-xs text-white/80">Camera</span>
+                            </button>
+                        </div>
+                    </div>
+                </>
+            ) : (
+                <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-6">
+                <div
+                    className="relative flex h-[min(580px,85dvh)] w-[min(400px,calc(100vw-24px))] flex-col items-center overflow-hidden rounded-3xl border border-white/10 shadow-2xl"
+                    style={{ background: 'linear-gradient(180deg, #0068FF 0%, #004BBB 100%)' }}
+                >
+                    <div className="mt-10 text-center">
+                        <div className="rounded-full bg-black/20 px-6 py-2 backdrop-blur-sm">
+                            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/70">
+                                {isConnected ? 'Cuộc gọi thoại' : 'Đang kết nối…'}
+                            </p>
+                            {isConnected && (
+                                <p className="mt-1 text-xl font-semibold tabular-nums text-white">{formatDuration(duration)}</p>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex flex-1 flex-col items-center justify-center px-8">
+                        <div className="relative mb-6">
+                            {isWaiting && (
+                                <div className="absolute inset-0 -m-4 animate-ping rounded-full border-4 border-blue-500/20" />
+                            )}
+                            <Avatar
+                                src={
+                                    finalAvatarUrl ||
+                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(finalUserName)}&background=0068FF&color=fff&size=128`
+                                }
+                                size={128}
+                                className="relative z-10 h-32 w-32 ring-4 ring-white/10 shadow-2xl"
+                            />
+                        </div>
+                        <h2 className="mb-2 max-w-full truncate text-center text-2xl font-bold text-white">{finalUserName}</h2>
+                        <p className="text-sm text-white/40">{isWaiting ? 'Đang chờ đối phương...' : ''}</p>
+                    </div>
+                    <div className="w-full px-8 pb-10 pt-4">
+                        <div className="mx-auto flex max-w-md items-center justify-center gap-12 rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-md">
+                            <button
+                                type="button"
+                                onClick={toggleMute}
+                                className={`flex h-14 w-14 items-center justify-center rounded-full transition-colors ${
                                     isMuted ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'
                                 }`}
                             >
                                 {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
                             </button>
-
-                            {/* End Call Button */}
                             <button
+                                type="button"
                                 onClick={handleEndCall}
-                                className="w-16 h-16 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 shadow-xl shadow-red-900/40"
+                                className="flex h-16 w-16 items-center justify-center rounded-full bg-red-600 text-white shadow-xl shadow-red-900/40 transition-colors hover:bg-red-700 active:scale-95"
                             >
                                 <PhoneOff size={32} />
                             </button>
-
-                            {/* Video Toggle (Only for VIDEO type) */}
-                            {finalCallType === 'VIDEO' && (
-                                <button
-                                    onClick={toggleVideo}
-                                    className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
-                                        isVideoOff ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'
-                                    }`}
-                                >
-                                    {isVideoOff ? <VideoOff size={24} /> : <Video size={24} />}
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>
-            </div>
+                </div>
+            )}
         </div>
     );
 };

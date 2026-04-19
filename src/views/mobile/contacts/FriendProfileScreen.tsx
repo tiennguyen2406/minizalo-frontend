@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useThemeColors } from "@/shared/theme/colors";
