@@ -52,11 +52,11 @@ export const useCallStore = create<CallState>((set, get) => ({
 
         const current = get().incomingCall;
         if (current?.callSessionId === payload.callSessionId) {
-            console.log('=== [CallStore] Ignoring duplicate INCOMING signal:', payload.callSessionId);
+
             return;
         }
 
-        console.log('=== [CallStore] New INCOMING call:', payload.callSessionId);
+
         set({ incomingCall: payload, callStatus: 'incoming' });
     },
 
@@ -108,7 +108,7 @@ export const useCallStore = create<CallState>((set, get) => ({
             globalCallTimeout = setTimeout(() => {
                 const currentStatus = get().callStatus;
                 if (currentStatus === 'calling') {
-                    console.log('=== [CallStore] Call Timeout! No answer after 30s.');
+
                     soundManager.stopAll();
                     get().cancelCall(callSessionId);
                     set({ callEndReason: 'NO_ANSWER' });
@@ -185,7 +185,7 @@ export const useCallStore = create<CallState>((set, get) => ({
     },
 
     resetCall: () => {
-        console.log('=== [CallStore] Resetting call state (Standard Reset)...');
+
         soundManager.stopAll();
         
         // Dọn dẹp Timer
@@ -204,7 +204,7 @@ export const useCallStore = create<CallState>((set, get) => ({
 
     clearCallTimer: () => {
         if (globalCallTimeout) {
-            console.log('=== [CallStore] Manually clearing call timer');
+
             clearTimeout(globalCallTimeout);
             globalCallTimeout = null;
         }

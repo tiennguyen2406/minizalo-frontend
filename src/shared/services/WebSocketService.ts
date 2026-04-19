@@ -46,7 +46,7 @@ class WebSocketService {
                     this.client.brokerURL = url;
                     this.client.connectHeaders = { Authorization: `Bearer ${latestToken}` };
                     this.currentToken = latestToken;
-                    console.log('=== [WS beforeConnect] Updated token for reconnect');
+
                 }
             },
         });
@@ -55,13 +55,13 @@ class WebSocketService {
             this.connected = true;
             this.isRefreshing = false;
             this.callSubscriptionActive = false;
-            console.log('=== WS Connected === principal:', frame.headers['user-name'] || 'anonymous');
+
 
             this.subscribeCallQueue();
 
             Object.keys(this.pendingSubscriptions).forEach((dest) => {
                 if (this.subscriptions[dest]) return;
-                console.log('=== WS === Subscribing pending:', dest);
+
                 const callback = this.pendingSubscriptions[dest];
                 const sub = this.client.subscribe(dest, callback);
                 this.subscriptions[dest] = sub;
@@ -72,7 +72,7 @@ class WebSocketService {
                 try {
                     const pendingCall = await callService.checkPendingCall();
                     if (pendingCall) {
-                        console.log('=== WS === Found pending call, triggering INCOMING');
+
                         this.handleCallSignal({ type: 'INCOMING', payload: pendingCall });
                     }
                 } catch (error) {
@@ -96,7 +96,7 @@ class WebSocketService {
         };
 
         this.client.onDisconnect = () => {
-            console.log('=== WS === Disconnected');
+
             this.connected = false;
             // stompjs xóa subscription khi socket đứt; đưa callback vào pending để onConnect subscribe lại
             Object.keys(this.subscriptions).forEach((dest) => {
@@ -119,7 +119,7 @@ class WebSocketService {
             if (refreshed) {
                 const newToken = useAuthStore.getState().accessToken;
                 if (newToken) {
-                    console.log('=== WS === Token refreshed, re-activating');
+
                     this.activate(newToken);
                     return;
                 }
