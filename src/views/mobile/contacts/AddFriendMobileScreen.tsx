@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, TextInput, Alert, Modal, ScrollView } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";

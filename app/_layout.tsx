@@ -1,6 +1,7 @@
 import "../src/shared/styles/global.css";
 import { useEffect, useRef } from "react";
-import { LogBox, Platform } from "react-native";
+import { LogBox, Platform, View, StyleSheet } from "react-native";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import {
     registerForPushNotificationsAsync,
@@ -95,7 +96,7 @@ export default function RootLayout() {
     }, []);
 
     return (
-        <>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
             <Stack
                 screenOptions={{
                     headerShown: false,
@@ -117,7 +118,12 @@ export default function RootLayout() {
             </Stack>
 
             <IncomingCallModal />
-            <CallModal />
-        </>
+            <View
+                style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]}
+                pointerEvents="box-none"
+            >
+                <CallModal />
+            </View>
+        </SafeAreaProvider>
     );
 }

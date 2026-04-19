@@ -9,7 +9,8 @@ import {
     Animated,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import FriendsListMobile from "./FriendsListMobile";
 import PhonebookListMobile from "./PhonebookListMobile";

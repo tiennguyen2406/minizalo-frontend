@@ -1381,41 +1381,46 @@ export default function ChatScreen() {
                 behavior={Platform.OS === "ios" ? "height" : undefined}
                 style={{ flex: 1 }}
             >
-                <FlatList
-                    ref={flatListRef}
-                    data={messages}
-                    inverted
-                    keyExtractor={(item) => item.messageId}
-                    renderItem={renderMessage}
-                    contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
-                    showsVerticalScrollIndicator={false}
-                    onTouchStart={() => footerRef.current?.closeEmojiPicker()}
-                    onScrollBeginDrag={() => footerRef.current?.closeEmojiPicker()}
-                    onEndReached={handleLoadMore}
-                    onEndReachedThreshold={0.5}
-                    initialNumToRender={15}
-                    maxToRenderPerBatch={10}
-                    windowSize={11}
-                    removeClippedSubviews={Platform.OS === 'android'}
-                    onViewableItemsChanged={onViewableItemsChanged}
-                    viewabilityConfig={viewabilityConfig}
-                    ListFooterComponent={
-                        <View style={{ paddingBottom: 20 }}>
-                            {isLoadingMore ? (
-                                <View style={{ paddingVertical: 10 }}>
-                                    <ActivityIndicator size="small" color={colors.primary} />
-                                </View>
-                            ) : null}
-                        </View>
-                    }
-                    ListEmptyComponent={() => (
-                        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", transform: [{ scaleY: -1 }] }}>
+                <View style={{ flex: 1 }}>
+                    <FlatList
+                        ref={flatListRef}
+                        data={messages}
+                        inverted
+                        keyExtractor={(item) => item.messageId}
+                        renderItem={renderMessage}
+                        contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
+                        showsVerticalScrollIndicator={false}
+                        onTouchStart={() => footerRef.current?.closeEmojiPicker()}
+                        onScrollBeginDrag={() => footerRef.current?.closeEmojiPicker()}
+                        onEndReached={handleLoadMore}
+                        onEndReachedThreshold={0.5}
+                        initialNumToRender={15}
+                        maxToRenderPerBatch={10}
+                        windowSize={11}
+                        removeClippedSubviews={Platform.OS === 'android'}
+                        onViewableItemsChanged={onViewableItemsChanged}
+                        viewabilityConfig={viewabilityConfig}
+                        ListFooterComponent={
+                            <View style={{ paddingBottom: 20 }}>
+                                {isLoadingMore ? (
+                                    <View style={{ paddingVertical: 10 }}>
+                                        <ActivityIndicator size="small" color={colors.primary} />
+                                    </View>
+                                ) : null}
+                            </View>
+                        }
+                        ListEmptyComponent={null}
+                    />
+                    {messages.length === 0 ? (
+                        <View
+                            pointerEvents="none"
+                            style={[StyleSheet.absoluteFillObject, { justifyContent: "center", alignItems: "center" }]}
+                        >
                             <Text style={{ color: colors.textSecondary }}>
                                 {loaded ? "Hãy gửi tin nhắn đầu tiên! 👋" : "Đang tải tin nhắn..."}
                             </Text>
                         </View>
-                    )}
-                />
+                    ) : null}
                 {roomType === "DIRECT" &&
                     blockStatus &&
                     (blockStatus.blockedByYou || blockStatus.blockedByOther) ? (
@@ -1487,6 +1492,7 @@ export default function ChatScreen() {
                         onCancelReply={() => setReplyTo(null)}
                     />
                 )}
+                </View>
             </KeyboardAvoidingView>
 
             {/* Action sheet khi nhấn giữ tin nhắn */}

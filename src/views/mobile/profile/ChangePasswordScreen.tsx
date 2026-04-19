@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { useAuthStore } from "@/shared/store/authStore";
 import axios from "axios";
 import { useThemeColors } from "@/shared/theme/colors";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { AuthInput, AuthButton } from "../auth/components";
 

@@ -6,7 +6,6 @@ import {
     ScrollView,
     Image,
     ActivityIndicator,
-    SafeAreaView,
     Platform,
     StatusBar as RNStatusBar,
     Alert,
@@ -15,7 +14,7 @@ import {
     TextInput,
     FlatList,
 } from "react-native";
-import { SafeAreaView as SafeAreaViewCtx } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { groupService } from "@/shared/services/groupService";
@@ -455,7 +454,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
             <StatusBar style={colors.statusBar} />
             {/* ── Header (giống ChatOptionsScreen – màu xanh phủ tận status bar) ── */}
             <View style={{ backgroundColor: colors.headerBg }}>
-                <SafeAreaViewCtx edges={["top"]}>
+                <SafeAreaView edges={["top"]}>
                     <View
                         style={{
                             flexDirection: "row",
@@ -493,7 +492,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         {/* Right: placeholder */}
                         <View style={{ width: 24 }} />
                     </View>
-                </SafeAreaViewCtx>
+                </SafeAreaView>
             </View>
 
             <ScrollView

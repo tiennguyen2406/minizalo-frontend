@@ -12,6 +12,7 @@ import { webSocketService } from "@/shared/services/WebSocketService";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useThemeColors } from "@/shared/theme/colors";
 import { showLocalNotification } from "@/services/notificationService";
+import { getChatNotificationPreview } from "@/shared/utils/chatNotificationText";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 
@@ -149,10 +150,12 @@ export default function ChatListScreen() {
                     
                     // Hiển thị thông báo local nếu tin nhắn từ người khác
                     if (msg.senderId !== useAuthStore.getState().user?.id) {
-                        showLocalNotification(
-                            msg.senderName || 'Tin nhắn mới',
-                            msg.content || (msg.type === 'IMAGE' ? '[Hình ảnh]' : 'Đã gửi một tin nhắn')
-                        );
+                        const { title, body } = getChatNotificationPreview({
+                            type: msg.type,
+                            content: msg.content ?? '',
+                            senderName: msg.senderName,
+                        });
+                        showLocalNotification(title, body);
                     }
                 } catch (err) {
                     console.error('Lỗi parse tin nhắn WS:', err);
