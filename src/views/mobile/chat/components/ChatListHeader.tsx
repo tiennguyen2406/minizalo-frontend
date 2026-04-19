@@ -11,7 +11,7 @@ import {
     TextInput,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useThemeColors } from "@/shared/theme/colors";

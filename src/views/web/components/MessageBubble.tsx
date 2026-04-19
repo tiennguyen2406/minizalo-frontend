@@ -7,7 +7,8 @@ import PollBubble from './PollBubble';
 import { extractFirstHttpUrl, linkifyText } from '@/shared/utils/linkify';
 import { getImageAttachmentUrls, getVideoAttachmentUrls } from '@/shared/utils/messageAttachments';
 import { getImageUrl } from '@/shared/utils/mediaUtils';
-
+import { useCallStore } from '@/shared/store/useCallStore';
+import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed } from 'lucide-react';
 interface MessageBubbleProps {
     message: Message;
     isMine: boolean;
@@ -236,13 +237,13 @@ async function saveFileWithPickerDialog(
                 suggestedName: safe,
                 types: extWithDot
                     ? [
-                          {
-                              description: 'Tệp',
-                              accept: {
-                                  'application/octet-stream': [extWithDot],
-                              },
-                          },
-                      ]
+                        {
+                            description: 'Tệp',
+                            accept: {
+                                'application/octet-stream': [extWithDot],
+                            },
+                        },
+                    ]
                     : undefined,
             });
         } catch (err: unknown) {
@@ -645,7 +646,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const effectiveFileUrl = message.fileUrl || attachment?.url;
     const effectiveFileName = message.fileName || attachment?.name || attachment?.filename;
     const effectiveFileSize = message.fileSize || attachment?.size;
-
     let effectiveType = message.type as string;
     /** Thông báo ghim (backend: PIN_NOTIFICATION) dùng cùng pill với SYSTEM */
     if (
@@ -661,7 +661,25 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         effectiveType = 'VIDEO';
     } else if (imageUrls.length > 0 && videoUrls.length > 0) {
         effectiveType = 'MEDIA';
-    } else if ((effectiveType === 'TEXT' || !effectiveType) && effectiveFileUrl && attachment) {
+    }
+
+    // AUTO-DETECT CALL JSON: Thử parse JSON để xác định chính xác loại tin nhắn cuộc gọi
+    let isCallJson = false;
+    if (!message.isRecall && message.content && message.content.trim().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(message.content);
+            if (parsed.status && parsed.callType) {
+                isCallJson = true;
+                effectiveType = (parsed.callType === 'VIDEO' ? 'CALL_VIDEO' : 'CALL_VOICE') as any;
+            }
+        } catch (e) {
+            // Không phải JSON cuộc gọi, bỏ qua
+        }
+    }
+
+    const isCallMessage = effectiveType === 'CALL_VOICE' || effectiveType === 'CALL_VIDEO';
+
+    if ((effectiveType === 'TEXT' || !effectiveType) && !isCallJson && effectiveFileUrl && attachment) {
         const mime = (attachment.type || '').toLowerCase();
         if (mime.startsWith('image')) effectiveType = 'IMAGE';
         else if (mime.startsWith('video')) effectiveType = 'VIDEO';
@@ -719,7 +737,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
         );
     }
-
     // Handle Poll Message
     if (effectiveType === 'POLL') {
         return (
@@ -734,6 +751,81 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         );
     }
 
+    const renderCallContent = () => {
+        try {
+            const data = JSON.parse(message.content || '{}');
+            const { status, duration, callType, callerId } = data;
+            const isCallFromMe = isMine;
+            const isVideo = callType === 'VIDEO';
+
+            let statusText = '';
+            let Icon = isVideo ? Video : Phone;
+            let iconColor = 'text-blue-500';
+
+            if (status === 'ENDED') {
+                statusText = duration > 0 ? `${Math.floor(duration / 60)} phút ${duration % 60} giây` : 'Cuộc gọi đi';
+                Icon = isCallFromMe ? PhoneOutgoing : PhoneIncoming;
+                iconColor = 'text-green-500';
+            } else if (status === 'REJECTED' || status === 'CANCELLED') {
+                statusText = isCallFromMe ? 'Bạn đã hủy' : 'Cuộc gọi nhỡ';
+                Icon = PhoneMissed;
+                iconColor = 'text-red-500';
+            } else {
+                statusText = isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại';
+            }
+
+            const handleRedial = () => {
+                const receiverId = isMine ? data.receiverId : data.callerId;
+                if (receiverId) {
+                    useCallStore.getState().initiateCall(
+                        message.roomId, // Sử dụng roomId làm conversationId
+                        receiverId,
+                        callType || 'VOICE',
+                        isMine ? undefined : senderName,
+                        isMine ? undefined : senderAvatar
+                    );
+                }
+            };
+
+            return (
+                <div className="flex flex-col py-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <div className={clsx("p-1.5 rounded-full bg-gray-50 flex items-center justify-center", iconColor)}>
+                            <Icon size={15} />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="font-bold text-zinc-800 text-[13px]">
+                                {status === 'ENDED' ? (isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại') : statusText}
+                            </span>
+                            {status === 'ENDED' && (
+                                <div className="flex items-center gap-1 text-zinc-500 text-[11px] mt-0.5">
+                                    <Icon size={10} className={iconColor} />
+                                    <span>{statusText}</span>
+                                </div>
+                            )}
+                            {(status === 'REJECTED' || status === 'CANCELLED') && (
+                                <div className="flex items-center gap-1 text-zinc-500 text-[11px] mt-0.5">
+                                    <PhoneMissed size={10} className="text-red-500" />
+                                    <span>{statusText}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="h-[1px] bg-gray-100 w-full mb-1" />
+
+                    <button
+                        onClick={handleRedial}
+                        className="w-full py-0.5 text-blue-600 font-semibold text-[12px] hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-center gap-1"
+                    >
+                        Gọi lại
+                    </button>
+                </div>
+            );
+        } catch (e) {
+            return <span className="text-[15px] italic opacity-80 pr-8">{message.content}</span>;
+        }
+    };
     return (
         <>
             <div className={clsx('flex flex-row items-end', isMine ? 'justify-end' : 'justify-start', marginBottom)}>
@@ -772,14 +864,14 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 : (message.isRecall ? 'bg-gray-100 text-gray-500 italic border border-transparent' : 'bg-white text-gray-900 shadow-sm border border-gray-100')
                         )}
                         onContextMenu={(e) => {
-                            if (!message.isRecall) {
+                            if (!message.isRecall && !isCallMessage) {
                                 e.preventDefault();
                                 setShowMoreMenu(true);
                             }
                         }}
                     >
                         {/* Hành động tin nhắn (hiện khi hover): Reply + ⋯ */}
-                        {!message.isRecall && (
+                        {!message.isRecall && !isCallMessage && (
                             <div className={clsx(
                                 "absolute top-1/2 -translate-y-1/2 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex items-center gap-1",
                                 isMine ? "right-full mr-2" : "left-full ml-2"
@@ -835,7 +927,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         )}
 
                         {/* Fixed-position menu — position:fixed escapes any overflow:hidden ancestor */}
-                        {showMoreMenu && menuPos && (
+                        {showMoreMenu && menuPos && !isCallMessage && (
                             <>
                                 {/* Backdrop */}
                                 <div
@@ -862,7 +954,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         Copy tin nhắn
                                     </button>
                                     {/* Pin */}
-                                    {onTogglePin && (
+                                    {onTogglePin && !isCallMessage && (
                                         <button
                                             onClick={() => { onTogglePin(message.id, !!message.pinned); setShowMoreMenu(false); setMenuPos(null); }}
                                             className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -872,7 +964,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         </button>
                                     )}
                                     {/* Reply */}
-                                    {onReply && (
+                                    {onReply && !isCallMessage && (
                                         <button
                                             onClick={() => { onReply(message); setShowMoreMenu(false); setMenuPos(null); }}
                                             className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -882,13 +974,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         </button>
                                     )}
                                     {/* Share / Forward */}
-                                    <button
-                                        onClick={() => { onForward?.(message); setShowMoreMenu(false); setMenuPos(null); }}
-                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                    >
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-                                        Chia sẻ
-                                    </button>
+                                    {!isCallMessage && (
+                                        <button
+                                            onClick={() => { onForward?.(message); setShowMoreMenu(false); setMenuPos(null); }}
+                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                                            Chia sẻ
+                                        </button>
+                                    )}
                                     {/* View Detail */}
                                     <button
                                         onClick={() => { setShowMessageDetail(true); setShowMoreMenu(false); setMenuPos(null); }}
@@ -899,7 +993,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     </button>
                                     <div className="border-t border-gray-100 my-1" />
                                     {/* Recall - own messages only */}
-                                    {isMine && onRecall && (
+                                    {isMine && onRecall && !isCallMessage && (
                                         <button
                                             onClick={() => { onRecall(message.id); setShowMoreMenu(false); setMenuPos(null); }}
                                             className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
@@ -909,13 +1003,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         </button>
                                     )}
                                     {/* Delete for me */}
-                                    <button
-                                        onClick={() => { onDeleteForMe?.(message.id); setShowMoreMenu(false); setMenuPos(null); }}
-                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        Xoá ở phía tôi
-                                    </button>
+                                    {!isCallMessage && (
+                                        <button
+                                            onClick={() => { onDeleteForMe?.(message.id); setShowMoreMenu(false); setMenuPos(null); }}
+                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            Xoá ở phía tôi
+                                        </button>
+                                    )}
                                 </div>
                             </>
                         )}
@@ -1129,7 +1225,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 )}
                             </div>
                         ) : (effectiveType === 'FILE' || effectiveType === 'DOCUMENT') &&
-                          ((message.attachments && message.attachments.length > 0) || effectiveFileUrl) ? (
+                            ((message.attachments && message.attachments.length > 0) || effectiveFileUrl) ? (
                             <div className="flex flex-col gap-2">
                                 {message.attachments && message.attachments.length > 0 ? (
                                     message.attachments.map((att: any, idx: number) => (
@@ -1166,6 +1262,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     return u ? <LinkPreviewCard url={u} /> : null;
                                 })()}
                             </span>
+                        ) : (effectiveType === 'CALL_VOICE' || effectiveType === 'CALL_VIDEO') ? (
+                            renderCallContent()
                         ) : (
                             <span className="text-[15px] italic opacity-80 pr-8">{message.content || '[Loại tin nhắn không hỗ trợ]'}</span>
                         )}
@@ -1455,11 +1553,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     setImageLightbox((prev) =>
                                         prev
                                             ? {
-                                                  ...prev,
-                                                  index:
-                                                      (prev.index - 1 + prev.urls.length) %
-                                                      prev.urls.length,
-                                              }
+                                                ...prev,
+                                                index:
+                                                    (prev.index - 1 + prev.urls.length) %
+                                                    prev.urls.length,
+                                            }
                                             : null,
                                     );
                                 }}
@@ -1475,9 +1573,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     setImageLightbox((prev) =>
                                         prev
                                             ? {
-                                                  ...prev,
-                                                  index: (prev.index + 1) % prev.urls.length,
-                                              }
+                                                ...prev,
+                                                index: (prev.index + 1) % prev.urls.length,
+                                            }
                                             : null,
                                     );
                                 }}

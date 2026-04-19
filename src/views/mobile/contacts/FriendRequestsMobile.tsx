@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { useFriendStore } from "@/shared/store/friendStore";
 import type { FriendResponseDto } from "@/shared/services/types";

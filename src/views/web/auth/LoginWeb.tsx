@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TextInput, TouchableOpacity, StatusBar } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 
 export default function LoginWeb() {
     const [phone, setPhone] = React.useState("");

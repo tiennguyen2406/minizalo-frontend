@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { profileStyles } from "./styles";
 import { useAuthStore } from "@/shared/store/authStore";

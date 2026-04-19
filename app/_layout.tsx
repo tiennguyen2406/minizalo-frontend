@@ -1,6 +1,7 @@
 import "../src/shared/styles/global.css";
 import { useEffect, useRef, useState } from "react";
-import { LogBox, Platform, View } from "react-native";
+import { LogBox, Platform, View, StyleSheet } from "react-native";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import {
     registerForPushNotificationsAsync,
@@ -11,6 +12,9 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { InAppNotificationBanner } from "@/views/mobile/chat/components/InAppNotification";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { webSocketService } from "@/shared/services/WebSocketService";
+import IncomingCallModal from "@/views/mobile/chat/components/IncomingCallModal";
+import CallModal from "@/views/mobile/chat/components/CallModal";
 
 // Quyết liệt chặn tất cả các cảnh báo và lỗi liên quan đến expo-notifications trên Expo Go
 LogBox.ignoreLogs([
@@ -48,17 +52,27 @@ export default function RootLayout() {
         // Khởi tạo handler thông báo (đã được bọc an toàn trong notificationService)
         initNotificationHandler();
 
-        // ── Register push notifications ──
-        const accessToken = useAuthStore.getState().accessToken;
-        if (accessToken) {
+        // ── Push Notification & WebSocket ──
+        const setupServices = (token: string) => {
             registerForPushNotificationsAsync()
                 .catch((err) => console.log('[RootLayout] Push registration skipped:', err?.message));
+
+            // WebSocket activation - call queue subscription is handled
+            // automatically inside WebSocketService.onConnect → subscribeCallQueue()
+            webSocketService.activate(token);
+        };
+
+        const currentAuth = useAuthStore.getState();
+        if (currentAuth.accessToken) {
+            setupServices(currentAuth.accessToken);
         }
 
-        // ── Listen for auth changes to re-register ──
+        // ── Listen for auth changes (login, token refresh, logout) ──
         const unsub = useAuthStore.subscribe((state, prevState) => {
-            if (state.accessToken && !prevState.accessToken) {
-                registerForPushNotificationsAsync().catch(() => { });
+            if (state.accessToken && state.accessToken !== prevState.accessToken) {
+                setupServices(state.accessToken);
+            } else if (!state.accessToken && prevState.accessToken) {
+                webSocketService.deactivate();
             }
         });
 
@@ -89,40 +103,52 @@ export default function RootLayout() {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <View style={{ flex: 1 }}>
-                {isMobile && (
-                    <InAppNotificationBanner
-                        onPress={(roomId) => {
-                            if (!roomId) return;
-                            const room = useChatStore
-                                .getState()
-                                .rooms.find((r) => String(r.id) === String(roomId));
-                            const t = room?.type === "GROUP" ? "GROUP" : "DIRECT";
-                            const nm = encodeURIComponent(room?.name?.trim() || "Chat");
-                            router.push(`/chat/${roomId}?name=${nm}&type=${t}`);
-                        }}
-                    />
-                )}
-                <Stack
-                    screenOptions={{
-                        headerShown: false,
-                        animation: "slide_from_right",
-                        gestureEnabled: true,
-                        gestureDirection: "horizontal",
-                        fullScreenGestureEnabled: true,
-                    }}
-                >
-                    <Stack.Screen name="(tabs)" />
-                    <Stack.Screen name="(auth)" />
-                    <Stack.Screen
-                        name="chat/[id]"
-                        options={{
+            <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+                <View style={{ flex: 1 }}>
+                    {isMobile && (
+                        <InAppNotificationBanner
+                            onPress={(roomId) => {
+                                if (!roomId) return;
+                                const room = useChatStore
+                                    .getState()
+                                    .rooms.find((r) => String(r.id) === String(roomId));
+                                const t = room?.type === "GROUP" ? "GROUP" : "DIRECT";
+                                const nm = encodeURIComponent(room?.name?.trim() || "Chat");
+                                router.push(`/chat/${roomId}?name=${nm}&type=${t}`);
+                            }}
+                        />
+                    )}
+                    <Stack
+                        screenOptions={{
+                            headerShown: false,
                             animation: "slide_from_right",
-                            gestureEnabled: false,
+                            gestureEnabled: true,
+                            gestureDirection: "horizontal",
+                            fullScreenGestureEnabled: true,
                         }}
-                    />
-                </Stack>
-            </View>
+                    >
+                        <Stack.Screen name="(tabs)" />
+                        <Stack.Screen name="(auth)" />
+                        <Stack.Screen
+                            name="chat/[id]"
+                            options={{
+                                animation: "slide_from_right",
+                                gestureEnabled: false,
+                            }}
+                        />
+                    </Stack>
+
+                    {isMobile && <IncomingCallModal />}
+                    {isMobile && (
+                        <View
+                            style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]}
+                            pointerEvents="box-none"
+                        >
+                            <CallModal />
+                        </View>
+                    )}
+                </View>
+            </SafeAreaProvider>
         </QueryClientProvider>
     );
 }

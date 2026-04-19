@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, ActivityIndicator } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors, ThemeColors } from "@/shared/theme/colors";
 import { useUserStore } from "@/shared/store/userStore";

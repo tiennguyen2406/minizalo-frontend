@@ -15,7 +15,7 @@ import {
     Modal,
     Pressable,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import CreateGroupScreen from "./CreateGroupScreen";

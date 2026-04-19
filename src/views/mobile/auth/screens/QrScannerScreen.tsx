@@ -11,7 +11,7 @@ import {
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { useAuthStore } from "@/shared/store/authStore";
 import { authService } from "@/shared/services/authService";
 

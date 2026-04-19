@@ -17,6 +17,7 @@ import { useFriendStore } from "@/shared/store/friendStore";
 import { Message, User } from "@/shared/types";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import { chatService, MessageDynamo } from "@/shared/services/chatService";
+import { useCallStore } from '../../../shared/store/useCallStore';
 import { MessageService } from "@/shared/services/MessageService";
 import friendService from "@/shared/services/friendService";
 import { validateFileSize } from "@/shared/constants";
@@ -24,6 +25,7 @@ import { isStrangerMessagesNotAllowedError } from "@/shared/utils/chatErrors";
 import { isStrangerPrivateRoom } from "@/shared/utils/strangerChatRooms";
 import { addIncomingChatMessageFromStomp } from "@/shared/utils/chatWebSocketInbound";
 import type { IMessage } from "@stomp/stompjs";
+import { CallType } from "@/shared/services/callService";
 import PinnedMessagesBar from "./PinnedMessagesBar";
 
 interface ChatWindowProps {
@@ -90,6 +92,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   } | null>(null);
   const [friendsListReady, setFriendsListReady] = useState(false);
   const [friendInviteOpen, setFriendInviteOpen] = useState(false);
+
+  // Call Store Actions
+  const { initiateCall, resetCall } = useCallStore();
+
   const messagesState = messages[roomId] || [];
 
   const fetchFriends = useFriendStore((s) => s.fetchFriends);
@@ -107,23 +113,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   const roomName = isGroupRoom
     ? currentRoom?.name || "Nhóm chat"
     : currentRoom?.participants?.find((p) => p.id !== currentUserId)
-        ?.fullName ||
-      currentRoom?.participants?.find((p) => p.id !== currentUserId)
-        ?.username ||
-      currentRoom?.name ||
-      "Phòng chat";
+      ?.fullName ||
+    currentRoom?.participants?.find((p) => p.id !== currentUserId)
+      ?.username ||
+    currentRoom?.name ||
+    "Phòng chat";
+
   /** Phòng nhóm: ưu tiên chi tiết nhóm (cập nhật ngay sau đổi avatar trong panel); không chỉ dựa vào rooms[]. */
   const roomAvatar =
     isGroupRoom &&
-    currentGroupDetail?.id === roomId &&
-    currentGroupDetail.avatarUrl
+      currentGroupDetail?.id === roomId &&
+      currentGroupDetail.avatarUrl
       ? currentGroupDetail.avatarUrl
       : currentRoom?.avatarUrl ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(roomName)}&background=${isGroupRoom ? "0068FF" : "random"}&color=fff&bold=true`;
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(roomName)}&background=${isGroupRoom ? "0068FF" : "random"}&color=fff&bold=true`;
 
-  // Người bạn chat (với 1-1)
+  // Người bạn chat (với 1-1) - using case-insensitive comparison for safety
   const partner = !isGroupRoom
-    ? currentRoom?.participants?.find((p) => p.id !== currentUserId)
+    ? currentRoom?.participants?.find((p) => String(p.id).toLowerCase() !== String(currentUserId).toLowerCase())
     : undefined;
 
   const participantMap = useMemo(() => {
@@ -214,9 +221,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       !partner?.id
         ? undefined
         : requests.find((r) => {
-            const id = r.user?.id ?? r.friend?.id;
-            return id != null && String(id) === String(partner.id);
-          }),
+          const id = r.user?.id ?? r.friend?.id;
+          return id != null && String(id) === String(partner.id);
+        }),
     [requests, partner?.id],
   );
 
@@ -401,12 +408,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 // Xoá emoji đã thả
                 const filtered = payload.emoji
                   ? reactions.filter(
-                      (r) =>
-                        !(
-                          r.userId === payload.userId &&
-                          r.emoji === payload.emoji
-                        ),
-                    )
+                    (r) =>
+                      !(
+                        r.userId === payload.userId &&
+                        r.emoji === payload.emoji
+                      ),
+                  )
                   : reactions.filter((r) => r.userId !== payload.userId); // removeAll theo user
                 return { ...m, reactions: filtered };
               } else if (payload.action === "add") {
@@ -789,6 +796,27 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     webSocketService.sendTyping({ roomId, isTyping });
   };
 
+  const handleCall = async (type: CallType) => {
+    if (!roomId) return;
+    const receiverId = partner?.id;
+
+    if (!receiverId) {
+      alert("Không tìm thấy thông tin người nhận để thực hiện cuộc gọi");
+      return;
+    }
+
+    if (String(receiverId).toLowerCase() === String(currentUserId).toLowerCase()) {
+      alert("Lỗi: Bạn không thể tự gọi cho chính mình.");
+      return;
+    }
+
+    try {
+      await initiateCall(roomId, receiverId, type, roomName, roomAvatar);
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Không thể thực hiện cuộc gọi. Vui lòng thử lại sau.");
+    }
+  };
+
   const handleRecall = async (messageId: string | string[]) => {
     if (!roomId) return;
     const ids = (Array.isArray(messageId) ? messageId : [messageId]).filter(
@@ -970,6 +998,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     const newMsgs = currentMsgs.map((m) =>
       m.id === messageId ? { ...m, pinned: !currentPinStatus } : m,
     );
+
+    // Add systemic pin/unpin notification locally (chỉ hiển thị cho người nhấn)
+    const targetMessage = currentMsgs.find(m => m.id === messageId);
+    if (targetMessage) {
+      newMsgs.push({
+        id: `sys-${Date.now()}-${Math.random()}`,
+        senderId: 'system',
+        roomId,
+        content: !currentPinStatus ? 'Bạn đã ghim tin nhắn' : 'Bạn đã bỏ ghim tin nhắn',
+        type: 'SYSTEM',
+        createdAt: new Date().toISOString(),
+        isRecall: currentPinStatus,
+        replyToId: !currentPinStatus ? messageId : undefined,
+      });
+    }
+
     setMessages(roomId, newMsgs);
   };
 
@@ -979,11 +1023,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     const newMsgs = currentMsgs.map((m) =>
       m.id === messageId
         ? {
-            ...m,
-            reactions: Array.isArray(m.reactions)
-              ? m.reactions.filter((r) => r.userId !== currentUserId)
-              : [],
-          }
+          ...m,
+          reactions: Array.isArray(m.reactions)
+            ? m.reactions.filter((r) => r.userId !== currentUserId)
+            : [],
+        }
         : m,
     );
     setMessages(roomId, newMsgs);
@@ -1004,7 +1048,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
   // Toggle info panel chung cho cả 2 loại phòng
   const handleToggleInfo = () => {
-    setSearchOpen(false);
     if (isGroupRoom) {
       isGroupInfoOpen ? closeGroupInfo() : openGroupInfo();
     } else {
@@ -1105,13 +1148,50 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
+              onClick={() => void handleCall("VOICE")}
+              title="Cuộc gọi thoại"
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={() => void handleCall("VIDEO")}
+              title="Cuộc gọi video"
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
+              </svg>
+            </button>
+            <button
               onClick={handleOpenSearch}
               title="Tìm kiếm tin nhắn"
-              className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
-                searchOpen
-                  ? "bg-blue-100 text-blue-600"
-                  : "hover:bg-gray-100 text-gray-500"
-              }`}
+              className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${searchOpen
+                ? "bg-blue-100 text-blue-600"
+                : "hover:bg-gray-100 text-gray-500"
+                }`}
             >
               <svg
                 className="w-5 h-5"
@@ -1131,11 +1211,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             <button
               onClick={handleToggleInfo}
               title="Thông tin hội thoại"
-              className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
-                infoOpen
-                  ? "bg-blue-100 text-blue-600"
-                  : "hover:bg-gray-100 text-gray-500"
-              }`}
+              className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${infoOpen
+                ? "bg-blue-100 text-blue-600"
+                : "hover:bg-gray-100 text-gray-500"
+                }`}
             >
               <svg
                 className="w-5 h-5"

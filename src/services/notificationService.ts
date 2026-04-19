@@ -92,6 +92,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
                 vibrationPattern: [0, 250, 250, 250],
                 lightColor: '#FF231F7C',
             });
+            await setupCallNotificationChannel();
         }
 
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -115,6 +116,52 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     } catch (error: any) {
         console.log('[notificationService] Lỗi đăng ký Push:', error?.message);
         return null;
+    }
+}
+
+/**
+ * Setup call notification channel (Android) with max priority for heads-up display.
+ * Should be called once during app init.
+ */
+export async function setupCallNotificationChannel() {
+    const Notifications = getNotifications();
+    if (!Notifications || Platform.OS !== 'android') return;
+
+    try {
+        await Notifications.setNotificationChannelAsync('calls', {
+            name: 'Cuộc gọi đến',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 500, 200, 500, 200, 500],
+            sound: 'default',
+            lockscreenVisibility: 1,
+            bypassDnd: true,
+        });
+    } catch (err) {
+        console.log('[notificationService] Lỗi tạo call channel:', err);
+    }
+}
+
+/**
+ * Show heads-up notification for incoming calls (when app is backgrounded).
+ */
+export async function showCallNotification(callerName: string, callType: string) {
+    const Notifications = getNotifications();
+    if (!Notifications) return;
+
+    try {
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: callerName,
+                body: `MiniZalo: ${callType === 'VIDEO' ? 'Cuộc gọi video đến' : 'Cuộc gọi thoại đến'}`,
+                data: { type: 'INCOMING_CALL', callType },
+                sound: 'default',
+                priority: 'max' as any,
+                sticky: true,
+            },
+            trigger: null,
+        });
+    } catch (err) {
+        console.log('[notificationService] Lỗi gửi call notification:', err);
     }
 }
 

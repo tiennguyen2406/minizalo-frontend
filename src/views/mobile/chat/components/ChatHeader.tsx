@@ -1,9 +1,12 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useThemeColors } from "@/shared/theme/colors";
+import { CallType } from "@/shared/services/callService";
+import { Alert } from "react-native";
+import { useCallStore } from "@/shared/store/useCallStore";
 
 interface ChatHeaderProps {
     name: string;
@@ -31,7 +34,36 @@ export default function ChatHeader({
     onAiPress,
 }: ChatHeaderProps) {
     const router = useRouter();
+    const params = useLocalSearchParams();
     const colors = useThemeColors();
+
+    const { initiateCall } = useCallStore();
+
+    const roomId = React.useMemo(() => {
+        if (params.id) return Array.isArray(params.id) ? params.id[0] : params.id;
+        return "";
+    }, [params.id]);
+
+    const handleStartCall = async (type: CallType) => {
+        if (!roomId || roomId === "new") {
+            Alert.alert("Lỗi", "Không thể bắt đầu cuộc gọi trong hội thoại chưa khởi tạo.");
+            return;
+        }
+
+        // Lấy receiverId từ params (truyền qua route khi vào chat chi tiết)
+        const receiverId = params.receiverId as string;
+        if (!receiverId) {
+            Alert.alert("Lỗi", "Không tìm thấy thông tin người nhận để thực hiện cuộc gọi.");
+            return;
+        }
+
+        try {
+
+            await initiateCall(roomId, receiverId, type);
+        } catch (error: any) {
+            Alert.alert("Cuộc gọi thất bại", error.response?.data?.message || "Đã có lỗi xảy ra");
+        }
+    };
 
     const handleBack = () => {
         if (onBack) {
@@ -115,11 +147,11 @@ export default function ChatHeader({
                             <Ionicons name="sparkles" size={22} color="#FFD700" />
                         </TouchableOpacity>
 
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleStartCall("VOICE")}>
                             <Ionicons name="call-outline" size={22} color={colors.headerText} />
                         </TouchableOpacity>
 
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleStartCall("VIDEO")}>
                             <Ionicons name="videocam-outline" size={24} color={colors.headerText} />
                         </TouchableOpacity>
 

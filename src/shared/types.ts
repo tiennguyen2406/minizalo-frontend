@@ -27,33 +27,6 @@ export interface ReadReceiptRequest {
     messageId: string;
 }
 
-export interface User {
-    id: string;
-    username: string;
-    fullName: string;
-    avatarUrl?: string; // Optional as it might not be in all responses
-}
-
-export interface ChatMessageRequest {
-    receiverId: string;
-    content: string;
-    type: "TEXT" | "IMAGE" | "VIDEO" | "FILE" | "STICKER" | "REPLY" | "FORWARD";
-    replyToId?: string;
-    // Field backend thực sự sử dụng cho reply
-    replyToMessageId?: string;
-    fileUrl?: string;
-}
-
-export interface TypingIndicatorRequest {
-    roomId: string;
-    isTyping: boolean;
-}
-
-export interface ReadReceiptRequest {
-    roomId: string;
-    messageId: string;
-}
-
 export interface ReactionRequest {
     roomId: string;
     messageId: string;
@@ -108,7 +81,21 @@ export interface Message {
     senderName?: string;
     roomId: string;
     content: string;
-    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'DOCUMENT' | 'FOLDER' | 'STICKER' | 'REPLY' | 'FORWARD' | 'SYSTEM' | 'PIN_NOTIFICATION' | 'POLL';
+    type:
+        | "TEXT"
+        | "IMAGE"
+        | "VIDEO"
+        | "FILE"
+        | "DOCUMENT"
+        | "FOLDER"
+        | "STICKER"
+        | "REPLY"
+        | "FORWARD"
+        | "SYSTEM"
+        | "PIN_NOTIFICATION"
+        | "POLL"
+        | "CALL_VOICE"
+        | "CALL_VIDEO";
     createdAt: string; // ISO string
     updatedAt?: string;
     isDeleted?: boolean;

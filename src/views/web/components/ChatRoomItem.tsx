@@ -73,7 +73,26 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
         if (!room.lastMessage) return 'Chưa có tin nhắn';
         const { content, type, senderName } = room.lastMessage;
 
-        let text: string;
+        let text: string = 'Tin nhắn mới';
+
+        // 1. AUTO-DETECT CALL JSON (Ưu tiên cao nhất cho tin nhắn cuộc gọi)
+        if (content && content.trim().startsWith('{') && content.includes('"callType":')) {
+            try {
+                const parsed = JSON.parse(content);
+                const isVideo = parsed.callType === 'VIDEO';
+                const icon = isVideo ? '📹' : '📞';
+                if (parsed.status === 'MISSED') text = `${icon} Cuộc gọi nhỡ`;
+                else if (parsed.status === 'REJECTED' || parsed.status === 'CANCELLED') text = `${icon} Cuộc gọi bị hủy`;
+                else text = `${icon} Cuộc gọi ${isVideo ? 'video' : 'thoại'}`;
+                
+                // Trả về luôn nếu là JSON cuộc gọi
+                return room.type === 'GROUP' && senderName ? `${senderName.split(' ').pop()}: ${text}` : text;
+            } catch (e) {
+                // Parse fail, tiếp tục xử lý theo type thông thường
+            }
+        }
+
+        // 2. Xử lý theo Type thông thường
         switch (type) {
             case 'TEXT':
                 text = content;
@@ -91,8 +110,19 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
             case 'STICKER':
                 text = '[Sticker]';
                 break;
-            default:
-                text = 'Tin nhắn mới';
+            case 'CALL_VOICE':
+            case 'CALL_VIDEO':
+                try {
+                    const parsed = JSON.parse(content);
+                    const isVideo = type === 'CALL_VIDEO';
+                    const icon = isVideo ? '📹' : '📞';
+                    if (parsed.status === 'MISSED') text = `${icon} Cuộc gọi nhỡ`;
+                    else if (parsed.status === 'REJECTED' || parsed.status === 'CANCELLED') text = `${icon} Cuộc gọi bị hủy`;
+                    else text = `${icon} Cuộc gọi ${isVideo ? 'video' : 'thoại'}`;
+                } catch (e) {
+                    text = type === 'CALL_VIDEO' ? '📹 Cuộc gọi video' : '📞 Cuộc gọi thoại';
+                }
+                break;
         }
 
         // Với nhóm chat: thêm tên người gửi làm tiền tố
