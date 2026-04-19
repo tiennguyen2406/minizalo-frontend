@@ -17,15 +17,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
 import { chatService, MessageDynamo } from "@/shared/services/chatService";
 import { ChatItem } from "../components/ChatItem";
+import { useRouter } from "expo-router";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 interface SearchMessagesScreenProps {
     roomId: string;
     name: string;
     avatarUrl?: string;
+    /** DIRECT | GROUP — truyền vào khi replace về màn chat */
+    roomType?: string;
     onClose: () => void;
 }
 
-export default function SearchMessagesScreen({ roomId, name, avatarUrl, onClose }: SearchMessagesScreenProps) {
+export default function SearchMessagesScreen({ roomId, name, avatarUrl, roomType = "DIRECT", onClose }: SearchMessagesScreenProps) {
+    const router = useRouter();
+    const setHighlightedMessageId = useChatStore((s) => s.setHighlightedMessageId);
     const colors = useThemeColors();
 
     const [query, setQuery] = useState("");
@@ -109,6 +115,18 @@ export default function SearchMessagesScreen({ roomId, name, avatarUrl, onClose 
         }
     };
 
+    const openMessageInChat = (item: MessageDynamo) => {
+        setHighlightedMessageId(item.messageId);
+        const q = [
+            `name=${encodeURIComponent(name)}`,
+            `type=${encodeURIComponent(roomType)}`,
+            avatarUrl ? `avatarUrl=${encodeURIComponent(avatarUrl)}` : "",
+        ]
+            .filter(Boolean)
+            .join("&");
+        router.replace(`/chat/${roomId}?${q}` as any);
+    };
+
     const renderItem = ({ item }: { item: MessageDynamo }) => {
         const avatarUri = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.senderName || "User")}&background=random&color=fff`;
         let messageText = item.content;
@@ -122,6 +140,8 @@ export default function SearchMessagesScreen({ roomId, name, avatarUrl, onClose 
                 name={item.senderName || "Unknown"}
                 message={messageText}
                 time={formatTime(item.createdAt)}
+                highlightQuery={query.trim()}
+                onPress={() => openMessageInChat(item)}
             />
         );
     };

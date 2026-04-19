@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Message, User } from '@/shared/types';
 import clsx from 'clsx';
+import { getImageUrl } from '@/shared/utils/mediaUtils';
 
 interface ImageGroupBubbleProps {
     messages: Message[];
@@ -16,6 +17,8 @@ interface ImageGroupBubbleProps {
     onForward?: (message: Message | Message[]) => void;
     onReply?: (message: Message) => void;
     onTogglePin?: (messageId: string, currentPinStatus: boolean) => void;
+    /** Cuộn xem toàn bộ ảnh/video trong chat */
+    onOpenChatGallery?: (resolvedMediaUrl: string) => void;
 }
 
 const MAX_VISIBLE = 4;
@@ -38,6 +41,7 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
     onForward,
     onReply,
     onTogglePin,
+    onOpenChatGallery,
 }) => {
     const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -125,7 +129,14 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
                                     src={url}
                                     alt={`Ảnh ${index + 1}`}
                                     style={getImageStyle(index)}
-                                    onClick={() => setLightboxIndex(index)}
+                                    onClick={() => {
+                                        const raw = imageUrls[index];
+                                        if (onOpenChatGallery && raw) {
+                                            onOpenChatGallery(getImageUrl(raw) || raw);
+                                        } else {
+                                            setLightboxIndex(index);
+                                        }
+                                    }}
                                     onLoad={index === 0 ? onImageLoad : undefined}
                                     loading="lazy"
                                 />
@@ -133,7 +144,14 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
                                 {index === visibleCount - 1 && extraCount > 0 && (
                                     <div
                                         className="absolute inset-0 bg-black/50 flex items-center justify-center cursor-pointer rounded-md"
-                                        onClick={() => setLightboxIndex(index)}
+                                        onClick={() => {
+                                            const raw = imageUrls[index];
+                                            if (onOpenChatGallery && raw) {
+                                                onOpenChatGallery(getImageUrl(raw) || raw);
+                                            } else {
+                                                setLightboxIndex(index);
+                                            }
+                                        }}
                                     >
                                         <span className="text-white text-xl font-bold">+{extraCount}</span>
                                     </div>

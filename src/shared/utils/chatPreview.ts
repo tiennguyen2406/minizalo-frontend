@@ -53,6 +53,7 @@ export function getChatPreviewText(lastMessage?: PreviewMessage | null): string 
     if (type === "STICKER") return "[Sticker]";
     if (type === "FOLDER") return "[Thư mục]";
     if (type === "DOCUMENT" || type === "FILE") return "[Tập tin]";
+    if (type === "POLL") return "[Bình chọn]";
     if (type === "SYSTEM") return String(lastMessage.content || "").trim() || "[Thông báo hệ thống]";
 
     const content = String(lastMessage.content || "").trim();
