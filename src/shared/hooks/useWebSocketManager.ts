@@ -5,7 +5,7 @@
  * Phải được đặt tại tầng layout luôn tồn tại (vd: (tabs)/_layout.tsx)
  * để hoạt động trên mọi trang (contacts, files, v.v...)
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import type { IMessage } from '@stomp/stompjs';
 import { useAuthStore } from '@/shared/store/authStore';
@@ -20,6 +20,7 @@ import {
 } from '@/shared/utils/chatErrors';
 import { addIncomingChatMessageFromStomp } from '@/shared/utils/chatWebSocketInbound';
 import { getDirectChatPartnerDisplayName } from '@/shared/utils/strangerChatRooms';
+import { useInAppNotifStore } from '@/views/mobile/chat/components/InAppNotification';
 
 function mapChatRoomResponsesToStore(
     currentUserId: string | undefined,
@@ -181,11 +182,131 @@ function useRoomUpdatesSubscription() {
     }, [accessToken]);
 }
 
+/**
+ * Subscribe STOMP `/topic/chat/:roomId` cho mọi phòng trong store (iOS / Android / web).
+ * Trước đây chỉ chạy trên web — mobile chỉ subscribe từ ChatList nên mất tin khi rời tab.
+ * Dùng `unsubscribe(dest, handler)` để không gỡ listener của ChatScreen cùng topic.
+ */
+function useGlobalChatTopicSubscriptions() {
+    const accessToken = useAuthStore((s) => s.accessToken);
+    const roomIdsKey = useChatStore((s) =>
+        [...s.rooms]
+            .map((r) => r.id)
+            .sort()
+            .join('|'),
+    );
+    const handlersRef = useRef<Map<string, (message: IMessage) => void>>(new Map());
+
+    useEffect(() => {
+        if (!accessToken) {
+            handlersRef.current.forEach((handler, rid) => {
+                webSocketService.unsubscribe(`/topic/chat/${rid}`, handler);
+            });
+            handlersRef.current.clear();
+            return;
+        }
+
+        webSocketService.activate(accessToken);
+
+        const rooms = useChatStore.getState().rooms;
+        const currentIds = new Set(rooms.map((r) => r.id));
+
+        handlersRef.current.forEach((handler, rid) => {
+            if (!currentIds.has(rid)) {
+                webSocketService.unsubscribe(`/topic/chat/${rid}`, handler);
+                handlersRef.current.delete(rid);
+            }
+        });
+
+        rooms.forEach((room) => {
+            const roomId = room.id;
+            if (handlersRef.current.has(roomId)) return;
+
+            const handler = (stompMsg: IMessage) => {
+                const body = stompMsg.body;
+                if (body == null) return;
+                const raw = String(body);
+                let dynamo: Record<string, unknown> | null = null;
+                try {
+                    dynamo = JSON.parse(raw) as Record<string, unknown>;
+                } catch {
+                    dynamo = null;
+                }
+
+                if (dynamo && dynamo.roomListEvent === 'REMOVED' && dynamo.roomId) {
+                    const uid = useAuthStore.getState().user?.id;
+                    if (dynamo.forUserId && dynamo.forUserId !== uid) return;
+                    useChatStore.getState().removeRoomLocal(String(dynamo.roomId));
+                    return;
+                }
+                if (dynamo && dynamo.roomListEvent === 'ADDED' && dynamo.roomId) {
+                    void fetchRoomsMergeWithStore();
+                    return;
+                }
+
+                addIncomingChatMessageFromStomp(roomId, raw);
+
+                if (Platform.OS !== 'web' && dynamo) {
+                    const curOpen = useChatStore.getState().currentRoomId;
+                    const isCurrentlyViewing =
+                        curOpen != null && String(curOpen) === String(roomId);
+                    const senderId =
+                        typeof dynamo.senderId === 'string' ? dynamo.senderId : '';
+                    const myId = useAuthStore.getState().user?.id;
+                    if (senderId && myId && senderId !== myId && !isCurrentlyViewing) {
+                        if (!useChatStore.getState().isRoomMuted(roomId)) {
+                            const roomData = useChatStore
+                                .getState()
+                                .rooms.find((r) => r.id === roomId);
+                            const senderLabel =
+                                (typeof dynamo.senderName === 'string' && dynamo.senderName) ||
+                                (typeof dynamo.senderUsername === 'string' &&
+                                    dynamo.senderUsername) ||
+                                'Tin nhắn mới';
+                            const msgType =
+                                typeof dynamo.type === 'string' ? dynamo.type : '';
+                            const msgContent =
+                                typeof dynamo.content === 'string' ? dynamo.content : '';
+                            useInAppNotifStore.getState().show({
+                                title: senderLabel,
+                                body:
+                                    msgType === 'IMAGE'
+                                        ? '[Hình ảnh]'
+                                        : msgType === 'VIDEO'
+                                          ? '[Video]'
+                                          : msgType === 'FILE'
+                                            ? '[Tập tin]'
+                                            : msgType === 'POLL'
+                                              ? '[Bình chọn]'
+                                            : msgContent || 'Đã gửi một tin nhắn',
+                                avatarUrl: roomData?.avatarUrl || undefined,
+                                roomId: roomId,
+                            });
+                        }
+                    }
+                }
+            };
+
+            webSocketService.subscribe(`/topic/chat/${roomId}`, handler);
+            handlersRef.current.set(roomId, handler);
+        });
+    }, [accessToken, roomIdsKey]);
+
+    useEffect(() => {
+        return () => {
+            handlersRef.current.forEach((handler, rid) => {
+                webSocketService.unsubscribe(`/topic/chat/${rid}`, handler);
+            });
+            handlersRef.current.clear();
+        };
+    }, []);
+}
+
 export function useWebSocketManager() {
     useChatErrorsSubscription();
     useRoomUpdatesSubscription();
+    useGlobalChatTopicSubscriptions();
 
-    // Chỉ chạy trên web
     if (Platform.OS !== 'web') return;
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -195,10 +316,8 @@ export function useWebSocketManager() {
 function _useWebSocketManagerWeb() {
     const accessToken = useAuthStore((s) => s.accessToken);
     const user = useAuthStore((s) => s.user);
-    const rooms = useChatStore((s) => s.rooms);
     const setRooms = useChatStore((s) => s.setRooms);
 
-    const subscribedRoomIds = useRef<Set<string>>(new Set());
     const hasFetchedOnLogin = useRef(false);
 
     /** Đồng bộ danh sách phòng (phòng mới từ mobile / tab khác). */
@@ -307,67 +426,8 @@ function _useWebSocketManagerWeb() {
         webSocketService.activate(accessToken);
     }, [accessToken]);
 
-    const roomIdsKey = useMemo(
-        () =>
-            [...rooms]
-                .map((r) => r.id)
-                .sort()
-                .join('|'),
-        [rooms],
-    );
-
-    // 3. Subscribe tới mọi phòng trong store (khi có roomId mới → phải chạy lại, không chỉ khi đổi length)
-    useEffect(() => {
-        if (rooms.length === 0) return;
-
-        // Unsubscribe các room đã bị xóa khỏi list (realtime REMOVED)
-        const currentIds = new Set(rooms.map(r => r.id));
-        subscribedRoomIds.current.forEach((rid) => {
-            if (!currentIds.has(rid)) {
-                webSocketService.unsubscribe(`/topic/chat/${rid}`);
-                subscribedRoomIds.current.delete(rid);
-            }
-        });
-
-        rooms.forEach((room) => {
-            if (subscribedRoomIds.current.has(room.id)) return;
-
-            const topic = `/topic/chat/${room.id}`;
-            const roomId = room.id;
-
-            webSocketService.subscribe(topic, (stompMsg) => {
-                const body = stompMsg.body;
-                if (body == null) return;
-                const raw = String(body);
-                try {
-                    const dynamo = JSON.parse(raw);
-                    if (dynamo.roomListEvent === 'REMOVED' && dynamo.roomId) {
-                        const uid = useAuthStore.getState().user?.id;
-                        if (dynamo.forUserId && dynamo.forUserId !== uid) return;
-                        useChatStore.getState().removeRoomLocal(String(dynamo.roomId));
-                        return;
-                    }
-                    if (dynamo.roomListEvent === 'ADDED' && dynamo.roomId) {
-                        void fetchRoomsMergeWithStore();
-                        return;
-                    }
-                } catch {
-                    /* không phải JSON — addIncoming sẽ log nếu cần */
-                }
-                addIncomingChatMessageFromStomp(roomId, raw);
-            });
-
-            subscribedRoomIds.current.add(roomId);
-        });
-    }, [roomIdsKey]);
-
-    // 4. Cleanup khi unmount hẳn (hiếm gặp - chỉ khi logout hoặc đóng app)
     useEffect(() => {
         return () => {
-            subscribedRoomIds.current.forEach(roomId => {
-                webSocketService.unsubscribe(`/topic/chat/${roomId}`);
-            });
-            subscribedRoomIds.current.clear();
             hasFetchedOnLogin.current = false;
         };
     }, []);

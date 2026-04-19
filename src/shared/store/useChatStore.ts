@@ -35,6 +35,9 @@ const isWeb = Platform.OS === 'web';
 
 const _mobileCache = new Map<string, Set<string>>();
 
+/** Tránh ghi đè pinned/muted trong RAM bởi đọc AsyncStorage chậm sau khi user vừa bật/tắt (race). */
+let lastChatPrefsMutationAt = 0;
+
 function safeLoadSet(key: string): Set<string> {
     if (isWeb) {
         try {
@@ -114,6 +117,8 @@ interface ChatState {
     markRoomAsUnread: (roomId: string, count?: number) => void;
     togglePinRoom: (roomId: string) => void;
     toggleMuteRoom: (roomId: string) => void;
+    /** Phòng có đang tắt thông báo (so khớp id đã chuẩn hóa string). */
+    isRoomMuted: (roomId: string | null | undefined) => boolean;
     clearConversation: (roomId: string) => Promise<void>;
     setHighlightedMessageId: (messageId: string | null) => void;
     setPendingOpenRoomId: (roomId: string | null) => void;
@@ -167,21 +172,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     setCurrentRoom: (roomId) => set((state) => {
         if (!roomId) return { currentRoomId: null };
-        const newRooms = state.rooms.map(room => 
-            room.id === roomId ? { ...room, unreadCount: 0 } : room
+        const idNorm = String(roomId);
+        const newRooms = state.rooms.map(room =>
+            String(room.id) === idNorm ? { ...room, unreadCount: 0 } : room
         );
         return { currentRoomId: roomId, rooms: newRooms };
     }),
 
     addMessage: (roomId, message) => set((state) => {
-        const roomMessages = state.messages[roomId] || [];
+        const roomIdNorm = String(roomId);
+        const roomMessages = state.messages[roomIdNorm] || state.messages[roomId] || [];
         // Prevent duplicates by ID
         if (roomMessages.some(m => m.id === message.id)) return state;
 
         // Bỏ tin nhắn optimistic (temp-*) của sender khi nhận được real message
         let filteredMessages = [...roomMessages];
         if (message.id && !message.id.startsWith('temp-')) {
-            const tempIdx = filteredMessages.findIndex(m => m.id && m.id.startsWith('temp-') && m.senderId === message.senderId);
+            const tempIdx = filteredMessages.findIndex(m =>
+                m.id &&
+                m.id.startsWith('temp-') &&
+                String(m.senderId) === String(message.senderId),
+            );
             if (tempIdx !== -1) {
                 // Xóa tin nhắn temp đầu tiên tìm thấy
                 filteredMessages.splice(tempIdx, 1);
@@ -189,17 +200,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
 
         // Lấy userId từ JWT token (an toàn hơn user?.id có thể null)
-        const currentUserId = useAuthStore.getState().user?.id || getMyUserIdFromToken();
+        const currentUserIdRaw = useAuthStore.getState().user?.id || getMyUserIdFromToken();
+        const currentUserId = currentUserIdRaw != null ? String(currentUserIdRaw) : null;
+        const senderNorm = message.senderId != null ? String(message.senderId) : '';
 
-        const newRooms = state.rooms.map((room) => {
-            if (room.id === roomId) {
+        const msgTypeUpper = String(message.type || '').toUpperCase();
+        const isNoiseMessage =
+            msgTypeUpper === 'SYSTEM' ||
+            msgTypeUpper === 'PIN_NOTIFICATION' ||
+            message.senderId === 'system';
+
+        let newRooms = state.rooms.map((room) => {
+            // So khớp id phòng chuẩn hóa string (tránh lệch UUID / nhóm không tăng unread)
+            if (String(room.id) !== roomIdNorm) {
+                return room;
+            }
                 // Chỉ set unreadCount > 0 nếu:
                 // 1. Không phải phòng đang mở (currentRoomId)
                 // 2. Không phải tin nhắn nháp (temp-)
                 // 3. Không phải tin nhắn do chính user gửi
+                // 4. Không phải tin hệ thống / ghim (không đếm badge)
                 const isTemp = message.id && message.id.startsWith('temp-');
-                const isMine = currentUserId != null && message.senderId === currentUserId;
-                const isUnread = state.currentRoomId !== roomId && !isTemp && !isMine;
+                const isMine = currentUserId != null && senderNorm !== '' && senderNorm === currentUserId;
+                const currentOpen = state.currentRoomId != null ? String(state.currentRoomId) : null;
+                const isUnread =
+                    currentOpen !== roomIdNorm && !isTemp && !isMine && !isNoiseMessage;
                 
                 console.log(`[Store] addMessage room=${roomId} isUnread=${isUnread} | currentRoom=${state.currentRoomId} sender=${message.senderId} me=${currentUserId}`);
                 
@@ -209,16 +234,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     updatedAt: message.createdAt || new Date().toISOString(),
                     unreadCount: isUnread ? (room.unreadCount || 0) + 1 : room.unreadCount
                 };
-            }
-            return room;
         });
+
+        const hadRoom = state.rooms.some((r) => String(r.id) === roomIdNorm);
+        if (!hadRoom) {
+            const isTemp = message.id && message.id.startsWith('temp-');
+            const isMine = currentUserId != null && senderNorm !== '' && senderNorm === currentUserId;
+            const currentOpen = state.currentRoomId != null ? String(state.currentRoomId) : null;
+            const isUnread =
+                currentOpen !== roomIdNorm && !isTemp && !isMine && !isNoiseMessage;
+            const synthetic: import('../types').ChatRoom = {
+                id: roomIdNorm,
+                name: 'Nhóm chat',
+                type: 'GROUP',
+                lastMessage: message,
+                unreadCount: isUnread ? 1 : 0,
+                participants: [],
+                updatedAt: message.createdAt || new Date().toISOString(),
+            };
+            newRooms = [...newRooms, synthetic];
+        }
 
         newRooms.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
         return {
             messages: {
                 ...state.messages,
-                [roomId]: [...filteredMessages, message],
+                [roomIdNorm]: [...filteredMessages, message],
             },
             rooms: newRooms,
         };
@@ -279,17 +321,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })),
 
     markRoomAsRead: (roomId) => set((state) => {
-        const room = state.rooms.find(r => r.id === roomId);
+        const id = String(roomId);
+        const room = state.rooms.find((r) => String(r.id) === id);
         if (!room || room.unreadCount === 0) return state;
-        const newRooms = state.rooms.map(r =>
-            r.id === roomId ? { ...r, unreadCount: 0 } : r
+        const newRooms = state.rooms.map((r) =>
+            String(r.id) === id ? { ...r, unreadCount: 0 } : r,
         );
         return { rooms: newRooms };
     }),
 
     markRoomAsUnread: (roomId, count = 1) => set((state) => {
+        const id = String(roomId);
         const newRooms = state.rooms.map((r) => {
-            if (r.id !== roomId) return r;
+            if (String(r.id) !== id) return r;
             const nextCount = Math.max(count, r.unreadCount || 0, 1);
             return { ...r, unreadCount: nextCount };
         });
@@ -297,18 +341,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }),
 
     togglePinRoom: (roomId) => set((state) => {
-        const next = new Set(state.pinnedRooms);
-        if (next.has(roomId)) { next.delete(roomId); } else { next.add(roomId); }
+        lastChatPrefsMutationAt = Date.now();
+        const id = String(roomId);
+        const next = new Set<string>();
+        for (const x of state.pinnedRooms) next.add(String(x));
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
         safeSaveSet(getScopedKey('pinnedRooms'), next);
         return { pinnedRooms: next };
     }),
 
     toggleMuteRoom: (roomId) => set((state) => {
-        const next = new Set(state.mutedRooms);
-        if (next.has(roomId)) { next.delete(roomId); } else { next.add(roomId); }
+        lastChatPrefsMutationAt = Date.now();
+        const id = String(roomId);
+        const next = new Set<string>();
+        for (const x of state.mutedRooms) {
+            next.add(String(x));
+        }
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
         safeSaveSet(getScopedKey('mutedRooms'), next);
         return { mutedRooms: next };
     }),
+
+    isRoomMuted: (roomId) => {
+        if (roomId == null || roomId === '') return false;
+        return get().mutedRooms.has(String(roomId));
+    },
 
     clearConversation: async (roomId) => {
         set((state) => {
@@ -563,11 +622,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const mutedRooms = safeLoadSet(getScopedKey('mutedRooms'));
             useChatStore.setState({ pinnedRooms, mutedRooms });
         } else {
+            const fetchStarted = Date.now();
             Promise.all([
                 mobileRehydrateSet(getScopedKey('pinnedRooms')),
                 mobileRehydrateSet(getScopedKey('mutedRooms')),
             ]).then(([pinnedRooms, mutedRooms]) => {
-                useChatStore.setState({ pinnedRooms, mutedRooms });
+                if (lastChatPrefsMutationAt > fetchStarted) return;
+                const mutedNorm = new Set([...mutedRooms].map((x) => String(x)));
+                useChatStore.setState({ pinnedRooms, mutedRooms: mutedNorm });
             });
         }
     });
@@ -575,10 +637,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
 // Mobile: rehydrate ngay khi module load
 if (!isWeb) {
+    const initialRehydrateStarted = Date.now();
     Promise.all([
         mobileRehydrateSet(getScopedKey('pinnedRooms')),
         mobileRehydrateSet(getScopedKey('mutedRooms')),
     ]).then(([pinnedRooms, mutedRooms]) => {
-        useChatStore.setState({ pinnedRooms, mutedRooms });
+        if (lastChatPrefsMutationAt > initialRehydrateStarted) return;
+        const mutedNorm = new Set([...mutedRooms].map((x) => String(x)));
+        useChatStore.setState({ pinnedRooms, mutedRooms: mutedNorm });
     });
 }

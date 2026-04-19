@@ -8,6 +8,7 @@ import {
     initNotificationHandler
 } from "@/services/notificationService";
 import { useAuthStore } from "@/shared/store/authStore";
+import { useChatStore } from "@/shared/store/useChatStore";
 import { InAppNotificationBanner } from "@/views/mobile/chat/components/InAppNotification";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -92,9 +93,13 @@ export default function RootLayout() {
                 {isMobile && (
                     <InAppNotificationBanner
                         onPress={(roomId) => {
-                            if (roomId) {
-                                router.push(`/chat/${roomId}?type=DIRECT`);
-                            }
+                            if (!roomId) return;
+                            const room = useChatStore
+                                .getState()
+                                .rooms.find((r) => String(r.id) === String(roomId));
+                            const t = room?.type === "GROUP" ? "GROUP" : "DIRECT";
+                            const nm = encodeURIComponent(room?.name?.trim() || "Chat");
+                            router.push(`/chat/${roomId}?name=${nm}&type=${t}`);
                         }}
                     />
                 )}

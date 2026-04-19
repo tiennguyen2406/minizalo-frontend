@@ -9,6 +9,7 @@ export default function SearchMessagesRoute() {
             roomId={params.roomId as string}
             name={params.name as string}
             avatarUrl={params.avatarUrl as string}
+            roomType={(params.type as string) || "DIRECT"}
             onClose={() => router.back()}
         />
     );

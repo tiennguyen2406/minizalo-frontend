@@ -10,6 +10,8 @@ interface ChatFooterProps {
     onSend?: (message: string) => void;
     onSendImage?: (assets: ImagePicker.ImagePickerAsset[]) => void;
     onSendFile?: (files: DocumentPicker.DocumentPickerAsset[]) => void;
+    /** Nhóm: mở form tạo bình chọn (giống web). */
+    onCreatePoll?: () => void;
     uploadProgress?: number | null;
     uploadText?: string;
     replyTo?: {
@@ -24,7 +26,7 @@ export interface ChatFooterHandle {
 }
 
 const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
-    { onSend, onSendImage, onSendFile, uploadProgress, uploadText, replyTo, onCancelReply },
+    { onSend, onSendImage, onSendFile, onCreatePoll, uploadProgress, uploadText, replyTo, onCancelReply },
     ref
 ) => {
     const [message, setMessage] = useState("");
@@ -467,6 +469,12 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
                             <TouchableOpacity onPress={pickFile}>
                                 <SimpleLineIcons name="options" size={22} color={colors.textSecondary} />
                             </TouchableOpacity>
+
+                            {onCreatePoll && (
+                                <TouchableOpacity onPress={onCreatePoll} style={{ marginLeft: 16 }}>
+                                    <Ionicons name="stats-chart-outline" size={26} color={colors.textSecondary} />
+                                </TouchableOpacity>
+                            )}
 
                             <TouchableOpacity onPress={takePhoto} style={{ marginLeft: 16 }}>
                                 <Ionicons name="camera-outline" size={26} color={colors.textSecondary} />
