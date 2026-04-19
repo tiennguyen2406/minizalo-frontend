@@ -74,7 +74,7 @@ const CallModal: React.FC<CallModalProps> = ({
         if (!isOpen || !activeCall || initializedRef.current) return;
 
         const init = async () => {
-            console.log('[WebAgora] Initializing for call:', activeCall.callSessionId);
+
             initializedRef.current = true;
             
             const rtcClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
@@ -165,7 +165,7 @@ const CallModal: React.FC<CallModalProps> = ({
 
             try {
                 const userUid = user?.id || 'anonymous';
-                console.log('[WebAgora] Creating local tracks before join…');
+
 
                 // TẠO TRACK TRƯỚC để camera người gọi bật/hiển thị ngay, không chờ bên kia bắt máy.
                 const audio = await AgoraRTC.createMicrophoneAudioTrack({
@@ -250,7 +250,7 @@ const CallModal: React.FC<CallModalProps> = ({
     }, [isOpen, activeCall?.callSessionId]);
 
     const stopAndCloseTracks = async () => {
-        console.log('[WebAgora] Cleaning up tracks and leaving...');
+
         
         if (audioTrackRef.current) {
             audioTrackRef.current.stop();

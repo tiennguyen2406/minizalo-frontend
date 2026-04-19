@@ -431,9 +431,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         if (!roomId) return;
         
         const receiverId = partner?.id;
-        console.log(`[WebCall Debug] My ID: ${currentUserId}`);
-        console.log(`[WebCall Debug] Partner ID: ${receiverId}`);
-        console.log(`[WebCall Debug] Room ID: ${roomId}`);
+
 
         if (!receiverId) {
             alert('Không tìm thấy thông tin người nhận để thực hiện cuộc gọi');
@@ -447,7 +445,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         }
 
         try {
-            console.log(`[WebCall] Initiating ${type} call to: ${receiverId}`);
+
             await initiateCall(roomId, receiverId, type, roomName, roomAvatar);
         } catch (error: any) {
             alert(error.response?.data?.message || 'Không thể thực hiện cuộc gọi. Vui lòng thử lại sau.');

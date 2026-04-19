@@ -35,7 +35,7 @@ try {
     AgoraAudioAinsMode = AgoraNative.AudioAinsMode;
     AgoraRenderModeType = AgoraNative.RenderModeType;
 } catch (e) {
-    console.log("[Agora] Native module not found (Expo Go). Feature disabled.");
+
 }
 import { useCallStore } from "@/shared/store/useCallStore";
 import { useAuthStore } from "@/shared/store/authStore";
@@ -172,10 +172,10 @@ export default function CallModal() {
             }
             try {
                 const audioPerm = await Audio.requestPermissionsAsync();
-                console.log("[Agora] Audio permission:", audioPerm.status);
+
                 if (callType === "VIDEO") {
                     const camPerm = await Camera.requestCameraPermissionsAsync();
-                    console.log("[Agora] Camera permission:", camPerm.status);
+
                 }
 
                 const userAccount = (user?.id || "").trim();
@@ -194,7 +194,7 @@ export default function CallModal() {
                     shouldDuckAndroid: false,
                     playThroughEarpieceAndroid: callType !== "VIDEO",
                 });
-                console.log("[Agora] Audio mode configured for VoIP (record + playout)");
+
 
                 initializedRef.current = true;
                 const agEngine = AgoraEngine();
@@ -204,7 +204,7 @@ export default function CallModal() {
                 engineRef.current = agEngine;
 
                 agEngine.addListener("onJoinChannelSuccess", (connection: any, _uid: any) => {
-                    console.log("[Agora] Joined channel:", connection.channelId);
+
                     try {
                         agEngine.muteAllRemoteAudioStreams(false);
                         applyPlaybackVolume(agEngine);
@@ -213,7 +213,7 @@ export default function CallModal() {
                     }
                 });
                 agEngine.addListener("onUserJoined", (_: any, uid: any) => {
-                    console.log("[Agora] Remote user joined:", uid);
+
                     setRemoteUid(uid);
                 });
                 agEngine.addListener("onUserOffline", () => {
@@ -226,7 +226,7 @@ export default function CallModal() {
                     (_connection: any, sourceType: any, uid: any, width: any, height: any) => {
                         if (sourceType === 2 && width > 0 && height > 0) {
                             setRemoteSize({ w: width, h: height });
-                            console.log("[Agora] Remote size", uid, width, height);
+
                         }
                     }
                 );
@@ -286,7 +286,7 @@ export default function CallModal() {
                     userAccount,
                     joinOptions
                 );
-                console.log("[Agora] Joining channel:", activeCall.channelName, "as", userAccount, "type:", callType);
+
             } catch (error) {
                 console.error("[Agora] Init Failed:", error);
                 initializedRef.current = false;

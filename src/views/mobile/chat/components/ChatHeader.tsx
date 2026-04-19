@@ -42,7 +42,7 @@ export default function ChatHeader({ name, roomType, isStranger, onBack, onMenuP
         }
 
         try {
-            console.log(`[CallService] Initiating ${type} call to: ${receiverId}`);
+
             await initiateCall(roomId, receiverId, type);
         } catch (error: any) {
             Alert.alert("Cuộc gọi thất bại", error.response?.data?.message || "Đã có lỗi xảy ra");
