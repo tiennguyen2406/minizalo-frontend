@@ -16,6 +16,8 @@ interface ChatHeaderProps {
     strangerSubtitleRow?: {
         visible: boolean;
     };
+    /** Dấu chấm đỏ trên nút menu (vd. có yêu cầu vào nhóm chờ duyệt) */
+    showMenuBadge?: boolean;
     onBack?: () => void;
     onMenuPress?: () => void;
     onAiPress?: () => void;
@@ -26,6 +28,7 @@ export default function ChatHeader({
     roomType,
     isStranger,
     strangerSubtitleRow,
+    showMenuBadge,
     onBack,
     onMenuPress,
     onAiPress,
@@ -152,8 +155,23 @@ export default function ChatHeader({
                             <Ionicons name="videocam-outline" size={24} color={colors.headerText} />
                         </TouchableOpacity>
 
-                        <TouchableOpacity onPress={onMenuPress}>
+                        <TouchableOpacity onPress={onMenuPress} style={{ position: "relative" }}>
                             <Ionicons name="menu-outline" size={24} color={colors.headerText} />
+                            {showMenuBadge ? (
+                                <View
+                                    style={{
+                                        position: "absolute",
+                                        top: -2,
+                                        right: -2,
+                                        width: 10,
+                                        height: 10,
+                                        borderRadius: 5,
+                                        backgroundColor: "#ef4444",
+                                        borderWidth: 2,
+                                        borderColor: colors.headerBg,
+                                    }}
+                                />
+                            ) : null}
                         </TouchableOpacity>
                     </View>
                 </View>

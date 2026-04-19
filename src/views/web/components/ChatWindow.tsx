@@ -3,6 +3,9 @@ import SearchMessagePanel from "./SearchMessagePanel";
 import { Box, Avatar } from "zmp-ui";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
+import { groupService } from "@/shared/services/groupService";
+import { useAuthStore } from "@/shared/store/authStore";
+import { useGroupStore } from "@/shared/store/useGroupStore";
 import GroupInfoPanel from "./GroupInfoPanel";
 import DirectChatInfoPanel from "./DirectChatInfoPanel";
 import AddMembersModal from "./AddMembersModal";
@@ -10,12 +13,10 @@ import ForwardMessageModal from "./ForwardMessageModal";
 import CreatePollModal from "./CreatePollModal";
 import SendFriendRequestModalWeb from "./SendFriendRequestModalWeb";
 import { useChatStore } from "@/shared/store/useChatStore";
-import { useGroupStore } from "@/shared/store/useGroupStore";
 import { useFriendStore } from "@/shared/store/friendStore";
-import { Message } from "@/shared/types";
+import { Message, User } from "@/shared/types";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import { chatService, MessageDynamo } from "@/shared/services/chatService";
-import { useAuthStore } from "@/shared/store/authStore";
 import { useCallStore } from '../../../shared/store/useCallStore';
 import { MessageService } from "@/shared/services/MessageService";
 import friendService from "@/shared/services/friendService";
@@ -24,8 +25,8 @@ import { isStrangerMessagesNotAllowedError } from "@/shared/utils/chatErrors";
 import { isStrangerPrivateRoom } from "@/shared/utils/strangerChatRooms";
 import { addIncomingChatMessageFromStomp } from "@/shared/utils/chatWebSocketInbound";
 import type { IMessage } from "@stomp/stompjs";
-import { callService, CallType } from '@/shared/services/callService';
-import CallModal from './CallModal';
+import { CallType } from "@/shared/services/callService";
+import PinnedMessagesBar from "./PinnedMessagesBar";
 
 interface ChatWindowProps {
   roomId: string;
@@ -63,6 +64,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     setMessages,
     rooms,
     prependMessages,
+    deleteRoom,
   } = useChatStore();
   const { isGroupInfoOpen, openGroupInfo, closeGroupInfo, currentGroupDetail } =
     useGroupStore();
@@ -72,12 +74,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     Message[] | null
   >(null);
   const [isSendingFile, setIsSendingFile] = useState(false);
-  const [showPinnedMenu, setShowPinnedMenu] = useState(false);
   const [historyLastKey, setHistoryLastKey] = useState<string | null>(null);
   const [historyHasMore, setHistoryHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [showCreatePoll, setShowCreatePoll] = useState(false);
+  const [groupPerm, setGroupPerm] = useState<{
+    ownerId?: string;
+    members?: { userId: string; role: string }[];
+    settings?: any;
+  } | null>(null);
+  const [permToast, setPermToast] = useState<string | null>(null);
   const [blockStatus, setBlockStatus] = useState<{
     blockedByYou: boolean;
     blockedByOther: boolean;
@@ -102,6 +109,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
   const currentRoom = rooms.find((r) => r.id === roomId);
   const isGroupRoom = currentRoom?.type === "GROUP";
+  const isGroupDisbanded = isGroupRoom && !!currentRoom?.disbanded;
   const roomName = isGroupRoom
     ? currentRoom?.name || "Nhóm chat"
     : currentRoom?.participants?.find((p) => p.id !== currentUserId)
@@ -124,6 +132,32 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   const partner = !isGroupRoom
     ? currentRoom?.participants?.find((p) => String(p.id).toLowerCase() !== String(currentUserId).toLowerCase())
     : undefined;
+
+  const participantMap = useMemo(() => {
+    const m: Record<string, User> = {};
+    currentRoom?.participants?.forEach((p) => {
+      m[p.id] = p;
+    });
+    return m;
+  }, [currentRoom]);
+
+  /** Tin ghim: mới hơn (theo thời gian gửi tin gốc) hiển thị trước trên thanh */
+  const pinnedMessagesSorted = useMemo(() => {
+    const pinned = messagesState.filter((m) => m.pinned);
+    return pinned.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }, [messagesState]);
+
+  const scrollToMessageHighlight = useCallback((messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("bg-yellow-100");
+      setTimeout(() => el.classList.remove("bg-yellow-100"), 1500);
+    }
+  }, []);
 
   const blockedUsers = useFriendStore((s) => s.blockedUsers);
   const blockSignal = useFriendStore((s) => s.blockSignal);
@@ -317,6 +351,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       addIncomingChatMessageFromStomp(roomId, String(raw));
     };
     webSocketService.subscribe(chatTopic, onInboundChat);
+    // Thông báo chỉ cho riêng user (vd: không thể xem lịch sử)
+    const noticeDest = `/user/queue/chat-notices`;
+    const onInboundNotice = (stompMessage: IMessage) => {
+      try {
+        const raw = String(stompMessage.body || "").trim();
+        if (!raw) return;
+        const payload = JSON.parse(raw) as { roomId?: string };
+        if (payload?.roomId && String(payload.roomId) !== String(roomId)) return;
+        addIncomingChatMessageFromStomp(roomId, raw);
+      } catch {
+        // fallback: vẫn thử add
+        const raw = stompMessage.body;
+        if (raw != null) addIncomingChatMessageFromStomp(roomId, String(raw));
+      }
+    };
+    webSocketService.subscribe(noticeDest, onInboundNotice);
 
     // Subscribe to recall events
     const recallTopic = `/topic/chat/${roomId}/recall`;
@@ -409,6 +459,70 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       }
     });
 
+    // Realtime group settings updates (permissions)
+    const settingsTopic = `/topic/chat/${roomId}/settings`;
+    webSocketService.subscribe(settingsTopic, (stompMessage) => {
+      try {
+        const payload = JSON.parse(String(stompMessage.body || "{}"));
+        console.debug("[WS settings]", roomId, payload);
+        setGroupPerm((prev) => ({
+          ...(prev || {}),
+          settings: payload,
+        }));
+        // cũng sync vào store nếu đang mở panel info
+        const gs = useGroupStore.getState();
+        if (gs.currentGroupDetail && gs.currentGroupDetail.id === roomId) {
+          gs.updateCurrentGroupDetail({
+            ...gs.currentGroupDetail,
+            settings: payload,
+          } as any);
+        }
+      } catch (err) {
+        console.error("Error parsing settings WS message:", err);
+      }
+    });
+
+    // Realtime group role/owner changes (để mở/khóa ô nhập ngay khi phong phó nhóm / chuyển trưởng nhóm)
+    const groupEventsTopic = `/topic/group/${roomId}/events`;
+    const onGroupEvent = (stompMessage: IMessage) => {
+      try {
+        const payload = JSON.parse(String(stompMessage.body || "{}")) as {
+          message?: string;
+          eventType?: string;
+        };
+        const msg = String(payload.message || "");
+        // Backend có thể dùng eventType khác nhau; ưu tiên match theo text VN đang hiển thị cho user
+        const isRoleChange =
+          msg.includes("phó nhóm") || msg.includes("nhường quyền trưởng nhóm");
+        if (!isRoleChange) return;
+
+        void groupService
+          .getGroupDetails(roomId)
+          .then((gd) => {
+            setGroupPerm((prev) => ({
+              ...(prev || {}),
+              ownerId: gd.ownerId,
+              members: (gd.members || []).map((m: any) => ({
+                userId: m.userId,
+                role: m.role,
+              })),
+              settings: (prev as any)?.settings ?? gd.settings,
+            }));
+
+            const gs = useGroupStore.getState();
+            if (gs.currentGroupDetail && gs.currentGroupDetail.id === roomId) {
+              gs.updateCurrentGroupDetail(gd as any);
+            }
+          })
+          .catch(() => {});
+      } catch {
+        // ignore
+      }
+    };
+    if (isGroupRoom) {
+      webSocketService.subscribe(groupEventsTopic, onGroupEvent);
+    }
+
     // Đóng panel info khi chuyển phòng
     setIsInfoOpen(false);
     closeGroupInfo();
@@ -427,12 +541,90 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
     return () => {
       webSocketService.unsubscribe(chatTopic, onInboundChat);
+      webSocketService.unsubscribe(noticeDest, onInboundNotice);
       webSocketService.unsubscribe(recallTopic);
       webSocketService.unsubscribe(reactionTopic);
       webSocketService.unsubscribe(pinTopic);
+      webSocketService.unsubscribe(settingsTopic);
+      if (isGroupRoom) webSocketService.unsubscribe(groupEventsTopic, onGroupEvent);
       setCurrentRoom(null);
     };
   }, [roomId, fetchHistory]);
+
+  // Load group detail once so permission UI works without mở panel info
+  useEffect(() => {
+    if (!roomId || !isGroupRoom) return;
+    groupService
+      .getGroupDetails(roomId)
+      .then((gd) =>
+        setGroupPerm({
+          ownerId: gd.ownerId,
+          members: (gd.members || []).map((m: any) => ({
+            userId: m.userId,
+            role: m.role,
+          })),
+          settings: gd.settings,
+        }),
+      )
+      .catch(() => {
+        // ignore: permission UI sẽ fallback không khóa nếu không có data
+      });
+  }, [roomId, isGroupRoom]);
+
+  // Đồng bộ groupPerm khi currentGroupDetail (store) thay đổi realtime (vd: phong phó nhóm / chuyển trưởng nhóm)
+  useEffect(() => {
+    if (!roomId || !isGroupRoom) return;
+    if (!currentGroupDetail || currentGroupDetail.id !== roomId) return;
+    setGroupPerm((prev) => ({
+      ...(prev || {}),
+      ownerId: currentGroupDetail.ownerId,
+      members: (currentGroupDetail.members || []).map((m: any) => ({
+        userId: m.userId,
+        role: m.role,
+      })),
+      // giữ settings từ prev nếu có WS update mới hơn; fallback lấy từ currentGroupDetail.settings
+      settings: (prev as any)?.settings ?? (currentGroupDetail as any).settings,
+    }));
+  }, [currentGroupDetail, roomId, isGroupRoom]);
+
+  // Fallback: nếu WS settings không về vì lý do nào đó, vẫn sync permissions không cần F5
+  useEffect(() => {
+    if (!roomId || !isGroupRoom) return;
+    const tick = async () => {
+      try {
+        const s = await groupService.getGroupSettings(roomId);
+        setGroupPerm((prev) => ({ ...(prev || {}), settings: s }));
+      } catch {
+        // ignore
+      }
+    };
+    tick();
+    const t = window.setInterval(tick, 3000);
+    return () => window.clearInterval(t);
+  }, [roomId, isGroupRoom]);
+
+  useEffect(() => {
+    if (!permToast) return;
+    const t = window.setTimeout(() => setPermToast(null), 2200);
+    return () => window.clearTimeout(t);
+  }, [permToast]);
+
+  const myUserId = useAuthStore((s) => s.user?.id);
+  const isOwnerOrAdmin =
+    !!myUserId &&
+    !!groupPerm &&
+    (groupPerm.ownerId === myUserId ||
+      (groupPerm.members || []).some(
+        (m) => m.userId === myUserId && m.role === "ADMIN",
+      ));
+
+  const allowMemberSendMessage =
+    groupPerm?.settings?.allowMemberSendMessage !== false;
+  const allowMemberCreatePoll =
+    groupPerm?.settings?.allowMemberCreatePoll !== false;
+  const canSendMessage =
+    !isGroupRoom || allowMemberSendMessage || isOwnerOrAdmin;
+  const canCreatePoll = !isGroupRoom || allowMemberCreatePoll || isOwnerOrAdmin;
 
   // Auto-refresh block status when blockedUsers changes (block/unblock from any screen)
   useEffect(() => {
@@ -570,13 +762,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       } else {
         // Chat 1-1: gửi qua REST để nhận phản hồi chặn tin người lạ.
         try {
-          await chatService.sendMessage(
-            roomId,
-            "",
-            replyingTo?.id,
-            msgType,
-            [attachment as any],
-          );
+          await chatService.sendMessage(roomId, "", replyingTo?.id, msgType, [
+            attachment as any,
+          ]);
           await fetchHistory();
         } catch (err2: unknown) {
           if (isStrangerMessagesNotAllowedError(err2)) {
@@ -710,7 +898,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     setIsSendingFile(true);
     try {
       // 1. Parallel upload all files
-      const uploadPromises = files.map((file) => MessageService.uploadFile(file));
+      const uploadPromises = files.map((file) =>
+        MessageService.uploadFile(file),
+      );
       const uploadResults = await Promise.all(uploadPromises);
 
       // 2. Map results to attachments
@@ -1043,150 +1233,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
           </div>
         </div>
 
-        {/* Pinned Messages Header */}
-        {messagesState.some((m) => m.pinned) &&
-          (() => {
-            const pinnedMessage = messagesState.filter((m) => m.pinned).pop();
-            if (!pinnedMessage) return null;
-
-            return (
-              <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
-                {/* Bấm vào phần trái sẽ cuộn đến tin nhắn */}
-                <div
-                  className="flex items-center gap-3 overflow-hidden flex-1"
-                  title="Tin nhắn đã ghim"
-                  onClick={() => {
-                    const el = document.getElementById(
-                      `msg-${pinnedMessage.id}`,
-                    );
-                    if (el) {
-                      el.scrollIntoView({
-                        behavior: "smooth",
-                        block: "center",
-                      });
-                      el.classList.add("bg-yellow-100");
-                      setTimeout(
-                        () => el.classList.remove("bg-yellow-100"),
-                        1500,
-                      );
-                    }
-                  }}
-                >
-                  <div className="text-blue-500 shrink-0">
-                    <svg
-                      className="w-5 h-5 transform rotate-45"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                      />
-                    </svg>
-                  </div>
-                  <div className="flex flex-col text-sm truncate min-w-0">
-                    <span className="font-semibold text-gray-700">
-                      Tin nhắn đã ghim
-                    </span>
-                    <span className="text-gray-500 truncate">
-                      {pinnedMessage.type === "FILE" ||
-                        pinnedMessage.type === "IMAGE" ||
-                        pinnedMessage.type === "VIDEO"
-                        ? "[Tệp đính kèm]"
-                        : pinnedMessage.content}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Nút 3 chấm */}
-                <div className="relative ml-2 shrink-0">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowPinnedMenu(!showPinnedMenu);
-                    }}
-                    className="p-1 rounded-full text-gray-500 hover:bg-gray-200 transition-colors"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle cx="5" cy="12" r="2" />
-                      <circle cx="12" cy="12" r="2" />
-                      <circle cx="19" cy="12" r="2" />
-                    </svg>
-                  </button>
-
-                  {showPinnedMenu && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowPinnedMenu(false)}
-                      />
-                      <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-100 py-1.5 min-w-[150px]">
-                        <button
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700"
-                          onClick={() => {
-                            navigator.clipboard.writeText(
-                              pinnedMessage.content || "",
-                            );
-                            setShowPinnedMenu(false);
-                          }}
-                        >
-                          <svg
-                            className="w-4 h-4 text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.8}
-                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                            />
-                          </svg>
-                          Copy
-                        </button>
-                        <button
-                          className="w-full text-left px-4 py-2 hover:bg-red-50 hover:text-red-600 text-sm flex items-center gap-2 text-gray-700"
-                          onClick={() => {
-                            handleTogglePin(pinnedMessage.id, true);
-                            setShowPinnedMenu(false);
-                          }}
-                        >
-                          <svg
-                            className="w-4 h-4 text-red-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.8}
-                              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.8}
-                              d="M4 4l16 16"
-                            />
-                          </svg>
-                          Bỏ ghim
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+        {pinnedMessagesSorted.length > 0 && (
+          <PinnedMessagesBar
+            roomId={roomId}
+            pinnedMessagesSorted={pinnedMessagesSorted}
+            participantMap={participantMap}
+            scrollToMessageHighlight={scrollToMessageHighlight}
+            handleTogglePin={handleTogglePin}
+            isGroupRoom={isGroupRoom}
+            onOpenGroupInfo={isGroupRoom ? openGroupInfo : undefined}
+          />
+        )}
 
         {/* Messages + Input */}
         <Box
@@ -1213,7 +1270,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             loadingOlder={loadingOlder}
           />
 
-          {/* Blocked chat overlay */}
+          {/* Blocked chat overlay / nhóm đã giải tán */}
           {isBlocked ? (
             <div className="border-t border-gray-200 bg-gray-50">
               {blockStatus?.blockedByYou ? (
@@ -1279,6 +1336,29 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 </div>
               ) : null}
             </div>
+          ) : isGroupDisbanded ? (
+            <div className="border-t border-gray-200 bg-gray-50 flex flex-col items-center justify-center py-6 px-4 gap-2">
+              <span className="text-sm text-gray-500 text-center">
+                Nhóm đã được giải tán. Bạn không thể gửi tin nhắn vào nhóm này
+                nữa.
+              </span>
+              <button
+                type="button"
+                className="text-sm font-semibold text-blue-500 hover:text-blue-600 hover:underline"
+                onClick={async () => {
+                  await deleteRoom(roomId);
+                  setCurrentRoom(null);
+                }}
+              >
+                Xóa trò chuyện
+              </button>
+            </div>
+          ) : isGroupRoom && !canSendMessage ? (
+            <div className="border-t border-gray-200 bg-gray-50 flex flex-col items-center justify-center py-6 px-4 gap-2">
+              <span className="text-sm text-gray-500 text-center">
+                Chỉ có trưởng nhóm và phó nhóm được phép gửi tin nhắn.
+              </span>
+            </div>
           ) : (
             <MessageInput
               onSend={handleSend}
@@ -1290,12 +1370,30 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
               onCancelReply={handleCancelReply}
               isSendingFile={isSendingFile}
               onCreatePoll={
-                isGroupRoom ? () => setShowCreatePoll(true) : undefined
+                isGroupRoom
+                  ? () => {
+                      if (!canCreatePoll) {
+                        setPermToast(
+                          "Chỉ có trưởng nhóm và phó nhóm được phép tạo bình chọn.",
+                        );
+                        return;
+                      }
+                      setShowCreatePoll(true);
+                    }
+                  : undefined
               }
             />
           )}
         </Box>
       </div>
+
+      {permToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] px-4 pointer-events-none">
+          <div className="rounded-full px-4 py-2 text-sm shadow-lg border bg-gray-900 text-white">
+            {permToast}
+          </div>
+        </div>
+      )}
 
       {searchOpen && currentRoom && (
         <SearchMessagePanel

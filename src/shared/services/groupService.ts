@@ -17,6 +17,19 @@ function mapGroupResponse(data: any): GroupDetail {
             role: m.role || "MEMBER",
         })),
         settings: data.settings,
+        disbanded: !!data.disbanded,
+        pendingJoinRequestCount: typeof data.pendingJoinRequestCount === "number" ? data.pendingJoinRequestCount : 0,
+        pendingJoinRequests: Array.isArray(data.pendingJoinRequests)
+            ? data.pendingJoinRequests.map((p: any) => ({
+                  userId: String(p.userId ?? ""),
+                  username: p.username || "",
+                  fullName: p.displayName || p.fullName || undefined,
+                  displayName: p.displayName || p.fullName || undefined,
+                  avatarUrl: p.avatarUrl || undefined,
+                  invitedByUserId: p.invitedByUserId ?? null,
+                  invitedByDisplayName: p.invitedByDisplayName ?? null,
+              }))
+            : [],
     };
 }
 
@@ -42,6 +55,18 @@ export const groupService = {
     /** Thêm thành viên vào nhóm */
     async addMembersToGroup(groupId: string, memberIds: string[]): Promise<GroupDetail> {
         const { data } = await api.post("/group/members", { groupId, memberIds });
+        return mapGroupResponse(data);
+    },
+
+    /** Phê duyệt yêu cầu tham gia nhóm */
+    async approveJoinRequest(groupId: string, userId: string): Promise<GroupDetail> {
+        const { data } = await api.post("/group/join-requests/approve", { groupId, userId });
+        return mapGroupResponse(data);
+    },
+
+    /** Từ chối yêu cầu tham gia nhóm */
+    async rejectJoinRequest(groupId: string, userId: string): Promise<GroupDetail> {
+        const { data } = await api.post("/group/join-requests/reject", { groupId, userId });
         return mapGroupResponse(data);
     },
 

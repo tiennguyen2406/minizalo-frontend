@@ -647,6 +647,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const effectiveFileName = message.fileName || attachment?.name || attachment?.filename;
     const effectiveFileSize = message.fileSize || attachment?.size;
     let effectiveType = message.type as string;
+    /** Thông báo ghim (backend: PIN_NOTIFICATION) dùng cùng pill với SYSTEM */
+    if (
+        message.type === 'PIN_NOTIFICATION' ||
+        (message.senderId === 'system' && message.type !== 'SYSTEM')
+    ) {
+        effectiveType = 'SYSTEM';
+    }
     // Không ép IMAGE khi trong cùng tin còn video — nếu không nhánh VIDEO/mixed không bao giờ chạy.
     if (imageUrls.length > 0 && videoUrls.length === 0) {
         effectiveType = 'IMAGE';
@@ -737,6 +744,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <PollBubble
                     pollId={message.content || ''}
                     roomId={message.roomId}
+                    messageId={message.id}
                     mode="preview"
                 />
             </div>

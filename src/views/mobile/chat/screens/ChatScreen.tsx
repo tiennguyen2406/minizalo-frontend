@@ -34,6 +34,7 @@ import {
   MessageDynamo,
   MessageReaction,
 } from "@/shared/services/chatService";
+import { groupService } from "@/shared/services/groupService";
 import { MessageService } from "@/shared/services/MessageService";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import { useUserStore } from "@/shared/store/userStore";
@@ -308,6 +309,36 @@ export default function ChatScreen() {
     const partner = participants.find((p: any) => p.id !== currentUserId);
     return partner?.id ?? null;
   }, [rooms, roomId, roomType, currentUserId]);
+
+  const currentChatRoomMeta = useMemo(
+    () => rooms.find((r) => r.id === roomId),
+    [rooms, roomId],
+  );
+  const isGroupDisbanded =
+    roomType === "GROUP" && !!currentChatRoomMeta?.disbanded;
+
+  const [groupJoinPendingBadge, setGroupJoinPendingBadge] = useState(false);
+  const refreshGroupJoinBadge = useCallback(async () => {
+    if (roomType !== "GROUP" || !roomId) {
+      setGroupJoinPendingBadge(false);
+      return;
+    }
+    try {
+      const g = await groupService.getGroupDetails(roomId);
+      setGroupJoinPendingBadge((g.pendingJoinRequestCount ?? 0) > 0);
+    } catch {
+      setGroupJoinPendingBadge(false);
+    }
+  }, [roomType, roomId]);
+
+  useEffect(() => {
+    void refreshGroupJoinBadge();
+  }, [refreshGroupJoinBadge]);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    void refreshGroupJoinBadge();
+  }, [isFocused, refreshGroupJoinBadge]);
 
   // ─── Deleted Messages state ───
   const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(
@@ -751,7 +782,43 @@ export default function ChatScreen() {
     };
     const handleIncomingMsg = (stompMessage: any) => {
       try {
-        const newMsg: MessageDynamo = JSON.parse(stompMessage.body);
+        const rawBody = stompMessage?.body;
+        if (rawBody == null) return;
+        const parsed: unknown = JSON.parse(String(rawBody));
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const p = parsed as {
+            roomListEvent?: string;
+            roomId?: string;
+            forUserId?: string;
+          };
+          if (p.roomListEvent === "REMOVED" && p.roomId) {
+            const uid = useAuthStore.getState().user?.id;
+            if (p.forUserId && p.forUserId !== uid) return;
+            const rid = String(p.roomId);
+            useChatStore.getState().removeRoomLocal(rid);
+            if (rid === roomId || rid === String(id ?? "")) {
+              router.back();
+            }
+            return;
+          }
+          if (p.roomListEvent === "DISBANDED" && p.roomId) {
+            const rid = String(p.roomId);
+            const existing = useChatStore.getState().rooms.find((r) => r.id === rid);
+            if (existing) {
+              useChatStore.getState().upsertRoom({ ...existing, disbanded: true });
+            }
+            return;
+          }
+          if (p.roomListEvent === "PENDING_JOINS_CHANGED" && p.roomId) {
+            const rid = String(p.roomId);
+            if (rid === roomId) void refreshGroupJoinBadge();
+            return;
+          }
+          if (p.roomListEvent === "ADDED" && p.roomId) {
+            return;
+          }
+        }
+        const newMsg: MessageDynamo = parsed as MessageDynamo;
 
         setMessages((prev) => {
           if (prev.some((m) => m.messageId === newMsg.messageId)) {
@@ -960,7 +1027,7 @@ export default function ChatScreen() {
       webSocketService.unsubscribe(reactionTopic);
       webSocketService.unsubscribe(pinTopic);
     };
-  }, [roomId, fetchMessages, currentUserId, displayName]);
+  }, [roomId, id, fetchMessages, currentUserId, displayName, router, refreshGroupJoinBadge]);
 
   useEffect(() => {
     if (isStranger && isFocused) {
@@ -2114,6 +2181,7 @@ export default function ChatScreen() {
         strangerSubtitleRow={
           isStrangerEmptyThread ? { visible: true } : undefined
         }
+        showMenuBadge={roomType === "GROUP" ? groupJoinPendingBadge : false}
         onMenuPress={() => {
           if (roomType === "GROUP") {
             openGroupInfo();
@@ -2443,10 +2511,10 @@ export default function ChatScreen() {
             ref={flatListRef}
             data={chatRows}
             inverted
-            keyExtractor={(row) =>
+            keyExtractor={(row, index) =>
               row.kind === "imageGroup"
-                ? `ig-${row.messages.map((m) => m.messageId).join("-")}`
-                : row.message.messageId
+                ? `ig-${row.messages.map((m) => m.messageId || "x").join("-")}-${index}`
+                : `${row.message.messageId || "msg"}-${index}`
             }
             renderItem={renderMessage}
             contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
@@ -2516,9 +2584,54 @@ export default function ChatScreen() {
             />
           ) : null}
         </View>
-        {roomType === "DIRECT" &&
-        blockStatus &&
-        (blockStatus.blockedByYou || blockStatus.blockedByOther) ? (
+        {isGroupDisbanded ? (
+          <View
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              backgroundColor: colors.card,
+              alignItems: "center",
+            }}
+          >
+            <Text
+              style={{
+                color: colors.textSecondary,
+                fontSize: 13,
+                textAlign: "center",
+              }}
+            >
+              Nhóm đã được giải tán. Bạn không thể gửi tin nhắn vào nhóm này nữa.
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={async () => {
+                if (!roomId) return;
+                try {
+                  await useChatStore.getState().deleteRoom(roomId);
+                  router.back();
+                } catch {
+                  showToast("Không xóa được cuộc trò chuyện", "error");
+                }
+              }}
+              style={{ marginTop: 10 }}
+            >
+              <Text
+                style={{
+                  color: colors.primary,
+                  fontSize: 14,
+                  fontWeight: "600",
+                  textAlign: "center",
+                }}
+              >
+                Xóa trò chuyện
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : roomType === "DIRECT" &&
+          blockStatus &&
+          (blockStatus.blockedByYou || blockStatus.blockedByOther) ? (
           <View
             style={{
               paddingHorizontal: 16,

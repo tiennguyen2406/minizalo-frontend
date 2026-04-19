@@ -54,6 +54,7 @@ export interface ChatRoomResponse {
     unreadCount: number;
     members: any[]; // Define RoomMemberResponse if needed
     hasInteracted: boolean;
+    disbanded?: boolean;
 }
 
 export interface SearchMessageResponse {
@@ -102,6 +103,7 @@ export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom 
         unreadCount: room.unreadCount ?? 0,
         updatedAt,
         participants,
+        disbanded: !!room.disbanded,
     };
     if (room.lastMessage) {
         const lm = room.lastMessage as MessageDynamo;
