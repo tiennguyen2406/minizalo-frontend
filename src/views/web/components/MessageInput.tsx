@@ -147,23 +147,40 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     // ── File select ───────────────────────────────────────────────────────────
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const verr = validateFileSize(file);
-        if (verr) {
-            setFileError(verr);
-            e.target.value = '';
-            return;
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        const fileArr = Array.from(files);
+
+        // Validate all files first
+        for (const f of fileArr) {
+            const verr = validateFileSize(f);
+            if (verr) {
+                setFileError(verr);
+                e.target.value = '';
+                return;
+            }
         }
         setFileError(null);
-        setSelectedFile(file);
-        setSelectedFiles([]);
-        previewUrls.forEach(u => URL.revokeObjectURL(u));
-        setPreviewUrls([]);
-        if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-            setPreviewUrl(URL.createObjectURL(file));
+
+        if (fileArr.length === 1) {
+            const file = fileArr[0];
+            setSelectedFile(file);
+            setSelectedFiles([]);
+            previewUrls.forEach(u => URL.revokeObjectURL(u));
+            setPreviewUrls([]);
+            if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+                setPreviewUrl(URL.createObjectURL(file));
+            } else {
+                setPreviewUrl(null);
+            }
         } else {
-            setPreviewUrl(null);
+            // Multi files
+            clearFilePreview();
+            setSelectedFiles(fileArr);
+            const urls = fileArr
+                .filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'))
+                .map(f => URL.createObjectURL(f));
+            setPreviewUrls(urls);
         }
         e.target.value = '';
     };
@@ -412,7 +429,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
             {/* ── Hidden file inputs ── */}
             <input ref={imageInputRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }} onChange={handleMultiImageSelect} />
-            <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileSelect} />
+            <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
 
             {/* ── Toolbar ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '6px 8px 2px' }}>

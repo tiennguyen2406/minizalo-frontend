@@ -15,6 +15,7 @@ interface ChatHeaderProps {
     };
     onBack?: () => void;
     onMenuPress?: () => void;
+    onAiPress?: () => void;
 }
 
 export default function ChatHeader({
@@ -24,6 +25,7 @@ export default function ChatHeader({
     strangerSubtitleRow,
     onBack,
     onMenuPress,
+    onAiPress,
 }: ChatHeaderProps) {
     const router = useRouter();
     const colors = useThemeColors();
@@ -89,9 +91,10 @@ export default function ChatHeader({
                                                 fontSize: 10,
                                                 fontWeight: "900",
                                                 letterSpacing: 0.6,
+                                                textTransform: "uppercase",
                                             }}
                                         >
-                                            NGƯỜI LẠ
+                                            Người lạ
                                         </Text>
                                     </View>
                                 </View>
@@ -105,6 +108,10 @@ export default function ChatHeader({
 
                     {/* Right: Actions */}
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 18, paddingTop: strangerSubtitleRow?.visible ? 2 : 0 }}>
+                        <TouchableOpacity onPress={onAiPress}>
+                            <Ionicons name="sparkles" size={22} color="#FFD700" />
+                        </TouchableOpacity>
+
                         <TouchableOpacity>
                             <Ionicons name="call-outline" size={22} color={colors.headerText} />
                         </TouchableOpacity>

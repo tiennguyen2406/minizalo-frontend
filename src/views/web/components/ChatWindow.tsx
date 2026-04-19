@@ -536,7 +536,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         senderId: currentUserId,
         senderName: user?.fullName || user?.username || undefined,
         roomId,
-        content: file.name,
+        content: "", // Fix redundant text on mobile by sending empty content for file types, matching mobile behavior.
         type: msgType,
         createdAt: new Date().toISOString(),
         fileUrl: uploadResult.fileUrl,
@@ -551,7 +551,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         // 4. Send via WebSocket (group)
         const sentViaWs = webSocketService.sendChatMessage(
           roomId,
-          file.name,
+          "",
           msgType,
           replyingTo?.id,
           [attachment],
@@ -564,7 +564,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         try {
           await chatService.sendMessage(
             roomId,
-            file.name,
+            "",
             replyingTo?.id,
             msgType,
             [attachment as any],
@@ -680,9 +680,82 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     }
     setIsSendingFile(true);
     try {
-      for (const file of files) {
-        await handleSendFile(file);
+      // 1. Parallel upload all files
+      const uploadPromises = files.map((file) => MessageService.uploadFile(file));
+      const uploadResults = await Promise.all(uploadPromises);
+
+      // 2. Map results to attachments
+      const attachments = uploadResults.map((res, i) => ({
+        url: res.fileUrl,
+        type: res.fileType || files[i].type,
+        filename: res.fileName || files[i].name,
+        name: res.fileName || files[i].name,
+        size: res.size || files[i].size,
+      }));
+
+      // Determine message type based on contents
+      const isAnyVideo = files.some((f) =>
+        f.type.toLowerCase().startsWith("video/"),
+      );
+      const isAnyImage = files.some((f) =>
+        f.type.toLowerCase().startsWith("image/"),
+      );
+      const msgType: "IMAGE" | "VIDEO" | "FILE" = isAnyVideo
+        ? "VIDEO"
+        : isAnyImage
+          ? "IMAGE"
+          : "FILE";
+
+      // 3. Optimistic message
+      const optimistic: Message = {
+        id: `temp-${Date.now()}`,
+        senderId: currentUserId,
+        senderName: user?.fullName || user?.username || undefined,
+        roomId,
+        content: "",
+        type: msgType,
+        createdAt: new Date().toISOString(),
+        attachments,
+        replyToId: replyingTo?.id,
+      };
+      addMessage(roomId, optimistic);
+
+      // 4. Send grouping message
+      if (isGroupRoom) {
+        const sentViaWs = webSocketService.sendChatMessage(
+          roomId,
+          "",
+          msgType,
+          replyingTo?.id,
+          attachments,
+        );
+        if (!sentViaWs) {
+          await fetchHistory();
+        }
+      } else {
+        try {
+          await chatService.sendMessage(
+            roomId,
+            "",
+            replyingTo?.id,
+            msgType,
+            attachments as any,
+          );
+          await fetchHistory();
+        } catch (err2: unknown) {
+          if (isStrangerMessagesNotAllowedError(err2)) {
+            useChatStore
+              .getState()
+              .applyStrangerMessageRejection(
+                roomId,
+                "Thông báo: người này hiện không nhận tin từ người lạ",
+              );
+          }
+        }
       }
+      setReplyingTo(null);
+    } catch (error) {
+      console.error("Failed to send multi-files:", error);
     } finally {
       setIsSendingFile(false);
     }

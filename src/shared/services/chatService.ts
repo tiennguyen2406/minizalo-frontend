@@ -121,6 +121,10 @@ export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom 
 }
 
 export const chatService = {
+    summarizeChat: async (roomId: string, startTime: string, endTime: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/${roomId}/ai/summarize`, { startTime, endTime });
+        return response.data.summary;
+    },
     getChatRooms: async (): Promise<ChatRoomResponse[]> => {
         console.log("Fetching chat rooms from:", API_BASE_URL + "/chat/rooms");
         try {
