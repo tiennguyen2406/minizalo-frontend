@@ -162,6 +162,8 @@ export interface ChatRoom {
     participants: User[];
     updatedAt: string;
     hasInteracted?: boolean;
+    /** Nhóm đã giải tán — chỉ xem lịch sử, không gửi tin mới */
+    disbanded?: boolean;
 }
 
 export type GroupRole = 'ADMIN' | 'MEMBER';
@@ -174,6 +176,17 @@ export interface GroupMember {
     role: GroupRole;
 }
 
+/** Yêu cầu vào nhóm chờ trưởng/phó duyệt (chỉ API trả list khi bạn có quyền) */
+export interface PendingJoinRequest {
+    userId: string;
+    username: string;
+    fullName?: string;
+    displayName?: string;
+    avatarUrl?: string;
+    invitedByUserId?: string | null;
+    invitedByDisplayName?: string | null;
+}
+
 export interface GroupDetail {
     id: string;
     groupName: string;
@@ -182,6 +195,9 @@ export interface GroupDetail {
     createdAt: string;
     members: GroupMember[];
     settings?: GroupSettings;
+    disbanded?: boolean;
+    pendingJoinRequests?: PendingJoinRequest[];
+    pendingJoinRequestCount?: number;
 }
 
 // -----------------------------

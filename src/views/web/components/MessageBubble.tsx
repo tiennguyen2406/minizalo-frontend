@@ -632,6 +632,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const effectiveFileSize = message.fileSize || attachment?.size;
 
     let effectiveType = message.type as string;
+    /** Thông báo ghim (backend: PIN_NOTIFICATION) dùng cùng pill với SYSTEM */
+    if (
+        message.type === 'PIN_NOTIFICATION' ||
+        (message.senderId === 'system' && message.type !== 'SYSTEM')
+    ) {
+        effectiveType = 'SYSTEM';
+    }
     if (imageUrls.length > 0) {
         effectiveType = 'IMAGE';
     } else if ((effectiveType === 'TEXT' || !effectiveType) && effectiveFileUrl && attachment) {
@@ -700,6 +707,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <PollBubble
                     pollId={message.content || ''}
                     roomId={message.roomId}
+                    messageId={message.id}
                     mode="preview"
                 />
             </div>

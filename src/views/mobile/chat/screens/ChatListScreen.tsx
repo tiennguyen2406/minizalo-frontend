@@ -206,6 +206,16 @@ export default function ChatListScreen() {
                         useChatStore.getState().removeRoomLocal(String(msg.roomId));
                         return;
                     }
+                    if (msg.roomListEvent === 'DISBANDED' && msg.roomId) {
+                        const rid = String(msg.roomId);
+                        const existing = useChatStore.getState().rooms.find((r) => r.id === rid);
+                        if (existing) {
+                            useChatStore.getState().upsertRoom({ ...existing, disbanded: true });
+                        } else {
+                            fetchChats(false);
+                        }
+                        return;
+                    }
                     if (msg.roomListEvent === 'ADDED' && msg.roomId) {
                         fetchChats(false);
                         return;

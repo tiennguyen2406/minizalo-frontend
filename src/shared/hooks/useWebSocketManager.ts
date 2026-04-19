@@ -72,6 +72,7 @@ function mapChatRoomResponsesToStore(
                 avatarUrl: m.user?.avatarUrl || m.avatarUrl || undefined,
             })),
             updatedAt: r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
+            disbanded: !!r.disbanded,
         };
     });
     allRooms.sort(
@@ -150,12 +151,12 @@ function useRoomUpdatesSubscription() {
             try {
                 const raw = String(stompMsg.body || '').trim();
                 if (!raw) return;
-                let payload: { action?: 'ADDED' | 'REMOVED'; roomId?: string } | null = null;
+                let payload: { action?: 'ADDED' | 'REMOVED' | 'DISBANDED'; roomId?: string } | null = null;
                 try {
                     payload = JSON.parse(raw);
                 } catch {
                     // Fallback nếu backend gửi kiểu "action=REMOVED, roomId=..." (phòng hờ)
-                    const mAction = raw.match(/action["']?\s*[:=]\s*["']?(ADDED|REMOVED)/i);
+                    const mAction = raw.match(/action["']?\s*[:=]\s*["']?(ADDED|REMOVED|DISBANDED)/i);
                     const mRoom = raw.match(/roomId["']?\s*[:=]\s*["']?([0-9a-fA-F-]{16,})/i);
                     payload = {
                         action: (mAction?.[1]?.toUpperCase() as any) || undefined,
@@ -166,6 +167,11 @@ function useRoomUpdatesSubscription() {
 
                 if (payload.action === 'REMOVED') {
                     useChatStore.getState().removeRoomLocal(payload.roomId);
+                    return;
+                }
+
+                if (payload.action === 'DISBANDED') {
+                    await fetchRoomsMergeWithStore();
                     return;
                 }
 
@@ -253,6 +259,7 @@ function _useWebSocketManagerWeb() {
                     })),
                     updatedAt:
                         r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
+                    disbanded: !!r.disbanded,
                 };
             });
             allRooms.sort(
@@ -307,6 +314,26 @@ function _useWebSocketManagerWeb() {
         webSocketService.activate(accessToken);
     }, [accessToken]);
 
+    // 2b. Thông báo riêng cho user (vd: "không thể xem lịch sử")
+    useEffect(() => {
+        if (!accessToken) return;
+        const dest = '/user/queue/chat-notices';
+        const handler = (stompMsg: IMessage) => {
+            try {
+                const raw = String(stompMsg.body || '').trim();
+                if (!raw) return;
+                const payload = JSON.parse(raw) as { roomId?: string };
+                const rid = payload?.roomId ? String(payload.roomId) : null;
+                if (!rid) return;
+                addIncomingChatMessageFromStomp(rid, raw);
+            } catch (err) {
+                // ignore
+            }
+        };
+        webSocketService.subscribe(dest, handler);
+        return () => webSocketService.unsubscribe(dest);
+    }, [accessToken]);
+
     const roomIdsKey = useMemo(
         () =>
             [...rooms]
@@ -345,6 +372,16 @@ function _useWebSocketManagerWeb() {
                         const uid = useAuthStore.getState().user?.id;
                         if (dynamo.forUserId && dynamo.forUserId !== uid) return;
                         useChatStore.getState().removeRoomLocal(String(dynamo.roomId));
+                        return;
+                    }
+                    if (dynamo.roomListEvent === 'DISBANDED' && dynamo.roomId) {
+                        const rid = String(dynamo.roomId);
+                        const existing = useChatStore.getState().rooms.find((r) => r.id === rid);
+                        if (existing) {
+                            useChatStore.getState().upsertRoom({ ...existing, disbanded: true });
+                        } else {
+                            void fetchRoomsMergeWithStore();
+                        }
                         return;
                     }
                     if (dynamo.roomListEvent === 'ADDED' && dynamo.roomId) {

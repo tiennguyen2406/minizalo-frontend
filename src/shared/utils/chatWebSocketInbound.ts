@@ -1,10 +1,58 @@
 import { useChatStore } from '@/shared/store/useChatStore';
+import { useGroupStore } from '@/shared/store/useGroupStore';
+import { groupService } from '@/shared/services/groupService';
 import type { Message } from '@/shared/types';
 
 /** Parse payload STOMP `/topic/chat/:roomId` và đưa vào store (dùng chung web manager + ChatWindow). */
 export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string): void {
     try {
-        const dynamo = JSON.parse(rawBody);
+        const dynamo = JSON.parse(rawBody) as Record<string, unknown> & {
+            roomListEvent?: string;
+            roomId?: string;
+            senderId?: string;
+            senderName?: string;
+            senderUsername?: string;
+            content?: string;
+            type?: string;
+            recalled?: boolean;
+            createdAt?: string;
+            timestamp?: string;
+            readBy?: string[];
+            pinned?: boolean;
+            reactions?: unknown[];
+            replyToMessageId?: string;
+            messageId?: string;
+        };
+        if (dynamo.roomListEvent === 'DISBANDED') {
+            const rid =
+                typeof dynamo.roomId === 'string' && dynamo.roomId.length > 0
+                    ? dynamo.roomId
+                    : roomId;
+            const existing = useChatStore.getState().rooms.find((r) => r.id === rid);
+            if (existing) {
+                useChatStore.getState().upsertRoom({ ...existing, disbanded: true });
+            }
+            return;
+        }
+        if (dynamo.roomListEvent === 'PENDING_JOINS_CHANGED') {
+            const rid =
+                typeof dynamo.roomId === 'string' && dynamo.roomId.length > 0
+                    ? dynamo.roomId
+                    : roomId;
+            const gs = useGroupStore.getState();
+            if (gs.currentGroupDetail?.id === rid) {
+                void groupService.getGroupDetails(rid).then((d) => gs.setCurrentGroupDetail(d));
+            }
+            return;
+        }
+        /**
+         * Backend gửi tín hiệu cập nhật danh sách phòng (không có messageId / nội dung).
+         * useWebSocketManager đã lọc ADDED, nhưng ChatWindow cũng subscribe /topic/chat → cần bỏ qua
+         * để không tạo tin TEXT rỗng (bubble chỉ còn giờ + reaction).
+         */
+        if (dynamo.roomListEvent === 'ADDED' || dynamo.roomListEvent === 'REMOVED') {
+            return;
+        }
         const attachments = Array.isArray(dynamo.attachments) ? dynamo.attachments : [];
         const firstAttachment = attachments[0];
 
@@ -40,6 +88,30 @@ export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string)
         };
 
         useChatStore.getState().addMessage(roomId, incoming);
+
+        // Realtime refresh group members list on key system events (left/join/added/removed)
+        if (
+            incoming.type === 'SYSTEM' &&
+            typeof incoming.content === 'string' &&
+            (incoming.content.includes('đã rời nhóm') ||
+                incoming.content.includes('đã thêm') ||
+                incoming.content.includes('tham gia nhóm') ||
+                incoming.content.includes('đã bị xóa khỏi nhóm') ||
+                // Realtime quyền: phong/xóa phó nhóm, nhường quyền trưởng nhóm
+                incoming.content.includes('phó nhóm') ||
+                incoming.content.includes('nhường quyền trưởng nhóm'))
+        ) {
+            const gs = useGroupStore.getState();
+            if (gs.currentGroupDetail?.id === roomId) {
+                void groupService
+                    .getGroupDetails(roomId)
+                    .then((d) => gs.setCurrentGroupDetail(d))
+                    .catch(() => {
+                        // Người dùng có thể vừa rời/ bị kick khỏi nhóm → backend trả 400/403.
+                        // Không để promise unhandled làm crash UI.
+                    });
+            }
+        }
     } catch (err) {
         console.error('[chatWebSocketInbound] parse/add:', err);
     }
