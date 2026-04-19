@@ -343,6 +343,206 @@ function openFileFromCard(
     window.open(abs, '_blank', 'noopener,noreferrer');
 }
 
+const FileAttachmentCard: React.FC<{
+    attachment?: any;
+    url: string;
+    fileName: string;
+    size?: number;
+    createdAt: string;
+    setDownloadsHelpOpen: (open: boolean) => void;
+    setDownloadsHelpJustFetched: (just: boolean) => void;
+}> = ({ attachment, url, fileName, size, createdAt, setDownloadsHelpOpen, setDownloadsHelpJustFetched }) => {
+    const [fileSavedOnDevice, setFileSavedOnDevice] = useState(false);
+    const [downloadsHelpBusy, setDownloadsHelpBusy] = useState(false);
+    const filePresentation = getFilePresentation(fileName, attachment?.type);
+
+    if (!filePresentation) return null;
+
+    return (
+        <div
+            className="box-border w-[300px] max-w-full shrink-0 rounded-xl border border-sky-300/90 bg-sky-50/95 shadow-sm select-none"
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="flex items-center gap-1 pl-2 pr-1 py-2">
+                <div
+                    role="button"
+                    tabIndex={0}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg py-0.5 text-left hover:bg-white/55 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0068ff]/25"
+                    title="Mở file — PDF trên Windows sẽ ưu tiên Microsoft Edge (khi đang dùng trình duyệt khác)"
+                    onClick={(e) =>
+                        openFileFromCard(url, e, {
+                            fileName: fileName,
+                            mime: attachment?.type,
+                        })
+                    }
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            openFileFromCard(url, e, {
+                                fileName: fileName,
+                                mime: attachment?.type,
+                            });
+                        }
+                    }}
+                >
+                    <div className="flex shrink-0 flex-col items-center gap-1">
+                        <div
+                            className={clsx(
+                                'flex h-11 w-10 shrink-0 items-center justify-center rounded-lg px-1 text-[10px] font-bold leading-tight text-white',
+                                filePresentation.badgeClass,
+                            )}
+                            title={filePresentation.label}
+                        >
+                            {filePresentation.label}
+                        </div>
+                        <span className="text-[10px] leading-none text-gray-400 tabular-nums">
+                            {new Date(createdAt).toLocaleTimeString('vi-VN', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                            })}
+                        </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <div
+                            className="truncate text-sm font-semibold text-gray-900"
+                            title={fileName}
+                        >
+                            {fileName}
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                            <span className="text-gray-500">
+                                {formatFileSizeBytes(size) || 'Không rõ dung lượng'}
+                            </span>
+                            {fileSavedOnDevice && (
+                                <span className="inline-flex items-center gap-0.5 font-medium text-emerald-600">
+                                    <svg
+                                        className="h-3.5 w-3.5 shrink-0"
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                        aria-hidden
+                                    >
+                                        <path
+                                            fillRule="evenodd"
+                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                            clipRule="evenodd"
+                                        />
+                                    </svg>
+                                    Đã có trên máy
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1">
+                    <button
+                        type="button"
+                        className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white p-0 text-gray-600 shadow-sm hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-60"
+                        title="Xem nơi tải xuống — nếu chưa tải sẽ tải vào thư mục mặc định rồi hướng dẫn (Ctrl+J)"
+                        aria-label={
+                            downloadsHelpBusy
+                                ? 'Đang chuẩn bị hướng dẫn nơi tải'
+                                : 'Nơi tải xuống và hướng dẫn'
+                        }
+                        disabled={downloadsHelpBusy}
+                        aria-busy={downloadsHelpBusy}
+                        onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!url) {
+                                setDownloadsHelpJustFetched(false);
+                                setDownloadsHelpOpen(true);
+                                return;
+                            }
+                            let justFetched = false;
+                            if (!fileSavedOnDevice) {
+                                setDownloadsHelpBusy(true);
+                                try {
+                                    await downloadFileToDeviceCore(
+                                        url,
+                                        fileName,
+                                    );
+                                    setFileSavedOnDevice(true);
+                                    justFetched = true;
+                                } finally {
+                                    setDownloadsHelpBusy(false);
+                                }
+                            }
+                            setDownloadsHelpJustFetched(justFetched);
+                            setDownloadsHelpOpen(true);
+                        }}
+                    >
+                        {downloadsHelpBusy ? (
+                            <svg
+                                className="h-5 w-5 animate-spin text-gray-500"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                aria-hidden
+                            >
+                                <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                />
+                                <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                />
+                            </svg>
+                        ) : (
+                            <svg
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                aria-hidden
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                                />
+                            </svg>
+                        )}
+                    </button>
+                    <button
+                        type="button"
+                        className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white p-0 text-[#0068ff] shadow-sm hover:bg-sky-50"
+                        title="Chọn nơi lưu (Chrome / Edge). Trình khác: tải về Tải xuống mặc định."
+                        aria-label="Tải xuống — chọn nơi lưu"
+                        onClick={(e) =>
+                            saveFileWithPickerDialog(
+                                url,
+                                fileName,
+                                e,
+                                () => setFileSavedOnDevice(true),
+                            )
+                        }
+                    >
+                        <svg
+                            className="h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            aria-hidden
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75v-2.25M12 4.5v15m0 0l-4.5-4.5M12 19.5l4.5-4.5"
+                            />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const getAvatarUrl = (name: string, avatarUrl?: string) => {
     if (avatarUrl) return avatarUrl;
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4A90D9&color=fff&size=64`;
@@ -384,9 +584,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const [downloadsHelpOpen, setDownloadsHelpOpen] = useState(false);
     /** Vừa tự tải về thư mục mặc định trước khi mở modal (để hiển thị gợi ý phù hợp) */
     const [downloadsHelpJustFetched, setDownloadsHelpJustFetched] = useState(false);
-    const [downloadsHelpBusy, setDownloadsHelpBusy] = useState(false);
-    /** Đã có bản trên máy (qua “Chọn nơi lưu” hoặc tải mặc định / nút “Nơi tải xuống”) — hiển thị “Đã có trên máy” */
-    const [fileSavedOnDevice, setFileSavedOnDevice] = useState(false);
     const moreButtonRef = useRef<HTMLButtonElement>(null);
 
     const closeDownloadsHelp = () => {
@@ -836,190 +1033,34 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 />
                             </div>
                         ) : (effectiveType === 'FILE' || effectiveType === 'DOCUMENT') &&
-                          effectiveFileUrl &&
-                          filePresentation ? (
-                            <div
-                                className="box-border w-[300px] max-w-full shrink-0 rounded-xl border border-sky-300/90 bg-sky-50/95 shadow-sm select-none"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <div className="flex items-center gap-1 pl-2 pr-1 py-2">
-                                    {/* Badge + giờ | tên + meta: bấm để mở file */}
-                                    <div
-                                        role="button"
-                                        tabIndex={0}
-                                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg py-0.5 text-left hover:bg-white/55 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0068ff]/25"
-                                        title="Mở file — PDF trên Windows sẽ ưu tiên Microsoft Edge (khi đang dùng trình duyệt khác)"
-                                        onClick={(e) =>
-                                            openFileFromCard(effectiveFileUrl, e, {
-                                                fileName: fileDisplayName,
-                                                mime: attachment?.type,
-                                            })
-                                        }
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' || e.key === ' ') {
-                                                openFileFromCard(effectiveFileUrl, e, {
-                                                    fileName: fileDisplayName,
-                                                    mime: attachment?.type,
-                                                });
-                                            }
-                                        }}
-                                    >
-                                        <div className="flex shrink-0 flex-col items-center gap-1">
-                                            <div
-                                                className={clsx(
-                                                    'flex h-11 w-10 shrink-0 items-center justify-center rounded-lg px-1 text-[10px] font-bold leading-tight text-white',
-                                                    filePresentation.badgeClass,
-                                                )}
-                                                title={filePresentation.label}
-                                            >
-                                                {filePresentation.label}
-                                            </div>
-                                            <span className="text-[10px] leading-none text-gray-400 tabular-nums">
-                                                {new Date(message.createdAt).toLocaleTimeString('vi-VN', {
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                })}
-                                            </span>
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div
-                                                className="truncate text-sm font-semibold text-gray-900"
-                                                title={fileDisplayName}
-                                            >
-                                                {fileDisplayName}
-                                            </div>
-                                            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                                                <span className="text-gray-500">
-                                                    {formatFileSizeBytes(effectiveFileSize) || 'Không rõ dung lượng'}
-                                                </span>
-                                                {fileSavedOnDevice && (
-                                                    <span className="inline-flex items-center gap-0.5 font-medium text-emerald-600">
-                                                        <svg
-                                                            className="h-3.5 w-3.5 shrink-0"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                            aria-hidden
-                                                        >
-                                                            <path
-                                                                fillRule="evenodd"
-                                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                                                                clipRule="evenodd"
-                                                            />
-                                                        </svg>
-                                                        Đã có trên máy
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex shrink-0 items-center gap-1">
-                                        <button
-                                            type="button"
-                                            className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white p-0 text-gray-600 shadow-sm hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-60"
-                                            title="Xem nơi tải xuống — nếu chưa tải sẽ tải vào thư mục mặc định rồi hướng dẫn (Ctrl+J)"
-                                            aria-label={
-                                                downloadsHelpBusy
-                                                    ? 'Đang chuẩn bị hướng dẫn nơi tải'
-                                                    : 'Nơi tải xuống và hướng dẫn'
-                                            }
-                                            disabled={downloadsHelpBusy}
-                                            aria-busy={downloadsHelpBusy}
-                                            onClick={async (e) => {
-                                                e.stopPropagation();
-                                                if (!effectiveFileUrl) {
-                                                    setDownloadsHelpJustFetched(false);
-                                                    setDownloadsHelpOpen(true);
-                                                    return;
-                                                }
-                                                let justFetched = false;
-                                                if (!fileSavedOnDevice) {
-                                                    setDownloadsHelpBusy(true);
-                                                    try {
-                                                        await downloadFileToDeviceCore(
-                                                            effectiveFileUrl,
-                                                            fileDisplayName,
-                                                        );
-                                                        setFileSavedOnDevice(true);
-                                                        justFetched = true;
-                                                    } finally {
-                                                        setDownloadsHelpBusy(false);
-                                                    }
-                                                }
-                                                setDownloadsHelpJustFetched(justFetched);
-                                                setDownloadsHelpOpen(true);
-                                            }}
-                                        >
-                                            {downloadsHelpBusy ? (
-                                                <svg
-                                                    className="h-5 w-5 animate-spin text-gray-500"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    aria-hidden
-                                                >
-                                                    <circle
-                                                        className="opacity-25"
-                                                        cx="12"
-                                                        cy="12"
-                                                        r="10"
-                                                        stroke="currentColor"
-                                                        strokeWidth="4"
-                                                    />
-                                                    <path
-                                                        className="opacity-75"
-                                                        fill="currentColor"
-                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                                    />
-                                                </svg>
-                                            ) : (
-                                                <svg
-                                                    className="h-5 w-5"
-                                                    fill="none"
-                                                    viewBox="0 0 24 24"
-                                                    stroke="currentColor"
-                                                    aria-hidden
-                                                >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth={2}
-                                                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                                                    />
-                                                </svg>
-                                            )}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white p-0 text-[#0068ff] shadow-sm hover:bg-sky-50"
-                                            title="Chọn nơi lưu (Chrome / Edge). Trình khác: tải về Tải xuống mặc định."
-                                            aria-label="Tải xuống — chọn nơi lưu"
-                                            onClick={(e) =>
-                                                saveFileWithPickerDialog(
-                                                    effectiveFileUrl,
-                                                    fileDisplayName,
-                                                    e,
-                                                    () => setFileSavedOnDevice(true),
-                                                )
-                                            }
-                                        >
-                                            {/* Arrow down tray — biểu tượng tải xuống quen thuộc */}
-                                            <svg
-                                                className="h-5 w-5"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                                strokeWidth={2}
-                                                aria-hidden
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75v-2.25M12 4.5v15m0 0l-4.5-4.5M12 19.5l4.5-4.5"
-                                                />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
+                          ((message.attachments && message.attachments.length > 0) || effectiveFileUrl) ? (
+                            <div className="flex flex-col gap-2">
+                                {message.attachments && message.attachments.length > 0 ? (
+                                    message.attachments.map((att: any, idx: number) => (
+                                        <FileAttachmentCard
+                                            key={idx}
+                                            attachment={att}
+                                            url={att.url}
+                                            fileName={att.name || att.filename || 'Tệp đính kèm'}
+                                            size={att.size}
+                                            createdAt={message.createdAt}
+                                            setDownloadsHelpOpen={setDownloadsHelpOpen}
+                                            setDownloadsHelpJustFetched={setDownloadsHelpJustFetched}
+                                        />
+                                    ))
+                                ) : (
+                                    // Fallback for older messages structure
+                                    effectiveFileUrl && (
+                                        <FileAttachmentCard
+                                            url={effectiveFileUrl}
+                                            fileName={fileDisplayName}
+                                            size={effectiveFileSize}
+                                            createdAt={message.createdAt}
+                                            setDownloadsHelpOpen={setDownloadsHelpOpen}
+                                            setDownloadsHelpJustFetched={setDownloadsHelpJustFetched}
+                                        />
+                                    )
+                                )}
                             </div>
                         ) : effectiveType === 'TEXT' || effectiveType === 'REPLY' || effectiveType === 'FORWARD' ? (
                             <span className="text-[15px] leading-relaxed pr-8">

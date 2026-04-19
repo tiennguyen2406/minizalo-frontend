@@ -57,6 +57,7 @@ import { useThemeColors } from "@/shared/theme/colors";
 import { useThemeStore } from "@/shared/store/themeStore";
 import * as Clipboard from "expo-clipboard";
 import * as FileSystem from "expo-file-system/legacy";
+import AiSummaryModal from "../components/AiSummaryModal";
 const {
   documentDirectory,
   cacheDirectory,
@@ -227,6 +228,7 @@ export default function ChatScreen() {
   const [reactionListMessage, setReactionListMessage] =
     useState<MessageDynamo | null>(null);
   const [showForwardModal, setShowForwardModal] = useState(false);
+  const [showAiModal, setShowAiModal] = useState(false);
   const [forwardingMessage, setForwardingMessage] =
     useState<MessageDynamo | null>(null);
   const [forwardLoading, setForwardLoading] = useState(false);
@@ -2025,6 +2027,17 @@ export default function ChatScreen() {
           } else {
             openChatOptions();
           }
+        }}
+        onAiPress={() => setShowAiModal(true)}
+      />
+
+      <AiSummaryModal
+        visible={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        onSummarize={async (startTime, endTime) => {
+          const roomIdStr = typeof roomId === "string" ? roomId : id;
+          if (!roomIdStr) return "Không rõ ID vòng chat.";
+          return await chatService.summarizeChat(roomIdStr, startTime, endTime);
         }}
       />
 
