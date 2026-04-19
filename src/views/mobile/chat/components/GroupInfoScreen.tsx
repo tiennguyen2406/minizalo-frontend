@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
     View,
     Text,
@@ -14,18 +14,71 @@ import {
     Modal,
     TextInput,
     FlatList,
+    Pressable,
+    Animated,
+    Dimensions,
     StyleSheet,
 } from "react-native";
-import { SafeAreaView as SafeAreaViewCtx } from "react-native-safe-area-context";
+import { SafeAreaView as SafeAreaViewCtx, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { groupService } from "@/shared/services/groupService";
+import { chatService } from "@/shared/services/chatService";
 import { friendService } from "@/shared/services/friendService";
+import { isImageAttachment, isVideoAttachment } from "@/shared/utils/messageAttachments";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useChatStore } from "@/shared/store/useChatStore";
-import { GroupDetail, GroupMember } from "@/shared/types";
+import { GroupDetail } from "@/shared/types";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
+import * as VideoThumbnails from "expo-video-thumbnails";
+import * as Clipboard from "expo-clipboard";
+import * as ImagePicker from "expo-image-picker";
+import { setChatWallpaperUri } from "@/shared/utils/chatWallpaper";
+import MediaStorageScreen from "../screens/MediaStorageScreen";
+import GroupSettingsScreen from "../screens/GroupSettingsScreen";
+import GroupMembersScreen from "../screens/GroupMembersScreen";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
+
+function getWebJoinBaseUrl(): string {
+    return (
+        process.env.EXPO_PUBLIC_WEB_ORIGIN ||
+        process.env.EXPO_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ||
+        ""
+    ).replace(/\/$/, "");
+}
+
+function buildJoinConversationUrl(roomId: string): string {
+    const b = getWebJoinBaseUrl();
+    return b ? `${b}/join/${encodeURIComponent(roomId)}` : "";
+}
+
+const getImageUrl = (url: string) => {
+    if (!url) return url;
+    if (url.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
+        const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+        if (match?.[1]) return url.replace("localhost", match[1]);
+    }
+    if (process.env.EXPO_PUBLIC_API_URL) {
+        const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
+        if (apiMatch?.[1]) {
+            const apiHost = apiMatch[1];
+            if (url.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
+                const urlMatch = url.match(/https?:\/\/([^:\/]+)/);
+                if (urlMatch?.[1] && urlMatch[1] !== apiHost) return url.replace(urlMatch[1], apiHost);
+            }
+            if (url.includes(":9000") && !apiHost.includes(":9000")) {
+                const urlMatch = url.match(/https?:\/\/([^:]+):/);
+                if (urlMatch?.[1] && urlMatch[1] !== apiHost.split(":")[0]) {
+                    return url.replace(urlMatch[1], apiHost.split(":")[0]);
+                }
+            }
+        }
+    }
+    return url;
+};
 
 interface GroupInfoScreenProps {
     roomId: string;
@@ -54,6 +107,7 @@ function AddMemberModal({
     onMembersAdded: (newGroup: GroupDetail) => void;
 }) {
     const colors = useThemeColors();
+    const insets = useSafeAreaInsets();
     const [friends, setFriends] = useState<Friend[]>([]);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -115,21 +169,21 @@ function AddMemberModal({
     };
 
     return (
-        <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-            <SafeAreaView
-                style={{
-                    flex: 1,
-                    backgroundColor: colors.background,
-                    paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
-                }}
-            >
-                {/* Header */}
+        <Modal
+            visible={visible}
+            animationType="slide"
+            presentationStyle={Platform.OS === "ios" ? "fullScreen" : "pageSheet"}
+            onRequestClose={onClose}
+        >
+            <View style={{ flex: 1, backgroundColor: colors.background }}>
+                {/* fullScreen trên iOS: tránh pageSheet bo góc → khoảng tối hai bên; paddingTop = safe area */}
+                <View style={{ backgroundColor: colors.headerBg, paddingTop: insets.top }}>
                 <View
                     style={{
                         flexDirection: "row",
                         alignItems: "center",
                         paddingHorizontal: 16,
-                        height: 52,
+                        minHeight: 52,
                         backgroundColor: colors.headerBg,
                         borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
                         borderBottomColor: colors.border,
@@ -171,6 +225,7 @@ function AddMemberModal({
                             </Text>
                         )}
                     </TouchableOpacity>
+                </View>
                 </View>
 
                 {/* Search */}
@@ -274,7 +329,7 @@ function AddMemberModal({
                         }}
                     />
                 )}
-            </SafeAreaView>
+            </View>
         </Modal>
     );
 }
@@ -336,28 +391,110 @@ function SectionRow({
 export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProps) {
     const router = useRouter();
     const colors = useThemeColors();
+    const mutedRooms = useChatStore((s) => s.mutedRooms);
+    const toggleMuteRoom = useChatStore((s) => s.toggleMuteRoom);
+    const pinnedRooms = useChatStore((s) => s.pinnedRooms);
+    const togglePinRoom = useChatStore((s) => s.togglePinRoom);
+    const upsertRoom = useChatStore((s) => s.upsertRoom);
     const [group, setGroup] = useState<GroupDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [isLeaving, setIsLeaving] = useState(false);
-    const [pinned, setPinned] = useState(false);
     const [showAddMember, setShowAddMember] = useState(false);
+    const [showRenameGroup, setShowRenameGroup] = useState(false);
+    const [renameDraft, setRenameDraft] = useState("");
+    const [renaming, setRenaming] = useState(false);
+    const [showMuteDuration, setShowMuteDuration] = useState(false);
+    const [selectedMuteDuration, setSelectedMuteDuration] = useState<string>("1h");
+    const [showMediaStorage, setShowMediaStorage] = useState(false);
+    const [mediaStorageSlide] = useState(() => new Animated.Value(SCREEN_WIDTH));
+    const [showGroupSettings, setShowGroupSettings] = useState(false);
+    const [groupSettingsSlide] = useState(() => new Animated.Value(SCREEN_WIDTH));
     const [showMembers, setShowMembers] = useState(false);
-    const [showPendingApprovals, setShowPendingApprovals] = useState(false);
-    const [menuMember, setMenuMember] = useState<GroupMember | null>(null);
-    const [successorLeaveVisible, setSuccessorLeaveVisible] = useState(false);
-    const [pickedSuccessorId, setPickedSuccessorId] = useState<string | null>(null);
-    const menuMemberLabel = menuMember?.fullName?.trim() || menuMember?.username || "";
+    const [membersPanelSlide] = useState(() => new Animated.Value(SCREEN_WIDTH));
+    const [recentMedia, setRecentMedia] = useState<{ type: "image" | "video"; url: string }[]>([]);
+    const [videoThumbByResolvedUrl, setVideoThumbByResolvedUrl] = useState<Record<string, string>>({});
 
     const currentUserId = useAuthStore.getState().user?.id;
 
-    const refreshGroup = useCallback(async () => {
+    const openMediaStorage = () => {
+        setShowMediaStorage(true);
+        Animated.timing(mediaStorageSlide, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const closeMediaStorage = () => {
+        Animated.timing(mediaStorageSlide, {
+            toValue: SCREEN_WIDTH,
+            duration: 250,
+            useNativeDriver: true,
+        }).start(() => setShowMediaStorage(false));
+    };
+
+    const openGroupSettings = () => {
+        setShowGroupSettings(true);
+        Animated.timing(groupSettingsSlide, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const closeGroupSettings = () => {
+        Animated.timing(groupSettingsSlide, {
+            toValue: SCREEN_WIDTH,
+            duration: 250,
+            useNativeDriver: true,
+        }).start(() => setShowGroupSettings(false));
+    };
+
+    const openMembersPanel = useCallback(() => {
+        setShowMembers(true);
+        membersPanelSlide.setValue(SCREEN_WIDTH);
+        requestAnimationFrame(() => {
+            Animated.timing(membersPanelSlide, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }).start();
+        });
+    }, [membersPanelSlide]);
+
+    const closeMembersPanel = useCallback(() => {
+        Animated.timing(membersPanelSlide, {
+            toValue: SCREEN_WIDTH,
+            duration: 250,
+            useNativeDriver: true,
+        }).start(() => setShowMembers(false));
+    }, [membersPanelSlide]);
+
+    /** Coi là đang “ở trong” phòng khi xem tuỳ chọn nhóm — không chặn thông báo khi chỉ ChatScreen bị blur phía dưới stack. */
+    useFocusEffect(
+        useCallback(() => {
+            if (!roomId) return;
+            useChatStore.getState().setCurrentRoom(roomId);
+            return () => {
+                useChatStore.getState().setCurrentRoom(null);
+            };
+        }, [roomId]),
+    );
+
+    const pickChatWallpaper = useCallback(async () => {
         if (!roomId) return;
-        try {
-            const detail = await groupService.getGroupDetails(roomId);
-            setGroup(detail);
-        } catch (err) {
-            console.error("Error refreshing group:", err);
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+            Alert.alert("Quyền truy cập", "Cần quyền thư viện ảnh để đặt hình nền.");
+            return;
         }
+        const res = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.85,
+        });
+        if (res.canceled || !res.assets?.[0]?.uri) return;
+        await setChatWallpaperUri(roomId, res.assets[0].uri);
+        Alert.alert("Đã lưu", "Hình nền chỉ hiển thị trên thiết bị của bạn.");
     }, [roomId]);
 
     useEffect(() => {
@@ -370,108 +507,108 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
             .finally(() => setLoading(false));
     }, [roomId]);
 
-    /** Mỗi lần mở modal thành viên — tải lại để tag phó/trưởng khớp realtime (thiết bị khác vừa đổi quyền). */
-    useEffect(() => {
-        if (!showMembers || !roomId) return;
-        void refreshGroup();
-    }, [showMembers, roomId, refreshGroup]);
+    const fetchRecentMedia = useCallback(async () => {
+        if (!roomId) return;
+        try {
+            const res = await chatService.getChatHistory(roomId, 120);
+            const raw = res.messages || [];
+            const msgs = [...raw].sort(
+                (a: { createdAt?: string }, b: { createdAt?: string }) =>
+                    new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+            );
+            const items: { type: "image" | "video"; url: string }[] = [];
+            for (const msg of msgs as Array<{
+                attachments?: Array<{ url?: string; type?: string; name?: string }>;
+                fileUrl?: string;
+                type?: string;
+                createdAt?: string;
+            }>) {
+                if (items.length >= 5) break;
+                const attachments = msg.attachments;
+                if (attachments?.length) {
+                    for (const att of attachments) {
+                        if (items.length >= 5) break;
+                        const rawU = att.url?.trim();
+                        if (!rawU) continue;
+                        if (isVideoAttachment(att)) {
+                            items.push({ type: "video", url: rawU });
+                        } else if (isImageAttachment(att)) {
+                            items.push({ type: "image", url: rawU });
+                        }
+                    }
+                }
+                if (items.length >= 5) break;
+                const legacy = String(msg.fileUrl || "").trim();
+                if (legacy && !attachments?.length) {
+                    const pseudo = { url: legacy, type: msg.type };
+                    if (isVideoAttachment(pseudo)) {
+                        items.push({ type: "video", url: legacy });
+                    } else if (isImageAttachment(pseudo)) {
+                        items.push({ type: "image", url: legacy });
+                    }
+                }
+            }
+            setRecentMedia(items);
+        } catch (e) {
+            console.error("GroupInfo recent media:", e);
+            setRecentMedia([]);
+        }
+    }, [roomId]);
 
-    const isOwner = group?.ownerId === currentUserId;
+    useEffect(() => {
+        setVideoThumbByResolvedUrl({});
+        void fetchRecentMedia();
+    }, [fetchRecentMedia]);
+
+    useFocusEffect(
+        useCallback(() => {
+            void fetchRecentMedia();
+        }, [fetchRecentMedia]),
+    );
+
+    useEffect(() => {
+        let cancelled = false;
+        const videos = recentMedia.filter((m) => m.type === "video");
+        if (videos.length === 0) {
+            setVideoThumbByResolvedUrl({});
+            return;
+        }
+        void (async () => {
+            const merged: Record<string, string> = {};
+            await Promise.all(
+                videos.map(async (v) => {
+                    const resolved = getImageUrl(v.url);
+                    try {
+                        const { uri } = await VideoThumbnails.getThumbnailAsync(resolved, {
+                            time: 800,
+                            quality: 0.55,
+                        });
+                        merged[resolved] = uri;
+                    } catch {
+                        /* Ảnh tĩnh từ URL video thường không load — chỉ báo lỗi im lặng */
+                    }
+                }),
+            );
+            if (!cancelled) setVideoThumbByResolvedUrl(merged);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [recentMedia]);
+
+    const isOwner =
+        group != null && currentUserId != null && String(group.ownerId) === String(currentUserId);
     const currentUserRole = group?.members.find((m) => m.userId === currentUserId)?.role;
     const isAdmin = currentUserRole === "ADMIN";
     const canManageMembers = isOwner || isAdmin;
 
-    const sortedMembers = useMemo(() => {
-        if (!group?.members?.length) return [];
-        return [...group.members].sort((a, b) => {
-            const aOwn = a.userId === group.ownerId;
-            const bOwn = b.userId === group.ownerId;
-            if (aOwn !== bOwn) return aOwn ? -1 : 1;
-            if (a.role === "ADMIN" && b.role !== "ADMIN") return -1;
-            if (a.role !== "ADMIN" && b.role === "ADMIN") return 1;
-            return (a.fullName || a.username).localeCompare(b.fullName || b.username, "vi");
-        });
-    }, [group]);
-
-    const successorCandidates = useMemo(() => {
-        if (!group?.members?.length || !currentUserId) return [];
-        return group.members.filter((m) => m.userId !== currentUserId);
-    }, [group, currentUserId]);
-
-    const handleRemoveMember = (memberId: string) => {
-        Alert.alert("Xóa thành viên", "Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?", [
-            { text: "Hủy", style: "cancel" },
-            {
-                text: "Xóa",
-                style: "destructive",
-                onPress: async () => {
-                    try {
-                        const updated = await groupService.removeMembersFromGroup(roomId, [memberId]);
-                        setGroup(updated);
-                        setMenuMember(null);
-                    } catch (err: any) {
-                        Alert.alert("Lỗi", err?.response?.data?.message || "Xóa thành viên thất bại.");
-                    }
-                },
-            },
-        ]);
-    };
-
-    const handleChangeRole = async (targetUserId: string, role: "ADMIN" | "MEMBER") => {
+    const performRemoveMember = async (memberId: string) => {
         try {
-            const updated = await groupService.changeRole(roomId, targetUserId, role);
+            const updated = await groupService.removeMembersFromGroup(roomId, [memberId]);
             setGroup(updated);
-            setMenuMember(null);
-            await refreshGroup();
         } catch (err: any) {
-            Alert.alert("Lỗi", err?.response?.data?.message || "Không đổi được quyền.");
+            Alert.alert("Lỗi", err?.response?.data?.message || "Xóa thành viên thất bại.");
         }
-    };
-
-    const handleBlockMember = (targetUserId: string, label: string) => {
-        Alert.alert(
-            "Chặn khỏi nhóm",
-            `Chặn "${label}" khỏi nhóm? Người này không thể vào lại nhóm qua link.`,
-            [
-                { text: "Hủy", style: "cancel" },
-                {
-                    text: "Chặn",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            await groupService.blockMember(roomId, targetUserId);
-                            await refreshGroup();
-                            setMenuMember(null);
-                        } catch (err: any) {
-                            Alert.alert("Lỗi", err?.response?.data?.message || "Chặn thất bại.");
-                        }
-                    },
-                },
-            ]
-        );
-    };
-
-    const handleTransferOwnershipMember = (targetUserId: string) => {
-        Alert.alert(
-            "Chuyển trưởng nhóm",
-            "Bạn sẽ nhường quyền trưởng nhóm cho thành viên này.",
-            [
-                { text: "Hủy", style: "cancel" },
-                {
-                    text: "Chuyển",
-                    onPress: async () => {
-                        try {
-                            const updated = await groupService.transferOwnership(roomId, targetUserId);
-                            setGroup(updated);
-                            setMenuMember(null);
-                            await refreshGroup();
-                        } catch (err: any) {
-                            Alert.alert("Lỗi", err?.response?.data?.message || "Chuyển quyền thất bại.");
-                        }
-                    },
-                },
-            ]
-        );
     };
 
     const handleDisbandGroup = () => {
@@ -496,7 +633,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
         ]);
     };
 
-    const runLeaveGroupAfterConfirm = () => {
+    const handleLeaveGroup = () => {
         Alert.alert("Rời nhóm", "Bạn có chắc chắn muốn rời nhóm này?", [
             { text: "Hủy", style: "cancel" },
             {
@@ -509,54 +646,13 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         onClose();
                         router.replace("/(tabs)");
                     } catch (err: any) {
-                        Alert.alert(
-                            "Lỗi",
-                            typeof err?.response?.data?.message === "string"
-                                ? err.response.data.message
-                                : "Rời nhóm thất bại.",
-                        );
+                        Alert.alert("Lỗi", err?.response?.data?.message || "Rời nhóm thất bại.");
                     } finally {
                         setIsLeaving(false);
                     }
                 },
             },
         ]);
-    };
-
-    /** Trưởng nhóm và còn người khác → modal chọn người nhận quyền */
-    const handleLeaveGroup = () => {
-        if (!group || !currentUserId) return;
-        const others = group.members.filter((m) => m.userId !== currentUserId);
-        const mustPickSuccessor =
-            group.ownerId === currentUserId && others.length > 0;
-        if (mustPickSuccessor) {
-            setPickedSuccessorId(null);
-            setSuccessorLeaveVisible(true);
-            return;
-        }
-        runLeaveGroupAfterConfirm();
-    };
-
-    const executeTransferOwnershipAndLeave = async () => {
-        if (!pickedSuccessorId || !roomId) return;
-        setIsLeaving(true);
-        try {
-            await groupService.transferOwnership(roomId, pickedSuccessorId);
-            await groupService.leaveGroup(roomId);
-            setSuccessorLeaveVisible(false);
-            setPickedSuccessorId(null);
-            onClose();
-            router.replace("/(tabs)");
-        } catch (err: any) {
-            Alert.alert(
-                "Lỗi",
-                typeof err?.response?.data?.message === "string"
-                    ? err.response.data.message
-                    : "Không thể nhường quyền và rời nhóm.",
-            );
-        } finally {
-            setIsLeaving(false);
-        }
     };
 
     // ─── Loading / Error states ───
@@ -588,6 +684,33 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     )}&background=0068FF&color=fff&bold=true&size=120`;
 
     const existingMemberIds = group.members.map((m) => m.userId);
+    const joinInviteUrl = buildJoinConversationUrl(roomId);
+    const isRoomPinned = pinnedRooms.has(String(roomId));
+    const canOpenGroupSettings = canManageMembers;
+
+    const handleConfirmRenameGroup = async () => {
+        const name = renameDraft.trim();
+        if (!name) {
+            Alert.alert("Tên nhóm", "Vui lòng nhập tên nhóm.");
+            return;
+        }
+        if (name === group.groupName) {
+            setShowRenameGroup(false);
+            return;
+        }
+        setRenaming(true);
+        try {
+            const updated = await groupService.renameGroup(roomId, name);
+            setGroup(updated);
+            const r = useChatStore.getState().rooms.find((x) => String(x.id) === String(roomId));
+            if (r) upsertRoom({ ...r, name });
+            setShowRenameGroup(false);
+        } catch (err: any) {
+            Alert.alert("Lỗi", err?.response?.data?.message || "Đổi tên thất bại.");
+        } finally {
+            setRenaming(false);
+        }
+    };
 
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -669,35 +792,73 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
                             {group.groupName}
                         </Text>
-                        <TouchableOpacity activeOpacity={0.6}>
+                        <TouchableOpacity
+                            activeOpacity={0.6}
+                            onPress={() => {
+                                setRenameDraft(group.groupName);
+                                setShowRenameGroup(true);
+                            }}
+                        >
                             <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* ── Quick Actions Row ── */}
-                <View
-                    style={{
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{
                         flexDirection: "row",
-                        justifyContent: "space-around",
-                        paddingHorizontal: 20,
+                        alignItems: "flex-start",
+                        paddingHorizontal: 14,
                         paddingBottom: 20,
+                        gap: 12,
+                    }}
+                    style={{
                         borderBottomWidth: 6,
                         borderBottomColor: colors.separator,
                         backgroundColor: colors.card,
                     }}
                 >
                     {[
-                        { icon: "search", label: "Tìm\ntin nhắn", onPress: () => router.push(`/search-messages?roomId=${roomId}&name=${encodeURIComponent(group.groupName)}&avatarUrl=${encodeURIComponent(avatarUri)}`) },
+                        {
+                            icon: "search",
+                            label: "Tìm\ntin nhắn",
+                            onPress: () =>
+                                router.push(
+                                    `/search-messages?roomId=${roomId}&name=${encodeURIComponent(group.groupName)}&avatarUrl=${encodeURIComponent(avatarUri)}&type=GROUP`,
+                                ),
+                        },
                         { icon: "person-add-outline", label: "Thêm\nthành viên", onPress: () => setShowAddMember(true) },
-                        { icon: "color-palette-outline", label: "Đổi\nhình nền" },
-                        { icon: "notifications-outline", label: "Tắt\nthông báo" },
+                        {
+                            icon: isRoomPinned ? "pin" : "pin-outline",
+                            label: isRoomPinned ? "Bỏ\nghim" : "Ghim\nhội thoại",
+                            onPress: () => togglePinRoom(roomId),
+                        },
+                        {
+                            icon: "color-palette-outline",
+                            label: "Đổi\nhình nền",
+                            onPress: () => void pickChatWallpaper(),
+                        },
+                        {
+                            icon: mutedRooms.has(String(roomId)) ? "notifications" : "notifications-outline",
+                            label: mutedRooms.has(String(roomId)) ? "Bật\nthông báo" : "Tắt\nthông báo",
+                            onPress: () => {
+                                if (mutedRooms.has(String(roomId))) {
+                                    toggleMuteRoom(roomId);
+                                } else {
+                                    setSelectedMuteDuration("1h");
+                                    setShowMuteDuration(true);
+                                }
+                            },
+                        },
                     ].map((item, idx) => (
                         <TouchableOpacity
                             key={idx}
                             activeOpacity={0.7}
-                            onPress={item.onPress}
-                            style={{ alignItems: "center", width: 70 }}
+                            onPress={item.onPress ?? (() => {})}
+                            style={{ alignItems: "center", width: 72 }}
                         >
                             <View
                                 style={{
@@ -724,7 +885,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                             </Text>
                         </TouchableOpacity>
                     ))}
-                </View>
+                </ScrollView>
 
                 {/* ── Sections ── */}
                 <View style={{ marginTop: 4 }}>
@@ -736,51 +897,164 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
 
                 <View style={{ height: 6, backgroundColor: colors.separator }} />
 
-                <SectionRow
-                    icon="images-outline"
-                    label="Ảnh, file, link"
-                />
+                <SectionRow icon="images-outline" label="Ảnh, file, link" onPress={openMediaStorage} />
+
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ backgroundColor: colors.card, paddingBottom: 14, paddingLeft: 16, paddingRight: 16 }}
+                >
+                    {recentMedia.length > 0 ? (
+                        <>
+                            {recentMedia.map((m, i) => {
+                                const resolved = getImageUrl(m.url);
+                                const videoThumb =
+                                    m.type === "video" ? videoThumbByResolvedUrl[resolved] : undefined;
+                                return (
+                                    <TouchableOpacity
+                                        key={`${m.url}-${i}`}
+                                        activeOpacity={0.85}
+                                        onPress={openMediaStorage}
+                                        style={{
+                                            width: 70,
+                                            height: 70,
+                                            marginRight: 8,
+                                            borderRadius: 8,
+                                            overflow: "hidden",
+                                            backgroundColor: colors.searchBg,
+                                            justifyContent: "center",
+                                            alignItems: "center",
+                                        }}
+                                    >
+                                        {m.type === "video" ? (
+                                            videoThumb ? (
+                                                <>
+                                                    <Image
+                                                        source={{ uri: videoThumb }}
+                                                        style={{ width: 70, height: 70 }}
+                                                        resizeMode="cover"
+                                                    />
+                                                    <View
+                                                        style={{
+                                                            ...StyleSheet.absoluteFillObject,
+                                                            backgroundColor: "rgba(0,0,0,0.35)",
+                                                            justifyContent: "center",
+                                                            alignItems: "center",
+                                                        }}
+                                                    >
+                                                        <Ionicons name="play-circle" size={36} color="#fff" />
+                                                    </View>
+                                                </>
+                                            ) : (
+                                                <View
+                                                    style={{
+                                                        width: 70,
+                                                        height: 70,
+                                                        justifyContent: "center",
+                                                        alignItems: "center",
+                                                    }}
+                                                >
+                                                    <ActivityIndicator size="small" color={colors.primary} />
+                                                </View>
+                                            )
+                                        ) : (
+                                            <Image
+                                                source={{ uri: resolved }}
+                                                style={{ width: 70, height: 70, borderRadius: 8 }}
+                                                resizeMode="cover"
+                                            />
+                                        )}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                            {recentMedia.length >= 5 ? (
+                                <TouchableOpacity
+                                    onPress={openMediaStorage}
+                                    style={{
+                                        width: 70,
+                                        height: 70,
+                                        marginRight: 8,
+                                        borderRadius: 8,
+                                        backgroundColor: colors.searchBg,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                    }}
+                                >
+                                    <Ionicons name="arrow-forward" size={24} color={colors.text} />
+                                </TouchableOpacity>
+                            ) : null}
+                        </>
+                    ) : (
+                        <View
+                            style={{
+                                width: 70,
+                                height: 70,
+                                borderRadius: 8,
+                                backgroundColor: colors.searchBg,
+                                justifyContent: "center",
+                                alignItems: "center",
+                            }}
+                        >
+                            <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Trống</Text>
+                        </View>
+                    )}
+                </ScrollView>
 
                 <View style={{ height: 6, backgroundColor: colors.separator }} />
 
                 <SectionRow icon="calendar-outline" label="Lịch nhóm" />
                 <SectionRow icon="pin-outline" label="Tin nhắn đã ghim" />
-                <SectionRow icon="bar-chart-outline" label="Bình chọn" />
+                <SectionRow
+                    icon="bar-chart-outline"
+                    label="Bình chọn"
+                    subtitle="Tạo cuộc khảo sát cho cả nhóm"
+                    onPress={() =>
+                        router.push(
+                            `/create-poll?roomId=${encodeURIComponent(roomId)}&groupName=${encodeURIComponent(group.groupName)}`,
+                        )
+                    }
+                />
+
+                {canOpenGroupSettings ? (
+                    <>
+                        <SectionRow icon="settings-outline" label="Cài đặt nhóm" onPress={openGroupSettings} />
+                    </>
+                ) : null}
 
                 <View style={{ height: 6, backgroundColor: colors.separator }} />
 
                 <SectionRow
                     icon="people-outline"
-                    label={`Xem thành viên (${group.members.length})`}
-                    onPress={() => setShowMembers(true)}
+                    label={
+                        canManageMembers
+                            ? `Quản lý thành viên (${group.members.length})`
+                            : `Thành viên (${group.members.length})`
+                    }
+                    onPress={openMembersPanel}
                 />
-                {canManageMembers && (group.pendingJoinRequestCount ?? 0) > 0 ? (
-                    <SectionRow
-                        icon="hourglass-outline"
-                        iconColor={colors.primary}
-                        label="Phê duyệt thành viên mới"
-                        subtitle={`${group.pendingJoinRequestCount} yêu cầu chờ duyệt`}
-                        onPress={() => setShowPendingApprovals(true)}
-                        showChevron={false}
-                        rightElement={
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                <View
-                                    style={{
-                                        width: 10,
-                                        height: 10,
-                                        borderRadius: 5,
-                                        backgroundColor: "#ef4444",
-                                    }}
-                                />
-                                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-                            </View>
-                        }
-                    />
-                ) : null}
                 <SectionRow
                     icon="link-outline"
-                    label="Link nhóm"
-                    subtitle="Chưa có link nhóm"
+                    label="Link tham gia nhóm"
+                    subtitle={
+                        joinInviteUrl
+                            ? joinInviteUrl.replace(/^https?:\/\//, "")
+                            : "Cấu hình EXPO_PUBLIC_WEB_ORIGIN (hoặc API) để tạo link"
+                    }
+                    onPress={async () => {
+                        if (!joinInviteUrl) {
+                            Alert.alert(
+                                "Link tham gia",
+                                "Thêm biến EXPO_PUBLIC_WEB_ORIGIN trong .env trỏ tới trang web của app (ví dụ https://app.example.com), hoặc dùng API URL để tự suy ra.",
+                            );
+                            return;
+                        }
+                        try {
+                            await Clipboard.setStringAsync(joinInviteUrl);
+                            Alert.alert("Đã sao chép", "Link tham gia nhóm đã được sao chép vào bộ nhớ.");
+                        } catch {
+                            Alert.alert("Lỗi", "Không thể sao chép.");
+                        }
+                    }}
                 />
 
                 <View style={{ height: 6, backgroundColor: colors.separator }} />
@@ -791,8 +1065,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     showChevron={false}
                     rightElement={
                         <Switch
-                            value={pinned}
-                            onValueChange={setPinned}
+                            value={isRoomPinned}
+                            onValueChange={() => togglePinRoom(roomId)}
                             trackColor={{ false: colors.separator, true: colors.primary }}
                             thumbColor="#fff"
                         />
@@ -847,56 +1121,29 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                 </TouchableOpacity>
 
                 {isOwner ? (
-                    <>
-                        <TouchableOpacity
-                            activeOpacity={0.7}
-                            onPress={handleLeaveGroup}
-                            disabled={isLeaving}
-                            style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                paddingHorizontal: 16,
-                                paddingVertical: 14,
-                                borderBottomWidth: 0.5,
-                                borderBottomColor: colors.border,
-                                backgroundColor: colors.card,
-                                opacity: isLeaving ? 0.5 : 1,
-                            }}
-                        >
-                            <Ionicons
-                                name="log-out-outline"
-                                size={22}
-                                color="#ef4444"
-                                style={{ marginRight: 14, width: 24, textAlign: "center" as const }}
-                            />
-                            <Text style={{ fontSize: 15, color: "#ef4444" }}>
-                                {isLeaving ? "Đang xử lý..." : "Rời nhóm"}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            activeOpacity={0.7}
-                            onPress={handleDisbandGroup}
-                            disabled={isLeaving}
-                            style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                paddingHorizontal: 16,
-                                paddingVertical: 14,
-                                backgroundColor: colors.card,
-                                opacity: isLeaving ? 0.5 : 1,
-                            }}
-                        >
-                            <Ionicons
-                                name="trash-bin-outline"
-                                size={22}
-                                color="#ef4444"
-                                style={{ marginRight: 14, width: 24, textAlign: "center" as const }}
-                            />
-                            <Text style={{ fontSize: 15, color: "#ef4444" }}>
-                                {isLeaving ? "Đang giải tán..." : "Giải tán nhóm"}
-                            </Text>
-                        </TouchableOpacity>
-                    </>
+                    <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={handleDisbandGroup}
+                        disabled={isLeaving}
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: 16,
+                            paddingVertical: 14,
+                            backgroundColor: colors.card,
+                            opacity: isLeaving ? 0.5 : 1,
+                        }}
+                    >
+                        <Ionicons
+                            name="trash-bin-outline"
+                            size={22}
+                            color="#ef4444"
+                            style={{ marginRight: 14, width: 24, textAlign: "center" as const }}
+                        />
+                        <Text style={{ fontSize: 15, color: "#ef4444" }}>
+                            {isLeaving ? "Đang giải tán..." : "Giải tán nhóm"}
+                        </Text>
+                    </TouchableOpacity>
                 ) : (
                     <TouchableOpacity
                         activeOpacity={0.7}
@@ -924,6 +1171,224 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                 )}
             </ScrollView>
 
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showMuteDuration}
+                onRequestClose={() => setShowMuteDuration(false)}
+            >
+                <Pressable
+                    style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" }}
+                    onPress={() => setShowMuteDuration(false)}
+                >
+                    <Pressable
+                        style={{
+                            backgroundColor: colors.card,
+                            borderRadius: 20,
+                            paddingTop: 20,
+                            paddingBottom: 14,
+                            width: "82%",
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700", paddingHorizontal: 20, marginBottom: 6 }}>
+                            Tắt thông báo
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 13, paddingHorizontal: 20, marginBottom: 14 }}>
+                            Bạn sẽ không nhận thông báo từ hội thoại này trong:
+                        </Text>
+                        {(
+                            [
+                                { id: "1h", label: "Trong 1 giờ" },
+                                { id: "4h", label: "Trong 4 giờ" },
+                                { id: "8am", label: "Cho đến 8:00 AM" },
+                                { id: "forever", label: "Cho đến khi được mở lại" },
+                            ] as const
+                        ).map((opt) => (
+                            <TouchableOpacity
+                                key={opt.id}
+                                onPress={() => setSelectedMuteDuration(opt.id)}
+                                style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 12, gap: 12 }}
+                            >
+                                <View
+                                    style={{
+                                        width: 20,
+                                        height: 20,
+                                        borderRadius: 10,
+                                        borderWidth: 2,
+                                        borderColor: selectedMuteDuration === opt.id ? colors.primary : colors.border,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
+                                >
+                                    {selectedMuteDuration === opt.id ? (
+                                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary }} />
+                                    ) : null}
+                                </View>
+                                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "500" }}>{opt.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                justifyContent: "flex-end",
+                                gap: 12,
+                                paddingHorizontal: 20,
+                                paddingTop: 10,
+                                borderTopWidth: 1,
+                                borderTopColor: colors.border,
+                                marginTop: 6,
+                            }}
+                        >
+                            <TouchableOpacity
+                                onPress={() => setShowMuteDuration(false)}
+                                style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.border }}
+                            >
+                                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>Hủy</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    if (!mutedRooms.has(String(roomId))) toggleMuteRoom(roomId);
+                                    setShowMuteDuration(false);
+                                }}
+                                style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary }}
+                            >
+                                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Đồng ý</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Pressable>
+                </Pressable>
+            </Modal>
+
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showRenameGroup}
+                onRequestClose={() => !renaming && setShowRenameGroup(false)}
+            >
+                <Pressable
+                    style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" }}
+                    onPress={() => !renaming && setShowRenameGroup(false)}
+                >
+                    <Pressable
+                        style={{
+                            backgroundColor: colors.card,
+                            borderRadius: 16,
+                            paddingTop: 18,
+                            paddingBottom: 14,
+                            width: "85%",
+                            maxWidth: 360,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "700", paddingHorizontal: 18, marginBottom: 12 }}>
+                            Đổi tên nhóm
+                        </Text>
+                        <TextInput
+                            value={renameDraft}
+                            onChangeText={setRenameDraft}
+                            placeholder="Tên nhóm"
+                            placeholderTextColor={colors.textSecondary}
+                            editable={!renaming}
+                            style={{
+                                marginHorizontal: 16,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                borderRadius: 10,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                fontSize: 16,
+                                color: colors.text,
+                                backgroundColor: colors.searchBg,
+                            }}
+                        />
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                justifyContent: "flex-end",
+                                gap: 12,
+                                paddingHorizontal: 16,
+                                paddingTop: 16,
+                            }}
+                        >
+                            <TouchableOpacity
+                                onPress={() => !renaming && setShowRenameGroup(false)}
+                                style={{ paddingHorizontal: 16, paddingVertical: 10 }}
+                            >
+                                <Text style={{ color: colors.textSecondary, fontSize: 16, fontWeight: "600" }}>Hủy</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => void handleConfirmRenameGroup()}
+                                disabled={renaming}
+                                style={{
+                                    paddingHorizontal: 16,
+                                    paddingVertical: 10,
+                                    opacity: renaming ? 0.5 : 1,
+                                }}
+                            >
+                                {renaming ? (
+                                    <ActivityIndicator size="small" color={colors.primary} />
+                                ) : (
+                                    <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "700" }}>Lưu</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </Pressable>
+                </Pressable>
+            </Modal>
+
+            {/* Overlay: Ảnh, file, link (giống tuỳ chọn chat 1-1) */}
+            {showMediaStorage && (
+                <Animated.View
+                    style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 200,
+                        transform: [{ translateX: mediaStorageSlide }],
+                    }}
+                >
+                    <MediaStorageScreen roomId={roomId} onClose={closeMediaStorage} />
+                </Animated.View>
+            )}
+
+            {/* Overlay: Cài đặt nhóm (chỉ chủ nhóm mở được) */}
+            {showGroupSettings && group && (
+                <Animated.View
+                    style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 210,
+                        transform: [{ translateX: groupSettingsSlide }],
+                    }}
+                >
+                    <GroupSettingsScreen
+                        groupId={roomId}
+                        groupName={group.groupName}
+                        members={group.members}
+                        ownerId={group.ownerId}
+                        onClose={closeGroupSettings}
+                        onOpenMembers={() => {
+                            closeGroupSettings();
+                            setTimeout(() => openMembersPanel(), 280);
+                        }}
+                        onDisband={handleDisbandGroup}
+                        onRefreshGroup={() =>
+                            groupService.getGroupDetails(roomId).then((d) => setGroup(d)).catch(() => {})
+                        }
+                    />
+                </Animated.View>
+            )}
+
             {/* ── Add Member Modal ── */}
             <AddMemberModal
                 visible={showAddMember}
@@ -933,537 +1398,31 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                 onMembersAdded={(updated) => setGroup(updated)}
             />
 
-            {/* ── Pending join approvals (trưởng/phó) ── */}
-            <Modal
-                visible={showPendingApprovals}
-                animationType="slide"
-                presentationStyle="pageSheet"
-                onRequestClose={() => setShowPendingApprovals(false)}
-            >
-                <SafeAreaView
+            {/* Overlay: Thành viên / quản lý thành viên */}
+            {showMembers && group ? (
+                <Animated.View
                     style={{
-                        flex: 1,
-                        backgroundColor: colors.background,
-                        paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 215,
+                        transform: [{ translateX: membersPanelSlide }],
                     }}
                 >
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingHorizontal: 16,
-                            height: 52,
-                            backgroundColor: colors.headerBg,
-                            borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
-                            borderBottomColor: colors.border,
-                        }}
-                    >
-                        <TouchableOpacity
-                            onPress={() => setShowPendingApprovals(false)}
-                            style={{ paddingRight: 8, paddingVertical: 4 }}
-                        >
-                            <Ionicons name="chevron-back" size={26} color={colors.headerText} />
-                        </TouchableOpacity>
-                        <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
-                            Phê duyệt thành viên
-                        </Text>
-                    </View>
-                    <FlatList
-                        data={group.pendingJoinRequests || []}
-                        keyExtractor={(item) => item.userId}
-                        contentContainerStyle={{ paddingVertical: 8 }}
-                        renderItem={({ item }) => {
-                            const label = item.displayName || item.fullName || item.username;
-                            const sub = item.invitedByDisplayName
-                                ? `Mời bởi ${item.invitedByDisplayName}`
-                                : "Tham gia qua link";
-                            const avatarUri =
-                                item.avatarUrl ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(label)}&background=0068FF&color=fff`;
-                            return (
-                                <View
-                                    style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        paddingHorizontal: 16,
-                                        paddingVertical: 12,
-                                        borderBottomWidth: StyleSheet.hairlineWidth,
-                                        borderBottomColor: colors.border,
-                                        gap: 12,
-                                    }}
-                                >
-                                    <Image source={{ uri: avatarUri }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-                                    <View style={{ flex: 1, minWidth: 0 }}>
-                                        <Text style={{ fontSize: 16, fontWeight: "600", color: colors.text }} numberOfLines={1}>
-                                            {label}
-                                        </Text>
-                                        <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
-                                            {sub}
-                                        </Text>
-                                    </View>
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            Alert.alert("Từ chối", `Từ chối ${label}?`, [
-                                                { text: "Hủy", style: "cancel" },
-                                                {
-                                                    text: "Từ chối",
-                                                    style: "destructive",
-                                                    onPress: async () => {
-                                                        try {
-                                                            const u = await groupService.rejectJoinRequest(roomId, item.userId);
-                                                            setGroup(u);
-                                                            if ((u.pendingJoinRequestCount ?? 0) === 0) setShowPendingApprovals(false);
-                                                        } catch (err: any) {
-                                                            Alert.alert("Lỗi", err?.response?.data?.message || "Thất bại.");
-                                                        }
-                                                    },
-                                                },
-                                            ]);
-                                        }}
-                                        style={{ paddingHorizontal: 12, paddingVertical: 8 }}
-                                    >
-                                        <Text style={{ color: colors.textSecondary, fontWeight: "600" }}>Từ chối</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        onPress={async () => {
-                                            try {
-                                                const u = await groupService.approveJoinRequest(roomId, item.userId);
-                                                setGroup(u);
-                                                if ((u.pendingJoinRequestCount ?? 0) === 0) setShowPendingApprovals(false);
-                                            } catch (err: any) {
-                                                Alert.alert("Lỗi", err?.response?.data?.message || "Thất bại.");
-                                            }
-                                        }}
-                                        style={{
-                                            paddingHorizontal: 14,
-                                            paddingVertical: 8,
-                                            borderRadius: 8,
-                                            backgroundColor: colors.primary,
-                                        }}
-                                    >
-                                        <Text style={{ color: "#fff", fontWeight: "700" }}>Đồng ý</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            );
-                        }}
-                        ListEmptyComponent={
-                            <Text style={{ textAlign: "center", color: colors.textSecondary, padding: 24 }}>
-                                Không còn yêu cầu chờ duyệt.
-                            </Text>
-                        }
-                    />
-                </SafeAreaView>
-            </Modal>
-
-            {/* ── Members List Modal ── */}
-            <Modal
-                visible={showMembers}
-                animationType="slide"
-                presentationStyle="pageSheet"
-                onRequestClose={() => setShowMembers(false)}
-            >
-                <SafeAreaView
-                    style={{
-                        flex: 1,
-                        backgroundColor: colors.background,
-                        paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
-                    }}
-                >
-                    {/* Header */}
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingHorizontal: 16,
-                            height: 52,
-                            backgroundColor: colors.headerBg,
-                            borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
-                            borderBottomColor: colors.border,
-                            gap: 12,
-                        }}
-                    >
-                        <TouchableOpacity
-                            onPress={() => setShowMembers(false)}
-                            activeOpacity={0.6}
-                            style={{ paddingRight: 8, paddingVertical: 4 }}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                            <Ionicons name="chevron-back" size={26} color={colors.headerText} />
-                        </TouchableOpacity>
-                        <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
-                            Thành viên ({group.members.length})
-                        </Text>
-                        <TouchableOpacity
-                            onPress={() => {
-                                setShowMembers(false);
-                                setTimeout(() => setShowAddMember(true), 200);
-                            }}
-                            activeOpacity={0.6}
-                            style={{ padding: 4 }}
-                        >
-                            <Ionicons name="person-add-outline" size={22} color={colors.primary} />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Members list */}
-                    <FlatList
-                        data={sortedMembers}
-                        keyExtractor={(item) => item.userId}
-                        showsVerticalScrollIndicator={false}
-                        renderItem={({ item: member }) => {
-                            const memberAvatar =
-                                member.avatarUrl ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                    member.username
-                                )}&background=0068FF&color=fff&bold=true`;
-                            const isOwnerMember = member.userId === group.ownerId;
-                            const isCurrentUser = member.userId === currentUserId;
-                            const isDeputy = member.role === "ADMIN" && !isOwnerMember;
-                            const displayName = member.fullName?.trim() || member.username;
-                            const showEllipsis =
-                                canManageMembers &&
-                                !isOwnerMember &&
-                                !isCurrentUser &&
-                                (isOwner || member.role === "MEMBER");
-
-                            return (
-                                <View
-                                    style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        paddingHorizontal: 16,
-                                        paddingVertical: 12,
-                                        borderBottomWidth: 0.5,
-                                        borderBottomColor: colors.border,
-                                        backgroundColor: colors.card,
-                                    }}
-                                >
-                                    <Image
-                                        source={{ uri: memberAvatar }}
-                                        style={{
-                                            width: 48,
-                                            height: 48,
-                                            borderRadius: 24,
-                                            marginRight: 12,
-                                            backgroundColor: colors.separator,
-                                        }}
-                                    />
-                                    <View style={{ flex: 1 }}>
-                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                            <Text
-                                                style={{ fontSize: 15, color: colors.text, fontWeight: "500" }}
-                                                numberOfLines={1}
-                                            >
-                                                {displayName}
-                                            </Text>
-                                            {isCurrentUser && (
-                                                <Text style={{ fontSize: 12, color: colors.textSecondary }}>(Bạn)</Text>
-                                            )}
-                                        </View>
-                                        <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
-                                            @{member.username}
-                                        </Text>
-                                    </View>
-                                    {isOwnerMember && (
-                                        <View
-                                            style={{
-                                                backgroundColor: colors.primary + "22",
-                                                paddingHorizontal: 10,
-                                                paddingVertical: 4,
-                                                borderRadius: 12,
-                                                marginRight: showEllipsis ? 8 : 0,
-                                            }}
-                                        >
-                                            <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "600" }}>
-                                                Trưởng nhóm
-                                            </Text>
-                                        </View>
-                                    )}
-                                    {isDeputy && (
-                                        <View
-                                            style={{
-                                                backgroundColor: "#f3e8ff",
-                                                paddingHorizontal: 10,
-                                                paddingVertical: 4,
-                                                borderRadius: 12,
-                                                marginRight: showEllipsis ? 8 : 0,
-                                            }}
-                                        >
-                                            <Text style={{ fontSize: 11, color: "#7c3aed", fontWeight: "600" }}>
-                                                Phó nhóm
-                                            </Text>
-                                        </View>
-                                    )}
-                                    {showEllipsis && (
-                                        <TouchableOpacity
-                                            style={{ padding: 6 }}
-                                            onPress={() => setMenuMember(member)}
-                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                        >
-                                            <Ionicons name="ellipsis-vertical" size={22} color={colors.textSecondary} />
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            );
+                    <GroupMembersScreen
+                        group={group}
+                        currentUserId={currentUserId}
+                        canManage={canManageMembers}
+                        onClose={closeMembersPanel}
+                        onRequestAddMember={() => setTimeout(() => setShowAddMember(true), 220)}
+                        onRemoveMember={(id) => {
+                            void performRemoveMember(id);
                         }}
                     />
-                </SafeAreaView>
-            </Modal>
-
-            {/* Sheet thao tác thành viên (phó nhóm / chặn / …) */}
-            <Modal
-                transparent
-                visible={!!menuMember}
-                animationType="fade"
-                onRequestClose={() => setMenuMember(null)}
-            >
-                <TouchableOpacity
-                    activeOpacity={1}
-                    style={{
-                        flex: 1,
-                        backgroundColor: "rgba(0,0,0,0.45)",
-                        justifyContent: "flex-end",
-                    }}
-                    onPress={() => setMenuMember(null)}
-                >
-                    <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-                        <View
-                            style={{
-                                backgroundColor: colors.card,
-                                borderTopLeftRadius: 16,
-                                borderTopRightRadius: 16,
-                                paddingBottom: Platform.OS === "ios" ? 28 : 16,
-                                paddingTop: 8,
-                                borderTopWidth: 1,
-                                borderColor: colors.border,
-                            }}
-                        >
-                            <Text
-                                style={{
-                                    fontSize: 13,
-                                    color: colors.textSecondary,
-                                    paddingHorizontal: 20,
-                                    paddingBottom: 12,
-                                }}
-                                numberOfLines={2}
-                            >
-                                {menuMemberLabel}
-                            </Text>
-                            {menuMember && isOwner && menuMember.userId !== group.ownerId ? (
-                                <>
-                                    <TouchableOpacity
-                                        style={{ paddingVertical: 14, paddingHorizontal: 20 }}
-                                        onPress={() => {
-                                            handleTransferOwnershipMember(menuMember.userId);
-                                        }}
-                                    >
-                                        <Text style={{ fontSize: 16, color: colors.text }}>Chọn làm trưởng nhóm</Text>
-                                    </TouchableOpacity>
-                                    {menuMember.role === "ADMIN" ? (
-                                        <TouchableOpacity
-                                            style={{ paddingVertical: 14, paddingHorizontal: 20 }}
-                                            onPress={() => handleChangeRole(menuMember.userId, "MEMBER")}
-                                        >
-                                            <Text style={{ fontSize: 16, color: colors.text }}>Thu hồi phó nhóm</Text>
-                                        </TouchableOpacity>
-                                    ) : (
-                                        <TouchableOpacity
-                                            style={{ paddingVertical: 14, paddingHorizontal: 20 }}
-                                            onPress={() => handleChangeRole(menuMember.userId, "ADMIN")}
-                                        >
-                                            <Text style={{ fontSize: 16, color: colors.text }}>Phong làm phó nhóm</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                    <TouchableOpacity
-                                        style={{ paddingVertical: 14, paddingHorizontal: 20 }}
-                                        onPress={() =>
-                                            handleBlockMember(menuMember.userId, menuMemberLabel || menuMember.username)
-                                        }
-                                    >
-                                        <Text style={{ fontSize: 16, color: "#dc2626" }}>Chặn khỏi nhóm</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={{ paddingVertical: 14, paddingHorizontal: 20 }}
-                                        onPress={() => handleRemoveMember(menuMember.userId)}
-                                    >
-                                        <Text style={{ fontSize: 16, color: "#dc2626" }}>Xóa khỏi nhóm</Text>
-                                    </TouchableOpacity>
-                                </>
-                            ) : menuMember && isAdmin && !isOwner && menuMember.role === "MEMBER" ? (
-                                <>
-                                    <TouchableOpacity
-                                        style={{ paddingVertical: 14, paddingHorizontal: 20 }}
-                                        onPress={() =>
-                                            handleBlockMember(menuMember.userId, menuMemberLabel || menuMember.username)
-                                        }
-                                    >
-                                        <Text style={{ fontSize: 16, color: "#dc2626" }}>Chặn khỏi nhóm</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={{ paddingVertical: 14, paddingHorizontal: 20 }}
-                                        onPress={() => handleRemoveMember(menuMember.userId)}
-                                    >
-                                        <Text style={{ fontSize: 16, color: "#dc2626" }}>Xóa khỏi nhóm</Text>
-                                    </TouchableOpacity>
-                                </>
-                            ) : null}
-                            <TouchableOpacity
-                                style={{
-                                    paddingVertical: 14,
-                                    paddingHorizontal: 20,
-                                    marginTop: 4,
-                                    borderTopWidth: 1,
-                                    borderTopColor: colors.border,
-                                }}
-                                onPress={() => setMenuMember(null)}
-                            >
-                                <Text style={{ fontSize: 16, color: colors.primary, fontWeight: "600" }}>Đóng</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </TouchableOpacity>
-                </TouchableOpacity>
-            </Modal>
-
-            {/* Trưởng nhóm rời nhóm: chọn người nhận quyền */}
-            <Modal
-                visible={successorLeaveVisible}
-                animationType="slide"
-                presentationStyle="pageSheet"
-                onRequestClose={() => !isLeaving && setSuccessorLeaveVisible(false)}
-            >
-                <SafeAreaView
-                    style={{
-                        flex: 1,
-                        backgroundColor: colors.background,
-                        paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
-                    }}
-                >
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingHorizontal: 16,
-                            height: 52,
-                            backgroundColor: colors.headerBg,
-                            borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
-                            borderBottomColor: colors.border,
-                        }}
-                    >
-                        <TouchableOpacity
-                            onPress={() => !isLeaving && setSuccessorLeaveVisible(false)}
-                            style={{ paddingRight: 8, paddingVertical: 4 }}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                            <Ionicons name="close" size={26} color={colors.headerText} />
-                        </TouchableOpacity>
-                        <Text
-                            style={{
-                                fontSize: 17,
-                                fontWeight: "600",
-                                color: colors.headerText,
-                                flex: 1,
-                            }}
-                        >
-                            Chọn trưởng nhóm mới
-                        </Text>
-                    </View>
-                    <Text
-                        style={{
-                            fontSize: 14,
-                            color: colors.textSecondary,
-                            paddingHorizontal: 16,
-                            paddingVertical: 12,
-                            lineHeight: 20,
-                        }}
-                    >
-                        Chọn một thành viên để nhường quyền trưởng nhóm trước khi bạn rời nhóm.
-                    </Text>
-                    <FlatList
-                        data={successorCandidates}
-                        keyExtractor={(m) => m.userId}
-                        style={{ flex: 1 }}
-                        renderItem={({ item: m }) => {
-                            const label = m.fullName?.trim() || m.username;
-                            const avatar =
-                                m.avatarUrl ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(label)}&background=0068FF&color=fff&bold=true`;
-                            const sel = pickedSuccessorId === m.userId;
-                            return (
-                                <TouchableOpacity
-                                    onPress={() => setPickedSuccessorId(m.userId)}
-                                    style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        paddingHorizontal: 16,
-                                        paddingVertical: 12,
-                                        backgroundColor: sel ? colors.primary + "14" : colors.card,
-                                        borderBottomWidth: 0.5,
-                                        borderBottomColor: colors.border,
-                                    }}
-                                >
-                                    <Image
-                                        source={{ uri: avatar }}
-                                        style={{
-                                            width: 44,
-                                            height: 44,
-                                            borderRadius: 22,
-                                            marginRight: 12,
-                                            backgroundColor: colors.separator,
-                                        }}
-                                    />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ fontSize: 15, color: colors.text, fontWeight: "500" }}>
-                                            {label}
-                                        </Text>
-                                        <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
-                                            @{m.username}
-                                        </Text>
-                                    </View>
-                                    <Ionicons
-                                        name={sel ? "radio-button-on" : "radio-button-off"}
-                                        size={22}
-                                        color={sel ? colors.primary : colors.textSecondary}
-                                    />
-                                </TouchableOpacity>
-                            );
-                        }}
-                        ListEmptyComponent={
-                            <Text style={{ textAlign: "center", color: colors.textSecondary, padding: 24 }}>
-                                Không có thành viên khác.
-                            </Text>
-                        }
-                    />
-                    <View
-                        style={{
-                            paddingHorizontal: 16,
-                            paddingVertical: 12,
-                            borderTopWidth: 1,
-                            borderTopColor: colors.border,
-                            backgroundColor: colors.card,
-                        }}
-                    >
-                        <TouchableOpacity
-                            disabled={isLeaving || !pickedSuccessorId}
-                            onPress={executeTransferOwnershipAndLeave}
-                            style={{
-                                backgroundColor:
-                                    pickedSuccessorId && !isLeaving ? colors.primary : colors.separator,
-                                paddingVertical: 14,
-                                borderRadius: 12,
-                                alignItems: "center",
-                            }}
-                        >
-                            {isLeaving ? (
-                                <ActivityIndicator color="#fff" />
-                            ) : (
-                                <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
-                                    Nhường quyền và rời nhóm
-                                </Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </SafeAreaView>
-            </Modal>
+                </Animated.View>
+            ) : null}
         </View>
     );
 }

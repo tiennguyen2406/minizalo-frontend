@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import * as ImagePicker from "expo-image-picker";
 import {
     View,
     Text,
@@ -10,6 +12,8 @@ import {
     Animated,
     Dimensions,
     Alert,
+    Modal,
+    Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -19,6 +23,7 @@ import AddToGroupModal from "../components/AddToGroupModal";
 import MediaStorageScreen from "./MediaStorageScreen";
 import { chatService } from "@/shared/services/chatService";
 import { useChatStore } from "@/shared/store/useChatStore";
+import { setChatWallpaperUri } from "@/shared/utils/chatWallpaper";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useRouter } from "expo-router";
 
@@ -77,6 +82,10 @@ interface ChatOptionsScreenProps {
 export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, type = "DIRECT", onClose }: ChatOptionsScreenProps) {
     const router = useRouter();
     const colors = useThemeColors();
+    const mutedRooms = useChatStore((s) => s.mutedRooms);
+    const toggleMuteRoom = useChatStore((s) => s.toggleMuteRoom);
+    const [showMuteDuration, setShowMuteDuration] = useState(false);
+    const [selectedMuteDuration, setSelectedMuteDuration] = useState<string>("1h");
     const avatar = avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
 
     const [bestFriend, setBestFriend] = useState(false);
@@ -84,6 +93,36 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     const [hidden, setHidden] = useState(false);
     const [notifyCall, setNotifyCall] = useState(true);
     const [recentMedia, setRecentMedia] = useState<{ type: 'image' | 'file' | 'link', url: string }[]>([]);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (roomId && roomId !== "new") {
+                useChatStore.getState().setCurrentRoom(roomId);
+                return () => {
+                    useChatStore.getState().setCurrentRoom(null);
+                };
+            }
+            return () => {
+                useChatStore.getState().setCurrentRoom(null);
+            };
+        }, [roomId]),
+    );
+
+    const pickChatWallpaper = useCallback(async () => {
+        if (!roomId || roomId === "new") return;
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+            Alert.alert("Quyền truy cập", "Cần quyền thư viện ảnh để đặt hình nền.");
+            return;
+        }
+        const res = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.85,
+        });
+        if (res.canceled || !res.assets?.[0]?.uri) return;
+        await setChatWallpaperUri(roomId, res.assets[0].uri);
+        Alert.alert("Đã lưu", "Hình nền chỉ hiển thị trên thiết bị của bạn.");
+    }, [roomId]);
 
     useEffect(() => {
         if (!roomId || roomId === "new") {
@@ -291,12 +330,31 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     {/* 4 Action Buttons */}
                     <View style={s.actions}>
                         {[
-                            { icon: "search-outline", text: "Tìm\ntin nhắn", onPress: () => router.push(`/search-messages?roomId=${roomId}&name=${encodeURIComponent(name)}&avatarUrl=${encodeURIComponent(avatarUrl || '')}`) },
-                            { icon: "person-outline", text: "Trang\ncá nhân" },
-                            { icon: "color-palette-outline", text: "Đổi\nhình nền" },
-                            { icon: "notifications-off-outline", text: "Tắt\nthông báo" },
+                            {
+                                icon: "search-outline",
+                                text: "Tìm\ntin nhắn",
+                                onPress: () =>
+                                    router.push(
+                                        `/search-messages?roomId=${roomId}&name=${encodeURIComponent(name)}&avatarUrl=${encodeURIComponent(avatarUrl || "")}&type=${encodeURIComponent(type)}`,
+                                    ),
+                            },
+                            { icon: "person-outline", text: "Trang\ncá nhân", onPress: undefined },
+                            { icon: "color-palette-outline", text: "Đổi\nhình nền", onPress: pickChatWallpaper },
+                            {
+                                icon: mutedRooms.has(String(roomId)) ? "notifications" : "notifications-off-outline",
+                                text: mutedRooms.has(String(roomId)) ? "Bật\nthông báo" : "Tắt\nthông báo",
+                                onPress: () => {
+                                    if (!roomId || roomId === "new") return;
+                                    if (mutedRooms.has(String(roomId))) {
+                                        toggleMuteRoom(roomId);
+                                    } else {
+                                        setSelectedMuteDuration("1h");
+                                        setShowMuteDuration(true);
+                                    }
+                                },
+                            },
                         ].map((btn, i) => (
-                            <TouchableOpacity key={i} style={s.actionBtn} onPress={btn.onPress}>
+                            <TouchableOpacity key={i} style={s.actionBtn} onPress={btn.onPress ?? (() => {})}>
                                 <View style={[s.actionCircle, { backgroundColor: colors.searchBg }]}>
                                     <Ionicons name={btn.icon as any} size={22} color={colors.text} />
                                 </View>
@@ -317,6 +375,24 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     <OptionRow icon="time-outline" label="Nhật ký chung" right={<Arrow />} />
                 </Section>
 
+                {/* Bình chọn (chỉ nhóm) — tương tự web: tạo khảo sát trong hội thoại nhóm */}
+                {type === "GROUP" && roomId && roomId !== "new" && (
+                    <Section>
+                        <OptionRow
+                            first
+                            icon="stats-chart-outline"
+                            label="Tạo bình chọn"
+                            desc="Tạo cuộc khảo sát, mọi thành viên đều tham gia bình chọn"
+                            right={<Arrow />}
+                            onPress={() =>
+                                router.push(
+                                    `/create-poll?roomId=${encodeURIComponent(roomId)}&groupName=${encodeURIComponent(name)}`,
+                                )
+                            }
+                        />
+                    </Section>
+                )}
+
                 {/* Group 2: Media */}
                 <Section>
                     <OptionRow icon="images-outline" label="Ảnh, file, link" right={<Arrow />} onPress={openMediaStorage} first />
@@ -334,7 +410,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                                 </View>
                             ))
                         ) : (
-                            <View style={[s.mediaPH, { backgroundColor: colors.searchBg, justifyContent: 'center', alignItems: 'center' }]}>
+                            <View style={[s.mediaPH, { backgroundColor: colors.searchBg, justifyContent: 'center', alignItems: 'center' , marginTop:10}]}>
                                 <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Trống</Text>
                             </View>
                         )}
@@ -404,6 +480,98 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                 <View style={{ height: 40 }} />
             </ScrollView>
 
+            {/* Tắt thông báo — cùng logic danh sách chat */}
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showMuteDuration}
+                onRequestClose={() => setShowMuteDuration(false)}
+            >
+                <Pressable
+                    style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" }}
+                    onPress={() => setShowMuteDuration(false)}
+                >
+                    <Pressable
+                        style={{
+                            backgroundColor: colors.card,
+                            borderRadius: 20,
+                            paddingTop: 20,
+                            paddingBottom: 14,
+                            width: "82%",
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700", paddingHorizontal: 20, marginBottom: 6 }}>
+                            Tắt thông báo
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 13, paddingHorizontal: 20, marginBottom: 14 }}>
+                            Bạn sẽ không nhận thông báo từ hội thoại này trong:
+                        </Text>
+                        {(
+                            [
+                                { id: "1h", label: "Trong 1 giờ" },
+                                { id: "4h", label: "Trong 4 giờ" },
+                                { id: "8am", label: "Cho đến 8:00 AM" },
+                                { id: "forever", label: "Cho đến khi được mở lại" },
+                            ] as const
+                        ).map((opt) => (
+                            <TouchableOpacity
+                                key={opt.id}
+                                onPress={() => setSelectedMuteDuration(opt.id)}
+                                style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 12, gap: 12 }}
+                            >
+                                <View
+                                    style={{
+                                        width: 20,
+                                        height: 20,
+                                        borderRadius: 10,
+                                        borderWidth: 2,
+                                        borderColor: selectedMuteDuration === opt.id ? colors.primary : colors.border,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
+                                >
+                                    {selectedMuteDuration === opt.id ? (
+                                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary }} />
+                                    ) : null}
+                                </View>
+                                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "500" }}>{opt.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                justifyContent: "flex-end",
+                                gap: 12,
+                                paddingHorizontal: 20,
+                                paddingTop: 10,
+                                borderTopWidth: 1,
+                                borderTopColor: colors.border,
+                                marginTop: 6,
+                            }}
+                        >
+                            <TouchableOpacity
+                                onPress={() => setShowMuteDuration(false)}
+                                style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.border }}
+                            >
+                                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>Hủy</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    if (!mutedRooms.has(String(roomId))) toggleMuteRoom(roomId);
+                                    setShowMuteDuration(false);
+                                }}
+                                style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary }}
+                            >
+                                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Đồng ý</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Pressable>
+                </Pressable>
+            </Modal>
+
             {/* Overlay: Tạo nhóm với person pre-selected */}
             {showCreateGroup && partnerId && (
                 <Animated.View
@@ -447,6 +615,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     />
                 </Animated.View>
             )}
+
         </View>
     );
 }

@@ -1,7 +1,52 @@
 import React from "react";
-import { View, Text, Image, TouchableOpacity } from "react-native";
+import { View, Text, Image, TouchableOpacity, TextStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
+
+function MessageLineWithHighlight({
+    message,
+    highlightQuery,
+    baseStyle,
+}: {
+    message: string;
+    highlightQuery?: string;
+    baseStyle: TextStyle;
+}) {
+    const q = highlightQuery?.trim();
+    if (!q) {
+        return (
+            <Text style={baseStyle} numberOfLines={1} ellipsizeMode="tail">
+                {message}
+            </Text>
+        );
+    }
+    const lower = message.toLowerCase();
+    const ql = q.toLowerCase();
+    const parts: React.ReactNode[] = [];
+    let start = 0;
+    let idx = lower.indexOf(ql, start);
+    let key = 0;
+    while (idx !== -1) {
+        if (idx > start) {
+            parts.push(message.slice(start, idx));
+        }
+        parts.push(
+            <Text key={`h-${key++}`} style={{ backgroundColor: "#fef08a" }}>
+                {message.slice(idx, idx + ql.length)}
+            </Text>,
+        );
+        start = idx + ql.length;
+        idx = lower.indexOf(ql, start);
+    }
+    if (start < message.length) {
+        parts.push(message.slice(start));
+    }
+    return (
+        <Text style={baseStyle} numberOfLines={1} ellipsizeMode="tail">
+            {parts}
+        </Text>
+    );
+}
 
 interface ChatItemProps {
     avatar?: any;
@@ -14,11 +59,13 @@ interface ChatItemProps {
     isGroup?: boolean;
     isPinned?: boolean;
     isMuted?: boolean;
+    /** Tô vàng các đoạn khớp khi tìm kiếm tin nhắn */
+    highlightQuery?: string;
     onPress?: () => void;
     onLongPress?: () => void;
 }
 
-export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadCount, isVerified, onPress, onLongPress, isPinned, isMuted }: ChatItemProps) => {
+export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadCount, isVerified, onPress, onLongPress, isPinned, isMuted, highlightQuery }: ChatItemProps) => {
     const colors = useThemeColors();
     const hasUnread = !!(unreadCount && unreadCount > 0);
     const badgeBg = isMuted ? '#9ca3af' : '#ef4444';
@@ -131,19 +178,17 @@ export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadC
 
                 {/* Bottom Row: Message + Badge */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text
-                        style={{
+                    <View style={{ flex: 1, marginRight: 16 }}>
+                    <MessageLineWithHighlight
+                        message={message}
+                        highlightQuery={highlightQuery}
+                        baseStyle={{
                             fontSize: 14,
-                            flex: 1,
-                            marginRight: 16,
                             color: hasUnread ? colors.text : colors.textSecondary,
                             fontWeight: hasUnread ? '700' : 'normal',
                         }}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                    >
-                        {message}
-                    </Text>
+                    />
+                    </View>
 
                     {unreadCount && unreadCount > 0 ? (
                         <View style={{

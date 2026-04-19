@@ -10,6 +10,7 @@ export default function ChatOptionsRoute() {
             name={params.name as string}
             avatarUrl={params.avatarUrl as string}
             partnerId={params.partnerId as string}
+            type={params.type === "GROUP" ? "GROUP" : "DIRECT"}
             onClose={() => router.back()}
         />
     );

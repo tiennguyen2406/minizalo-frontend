@@ -11,6 +11,8 @@ import * as Sharing from "expo-sharing";
 import * as Clipboard from "expo-clipboard";
 import { Video, ResizeMode } from "expo-av";
 import { useThemeStore } from "@/shared/store/themeStore";
+import { isImageAttachment, isVideoAttachment } from "@/shared/utils/messageAttachments";
+import PollBubbleMobile from "./PollBubbleMobile";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -108,9 +110,10 @@ interface MessageBubbleProps {
     onTogglePin?: (message: MessageDynamo) => void;
     replyPreview?: ReplyPreview | null;
     senderAvatarUrl?: string | null;
-    isVisible?: boolean;
     partnerName?: string;
     onAddFriend?: () => void;
+    /** Nhấn từ màn tìm kiếm tin nhắn — viền vàng quanh bubble */
+    isSearchHighlight?: boolean;
 }
 
 // Tạo màu nhất quán cho mỗi tên (giống Zalo)
@@ -148,9 +151,9 @@ export default function MessageBubble({
     onTogglePin,
     replyPreview,
     senderAvatarUrl,
-    isVisible = false,
     partnerName,
     onAddFriend,
+    isSearchHighlight,
 }: MessageBubbleProps) {
     const colors = useThemeColors();
     const theme = useThemeStore(s => s.theme);
@@ -445,17 +448,10 @@ export default function MessageBubble({
 
 
 
-    // Check for image attachments
-    const imageAttachments = (message.attachments || []).filter(
-        (a) => a.type?.startsWith("image") || a.type === "IMAGE"
-    );
-    // Check for file attachments (non-image, non-video)
+    const imageAttachments = (message.attachments || []).filter((a) => isImageAttachment(a));
+    const videoAttachments = (message.attachments || []).filter((a) => isVideoAttachment(a));
     const fileAttachments = (message.attachments || []).filter(
-        (a) => a.type && !a.type.startsWith("image") && a.type !== "IMAGE" && !a.type.startsWith("video") && a.type !== "VIDEO"
-    );
-    // Check for video attachments
-    const videoAttachments = (message.attachments || []).filter(
-        (a) => a.type?.startsWith("video") || a.type === "VIDEO"
+        (a) => !isImageAttachment(a) && !isVideoAttachment(a),
     );
 
     const burstImagePairs = useMemo(() => {
@@ -463,9 +459,7 @@ export default function MessageBubble({
         const chronological = [...imageGroupMessages].reverse();
         const pairs: { msg: MessageDynamo; att: Attachment }[] = [];
         for (const m of chronological) {
-            const imgs = (m.attachments || []).filter(
-                (a) => a.type?.startsWith("image") || a.type === "IMAGE",
-            );
+            const imgs = (m.attachments || []).filter((a) => isImageAttachment(a));
             if (imgs[0]) pairs.push({ msg: m, att: imgs[0] });
         }
         return pairs.length >= 2 ? pairs : null;
@@ -508,12 +502,33 @@ export default function MessageBubble({
         ? "SYSTEM"
         : message.type;
 
+    const hl = !!isSearchHighlight;
+
+    if (effectiveType === "POLL") {
+        const pid = String(message.content || "").trim();
+        const rid = String(message.chatRoomId || "").trim();
+        return (
+            <View style={{ paddingHorizontal: 10, paddingVertical: 6, width: "100%" }}>
+                <PollBubbleMobile pollId={pid} roomId={rid} />
+            </View>
+        );
+    }
+
     return (
         <View
             style={{
                 paddingHorizontal: 12,
                 paddingVertical: 2,
                 alignItems: isMe ? "flex-end" : "flex-start",
+                ...(hl
+                    ? {
+                          borderWidth: 3,
+                          borderColor: "#facc15",
+                          borderRadius: 20,
+                          marginVertical: 4,
+                          backgroundColor: "rgba(254, 240, 138, 0.35)",
+                      }
+                    : {}),
             }}
         >
             {effectiveType === "SYSTEM" ? (
@@ -752,8 +767,13 @@ export default function MessageBubble({
                                                     }}
                                                     onPress={() => {
                                                         setPressedVideoIndex(null);
-                                                        setPreviewVideoIndex(idx);
-                                                        setCurrentVideoIndex(idx);
+                                                        const resolved = getImageUrl(att.url);
+                                                        if (onImagePress) {
+                                                            onImagePress(resolved);
+                                                        } else {
+                                                            setPreviewVideoIndex(idx);
+                                                            setCurrentVideoIndex(idx);
+                                                        }
                                                     }}
                                                     style={isSingle ? undefined : {
                                                         marginRight: (idx + 1) % GRID_COLS === 0 ? 0 : gap,
@@ -768,7 +788,7 @@ export default function MessageBubble({
                                                                 borderRadius: borderRadius,
                                                             }}
                                                             resizeMode={ResizeMode.COVER}
-                                                            shouldPlay={isVisible && !isRecalled}
+                                                            shouldPlay={!isRecalled}
                                                             isMuted={true}
                                                             isLooping={true}
                                                         />

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, Alert, TouchableOpacity, Modal, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -8,16 +8,12 @@ import { ChatItem } from "../components/ChatItem";
 import { chatService, ChatRoomResponse } from "@/shared/services/chatService";
 import { formatTime } from "@/shared/utils/dateUtils";
 import { Ionicons } from "@expo/vector-icons";
-import { webSocketService } from "@/shared/services/WebSocketService";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useThemeColors } from "@/shared/theme/colors";
-import { useInAppNotifStore } from "../components/InAppNotification";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 import { getChatPreviewText } from "@/shared/utils/chatPreview";
-import { addIncomingChatMessageFromStomp } from "@/shared/utils/chatWebSocketInbound";
-
 export default function ChatListScreen() {
     const router = useRouter();
     const { rooms, setRooms, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
@@ -29,7 +25,6 @@ export default function ChatListScreen() {
     const [inboxTab, setInboxTab] = useState<"main" | "strangers">("main");
     const [refreshing, setRefreshing] = useState(false);
     const fadeAnim = useRef(new Animated.Value(0)).current;
-    const subscribedRooms = useRef<Set<string>>(new Set());
     const [actionRoom, setActionRoom] = useState<(typeof rooms)[number] | null>(null);
     const [showMuteDuration, setShowMuteDuration] = useState(false);
     const [selectedMuteDuration, setSelectedMuteDuration] = useState<string>("1h");
@@ -56,15 +51,6 @@ export default function ChatListScreen() {
                 return 0;
             });
     }, [rooms, currentUserId, friends, friendsListReady, inboxTab, pinnedRooms]);
-
-    const chatRoomIdsKey = useMemo(
-        () =>
-            rooms
-                .map((r) => r.id)
-                .sort()
-                .join("|"),
-        [rooms],
-    );
 
     const friendIdSet = useMemo(() => {
         const ids = new Set<string>();
@@ -121,7 +107,9 @@ export default function ChatListScreen() {
 
             // Map sang ChatRoom interface của store (giống Web)
             const storeRooms = data.map((r) => {
-                const existing = existingRooms.find(er => er.id === r.id);
+                const existing = existingRooms.find(
+                    (er) => String(er.id) === String(r.id),
+                );
                 let resolvedName = r.name;
                 if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
                     const partner = (r.members || []).find(
@@ -180,85 +168,6 @@ export default function ChatListScreen() {
         }
     };
 
-    // Subscribe to WebSocket for each chat room to get real-time updates & unread counts
-    useEffect(() => {
-        if (rooms.length === 0) return;
-
-        // Activate WebSocket if not active
-        webSocketService.activate();
-
-        rooms.forEach((room) => {
-            if (subscribedRooms.current.has(room.id)) return;
-
-            const topic = `/topic/chat/${room.id}`;
-            webSocketService.subscribe(topic, (stompMsg) => {
-                try {
-                    const raw = stompMsg.body ?? "";
-                    let msg: Record<string, unknown>;
-                    try {
-                        msg = JSON.parse(String(raw)) as Record<string, unknown>;
-                    } catch {
-                        return;
-                    }
-                    if (msg.roomListEvent === 'REMOVED' && msg.roomId) {
-                        const uid = useAuthStore.getState().user?.id;
-                        if (msg.forUserId && msg.forUserId !== uid) return;
-                        useChatStore.getState().removeRoomLocal(String(msg.roomId));
-                        return;
-                    }
-                    if (msg.roomListEvent === 'DISBANDED' && msg.roomId) {
-                        const rid = String(msg.roomId);
-                        const existing = useChatStore.getState().rooms.find((r) => r.id === rid);
-                        if (existing) {
-                            useChatStore.getState().upsertRoom({ ...existing, disbanded: true });
-                        } else {
-                            fetchChats(false);
-                        }
-                        return;
-                    }
-                    if (msg.roomListEvent === 'ADDED' && msg.roomId) {
-                        fetchChats(false);
-                        return;
-                    }
-                    addIncomingChatMessageFromStomp(room.id, String(raw));
-
-                    // Hiển thị in-app toast nếu tin nhắn từ người khác, không ở trong room đó, và room không bị mute
-                    const isCurrentlyViewing = useChatStore.getState().currentRoomId === room.id;
-                    const senderId = typeof msg.senderId === 'string' ? msg.senderId : '';
-                    const myId = useAuthStore.getState().user?.id;
-                    if (senderId && myId && senderId !== myId && !isCurrentlyViewing) {
-                        const isMutedRoom = useChatStore.getState().mutedRooms.has(room.id);
-                        if (!isMutedRoom) {
-                            const roomData = useChatStore.getState().rooms.find(r => r.id === room.id);
-                            const senderLabel =
-                                (typeof msg.senderName === 'string' && msg.senderName) ||
-                                (typeof msg.senderUsername === 'string' && msg.senderUsername) ||
-                                'Tin nhắn mới';
-                            const msgType = typeof msg.type === 'string' ? msg.type : '';
-                            const msgContent = typeof msg.content === 'string' ? msg.content : '';
-                            useInAppNotifStore.getState().show({
-                                title: senderLabel,
-                                body: msgType === 'IMAGE' ? '[Hình ảnh]'
-                                    : msgType === 'VIDEO' ? '[Video]'
-                                    : msgType === 'FILE' ? '[Tập tin]'
-                                    : msgContent || 'Đã gửi một tin nhắn',
-                                avatarUrl: roomData?.avatarUrl || undefined,
-                                roomId: room.id,
-                            });
-                        }
-                    }
-                } catch (err) {
-                    console.error('Lỗi parse tin nhắn WS:', err);
-                }
-            });
-            subscribedRooms.current.add(room.id);
-        });
-
-        return () => {
-            // Unsubscribe logic if needed
-        };
-    }, [chatRoomIdsKey]);
-
     // Auto-fetch when screen is focused + poll every 10s as fallback
     useFocusEffect(
         useCallback(() => {
@@ -298,7 +207,7 @@ export default function ChatListScreen() {
                     unreadCount={item.unreadCount}
                     isVerified={false}
                     isPinned={pinnedRooms.has(item.id)}
-                    isMuted={mutedRooms.has(item.id)}
+                    isMuted={mutedRooms.has(String(item.id))}
                     onLongPress={() => setActionRoom(item)}
                     onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}${partner?.id ? `&targetUserId=${partner.id}` : ""}`)}
                 />
@@ -511,7 +420,7 @@ export default function ChatListScreen() {
 
                                 <TouchableOpacity
                                     onPress={() => {
-                                        if (mutedRooms.has(actionRoom.id)) {
+                                        if (mutedRooms.has(String(actionRoom.id))) {
                                             toggleMuteRoom(actionRoom.id);
                                             setActionRoom(null);
                                         } else {
@@ -521,9 +430,9 @@ export default function ChatListScreen() {
                                     }}
                                     style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 14, gap: 12 }}
                                 >
-                                    <Ionicons name={mutedRooms.has(actionRoom.id) ? "volume-high" : "volume-mute"} size={20} color={colors.text} />
+                                    <Ionicons name={mutedRooms.has(String(actionRoom.id)) ? "volume-high" : "volume-mute"} size={20} color={colors.text} />
                                     <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
-                                        {mutedRooms.has(actionRoom.id) ? "Bật thông báo" : "Tắt thông báo"}
+                                        {mutedRooms.has(String(actionRoom.id)) ? "Bật thông báo" : "Tắt thông báo"}
                                     </Text>
                                 </TouchableOpacity>
 
@@ -622,7 +531,7 @@ export default function ChatListScreen() {
                             <TouchableOpacity
                                 onPress={() => {
                                     if (actionRoom) {
-                                        if (!mutedRooms.has(actionRoom.id)) toggleMuteRoom(actionRoom.id);
+                                        if (!mutedRooms.has(String(actionRoom.id))) toggleMuteRoom(actionRoom.id);
                                     }
                                     setShowMuteDuration(false);
                                     setActionRoom(null);

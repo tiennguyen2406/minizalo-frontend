@@ -44,6 +44,12 @@ import {
   buildMobileChatRows,
   type MobileChatRow,
 } from "@/shared/utils/mobileChatRows";
+import {
+  buildChatGalleryItems,
+  findChatGalleryIndex,
+} from "@/shared/utils/chatGallery";
+import { getChatWallpaperUri } from "@/shared/utils/chatWallpaper";
+import { Video, ResizeMode } from "expo-av";
 import GroupInfoScreen from "../components/GroupInfoScreen";
 import ChatOptionsScreen from "./ChatOptionsScreen";
 import { useChatStore } from "@/shared/store/useChatStore";
@@ -75,6 +81,7 @@ import {
 import { useLocalSearchParams } from "expo-router";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 // ─── Upload helpers ───────────────────────────────────────────────────────────
 function uploadFileWithXHR(
@@ -221,6 +228,21 @@ export default function ChatScreen() {
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const [galleryCurrentIndex, setGalleryCurrentIndex] = useState(0);
 
+  const galleryViewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 55,
+    minimumViewTime: 48,
+  }).current;
+
+  const onGalleryViewableItemsChanged = useCallback(
+    (info: { viewableItems: Array<{ index: number | null }> }) => {
+      const ix = info.viewableItems[0]?.index;
+      if (typeof ix === "number" && ix >= 0) {
+        setGalleryCurrentIndex(ix);
+      }
+    },
+    [],
+  );
+
   const [selectedMessage, setSelectedMessage] = useState<MessageDynamo | null>(
     null,
   );
@@ -248,28 +270,6 @@ export default function ChatScreen() {
   const hasMoreRef = useRef(true);
   const lastKeyRef = useRef<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false); // Chỉ dành cho việc hiển thị UI
-
-  // Tracking visible items for auto-playing videos
-  const [visibleMessageIds, setVisibleMessageIds] = useState<Set<string>>(
-    new Set(),
-  );
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50, // Item hiển thị trên 50% diện tích thì coi là visible
-  }).current;
-
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    const ids = new Set<string>();
-    for (const v of viewableItems) {
-      const row = v.item as MobileChatRow;
-      if (row.kind === "imageGroup") {
-        row.messages.forEach((m) => ids.add(m.messageId));
-      } else {
-        ids.add(row.message.messageId);
-      }
-    }
-    setVisibleMessageIds(ids);
-  }).current;
 
   const openGroupInfo = () => {
     router.push({
@@ -350,6 +350,7 @@ export default function ChatScreen() {
     type: "success",
   });
   const [showWelcomePicker, setShowWelcomePicker] = useState(false);
+  const [wallpaperUri, setWallpaperUri] = useState<string | null>(null);
   const uploadState = useChatStore((s) =>
     roomId ? s.uploadProgressByRoom[roomId] : undefined,
   );
@@ -689,15 +690,27 @@ export default function ChatScreen() {
     };
   }, [blockedUsers, roomId, roomType, partnerId]);
 
-  // ─── Reset Unread Count via Store ───
+  // Phòng đang mở: sync theo `isFocused` — đổi tab / thoát chat → currentRoomId=null để unread & banner đúng
   useEffect(() => {
-    if (roomId) {
-      useChatStore.getState().setCurrentRoom(roomId as string);
+    if (!roomId) {
+      setWallpaperUri(null);
+      useChatStore.getState().setCurrentRoom(null);
+      return;
     }
+    if (!isFocused) {
+      useChatStore.getState().setCurrentRoom(null);
+      return;
+    }
+    useChatStore.getState().setCurrentRoom(roomId as string);
+    let cancelled = false;
+    void getChatWallpaperUri(roomId as string).then((u) => {
+      if (!cancelled) setWallpaperUri(u);
+    });
     return () => {
+      cancelled = true;
       useChatStore.getState().setCurrentRoom(null);
     };
-  }, [roomId]);
+  }, [roomId, isFocused]);
 
   // ─── WebSocket: subscribe to room for realtime ───
   useEffect(() => {
@@ -1826,6 +1839,7 @@ export default function ChatScreen() {
 
   const getPinnedDisplayText = (m: MessageDynamo) => {
     if (m.recalled) return "Tin nhắn đã thu hồi";
+    if (m.type === "POLL") return "[Bình chọn]";
     if (m.type === "IMAGE") return "[Hình ảnh]";
     if (m.type === "VIDEO") return "[Video]";
     if (
@@ -1843,30 +1857,42 @@ export default function ChatScreen() {
     return m.content || "Tin nhắn đã ghim";
   };
 
-  const allImages = useMemo(() => {
-    const imgs: string[] = [];
-    // messages are newest-first (inverted), reverse to get chronological
-    const chronological = [...messages].reverse();
-    chronological.forEach((m) => {
-      if (m.recalled) return;
-      (m.attachments || []).forEach((a) => {
-        if (a.type?.startsWith("image") || a.type === "IMAGE") {
-          imgs.push(getImageUrl(a.url));
-        }
-      });
-    });
-    return imgs;
+  const galleryItems = useMemo(() => {
+    return buildChatGalleryItems(messages, getImageUrl);
   }, [messages]);
 
   const handleGalleryOpen = useCallback(
-    (imageUrl: string) => {
-      const idx = allImages.indexOf(imageUrl);
-      const safeIdx = idx >= 0 ? idx : 0;
-      setGalleryIndex(safeIdx);
-      setGalleryCurrentIndex(safeIdx);
+    (resolvedMediaUrl: string) => {
+      const idx = findChatGalleryIndex(resolvedMediaUrl, galleryItems);
+      setGalleryIndex(idx);
+      setGalleryCurrentIndex(idx);
     },
-    [allImages],
+    [galleryItems],
   );
+
+  /** Làm mịn vị trí khi mở gallery (initialScrollIndex lỗi trên một số máy) + sync index. */
+  useEffect(() => {
+    if (galleryIndex === null || galleryItems.length === 0) return;
+    setGalleryCurrentIndex(galleryIndex);
+    const id = requestAnimationFrame(() => {
+      try {
+        galleryRef.current?.scrollToIndex({
+          index: galleryIndex,
+          animated: false,
+        });
+      } catch {
+        try {
+          galleryRef.current?.scrollToOffset({
+            offset: SCREEN_WIDTH * galleryIndex,
+            animated: false,
+          });
+        } catch {
+          /* empty */
+        }
+      }
+    });
+    return () => cancelAnimationFrame(id as unknown as number);
+  }, [galleryIndex, galleryItems.length]);
 
   // ─── Render ───
   // Hàm scroll đến tin nhắn được ghim - xử lý đúng với inverted FlatList
@@ -1895,13 +1921,53 @@ export default function ChatScreen() {
     [chatRows],
   );
 
+  const highlightedMessageId = useChatStore((s) => s.highlightedMessageId);
+  const clearHighlightedMessageId = useChatStore(
+    (s) => s.setHighlightedMessageId,
+  );
+
+  /** Từ màn tìm kiếm tin nhắn: cuộn tới message (tải thêm lịch sử nếu cần). */
+  useEffect(() => {
+    if (!highlightedMessageId || !roomId || !isFocused || !loaded) return;
+
+    const exists = messages.some((m) => m.messageId === highlightedMessageId);
+    if (exists) {
+      requestAnimationFrame(() => {
+        scrollToPinnedMessage(highlightedMessageId);
+      });
+      const clearAnim = setTimeout(() => {
+        clearHighlightedMessageId(null);
+      }, 2400);
+      return () => clearTimeout(clearAnim);
+    }
+
+    if (loadingMoreRef.current) {
+      return;
+    }
+
+    if (hasMoreRef.current) {
+      void fetchMessages(true);
+      return;
+    }
+
+    showToast("Không tìm thấy tin nhắn trong cuộc trò chuyện", "info");
+    clearHighlightedMessageId(null);
+  }, [
+    highlightedMessageId,
+    messages,
+    loaded,
+    isFocused,
+    roomId,
+    fetchMessages,
+    scrollToPinnedMessage,
+    showToast,
+    clearHighlightedMessageId,
+  ]);
+
   const renderMessage = ({ item }: { item: MobileChatRow }) => {
     if (item.kind === "imageGroup") {
       const newest = item.messages[0];
       const isMe = newest.senderId === currentUserId;
-      const isVisible = item.messages.some((m) =>
-        visibleMessageIds.has(m.messageId),
-      );
 
       const replySource =
         newest.replyToMessageId &&
@@ -1913,12 +1979,17 @@ export default function ChatScreen() {
       ) as any;
       const senderAvatarUrl = sender?.avatarUrl || "";
 
+      const hlSearch =
+        !!highlightedMessageId &&
+        item.messages.some((m) => m.messageId === highlightedMessageId);
+
       return (
         <MessageBubble
           message={newest}
           imageGroupMessages={item.messages}
           isMe={isMe}
           showSenderName={roomType === "GROUP"}
+          isSearchHighlight={hlSearch}
           onPress={handleMessagePress}
           onLongPress={handleMessageLongPress}
           onPressReactions={(msg) => setReactionListMessage(msg)}
@@ -1928,7 +1999,6 @@ export default function ChatScreen() {
           onReply={handleStartReply}
           onTogglePin={handleTogglePin}
           senderAvatarUrl={senderAvatarUrl}
-          isVisible={isVisible}
           replyPreview={
             replySource
               ? {
@@ -1957,7 +2027,6 @@ export default function ChatScreen() {
 
     const itemMsg = item.message;
     const isMe = itemMsg.senderId === currentUserId;
-    const isVisible = visibleMessageIds.has(itemMsg.messageId);
 
     // ─── PIN_NOTIFICATION: hiển thị dạng thông báo hệ thống giữa chat ───
     if (
@@ -2044,6 +2113,7 @@ export default function ChatScreen() {
         message={itemMsg}
         isMe={isMe}
         showSenderName={roomType === "GROUP"}
+        isSearchHighlight={highlightedMessageId === itemMsg.messageId}
         onPress={handleMessagePress}
         onLongPress={handleMessageLongPress}
         onPressReactions={(msg) => setReactionListMessage(msg)}
@@ -2053,7 +2123,6 @@ export default function ChatScreen() {
         onReply={handleStartReply}
         onTogglePin={handleTogglePin}
         senderAvatarUrl={senderAvatarUrl}
-        isVisible={isVisible}
         replyPreview={
           replySource
             ? {
@@ -2075,12 +2144,36 @@ export default function ChatScreen() {
               .catch(() => showToast("Gửi lời mời kết bạn thất bại", "error"));
           }
         }}
+        onImagePress={(url) => handleGalleryOpen(url)}
       />
     );
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {wallpaperUri ? (
+        <>
+          <Image
+            source={{ uri: wallpaperUri }}
+            style={[StyleSheet.absoluteFillObject, { zIndex: 0 }]}
+            resizeMode="cover"
+          />
+          <View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                zIndex: 1,
+                backgroundColor:
+                  theme === "dark"
+                    ? "rgba(0,0,0,0.72)"
+                    : "rgba(255,255,255,0.88)",
+              },
+            ]}
+          />
+        </>
+      ) : null}
+      <View style={{ flex: 1, zIndex: 2 }}>
       <ChatHeader
         name={displayName}
         roomType={roomType}
@@ -2280,6 +2373,7 @@ export default function ChatScreen() {
           const getIcon = (m: MessageDynamo) => {
             if (m.type === "IMAGE") return "image-outline";
             if (m.type === "VIDEO") return "videocam-outline";
+            if (m.type === "POLL") return "stats-chart-outline";
             if (
               m.type === "FILE" ||
               (m.attachments && m.attachments.length > 0)
@@ -2433,8 +2527,6 @@ export default function ChatScreen() {
             maxToRenderPerBatch={10}
             windowSize={11}
             removeClippedSubviews={Platform.OS === "android"}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={viewabilityConfig}
             onScrollToIndexFailed={(info) => {
               // Item chưa render trong viewport — scroll đến vị trí ước tính
               // rồi retry sau khi layout xong
@@ -2604,6 +2696,14 @@ export default function ChatScreen() {
             onSend={handleSend}
             onSendImage={handleSendImage}
             onSendFile={handleSendFile}
+            onCreatePoll={
+              roomType === "GROUP" && roomId && roomId !== "new"
+                ? () =>
+                    router.push(
+                      `/create-poll?roomId=${encodeURIComponent(roomId)}&groupName=${encodeURIComponent(displayName)}`,
+                    )
+                : undefined
+            }
             uploadProgress={uploadState?.progress ?? null}
             uploadText={uploadState?.text}
             replyTo={replyTo}
@@ -3066,10 +3166,12 @@ export default function ChatScreen() {
                               ? "image"
                               : m.type === "VIDEO"
                                 ? "videocam"
-                                : m.type === "FILE" ||
-                                    (m.attachments && m.attachments.length > 0)
-                                  ? "document-text"
-                                  : "chatbubble-ellipses"
+                                : m.type === "POLL"
+                                  ? "stats-chart"
+                                  : m.type === "FILE" ||
+                                      (m.attachments && m.attachments.length > 0)
+                                    ? "document-text"
+                                    : "chatbubble-ellipses"
                           }
                           size={22}
                           color={colors.primary}
@@ -3296,6 +3398,7 @@ export default function ChatScreen() {
         visible={galleryIndex !== null}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setGalleryIndex(null)}
       >
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.98)" }}>
@@ -3312,7 +3415,7 @@ export default function ChatScreen() {
             <Ionicons name="close" size={32} color="#fff" />
           </TouchableOpacity>
 
-          {allImages.length > 1 && (
+          {galleryItems.length > 1 && (
             <View
               style={{
                 position: "absolute",
@@ -3324,46 +3427,75 @@ export default function ChatScreen() {
               }}
             >
               <Text style={{ color: "#fff", fontSize: 18, fontWeight: "600" }}>
-                {galleryCurrentIndex + 1} / {allImages.length}
+                {galleryCurrentIndex + 1} / {galleryItems.length}
               </Text>
             </View>
           )}
 
           <FlatList
             ref={galleryRef}
-            data={allImages}
+            style={{ flex: 1 }}
+            data={galleryItems}
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             keyExtractor={(_, i) => `chat-gallery-${i}`}
-            initialScrollIndex={galleryIndex ?? 0}
+            initialScrollIndex={Math.min(
+              galleryIndex ?? 0,
+              Math.max(0, galleryItems.length - 1),
+            )}
             getItemLayout={(_, index) => ({
               length: SCREEN_WIDTH,
               offset: SCREEN_WIDTH * index,
               index,
             })}
+            viewabilityConfig={galleryViewabilityConfig}
+            onViewableItemsChanged={onGalleryViewableItemsChanged}
             onMomentumScrollEnd={(e) => {
               const idx = Math.round(
                 e.nativeEvent.contentOffset.x / SCREEN_WIDTH,
               );
               setGalleryCurrentIndex(idx);
             }}
-            renderItem={({ item: url }) => (
-              <View
-                style={{
-                  width: SCREEN_WIDTH,
-                  flex: 1,
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Image
-                  source={{ uri: url }}
-                  style={{ width: SCREEN_WIDTH, height: SCREEN_WIDTH }}
-                  resizeMode="contain"
-                />
-              </View>
-            )}
+            renderItem={({ item, index }) => {
+              const isActive = galleryCurrentIndex === index;
+              return (
+                <View
+                  style={{
+                    width: SCREEN_WIDTH,
+                    height: SCREEN_HEIGHT,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    backgroundColor: "black",
+                  }}
+                >
+                  {item.kind === "video" ? (
+                    <Video
+                      source={{ uri: item.url }}
+                      style={{
+                        width: SCREEN_WIDTH,
+                        height: SCREEN_HEIGHT * 0.75,
+                        backgroundColor: "#000",
+                      }}
+                      resizeMode={ResizeMode.CONTAIN}
+                      useNativeControls
+                      shouldPlay={isActive}
+                      isLooping={false}
+                      isMuted
+                    />
+                  ) : (
+                    <Image
+                      source={{ uri: item.url }}
+                      style={{
+                        width: SCREEN_WIDTH,
+                        height: SCREEN_HEIGHT * 0.75,
+                      }}
+                      resizeMode="contain"
+                    />
+                  )}
+                </View>
+              );
+            }}
           />
         </View>
       </Modal>
@@ -3857,6 +3989,7 @@ export default function ChatScreen() {
           </View>
         </View>
       </Modal>
+      </View>
     </View>
   );
 }

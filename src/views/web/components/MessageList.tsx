@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useCallback, useState, useLayoutEffect } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useLayoutEffect, useMemo } from 'react';
 import MessageBubble from './MessageBubble';
 import ImageGroupBubble from './ImageGroupBubble';
 import { Message, User } from '@/shared/types';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { getImageAttachmentUrls } from '@/shared/utils/messageAttachments';
+import { buildChatGalleryItems, findChatGalleryIndex, type ChatGalleryItem } from '@/shared/utils/chatGallery';
+import { getImageUrl } from '@/shared/utils/mediaUtils';
 import LazyImage from './LazyImage';
 
 interface MessageListProps {
@@ -239,6 +241,29 @@ const MessageList: React.FC<MessageListProps> = ({
     const highlightedMessageId = useChatStore((s) => s.highlightedMessageId);
     const setHighlightedMessageId = useChatStore((s) => s.setHighlightedMessageId);
 
+    const chatGalleryItems = useMemo(
+        () => buildChatGalleryItems(messages, getImageUrl),
+        [messages],
+    );
+    const [chatGalleryIndex, setChatGalleryIndex] = useState<number | null>(null);
+
+    useEffect(() => {
+        setChatGalleryIndex(null);
+    }, [roomId]);
+
+    const handleOpenChatGallery = useCallback(
+        (resolvedUrl: string) => {
+            const idx = findChatGalleryIndex(resolvedUrl, chatGalleryItems);
+            setChatGalleryIndex(idx >= 0 ? idx : 0);
+        },
+        [chatGalleryItems],
+    );
+
+    const activeGalleryItem: ChatGalleryItem | null =
+        chatGalleryIndex !== null && chatGalleryItems[chatGalleryIndex]
+            ? chatGalleryItems[chatGalleryIndex]
+            : null;
+
     // Scroll to highlighted message
     useEffect(() => {
         if (!highlightedMessageId) return;
@@ -407,6 +432,7 @@ const MessageList: React.FC<MessageListProps> = ({
                                         onForward={onForward}
                                         onReply={onReply}
                                         onTogglePin={onTogglePin}
+                                        onOpenChatGallery={handleOpenChatGallery}
                                     />
                                 </div>
                             );
@@ -479,6 +505,7 @@ const MessageList: React.FC<MessageListProps> = ({
                                             setTimeout(() => el.classList.remove('bg-yellow-100'), 1500);
                                         }
                                     }}
+                                    onOpenChatGallery={handleOpenChatGallery}
                                 />
                                 {/* Status icon below LAST message in a sent group */}
                                 {isMine && isLastInGroup && (
@@ -503,6 +530,81 @@ const MessageList: React.FC<MessageListProps> = ({
                 )}
                 <div ref={messagesEndRef} style={{ height: 1, flexShrink: 0 }} />
             </div>
+
+            {chatGalleryIndex !== null && activeGalleryItem && chatGalleryItems.length > 0 && (
+                <div
+                    className="fixed inset-0 z-[85] flex items-center justify-center bg-black/90"
+                    onClick={() => setChatGalleryIndex(null)}
+                    role="presentation"
+                >
+                    {chatGalleryItems.length > 1 && (
+                        <>
+                            <button
+                                type="button"
+                                className="absolute left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-xl text-white hover:bg-white/30"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setChatGalleryIndex((prev) =>
+                                        prev === null
+                                            ? null
+                                            : (prev - 1 + chatGalleryItems.length) %
+                                              chatGalleryItems.length,
+                                    );
+                                }}
+                                aria-label="Ảnh trước"
+                            >
+                                ‹
+                            </button>
+                            <button
+                                type="button"
+                                className="absolute right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-xl text-white hover:bg-white/30"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setChatGalleryIndex((prev) =>
+                                        prev === null ? null : (prev + 1) % chatGalleryItems.length,
+                                    );
+                                }}
+                                aria-label="Ảnh sau"
+                            >
+                                ›
+                            </button>
+                            <span className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white">
+                                {(chatGalleryIndex ?? 0) + 1} / {chatGalleryItems.length}
+                            </span>
+                        </>
+                    )}
+                    <button
+                        type="button"
+                        className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setChatGalleryIndex(null);
+                        }}
+                        aria-label="Đóng"
+                    >
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    <div className="mx-auto max-h-[90vh] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
+                        {activeGalleryItem.kind === 'video' ? (
+                            <video
+                                src={activeGalleryItem.url}
+                                controls
+                                playsInline
+                                preload="metadata"
+                                className="max-h-[88vh] max-w-[92vw] rounded-lg"
+                            />
+                        ) : (
+                            <img
+                                src={activeGalleryItem.url}
+                                alt=""
+                                className="max-h-[88vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

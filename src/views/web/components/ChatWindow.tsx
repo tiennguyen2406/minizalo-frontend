@@ -475,6 +475,47 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       }
     });
 
+    // Realtime group role/owner changes (để mở/khóa ô nhập ngay khi phong phó nhóm / chuyển trưởng nhóm)
+    const groupEventsTopic = `/topic/group/${roomId}/events`;
+    const onGroupEvent = (stompMessage: IMessage) => {
+      try {
+        const payload = JSON.parse(String(stompMessage.body || "{}")) as {
+          message?: string;
+          eventType?: string;
+        };
+        const msg = String(payload.message || "");
+        // Backend có thể dùng eventType khác nhau; ưu tiên match theo text VN đang hiển thị cho user
+        const isRoleChange =
+          msg.includes("phó nhóm") || msg.includes("nhường quyền trưởng nhóm");
+        if (!isRoleChange) return;
+
+        void groupService
+          .getGroupDetails(roomId)
+          .then((gd) => {
+            setGroupPerm((prev) => ({
+              ...(prev || {}),
+              ownerId: gd.ownerId,
+              members: (gd.members || []).map((m: any) => ({
+                userId: m.userId,
+                role: m.role,
+              })),
+              settings: (prev as any)?.settings ?? gd.settings,
+            }));
+
+            const gs = useGroupStore.getState();
+            if (gs.currentGroupDetail && gs.currentGroupDetail.id === roomId) {
+              gs.updateCurrentGroupDetail(gd as any);
+            }
+          })
+          .catch(() => {});
+      } catch {
+        // ignore
+      }
+    };
+    if (isGroupRoom) {
+      webSocketService.subscribe(groupEventsTopic, onGroupEvent);
+    }
+
     // Đóng panel info khi chuyển phòng
     setIsInfoOpen(false);
     closeGroupInfo();
@@ -498,6 +539,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       webSocketService.unsubscribe(reactionTopic);
       webSocketService.unsubscribe(pinTopic);
       webSocketService.unsubscribe(settingsTopic);
+      if (isGroupRoom) webSocketService.unsubscribe(groupEventsTopic, onGroupEvent);
       setCurrentRoom(null);
     };
   }, [roomId, fetchHistory]);
