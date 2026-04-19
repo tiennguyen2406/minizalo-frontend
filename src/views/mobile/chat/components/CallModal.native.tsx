@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import {
     View,
     Text,
-    Modal,
     TouchableOpacity,
     StyleSheet,
     Image,
@@ -83,6 +82,8 @@ export default function CallModal() {
     const avatarUri = avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=0068FF&color=fff&size=256`;
 
     const [engine, setEngine] = useState<IRtcEngine | null>(null);
+    // Đếm số lần "đã có engine + đã startPreview" để force remount RtcTextureView → Agora bind lại canvas (uid: 0)
+    const [previewTick, setPreviewTick] = useState(0);
     const [remoteUid, setRemoteUid] = useState<number>(0);
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
@@ -130,7 +131,7 @@ export default function CallModal() {
         }
     }, [visible, remoteUid]);
 
-    /** Preview khi đang đổ chuông: đôi khi view chưa gắn kịp — gọi lại startPreview */
+    /** Preview khi đang đổ chuông: đôi khi view chưa gắn kịp — gọi lại startPreview & remount view */
     useEffect(() => {
         if (
             !visible ||
@@ -147,15 +148,19 @@ export default function CallModal() {
                 engineRef.current?.enableLocalVideo?.(true);
                 engineRef.current?.startPreview?.();
             } catch { /* */ }
+            // Tăng tick để TextureView remount → gắn lại canvas uid:0
+            setPreviewTick((x) => x + 1);
         };
         kick();
-        const a = setTimeout(kick, 350);
-        const b = setTimeout(kick, 900);
+        const a = setTimeout(kick, 400);
+        const b = setTimeout(kick, 1200);
+        const c = setTimeout(kick, 2400);
         return () => {
             clearTimeout(a);
             clearTimeout(b);
+            clearTimeout(c);
         };
-    }, [visible, callType, remoteUid, activeCall?.callSessionId]);
+    }, [visible, callType, remoteUid, activeCall?.callSessionId, engine]);
 
     useEffect(() => {
         if (!visible || !activeCall || initializedRef.current) return;
@@ -251,6 +256,8 @@ export default function CallModal() {
                     try { agEngine.enableLocalVideo?.(true); } catch { /* */ }
                     try { agEngine.startPreview(); } catch { /* */ }
                     agEngine.setEnableSpeakerphone(true);
+                    // Bump tick để LocalPreviewView mount → Agora gắn canvas uid:0
+                    setPreviewTick((x) => x + 1);
                     InteractionManager.runAfterInteractions(() => {
                         setTimeout(() => {
                             try {
@@ -258,7 +265,8 @@ export default function CallModal() {
                                 engineRef.current?.enableLocalVideo?.(true);
                                 engineRef.current?.startPreview?.();
                             } catch { /* */ }
-                        }, 80);
+                            setPreviewTick((x) => x + 1);
+                        }, 120);
                     });
                 } else {
                     agEngine.setEnableSpeakerphone(false);
@@ -362,13 +370,11 @@ export default function CallModal() {
     const isVideo = callType === "VIDEO";
 
     return (
-        <Modal
-            animationType="slide"
-            transparent={false}
-            visible={visible}
-            presentationStyle="fullScreen"
-            statusBarTranslucent={Platform.OS === "android"}
-            onRequestClose={handleEndCall}
+        <View
+            style={[styles.rootOverlay, { backgroundColor: BLUE }]}
+            // "auto": chặn touch xuyên xuống Stack bên dưới; các button vẫn nhận touch bình thường.
+            pointerEvents="auto"
+            collapsable={false}
         >
             <StatusBar barStyle="light-content" backgroundColor={BLUE} translucent={Platform.OS === "android"} />
             <View style={styles.container}>
@@ -407,6 +413,7 @@ export default function CallModal() {
                                     <View style={styles.localVideoContainer}>
                                         {LocalPreviewView ? (
                                             <LocalPreviewView
+                                                key={`local-pip-${previewTick}`}
                                                 canvas={{ uid: 0, renderMode: renderModeCover() }}
                                                 style={styles.localVideo}
                                                 {...(Platform.OS === "ios"
@@ -428,16 +435,14 @@ export default function CallModal() {
                             <>
                                 {/* Nền xanh luôn có để không lộ chat phía dưới khi preview chưa vẽ */}
                                 <View style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]} />
-                                {!isVideoOff && AgoraEngine ? (
+                                {!isVideoOff && AgoraEngine && engine ? (
                                     <View
-                                        style={[
-                                            StyleSheet.absoluteFill,
-                                            Platform.OS === "android" ? { elevation: 12, zIndex: 2 } : { zIndex: 2 },
-                                        ]}
+                                        style={StyleSheet.absoluteFill}
                                         pointerEvents="none"
                                         collapsable={false}
                                     >
                                         <LocalPreviewView
+                                            key={`local-preview-${previewTick}`}
                                             canvas={{ uid: 0, renderMode: renderModeCover() }}
                                             style={StyleSheet.absoluteFill}
                                         />
@@ -579,7 +584,7 @@ export default function CallModal() {
                     </View>
                 </View>
             </View>
-        </Modal>
+        </View>
     );
 }
 
@@ -595,6 +600,16 @@ function ActionButton({ icon, label, active, onPress }: { icon: string; label: s
 }
 
 const styles = StyleSheet.create({
+    rootOverlay: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        // zIndex/elevation đủ cao để đè lên mọi screen đang render trong Stack.
+        zIndex: 99999,
+        elevation: Platform.OS === "android" ? 99999 : undefined,
+    },
     container: { flex: 1, backgroundColor: BLUE },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,
