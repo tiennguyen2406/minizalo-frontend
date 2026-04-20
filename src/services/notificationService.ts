@@ -144,12 +144,14 @@ export async function setupCallNotificationChannel() {
 /**
  * Show heads-up notification for incoming calls (when app is backgrounded).
  */
-export async function showCallNotification(callerName: string, callType: string) {
+const callNotificationIds = new Set<string>();
+
+export async function showCallNotification(callerName: string, callType: string): Promise<string | null> {
     const Notifications = getNotifications();
-    if (!Notifications) return;
+    if (!Notifications) return null;
 
     try {
-        await Notifications.scheduleNotificationAsync({
+        const id = await Notifications.scheduleNotificationAsync({
             content: {
                 title: callerName,
                 body: `MiniZalo: ${callType === 'VIDEO' ? 'Cuộc gọi video đến' : 'Cuộc gọi thoại đến'}`,
@@ -160,8 +162,26 @@ export async function showCallNotification(callerName: string, callType: string)
             },
             trigger: null,
         });
+        if (id) callNotificationIds.add(id);
+        return id || null;
     } catch (err) {
         console.log('[notificationService] Lỗi gửi call notification:', err);
+        return null;
+    }
+}
+
+/**
+ * Dọn notification cuộc gọi (tránh "notification ảo" còn treo sau khi accept/end).
+ */
+export async function dismissCallNotifications() {
+    const Notifications = getNotifications();
+    if (!Notifications) return;
+    try {
+        const ids = Array.from(callNotificationIds);
+        callNotificationIds.clear();
+        await Promise.all(ids.map((id) => Notifications.dismissNotificationAsync(id).catch(() => {})));
+    } catch {
+        // silent
     }
 }
 

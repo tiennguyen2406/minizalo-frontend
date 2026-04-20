@@ -22,7 +22,25 @@ export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string)
             reactions?: unknown[];
             replyToMessageId?: string;
             messageId?: string;
+            messageUpdate?: boolean;
         };
+
+        /**
+         * BE phát `messageUpdate=true` khi cập nhật in-place 1 tin hiện có (vd: group call
+         * STARTED → ENDED). FE phải gọi updateMessage() thay vì addMessage() để không
+         * tạo bubble mới và cũng không làm "nhảy" room lên đầu list như tin mới.
+         */
+        if (dynamo.messageUpdate === true && typeof dynamo.messageId === 'string' && dynamo.messageId) {
+            const updates: Partial<Message> = {
+                content: dynamo.recalled ? '[Tin nhắn đã thu hồi]' : dynamo.content || '',
+                type: (dynamo.type as Message['type']) || 'TEXT',
+                isRecall: !!dynamo.recalled,
+                pinned: !!dynamo.pinned,
+                reactions: Array.isArray(dynamo.reactions) ? dynamo.reactions : [],
+            };
+            useChatStore.getState().updateMessage(roomId, dynamo.messageId, updates);
+            return;
+        }
         if (dynamo.roomListEvent === 'DISBANDED') {
             const rid =
                 typeof dynamo.roomId === 'string' && dynamo.roomId.length > 0

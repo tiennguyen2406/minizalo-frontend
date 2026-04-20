@@ -6,6 +6,7 @@ import { useChatStore } from '@/shared/store/useChatStore';
 import { getImageAttachmentUrls } from '@/shared/utils/messageAttachments';
 import { buildChatGalleryItems, findChatGalleryIndex, type ChatGalleryItem } from '@/shared/utils/chatGallery';
 import { getImageUrl } from '@/shared/utils/mediaUtils';
+import { dedupCallMessages } from '@/shared/utils/dedupCallMessages';
 import LazyImage from './LazyImage';
 
 interface MessageListProps {
@@ -213,7 +214,7 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
 }
 
 const MessageList: React.FC<MessageListProps> = ({
-    messages,
+    messages: messagesRaw,
     currentUserId,
     roomId,
     participants = [],
@@ -228,6 +229,9 @@ const MessageList: React.FC<MessageListProps> = ({
     hasMoreOlder = false,
     loadingOlder = false,
 }) => {
+    // Dedup CALL message: khi session đã end → ẩn bubble STARTED, chỉ giữ bubble kết thúc.
+    // Phải dedup TRƯỚC khi dùng bất kỳ index-based access (prevMsg/nextMsg/startIndex) để tránh lệch.
+    const messages = useMemo(() => dedupCallMessages(messagesRaw), [messagesRaw]);
     const scrollRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const isNearBottom = useRef(true);

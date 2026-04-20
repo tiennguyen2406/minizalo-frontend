@@ -10,6 +10,7 @@ import {
     Platform,
     InteractionManager,
     StatusBar,
+    Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -72,11 +73,13 @@ function RemoteVideoView(props: React.ComponentProps<any>) {
 
 export default function CallModal() {
     const insets = useSafeAreaInsets();
-    const { activeCall, callStatus, endCall, cancelCall, resetCall } = useCallStore();
+    const { activeCall, callStatus, endCall, cancelCall, resetCall, leaveGroupCall, endGroupCall } = useCallStore();
     const user = useAuthStore((state) => state.user);
 
     const visible = !!activeCall && (callStatus === "calling" || callStatus === "connected");
     const callType = activeCall?.callType || "VOICE";
+    const startWithCamera = activeCall?.startWithCamera ?? true;
+    const isGroupCall = activeCall?.isGroupCall ?? false;
     const userName = activeCall?.partnerName || "Đang kết nối...";
     const avatarUrl = activeCall?.partnerAvatar;
     const avatarUri = avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=0068FF&color=fff&size=256`;
@@ -85,6 +88,12 @@ export default function CallModal() {
     // Đếm số lần "đã có engine + đã startPreview" để force remount RtcTextureView → Agora bind lại canvas (uid: 0)
     const [previewTick, setPreviewTick] = useState(0);
     const [remoteUid, setRemoteUid] = useState<number>(0);
+    // Group call: mảng uid của tất cả remote users
+    const [remoteUids, setRemoteUids] = useState<number[]>([]);
+    const [isRemoteVideoOff, setIsRemoteVideoOff] = useState(false);
+    const [remoteReady, setRemoteReady] = useState(false);
+    // Group call: map uid → đang tắt cam? (fix RtcSurfaceView freeze frame khi remote mute video)
+    const [remoteVideoOffByUid, setRemoteVideoOffByUid] = useState<Record<number, boolean>>({});
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [isSpeakerOn, setIsSpeakerOn] = useState(callType === "VIDEO");
@@ -95,6 +104,8 @@ export default function CallModal() {
     const initializedRef = useRef(false);
     const isSpeakerOnRef = useRef(isSpeakerOn);
     isSpeakerOnRef.current = isSpeakerOn;
+    const remoteUidRef = useRef<number>(0);
+    remoteUidRef.current = remoteUid;
 
     const applyPlaybackVolume = (ag: IRtcEngine) => {
         try {
@@ -111,9 +122,10 @@ export default function CallModal() {
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const opacityAnim = useRef(new Animated.Value(0.4)).current;
 
-    // Ring animation when waiting
+    // Ring animation when waiting (cho cả group và 1-1)
     useEffect(() => {
-        if (visible && remoteUid === 0) {
+        const noRemote = isGroupCall ? remoteUids.length === 0 : remoteUid === 0;
+        if (visible && noRemote) {
             const pulse = Animated.loop(
                 Animated.parallel([
                     Animated.sequence([
@@ -129,14 +141,15 @@ export default function CallModal() {
             pulse.start();
             return () => pulse.stop();
         }
-    }, [visible, remoteUid]);
+    }, [visible, remoteUid, remoteUids.length, isGroupCall]);
 
     /** Preview khi đang đổ chuông: đôi khi view chưa gắn kịp — gọi lại startPreview & remount view */
     useEffect(() => {
+        const noRemote = isGroupCall ? remoteUids.length === 0 : remoteUid === 0;
         if (
             !visible ||
             callType !== "VIDEO" ||
-            remoteUid !== 0 ||
+            !noRemote ||
             !initializedRef.current ||
             !engineRef.current
         ) {
@@ -160,7 +173,7 @@ export default function CallModal() {
             clearTimeout(b);
             clearTimeout(c);
         };
-    }, [visible, callType, remoteUid, activeCall?.callSessionId, engine]);
+    }, [visible, callType, remoteUid, remoteUids.length, isGroupCall, activeCall?.callSessionId, engine]);
 
     useEffect(() => {
         if (!visible || !activeCall || initializedRef.current) return;
@@ -213,12 +226,55 @@ export default function CallModal() {
                     }
                 });
                 agEngine.addListener("onUserJoined", (_: any, uid: any) => {
-
-                    setRemoteUid(uid);
+                    const numUid = Number(uid);
+                    if (activeCall?.isGroupCall) {
+                        setRemoteUids((prev) => prev.includes(numUid) ? prev : [...prev, numUid]);
+                    } else {
+                        setRemoteUid(numUid);
+                        setIsRemoteVideoOff(false);
+                        setRemoteReady(false);
+                    }
                 });
-                agEngine.addListener("onUserOffline", () => {
-                    setRemoteUid(0);
-                    setRemoteSize(null);
+                agEngine.addListener("onUserOffline", (_: any, uid: any) => {
+                    const numUid = Number(uid);
+                    if (activeCall?.isGroupCall) {
+                        setRemoteUids((prev) => prev.filter((u) => u !== numUid));
+                        setRemoteVideoOffByUid((prev) => {
+                            const next = { ...prev };
+                            delete next[numUid];
+                            return next;
+                        });
+                    } else {
+                        setRemoteUid(0);
+                        setRemoteSize(null);
+                        setIsRemoteVideoOff(false);
+                        setRemoteReady(false);
+                    }
+                });
+                // Remote toggle camera (web/mobile). Event name differs by SDK versions; keep both.
+                // Luôn cập nhật `remoteVideoOffByUid` cho group (per-uid) VÀ cập nhật `isRemoteVideoOff` cho 1-1.
+                agEngine.addListener?.("onUserMuteVideo", (_: any, uid: any, muted: any) => {
+                    const numUid = Number(uid);
+                    const off = !!muted;
+                    setRemoteVideoOffByUid((prev) => ({ ...prev, [numUid]: off }));
+                    if (numUid === Number(remoteUidRef.current)) {
+                        setIsRemoteVideoOff(off);
+                        if (off) setRemoteReady(false);
+                    }
+                });
+                agEngine.addListener?.("onRemoteVideoStateChanged", (_: any, uid: any, state: any) => {
+                    // state: 0=STOPPED, 1=STARTING, 2=DECODING, 3=FROZEN, 4=FAILED
+                    const numUid = Number(uid);
+                    const s = Number(state);
+                    const off = s === 0 || s === 3 || s === 4;
+                    setRemoteVideoOffByUid((prev) => ({ ...prev, [numUid]: off }));
+                    if (numUid === Number(remoteUidRef.current)) {
+                        setIsRemoteVideoOff(off);
+                        if (off) setRemoteReady(false);
+                        if (!off && (s === 1 || s === 2)) {
+                            setTimeout(() => setRemoteReady(true), 120);
+                        }
+                    }
                 });
                 // sourceType = 2 (Remote). Dùng size này để letterbox đúng tỷ lệ.
                 agEngine.addListener(
@@ -226,6 +282,10 @@ export default function CallModal() {
                     (_connection: any, sourceType: any, uid: any, width: any, height: any) => {
                         if (sourceType === 2 && width > 0 && height > 0) {
                             setRemoteSize({ w: width, h: height });
+                            if (Number(uid) === Number(remoteUidRef.current)) {
+                                // Đợi có size (thường sau frame đầu) rồi mới swap layout để tránh xanh lâu/chớp.
+                                setTimeout(() => setRemoteReady(true), 120);
+                            }
 
                         }
                     }
@@ -253,8 +313,13 @@ export default function CallModal() {
                 if (callType === "VIDEO") {
                     // Agora chuẩn: enableVideo → enableLocalVideo → startPreview để camera mở ngay lập tức (không chờ bên kia).
                     agEngine.enableVideo();
-                    try { agEngine.enableLocalVideo?.(true); } catch { /* */ }
-                    try { agEngine.startPreview(); } catch { /* */ }
+                    try { agEngine.enableLocalVideo?.(startWithCamera); } catch { /* */ }
+                    if (startWithCamera) {
+                        try { agEngine.startPreview(); } catch { /* */ }
+                    } else {
+                        try { agEngine.muteLocalVideoStream(true); } catch { /* */ }
+                        setIsVideoOff(true);
+                    }
                     agEngine.setEnableSpeakerphone(true);
                     // Bump tick để LocalPreviewView mount → Agora gắn canvas uid:0
                     setPreviewTick((x) => x + 1);
@@ -262,8 +327,10 @@ export default function CallModal() {
                         setTimeout(() => {
                             try {
                                 engineRef.current?.enableVideo?.();
-                                engineRef.current?.enableLocalVideo?.(true);
-                                engineRef.current?.startPreview?.();
+                                engineRef.current?.enableLocalVideo?.(startWithCamera);
+                                if (startWithCamera) {
+                                    engineRef.current?.startPreview?.();
+                                }
                             } catch { /* */ }
                             setPreviewTick((x) => x + 1);
                         }, 120);
@@ -274,6 +341,8 @@ export default function CallModal() {
 
                 const joinOptions = {
                     publishMicrophoneTrack: true,
+                    // Quan trọng: vẫn publish camera track cho call VIDEO dù startWithCamera=false,
+                    // để user có thể bật camera lại sau khi vào call.
                     publishCameraTrack: callType === "VIDEO",
                     autoSubscribeAudio: true,
                     autoSubscribeVideo: callType === "VIDEO",
@@ -311,6 +380,10 @@ export default function CallModal() {
         }).catch(() => {});
         setEngine(null);
         setRemoteUid(0);
+        setRemoteUids([]);
+        setRemoteVideoOffByUid({});
+        setIsRemoteVideoOff(false);
+        setRemoteReady(false);
         setIsMuted(false);
         setIsVideoOff(false);
         setIsSpeakerOn(callType === "VIDEO");
@@ -324,20 +397,58 @@ export default function CallModal() {
 
     useEffect(() => {
         let timer: NodeJS.Timeout;
-        if (remoteUid !== 0) {
+        const isActive = isGroupCall ? remoteUids.length > 0 : remoteUid !== 0;
+        if (isActive) {
             timer = setInterval(() => setDuration((p) => p + 1), 1000);
         }
         return () => clearInterval(timer);
-    }, [remoteUid]);
+    }, [remoteUid, remoteUids.length, isGroupCall]);
 
     const fmt = (s: number) => {
         const m = Math.floor(s / 60), ss = s % 60;
         return `${m < 10 ? "0" : ""}${m}:${ss < 10 ? "0" : ""}${ss}`;
     };
 
+    // Thực thi leave group (không hỏi lại — dùng cho cả host và non-host)
+    const doLeaveGroup = async () => {
+        if (!activeCall) return;
+        await leaveGroupCall(activeCall.callSessionId).catch(() => {});
+        cleanupAgora();
+        resetCall();
+    };
+
+    // Host giải tán cuộc gọi cho tất cả
+    const doEndGroupForAll = async () => {
+        if (!activeCall) return;
+        await endGroupCall(activeCall.callSessionId).catch(() => {});
+        cleanupAgora();
+        resetCall();
+    };
+
     const handleEndCall = async () => {
         if (!activeCall) return;
-        // Đang đổ chưa kết nối → huỷ (backend lưu MISSED); đã ACTIVE → end (ENDED).
+
+        // Group call: host có 2 lựa chọn (Thoát / Kết thúc cho tất cả); non-host chỉ Thoát.
+        if (isGroupCall) {
+            const myId = String(user?.id || '');
+            const isHost = !!myId && myId === String(activeCall.hostId);
+            if (isHost) {
+                Alert.alert(
+                    "Kết thúc cuộc gọi?",
+                    "Bạn muốn rời cuộc gọi hay kết thúc cho tất cả thành viên?",
+                    [
+                        { text: "Huỷ", style: "cancel" },
+                        { text: "Thoát", onPress: () => { void doLeaveGroup(); } },
+                        { text: "Kết thúc cho tất cả", style: "destructive", onPress: () => { void doEndGroupForAll(); } },
+                    ],
+                );
+            } else {
+                await doLeaveGroup();
+            }
+            return;
+        }
+
+        // 1-1 như cũ
         if (callStatus === 'calling') await cancelCall(activeCall.callSessionId);
         else await endCall(activeCall.callSessionId);
         cleanupAgora();
@@ -345,7 +456,24 @@ export default function CallModal() {
     };
 
     const toggleMute = () => { if (engineRef.current) { engineRef.current.muteLocalAudioStream(!isMuted); setIsMuted(!isMuted); } };
-    const toggleVideo = () => { if (engineRef.current && callType === "VIDEO") { engineRef.current.muteLocalVideoStream(!isVideoOff); setIsVideoOff(!isVideoOff); } };
+    const toggleVideo = () => {
+        if (!engineRef.current || callType !== "VIDEO") return;
+        if (isVideoOff) {
+            // Bật lại cam: kể cả trường hợp startWithCamera=false (cam chưa từng mở)
+            try {
+                engineRef.current.enableLocalVideo(true);
+                engineRef.current.muteLocalVideoStream(false);
+                engineRef.current.startPreview();
+            } catch { /* */ }
+            setIsVideoOff(false);
+            setPreviewTick((x) => x + 1);
+        } else {
+            try {
+                engineRef.current.muteLocalVideoStream(true);
+            } catch { /* */ }
+            setIsVideoOff(true);
+        }
+    };
     const toggleSpeaker = () => {
         if (!engineRef.current) return;
         const next = !isSpeakerOn;
@@ -366,8 +494,40 @@ export default function CallModal() {
 
     if (!visible) return null;
 
-    const isConnected = remoteUid !== 0;
+    const isConnected = isGroupCall ? remoteUids.length > 0 : remoteUid !== 0;
     const isVideo = callType === "VIDEO";
+    const showRemoteVideo = isConnected && isVideo && !isRemoteVideoOff && remoteReady;
+    const showLocalFull = isVideo && !isGroupCall && (remoteUid === 0 || isRemoteVideoOff);
+
+    // Mobile grid — portrait-first, tile lẻ cuối sẽ span full width.
+    //   1 → full
+    //   2 → stack dọc (100% × 50%)                vì 2 tile ngang trên 390px quá nhỏ
+    //   3 → [A][B] / [     C full     ]
+    //   4 → 2×2
+    //   5 → 2×2 / [     E full     ]
+    //   6 → 2×3 (2 cột × 3 hàng)
+    //   7+ → 2 cột tràn dần (ít dùng)
+    const getGroupTileStyle = (idx: number, total: number): any => {
+        const base = {
+            backgroundColor: "#1a1a2e",
+            overflow: "hidden" as const,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.08)",
+        };
+        if (total === 1) return { ...base, flex: 1, height: "100%" };
+        if (total === 2) return { ...base, width: "100%", height: "50%" };
+        if (total === 3) {
+            if (idx < 2) return { ...base, width: "50%", height: "50%" };
+            return { ...base, width: "100%", height: "50%" };
+        }
+        if (total === 4) return { ...base, width: "50%", height: "50%" };
+        if (total === 5) {
+            if (idx < 4) return { ...base, width: "50%", height: "33.334%" };
+            return { ...base, width: "100%", height: "33.334%" };
+        }
+        if (total === 6) return { ...base, width: "50%", height: "33.334%" };
+        return { ...base, width: "50%", height: "25%" };
+    };
 
     return (
         <View
@@ -378,57 +538,144 @@ export default function CallModal() {
         >
             <StatusBar barStyle="light-content" backgroundColor={BLUE} translucent={Platform.OS === "android"} />
             <View style={styles.container}>
-                {/* VIDEO MODE */}
-                {isVideo ? (
+                {/* GROUP CALL VIDEO MODE */}
+                {isVideo && isGroupCall ? (
+                    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+                        <View style={[StyleSheet.absoluteFill, { backgroundColor: "#0d0d1a" }]} />
+                        {/* Grid remote videos — KHÔNG dùng gap vì sẽ phá percentage width/height gây wrap sai */}
+                        {remoteUids.length === 0 ? (
+                            <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+                                <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 16 }}>Đang chờ người tham gia…</Text>
+                            </View>
+                        ) : (
+                            <View
+                                style={{
+                                    ...StyleSheet.absoluteFillObject,
+                                    flexDirection: "row",
+                                    flexWrap: "wrap",
+                                    alignContent: "flex-start",
+                                }}
+                            >
+                                {remoteUids.map((uid, idx) => {
+                                    // Unmount RtcSurfaceView khi remote tắt cam (fix freeze frame).
+                                    // Mỗi lần remount (uid off/on) dùng key khác để Agora bind lại canvas mới → không còn frame cũ.
+                                    const off = !!remoteVideoOffByUid[uid];
+                                    return (
+                                        <View key={uid} style={getGroupTileStyle(idx, remoteUids.length)}>
+                                            {off || !RemoteVideoView ? (
+                                                <View style={styles.tileAvatarFallback}>
+                                                    <View style={styles.tileAvatarCircle}>
+                                                        <Ionicons name="person" size={36} color="rgba(255,255,255,0.7)" />
+                                                    </View>
+                                                    <Text style={styles.tileAvatarLabel}>Đã tắt camera</Text>
+                                                </View>
+                                            ) : (
+                                                <RemoteVideoView
+                                                    key={`rvv-${uid}-${off ? 'off' : 'on'}`}
+                                                    canvas={{ uid, renderMode: renderModeFit() }}
+                                                    style={StyleSheet.absoluteFill}
+                                                />
+                                            )}
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        )}
+                        {/* Local PiP */}
+                        {!isVideoOff && (
+                            <View style={styles.localVideoContainer}>
+                                {LocalPreviewView ? (
+                                    <LocalPreviewView
+                                        key={`local-pip-${previewTick}`}
+                                        canvas={{ uid: 0, renderMode: renderModeCover() }}
+                                        style={styles.localVideo}
+                                        {...(Platform.OS === "ios" ? { zOrderMediaOverlay: true } : {})}
+                                    />
+                                ) : null}
+                                <TouchableOpacity style={styles.switchCameraBtn} onPress={switchCamera}>
+                                    <Ionicons name="camera-reverse" size={18} color="white" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                ) : isVideo && !isGroupCall ? (
+                    /* 1-1 VIDEO MODE */
                     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
                         {isConnected ? (
                             <>
                                 {/* Lớp nền xanh che chat phía sau, cho cả các vùng letterbox quanh video remote */}
                                 <View style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]} pointerEvents="none" />
-                                <View
-                                    style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}
-                                    pointerEvents="none"
-                                    collapsable={false}
-                                >
+                                {/* Remote video OR fallback when remote tắt cam */}
+                                {showRemoteVideo ? (
                                     <View
-                                        style={
-                                            remoteSize
-                                                ? {
-                                                    width: "100%",
-                                                    aspectRatio: remoteSize.w / remoteSize.h,
-                                                    maxHeight: "100%",
-                                                    backgroundColor: "black",
-                                                }
-                                                : StyleSheet.absoluteFill
-                                        }
+                                        style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}
+                                        pointerEvents="none"
                                         collapsable={false}
                                     >
-                                        <RemoteVideoView
-                                            canvas={{ uid: remoteUid, renderMode: renderModeFit() }}
-                                            style={StyleSheet.absoluteFill}
-                                        />
-                                    </View>
-                                </View>
-                                {!isVideoOff && (
-                                    <View style={styles.localVideoContainer}>
-                                        {LocalPreviewView ? (
-                                            <LocalPreviewView
-                                                key={`local-pip-${previewTick}`}
-                                                canvas={{ uid: 0, renderMode: renderModeCover() }}
-                                                style={styles.localVideo}
-                                                {...(Platform.OS === "ios"
-                                                    ? { zOrderMediaOverlay: true }
-                                                    : {})}
+                                        <View
+                                            style={
+                                                remoteSize
+                                                    ? {
+                                                        width: "100%",
+                                                        aspectRatio: remoteSize.w / remoteSize.h,
+                                                        maxHeight: "100%",
+                                                        backgroundColor: "black",
+                                                    }
+                                                    : StyleSheet.absoluteFill
+                                            }
+                                            collapsable={false}
+                                        >
+                                            <RemoteVideoView
+                                                canvas={{ uid: remoteUid, renderMode: renderModeFit() }}
+                                                style={StyleSheet.absoluteFill}
                                             />
+                                        </View>
+                                    </View>
+                                ) : (
+                                    <View style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]} pointerEvents="none">
+                                        <View style={styles.voiceContent}>
+                                            <View style={styles.avatarSection}>
+                                                <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                                            </View>
+                                            <Text style={styles.userName}>{userName}</Text>
+                                            <Text style={styles.statusText}>Đối phương đã tắt camera</Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {/* Local preview: remote on -> PiP; remote off/connecting -> full */}
+                                {!isVideoOff && (
+                                    <>
+                                        {showLocalFull ? (
+                                            <View style={StyleSheet.absoluteFill} pointerEvents="none" collapsable={false}>
+                                                <LocalPreviewView
+                                                    key={`local-full-${previewTick}`}
+                                                    canvas={{ uid: 0, renderMode: renderModeCover() }}
+                                                    style={StyleSheet.absoluteFill}
+                                                />
+                                            </View>
                                         ) : (
-                                            <View style={[styles.localVideo, { backgroundColor: "#333", justifyContent: "center", alignItems: "center" }]}>
-                                                <Text style={{ color: "white", fontSize: 10 }}>No Preview</Text>
+                                            <View style={styles.localVideoContainer}>
+                                                {LocalPreviewView ? (
+                                                    <LocalPreviewView
+                                                        key={`local-pip-${previewTick}`}
+                                                        canvas={{ uid: 0, renderMode: renderModeCover() }}
+                                                        style={styles.localVideo}
+                                                        {...(Platform.OS === "ios"
+                                                            ? { zOrderMediaOverlay: true }
+                                                            : {})}
+                                                    />
+                                                ) : (
+                                                    <View style={[styles.localVideo, { backgroundColor: "#333", justifyContent: "center", alignItems: "center" }]}>
+                                                        <Text style={{ color: "white", fontSize: 10 }}>No Preview</Text>
+                                                    </View>
+                                                )}
+                                                <TouchableOpacity style={styles.switchCameraBtn} onPress={switchCamera}>
+                                                    <Ionicons name="camera-reverse" size={18} color="white" />
+                                                </TouchableOpacity>
                                             </View>
                                         )}
-                                        <TouchableOpacity style={styles.switchCameraBtn} onPress={switchCamera}>
-                                            <Ionicons name="camera-reverse" size={18} color="white" />
-                                        </TouchableOpacity>
-                                    </View>
+                                    </>
                                 )}
                             </>
                         ) : (
@@ -466,8 +713,26 @@ export default function CallModal() {
                             </>
                         )}
                     </View>
+                ) : isGroupCall ? (
+                    /* VOICE GROUP CALL MODE */
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: "#0d0d1a" }]} pointerEvents="box-none">
+                        <View style={styles.voiceContent}>
+                            <View style={styles.avatarSection}>
+                                {remoteUids.length === 0 && (
+                                    <Animated.View style={[styles.ring, { transform: [{ scale: pulseAnim }], opacity: opacityAnim }]} />
+                                )}
+                                <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                            </View>
+                            <Text style={styles.userName}>{userName}</Text>
+                            <Text style={styles.statusText}>
+                                {remoteUids.length > 0
+                                    ? `${remoteUids.length + 1} người tham gia • ${fmt(duration)}`
+                                    : "Đang đổ chuông…"}
+                            </Text>
+                        </View>
+                    </View>
                 ) : (
-                    /* VOICE MODE */
+                    /* VOICE MODE (1-1) */
                     <View style={[StyleSheet.absoluteFill, { backgroundColor: BLUE }]} pointerEvents="box-none">
                         <View style={styles.voiceContent}>
                             <View style={styles.avatarSection}>
@@ -736,6 +1001,25 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(0,0,0,0.5)",
         padding: 5,
         borderRadius: 16,
+    },
+    tileAvatarFallback: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#1a1a2e",
+    },
+    tileAvatarCircle: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        backgroundColor: "rgba(255,255,255,0.12)",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 8,
+    },
+    tileAvatarLabel: {
+        color: "rgba(255,255,255,0.7)",
+        fontSize: 12,
     },
     connectingHintWrap: {
         ...StyleSheet.absoluteFillObject,

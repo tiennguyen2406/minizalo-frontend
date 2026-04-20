@@ -492,7 +492,16 @@ export default function MessageBubble({
     const layoutHasText = hasText && !hideFilenameCaption;
 
     let isCallMessage = false;
-    let callData: { status?: string; duration?: number; callType?: string; callerId?: string; receiverId?: string } = {};
+    let callData: {
+        status?: string;
+        duration?: number;
+        callType?: string;
+        callerId?: string;
+        receiverId?: string;
+        callSessionId?: string;
+        conversationId?: string;
+        isGroupCall?: boolean;
+    } = {};
     if (hasText && message.content && message.content.trim().startsWith('{') && message.content.includes('"callType":')) {
         try {
             const parsed = JSON.parse(message.content);
@@ -1058,31 +1067,45 @@ export default function MessageBubble({
                             <View style={{ paddingHorizontal: 8, paddingVertical: 1 }}>
                                 {(() => {
                                     const isVideo = callData.callType === 'VIDEO';
-                                    const status = callData.status;
+                                    const status = String(callData.status || '').toUpperCase();
                                     const dur = callData.duration || 0;
-                                    let statusText = isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại';
+                                    const isGroup = !!callData.isGroupCall;
+                                    // GROUP CALL đã kết thúc → ẩn nút "Tham gia", chỉ hiện duration + "Đã kết thúc"
+                                    // (1 bubble duy nhất, state STARTED → ENDED update tại chỗ).
+                                    const isFinalStatus =
+                                        status === 'ENDED' ||
+                                        status === 'MISSED' ||
+                                        status === 'CANCELLED' ||
+                                        status === 'REJECTED';
+                                    const groupEnded = isGroup && isFinalStatus;
+
+                                    let detailText = '';
                                     let iconName: any = isVideo ? 'videocam' : 'call';
                                     let iconColor = '#007AFF';
 
-                                    if (status === 'ENDED' && dur > 0) {
-                                        const m = Math.floor(dur / 60);
-                                        const s = dur % 60;
-                                        statusText = m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+                                    if (status === 'ENDED') {
+                                        if (dur > 0) {
+                                            const m = Math.floor(dur / 60);
+                                            const s = dur % 60;
+                                            detailText = m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+                                        } else {
+                                            detailText = '';
+                                        }
                                         iconName = isMe ? 'call-outline' : 'call';
                                         iconColor = '#34C759';
                                     } else if (status === 'MISSED') {
-                                        statusText = isMe ? 'Không trả lời' : 'Cuộc gọi nhỡ';
+                                        detailText = isGroup ? 'Không có ai tham gia' : (isMe ? 'Không trả lời' : 'Cuộc gọi nhỡ');
                                         iconName = 'call';
                                         iconColor = '#FF3B30';
                                     } else if (status === 'REJECTED' || status === 'CANCELLED') {
-                                        statusText = isMe ? 'Đã hủy' : 'Cuộc gọi nhỡ';
+                                        detailText = isGroup ? 'Không có ai tham gia' : (isMe ? 'Đã hủy' : 'Cuộc gọi nhỡ');
                                         iconName = 'call';
                                         iconColor = '#FF3B30';
                                     }
 
-                                    const titleText = status === 'ENDED'
-                                        ? (isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại')
-                                        : statusText;
+                                    const titleText = isGroup
+                                        ? (isVideo ? 'Cuộc gọi nhóm video' : 'Cuộc gọi nhóm thoại')
+                                        : (isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại');
 
                                     return (
                                         <>
@@ -1096,37 +1119,60 @@ export default function MessageBubble({
                                                 </View>
                                                 <View>
                                                     <Text style={{ fontWeight: '700', fontSize: 13, color: textColor }}>{titleText}</Text>
-                                                    {status === 'ENDED' && dur > 0 && (
+                                                    {status === 'ENDED' && !!detailText && (
                                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
                                                             <Ionicons name={isMe ? 'arrow-up' : 'arrow-down'} size={12} color={iconColor} />
-                                                            <Text style={{ fontSize: 12, color: isMe ? 'rgba(255,255,255,0.7)' : '#8E8E93' }}>{statusText}</Text>
+                                                            <Text style={{ fontSize: 12, color: isMe ? 'rgba(255,255,255,0.7)' : '#8E8E93' }}>{detailText}</Text>
                                                         </View>
                                                     )}
-                                                    {(status === 'MISSED' || status === 'REJECTED' || status === 'CANCELLED') && (
+                                                    {(status === 'MISSED' || status === 'REJECTED' || status === 'CANCELLED') && !!detailText && (
                                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
                                                             <Ionicons name="close-circle" size={12} color="#FF3B30" />
-                                                            <Text style={{ fontSize: 12, color: isMe ? 'rgba(255,255,255,0.7)' : '#8E8E93' }}>{statusText}</Text>
+                                                            <Text style={{ fontSize: 12, color: isMe ? 'rgba(255,255,255,0.7)' : '#8E8E93' }}>{detailText}</Text>
                                                         </View>
+                                                    )}
+                                                    {groupEnded && (
+                                                        <Text style={{ fontSize: 12, color: isMe ? 'rgba(231, 9, 9, 0.9)' : '#8E8E93', marginTop: 2 }}>
+                                                            Đã kết thúc
+                                                        </Text>
                                                     )}
                                                 </View>
                                             </View>
-                                            <View style={{ height: 1, backgroundColor: isMe ? 'rgba(255,255,255,0.15)' : '#E5E5EA', marginBottom: 4 }} />
-                                            <TouchableOpacity
-                                                style={{ alignItems: 'center', paddingVertical: 2 }}
-                                                onPress={() => {
-                                                    const { useCallStore } = require('@/shared/store/useCallStore');
-                                                    const receiverId = isMe ? callData.receiverId : callData.callerId;
-                                                    if (receiverId) {
-                                                        useCallStore.getState().initiateCall(
-                                                            message.chatRoomId,
-                                                            receiverId,
-                                                            callData.callType || 'VOICE'
-                                                        );
-                                                    }
-                                                }}
-                                            >
-                                                <Text style={{ color: isMe ? '#fff' : '#007AFF', fontWeight: '600', fontSize: 12 }}>Gọi lại</Text>
-                                            </TouchableOpacity>
+                                            {/*
+                                              - GROUP đã kết thúc: không render nút (đúng mockup Zalo).
+                                              - GROUP đang gọi: "Tham gia".
+                                              - 1-1: giữ nguyên "Gọi lại".
+                                            */}
+                                            {!groupEnded && (
+                                                <>
+                                                    <View style={{ height: 1, backgroundColor: isMe ? 'rgba(255,255,255,0.15)' : '#E5E5EA', marginBottom: 4 }} />
+                                                    <TouchableOpacity
+                                                        style={{ alignItems: 'center', paddingVertical: 2 }}
+                                                        onPress={() => {
+                                                            const { useCallStore } = require('@/shared/store/useCallStore');
+                                                            if (isGroup) {
+                                                                const callSessionId = callData.callSessionId;
+                                                                if (!callSessionId) return;
+                                                                useCallStore.getState().joinGroupCall(callSessionId);
+                                                                return;
+                                                            }
+
+                                                            const receiverId = isMe ? callData.receiverId : callData.callerId;
+                                                            if (receiverId) {
+                                                                useCallStore.getState().initiateCall(
+                                                                    message.chatRoomId,
+                                                                    receiverId,
+                                                                    callData.callType || 'VOICE'
+                                                                );
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Text style={{ color: isMe ? '#fff' : '#007AFF', fontWeight: '600', fontSize: 12 }}>
+                                                            {isGroup ? 'Tham gia' : 'Gọi lại'}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                </>
+                                            )}
                                         </>
                                     );
                                 })()}

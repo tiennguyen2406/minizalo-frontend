@@ -6,7 +6,7 @@
  * để hoạt động trên mọi trang (contacts, files, v.v...)
  */
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import type { IMessage } from '@stomp/stompjs';
 import { useAuthStore } from '@/shared/store/authStore';
 import { useChatStore } from '@/shared/store/useChatStore';
@@ -21,6 +21,7 @@ import {
 import { addIncomingChatMessageFromStomp } from '@/shared/utils/chatWebSocketInbound';
 import { getDirectChatPartnerDisplayName } from '@/shared/utils/strangerChatRooms';
 import { useInAppNotifStore } from '@/views/mobile/chat/components/InAppNotification';
+import { showLocalNotification } from '@/services/notificationService';
 
 function mapChatRoomResponsesToStore(
     currentUserId: string | undefined,
@@ -273,21 +274,32 @@ function useGlobalChatTopicSubscriptions() {
                                 typeof dynamo.type === 'string' ? dynamo.type : '';
                             const msgContent =
                                 typeof dynamo.content === 'string' ? dynamo.content : '';
-                            useInAppNotifStore.getState().show({
-                                title: senderLabel,
-                                body:
-                                    msgType === 'IMAGE'
-                                        ? '[Hình ảnh]'
-                                        : msgType === 'VIDEO'
-                                          ? '[Video]'
-                                          : msgType === 'FILE'
-                                            ? '[Tập tin]'
-                                            : msgType === 'POLL'
-                                              ? '[Bình chọn]'
-                                            : msgContent || 'Đã gửi một tin nhắn',
-                                avatarUrl: roomData?.avatarUrl || undefined,
-                                roomId: roomId,
-                            });
+                            const bodyText =
+                                msgType === 'IMAGE'
+                                    ? '[Hình ảnh]'
+                                    : msgType === 'VIDEO'
+                                      ? '[Video]'
+                                      : msgType === 'FILE'
+                                        ? '[Tập tin]'
+                                        : msgType === 'POLL'
+                                          ? '[Bình chọn]'
+                                          : msgContent || 'Đã gửi một tin nhắn';
+
+                            // Background: dùng local push (heads-up). Foreground: dùng in-app banner.
+                            if (AppState.currentState !== 'active') {
+                                void showLocalNotification(senderLabel, bodyText, {
+                                    type: 'MESSAGE',
+                                    roomId,
+                                    senderId,
+                                });
+                            } else {
+                                useInAppNotifStore.getState().show({
+                                    title: senderLabel,
+                                    body: bodyText,
+                                    avatarUrl: roomData?.avatarUrl || undefined,
+                                    roomId: roomId,
+                                });
+                            }
                         }
                     }
                 }

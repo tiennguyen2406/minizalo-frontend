@@ -27,6 +27,7 @@ import { addIncomingChatMessageFromStomp } from "@/shared/utils/chatWebSocketInb
 import type { IMessage } from "@stomp/stompjs";
 import { CallType } from "@/shared/services/callService";
 import PinnedMessagesBar from "./PinnedMessagesBar";
+import GroupCallInviteModal from "./GroupCallInviteModal";
 
 interface ChatWindowProps {
   roomId: string;
@@ -92,9 +93,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   } | null>(null);
   const [friendsListReady, setFriendsListReady] = useState(false);
   const [friendInviteOpen, setFriendInviteOpen] = useState(false);
+  const [groupCallInviteOpen, setGroupCallInviteOpen] = useState(false);
+  const [groupCallType, setGroupCallType] = useState<CallType>("VOICE");
 
   // Call Store Actions
-  const { initiateCall, resetCall } = useCallStore();
+  const { initiateCall, initiateGroupCall } = useCallStore();
 
   const messagesState = messages[roomId] || [];
 
@@ -798,6 +801,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
   const handleCall = async (type: CallType) => {
     if (!roomId) return;
+    if (isGroupRoom) {
+      setGroupCallType(type);
+      setGroupCallInviteOpen(true);
+      return;
+    }
     const receiverId = partner?.id;
 
     if (!receiverId) {
@@ -814,6 +822,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       await initiateCall(roomId, receiverId, type, roomName, roomAvatar);
     } catch (error: any) {
       alert(error.response?.data?.message || "Không thể thực hiện cuộc gọi. Vui lòng thử lại sau.");
+    }
+  };
+
+  const confirmGroupCall = async (receiverIds: string[]) => {
+    try {
+      setGroupCallInviteOpen(false);
+      await initiateGroupCall(roomId, receiverIds, groupCallType);
+    } catch (error: any) {
+      alert(error?.response?.data?.message || "Không thể gọi nhóm. Vui lòng thử lại sau.");
     }
   };
 
@@ -1439,6 +1456,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
       {/* Add Members Modal (chỉ nhóm) */}
       {isGroupRoom && <AddMembersModal roomId={roomId} />}
+
+      <GroupCallInviteModal
+        open={groupCallInviteOpen}
+        title={groupCallType === "VIDEO" ? "Gọi video nhóm" : "Gọi thoại nhóm"}
+        members={(currentRoom?.participants || []) as any}
+        myUserId={currentUserId}
+        onClose={() => setGroupCallInviteOpen(false)}
+        onConfirm={confirmGroupCall}
+      />
 
       {/* Forward Message Modal */}
       {forwardingMessages && (

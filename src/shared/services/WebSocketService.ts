@@ -9,7 +9,7 @@ import {
 } from "../types";
 import { callService } from "./callService";
 import { useCallStore } from "../store/useCallStore";
-import { showCallNotification } from "@/services/notificationService";
+import { dismissCallNotifications, showCallNotification } from "@/services/notificationService";
 import { soundManager } from "./SoundManager";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8080/api";
@@ -317,6 +317,20 @@ class WebSocketService {
             switch (type) {
                 case 'INCOMING':
                     console.log('=== [CallSignal] INCOMING from:', payload?.caller?.name, 'session:', payload?.callSessionId);
+                    callStore.setIncomingCallKind('direct');
+                    callStore.setIncomingCall(payload);
+                    if (Platform.OS === 'web') {
+                        soundManager.playRingtone();
+                    } else if (AppState.currentState !== 'active') {
+                        const callerName = payload?.caller?.name || 'Cuộc gọi đến';
+                        const callType = payload?.callType || 'VOICE';
+                        showCallNotification(callerName, callType);
+                    }
+                    break;
+
+                case 'INCOMING_GROUP_CALL':
+                    console.log('=== [CallSignal] INCOMING_GROUP_CALL session:', payload?.callSessionId);
+                    callStore.setIncomingCallKind('group');
                     callStore.setIncomingCall(payload);
                     if (Platform.OS === 'web') {
                         soundManager.playRingtone();
@@ -330,9 +344,30 @@ class WebSocketService {
                 case 'ACCEPTED':
                     console.log('=== [CallSignal] ACCEPTED - Clearing timer');
                     soundManager.stopAll();
+                    dismissCallNotifications();
                     soundManager.playBeep();
                     callStore.clearCallTimer();
                     callStore.setCallStatus('connected');
+                    break;
+
+                case 'TAKEN': {
+                    // Một thiết bị khác của chính user đã accept → thiết bị này phải tắt màn hình chuông/rung.
+                    console.log('=== [CallSignal] TAKEN - sessionId:', callSessionId, 'current:', currentSessionId);
+                    soundManager.stopAll();
+                    dismissCallNotifications();
+                    const activeId = callStore.activeCall?.callSessionId;
+                    if (callSessionId && callSessionId === currentSessionId && activeId !== callSessionId) {
+                        callStore.resetCall();
+                    }
+                    break;
+                }
+
+                case 'PARTICIPANT_JOINED':
+                case 'PARTICIPANT_LEFT':
+                case 'GROUP_CALL_ENDED':
+                    // group call lifecycle events
+                    if (type === 'GROUP_CALL_ENDED') dismissCallNotifications();
+                    callStore.applyGroupCallEvent(payload);
                     break;
 
                 case 'CANCELLED':
@@ -340,6 +375,7 @@ class WebSocketService {
                 case 'REJECTED':
                     console.log(`=== [CallSignal] ${type} - sessionId:`, callSessionId, 'current:', currentSessionId);
                     soundManager.stopAll();
+                    dismissCallNotifications();
                     if (!callSessionId || callSessionId === currentSessionId) {
                         callStore.resetCall();
                     }
