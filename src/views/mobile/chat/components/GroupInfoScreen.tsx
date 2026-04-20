@@ -597,7 +597,9 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
 
     const isOwner =
         group != null && currentUserId != null && String(group.ownerId) === String(currentUserId);
-    const currentUserRole = group?.members.find((m) => m.userId === currentUserId)?.role;
+    const currentUserRole = group?.members.find(
+        (m) => currentUserId != null && String(m.userId) === String(currentUserId),
+    )?.role;
     const isAdmin = currentUserRole === "ADMIN";
     const canManageMembers = isOwner || isAdmin;
 
@@ -1007,11 +1009,17 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     icon="bar-chart-outline"
                     label="Bình chọn"
                     subtitle="Tạo cuộc khảo sát cho cả nhóm"
-                    onPress={() =>
+                    onPress={() => {
+                        const isOwnerOrAdmin = canManageMembers;
+                        const allow = group.settings?.allowMemberCreatePoll;
+                        if (!isOwnerOrAdmin && allow === false) {
+                            Alert.alert("Bình chọn", "Chỉ trưởng/phó nhóm được tạo bình chọn.");
+                            return;
+                        }
                         router.push(
                             `/create-poll?roomId=${encodeURIComponent(roomId)}&groupName=${encodeURIComponent(group.groupName)}`,
-                        )
-                    }
+                        );
+                    }}
                 />
 
                 {canOpenGroupSettings ? (

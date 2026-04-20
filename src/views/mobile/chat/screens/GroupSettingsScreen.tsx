@@ -16,9 +16,21 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { groupService } from "@/shared/services/groupService";
-import type { GroupMember, GroupSettings } from "@/shared/types";
+import type { BlockedMember, GroupMember, GroupSettings } from "@/shared/types";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useAuthStore } from "@/shared/store/authStore";
+import { webSocketService } from "@/shared/services/WebSocketService";
+import {
+    GroupSettingsRow,
+    GroupSettingsSectionLabel,
+    ChevronRight,
+} from "../components/groupSettings/GroupSettingsRow";
+import { RolesManagementSheet } from "../components/groupSettings/RolesManagementSheet";
+import { BlockedMembersSheet } from "../components/groupSettings/BlockedMembersSheet";
+import {
+    MemberActionPickerSheet,
+    type MemberActionPickerMode,
+} from "../components/groupSettings/MemberActionPickerSheet";
 
 function getScopedKey(suffix: string): string {
     const uid = useAuthStore.getState().user?.id || "anon";
@@ -56,6 +68,18 @@ export default function GroupSettingsScreen({
     const [settings, setSettings] = useState<Partial<GroupSettings> | null>(null);
     const [highlightAdminMsg, setHighlightAdminMsg] = useState(false);
     const [transferVisible, setTransferVisible] = useState(false);
+    const [rolesVisible, setRolesVisible] = useState(false);
+    const [blockedVisible, setBlockedVisible] = useState(false);
+    const [blockedLoading, setBlockedLoading] = useState(false);
+    const [blockedMembers, setBlockedMembers] = useState<BlockedMember[] | null>(null);
+    const [pickerVisible, setPickerVisible] = useState(false);
+    const [pickerMode, setPickerMode] = useState<MemberActionPickerMode>("ADD_ADMIN");
+    const [pickerBusy, setPickerBusy] = useState(false);
+    const [membersState, setMembersState] = useState<GroupMember[]>(members);
+
+    useEffect(() => {
+        setMembersState(members);
+    }, [members]);
 
     const highlightKey = `${getScopedKey("groupHighlightAdmin")}:${groupId}`;
     const notesPermKey = `${getScopedKey("groupNotesPerm")}:${groupId}`;
@@ -116,73 +140,245 @@ export default function GroupSettingsScreen({
     );
 
     const patchSettings = async (partial: Partial<GroupSettings>) => {
-        if (!settings) return;
+        // Optimistic update để tránh Switch khác bị nhấp nháy khi server trả thiếu field.
+        setSettings((prev) => ({ ...(prev || {}), ...partial }));
         setSaving(true);
         try {
             const next = await groupService.updateGroupSettings({
                 groupId,
                 ...partial,
             });
-            setSettings(next);
+            setSettings((prev) => ({ ...(prev || {}), ...(next || {}) }));
             onRefreshGroup?.();
+
+            // Gửi 1 SYSTEM message vào chat để giống web (pill thông báo).
+            try {
+                const u = useAuthStore.getState().user;
+                const me =
+                    u?.fullName?.trim() ||
+                    (u as any)?.displayName?.trim?.() ||
+                    u?.username?.trim() ||
+                    "Ai đó";
+                const changed: string[] = [];
+                if (partial.allowMemberSendMessage != null) {
+                    changed.push(
+                        `quyền gửi tin nhắn ${partial.allowMemberSendMessage ? "đã bật" : "đã tắt"}`,
+                    );
+                }
+                if (partial.allowMemberCreatePoll != null) {
+                    changed.push(
+                        `quyền tạo bình chọn ${partial.allowMemberCreatePoll ? "đã bật" : "đã tắt"}`,
+                    );
+                }
+                if (partial.allowMemberPin != null) {
+                    changed.push(
+                        `quyền ghim tin nhắn ${partial.allowMemberPin ? "đã bật" : "đã tắt"}`,
+                    );
+                }
+                if (partial.requireApproval != null) {
+                    changed.push(
+                        `duyệt thành viên ${partial.requireApproval ? "đã bật" : "đã tắt"}`,
+                    );
+                }
+                if (partial.allowNewMemberReadHistory != null) {
+                    changed.push(
+                        `thành viên mới xem lịch sử ${partial.allowNewMemberReadHistory ? "đã bật" : "đã tắt"}`,
+                    );
+                }
+                if (changed.length > 0) {
+                    webSocketService.activate();
+                    webSocketService.sendChatMessage(
+                        groupId,
+                        `${me} đã cập nhật: ${changed.join(", ")}.`,
+                        "SYSTEM",
+                    );
+                }
+            } catch {
+                /* ignore */
+            }
         } catch (e: any) {
             Alert.alert("Lỗi", e?.response?.data?.message || "Cập nhật thất bại.");
+            // rollback best-effort: refetch settings từ server
+            try {
+                const fresh = await groupService.getGroupSettings(groupId);
+                setSettings(fresh);
+            } catch {
+                /* ignore */
+            }
         } finally {
             setSaving(false);
         }
     };
 
-    const sectionLabel = (title: string) => (
-        <Text
-            style={{
-                fontSize: 13,
-                fontWeight: "600",
-                color: colors.primary,
-                paddingHorizontal: 16,
-                paddingTop: 16,
-                paddingBottom: 8,
-            }}
-        >
-            {title}
-        </Text>
-    );
-
-    const row = (
-        label: string,
-        right?: React.ReactNode,
-        subtitle?: string,
-        onPress?: () => void,
-        first?: boolean,
-        danger?: boolean,
-    ) => (
-        <TouchableOpacity
-            activeOpacity={onPress ? 0.7 : 1}
-            onPress={onPress}
-            style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 16,
-                paddingVertical: 14,
-                backgroundColor: colors.card,
-                borderTopWidth: first ? 0 : 0.5,
-                borderTopColor: colors.border,
-            }}
-        >
-            <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, color: danger ? "#ef4444" : colors.text, fontWeight: danger ? "600" : "400" }}>
-                    {label}
-                </Text>
-                {subtitle ? (
-                    <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>{subtitle}</Text>
-                ) : null}
-            </View>
-            {right}
-        </TouchableOpacity>
-    );
+    const openPicker = (mode: MemberActionPickerMode) => {
+        setPickerMode(mode);
+        setPickerBusy(false);
+        setPickerVisible(true);
+    };
 
     const isOwner = currentUserId != null && String(currentUserId) === String(ownerId);
+    const isAdmin =
+        currentUserId != null &&
+        membersState.some((m) => String(m.userId) === String(currentUserId) && m.role === "ADMIN");
+    const isOwnerOrAdmin = isOwner || isAdmin;
 
-    const transferCandidates = members.filter((m) => m.userId !== ownerId);
+    const transferCandidates = membersState.filter((m) => m.userId !== ownerId);
+    const ownerMember = membersState.find((m) => String(m.userId) === String(ownerId)) || null;
+    const adminMembers = membersState.filter(
+        (m) => m.role === "ADMIN" && String(m.userId) !== String(ownerId),
+    );
+    const selectableForAdmin = membersState.filter(
+        (m) => String(m.userId) !== String(ownerId) && m.role !== "ADMIN",
+    );
+    const selectableForBlock = membersState.filter((m) => String(m.userId) !== String(ownerId));
+
+    const fetchBlocked = useCallback(async () => {
+        setBlockedLoading(true);
+        try {
+            const list = await groupService.getBlockedMembers(groupId);
+            setBlockedMembers(list);
+        } catch {
+            setBlockedMembers([]);
+        } finally {
+            setBlockedLoading(false);
+        }
+    }, [groupId]);
+
+    useEffect(() => {
+        if (!blockedVisible) return;
+        void fetchBlocked();
+    }, [blockedVisible, fetchBlocked]);
+
+    const handleAddAdmin = async (targetUserId: string) => {
+        setPickerBusy(true);
+        try {
+            const updated = await groupService.changeRole(groupId, targetUserId, "ADMIN");
+            setMembersState(updated.members);
+            Alert.alert("Thành công", "Đã bổ nhiệm phó nhóm.");
+            setPickerVisible(false);
+            try {
+                const u = useAuthStore.getState().user;
+                const me =
+                    u?.fullName?.trim() ||
+                    (u as any)?.displayName?.trim?.() ||
+                    u?.username?.trim() ||
+                    "Ai đó";
+                const target = membersState.find((m) => String(m.userId) === String(targetUserId));
+                const targetName = target?.fullName?.trim() || target?.username?.trim() || "một thành viên";
+                webSocketService.activate();
+                webSocketService.sendChatMessage(groupId, `${me} đã phong ${targetName} làm phó nhóm.`, "SYSTEM");
+            } catch {
+                /* ignore */
+            }
+            // Refresh lại từ server để đảm bảo đồng bộ role/owner trong mọi trường hợp.
+            try {
+                const fresh = await groupService.getGroupDetails(groupId);
+                setMembersState(fresh.members);
+            } catch {
+                /* ignore */
+            }
+            onRefreshGroup?.();
+        } catch (e: any) {
+            Alert.alert("Lỗi", e?.response?.data?.message || "Bổ nhiệm thất bại.");
+        } finally {
+            setPickerBusy(false);
+        }
+    };
+
+    const handleRemoveAdmin = async (targetUserId: string) => {
+        Alert.alert("Xóa phó nhóm", "Xóa quyền phó nhóm của thành viên này?", [
+            { text: "Hủy", style: "cancel" },
+            {
+                text: "Xóa",
+                style: "destructive",
+                onPress: async () => {
+                    setSaving(true);
+                    try {
+                        const updated = await groupService.changeRole(groupId, targetUserId, "MEMBER");
+                        setMembersState(updated.members);
+                        try {
+                            const fresh = await groupService.getGroupDetails(groupId);
+                            setMembersState(fresh.members);
+                        } catch {
+                            /* ignore */
+                        }
+                        onRefreshGroup?.();
+                    } catch (e: any) {
+                        Alert.alert("Lỗi", e?.response?.data?.message || "Thao tác thất bại.");
+                    } finally {
+                        setSaving(false);
+                    }
+                },
+            },
+        ]);
+    };
+
+    const handleBlockMember = async (targetUserId: string) => {
+        setPickerBusy(true);
+        try {
+            await groupService.blockMember(groupId, targetUserId);
+            Alert.alert("Thành công", "Đã chặn thành viên khỏi nhóm.");
+            setPickerVisible(false);
+            try {
+                const u = useAuthStore.getState().user;
+                const me =
+                    u?.fullName?.trim() ||
+                    (u as any)?.displayName?.trim?.() ||
+                    u?.username?.trim() ||
+                    "Ai đó";
+                const target = membersState.find((m) => String(m.userId) === String(targetUserId));
+                const targetName = target?.fullName?.trim() || target?.username?.trim() || "một thành viên";
+                webSocketService.activate();
+                webSocketService.sendChatMessage(groupId, `${me} đã chặn ${targetName} khỏi nhóm.`, "SYSTEM");
+            } catch {
+                /* ignore */
+            }
+            await fetchBlocked();
+            try {
+                const fresh = await groupService.getGroupDetails(groupId);
+                setMembersState(fresh.members);
+            } catch {
+                /* ignore */
+            }
+            onRefreshGroup?.();
+        } catch (e: any) {
+            Alert.alert("Lỗi", e?.response?.data?.message || "Chặn thất bại.");
+        } finally {
+            setPickerBusy(false);
+        }
+    };
+
+    const handleUnblockMember = async (targetUserId: string) => {
+        setSaving(true);
+        try {
+            await groupService.unblockMember(groupId, targetUserId);
+            setBlockedMembers((prev) => (prev || []).filter((x) => x.userId !== targetUserId));
+            try {
+                const u = useAuthStore.getState().user;
+                const me =
+                    u?.fullName?.trim() ||
+                    (u as any)?.displayName?.trim?.() ||
+                    u?.username?.trim() ||
+                    "Ai đó";
+                const target = blockedMembers?.find((m) => String(m.userId) === String(targetUserId));
+                const targetName = target?.displayName?.trim() || target?.username?.trim() || "một thành viên";
+                webSocketService.activate();
+                webSocketService.sendChatMessage(groupId, `${me} đã bỏ chặn ${targetName}.`, "SYSTEM");
+            } catch {
+                /* ignore */
+            }
+            try {
+                const fresh = await groupService.getGroupDetails(groupId);
+                setMembersState(fresh.members);
+            } catch {
+                /* ignore */
+            }
+        } catch (e: any) {
+            Alert.alert("Lỗi", e?.response?.data?.message || "Bỏ chặn thất bại.");
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const handleTransfer = async (newOwnerId: string) => {
         Alert.alert(
@@ -244,139 +440,219 @@ export default function GroupSettingsScreen({
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
-                {sectionLabel("Thiết lập tin nhắn")}
-                <View style={{ backgroundColor: colors.card }}>
-                    {row(
-                        "Làm nổi tin nhắn từ trưởng và phó nhóm",
-                        <Switch
-                            value={highlightAdminMsg}
-                            onValueChange={persistHighlight}
-                            trackColor={{ false: colors.separator, true: colors.primary }}
-                            thumbColor="#fff"
-                        />,
-                        undefined,
-                        undefined,
-                        true,
-                    )}
-                    {row(
-                        "Thành viên mới xem được tin gửi gần đây",
-                        <Switch
-                            value={!!settings?.allowNewMemberReadHistory}
-                            onValueChange={(v) => patchSettings({ allowNewMemberReadHistory: v })}
-                            disabled={saving}
-                            trackColor={{ false: colors.separator, true: colors.primary }}
-                            thumbColor="#fff"
-                        />,
-                    )}
+                <GroupSettingsSectionLabel title="Thiết lập tin nhắn" />
+                <View
+                    style={{
+                        backgroundColor: colors.card,
+                        marginHorizontal: 12,
+                        marginTop: 6,
+                        borderRadius: 14,
+                        overflow: "hidden",
+                        borderWidth: 0.5,
+                        borderColor: colors.border,
+                    }}
+                >
+                    <GroupSettingsRow
+                        label="Làm nổi tin nhắn từ trưởng và phó nhóm"
+                        right={
+                            <Switch
+                                value={highlightAdminMsg}
+                                onValueChange={persistHighlight}
+                                trackColor={{ false: colors.separator, true: colors.primary }}
+                                thumbColor="#fff"
+                            />
+                        }
+                        first
+                    />
+                    <GroupSettingsRow
+                        label="Thành viên mới xem được tin gửi gần đây"
+                        right={
+                            <Switch
+                                value={settings?.allowNewMemberReadHistory ?? true}
+                                onValueChange={(v) => patchSettings({ allowNewMemberReadHistory: v })}
+                                disabled={saving}
+                                trackColor={{ false: colors.separator, true: colors.primary }}
+                                thumbColor="#fff"
+                            />
+                        }
+                        last
+                    />
                 </View>
 
-                {sectionLabel("Thành viên")}
-                <View style={{ backgroundColor: colors.card }}>
-                    {row(
-                        "Quản lý thành viên",
-                        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />,
-                        undefined,
-                        () => {
+                <GroupSettingsSectionLabel title="Thành viên" />
+                <View
+                    style={{
+                        backgroundColor: colors.card,
+                        marginHorizontal: 12,
+                        marginTop: 6,
+                        borderRadius: 14,
+                        overflow: "hidden",
+                        borderWidth: 0.5,
+                        borderColor: colors.border,
+                    }}
+                >
+                    <GroupSettingsRow
+                        label="Quản lý thành viên"
+                        right={<ChevronRight />}
+                        variant="menu"
+                        onPress={() => {
                             onClose();
                             setTimeout(() => onOpenMembers?.(), 220);
-                        },
-                        true,
-                    )}
-                    {row(
-                        "Duyệt thành viên",
-                        <Text style={{ fontSize: 14, color: colors.textSecondary }}>
-                            {settings?.requireApproval ? "Đang bật" : "Đã tắt"}
-                        </Text>,
-                        undefined,
-                        () => patchSettings({ requireApproval: !settings?.requireApproval }),
-                    )}
-                    {isOwner
-                        ? row(
-                              "Chuyển quyền trưởng nhóm",
-                              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />,
-                              undefined,
-                              () => setTransferVisible(true),
-                          )
-                        : null}
+                        }}
+                        first
+                    />
+                    <GroupSettingsRow
+                        label="Duyệt thành viên"
+                        right={
+                            <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: "600", lineHeight: 18 }}>
+                                {settings?.requireApproval ? "Đang bật" : "Đã tắt"}
+                            </Text>
+                        }
+                        subtitle={!isOwner ? "Chỉ trưởng nhóm" : undefined}
+                        variant="menu"
+                        onPress={() => {
+                            if (!isOwner) return;
+                            void patchSettings({ requireApproval: !settings?.requireApproval });
+                        }}
+                        disabled={!isOwner}
+                    />
+                    <GroupSettingsRow
+                        label="Trưởng và phó nhóm"
+                        right={<ChevronRight />}
+                        subtitle={!isOwner ? "Chỉ trưởng nhóm" : undefined}
+                        variant="menu"
+                        onPress={() => setRolesVisible(true)}
+                        disabled={!isOwner}
+                    />
+                    <GroupSettingsRow
+                        label="Chặn khỏi nhóm"
+                        right={<ChevronRight />}
+                        subtitle={!isOwnerOrAdmin ? "Chỉ trưởng/phó nhóm" : undefined}
+                        variant="menu"
+                        onPress={() => setBlockedVisible(true)}
+                        disabled={!isOwnerOrAdmin}
+                    />
+                    {isOwner ? (
+                        <GroupSettingsRow
+                            label="Chuyển quyền trưởng nhóm"
+                            right={<ChevronRight />}
+                            variant="menu"
+                            onPress={() => setTransferVisible(true)}
+                            last
+                        />
+                    ) : null}
                 </View>
 
-                {sectionLabel("Quyền của thành viên")}
-                <View style={{ backgroundColor: colors.card }}>
-                    {row(
-                        "Quyền sửa thông tin nhóm",
-                        <Switch
-                            value={!!settings?.allowMemberChangeName}
-                            onValueChange={(v) => patchSettings({ allowMemberChangeName: v })}
-                            disabled={saving}
-                            trackColor={{ false: colors.separator, true: colors.primary }}
-                            thumbColor="#fff"
-                        />,
-                        "Tất cả mọi người",
-                        undefined,
-                        true,
-                    )}
-                    {row(
-                        "Quyền tạo ghi chú, nhắc hẹn",
-                        <Switch
-                            value={notesPermissionUi}
-                            onValueChange={persistNotesPerm}
-                            trackColor={{ false: colors.separator, true: colors.primary }}
-                            thumbColor="#fff"
-                        />,
-                        "Tất cả mọi người",
-                    )}
-                    {row(
-                        "Quyền tạo bình chọn",
-                        <Switch
-                            value={!!settings?.allowMemberCreatePoll}
-                            onValueChange={(v) => patchSettings({ allowMemberCreatePoll: v })}
-                            disabled={saving}
-                            trackColor={{ false: colors.separator, true: colors.primary }}
-                            thumbColor="#fff"
-                        />,
-                        "Tất cả mọi người",
-                    )}
-                    {row(
-                        "Quyền ghim tin nhắn",
-                        <Switch
-                            value={!!settings?.allowMemberPin}
-                            onValueChange={(v) => patchSettings({ allowMemberPin: v })}
-                            disabled={saving}
-                            trackColor={{ false: colors.separator, true: colors.primary }}
-                            thumbColor="#fff"
-                        />,
-                        "Tất cả mọi người",
-                    )}
-                    {row(
-                        "Quyền gửi tin nhắn",
-                        <Switch
-                            value={!!settings?.allowMemberSendMessage}
-                            onValueChange={(v) => patchSettings({ allowMemberSendMessage: v })}
-                            disabled={saving}
-                            trackColor={{ false: colors.separator, true: colors.primary }}
-                            thumbColor="#fff"
-                        />,
-                        "Tất cả mọi người",
-                    )}
+                <GroupSettingsSectionLabel title="Quyền của thành viên" />
+                <View
+                    style={{
+                        backgroundColor: colors.card,
+                        marginHorizontal: 12,
+                        marginTop: 6,
+                        borderRadius: 14,
+                        overflow: "hidden",
+                        borderWidth: 0.5,
+                        borderColor: colors.border,
+                    }}
+                >
+                    <GroupSettingsRow
+                        label="Quyền sửa thông tin nhóm"
+                        right={
+                            <Switch
+                                value={settings?.allowMemberChangeName ?? true}
+                                onValueChange={(v) => patchSettings({ allowMemberChangeName: v })}
+                                disabled={saving}
+                                trackColor={{ false: colors.separator, true: colors.primary }}
+                                thumbColor="#fff"
+                            />
+                        }
+                        subtitle="Tất cả mọi người"
+                        first
+                    />
+                    <GroupSettingsRow
+                        label="Quyền tạo ghi chú, nhắc hẹn"
+                        right={
+                            <Switch
+                                value={notesPermissionUi}
+                                onValueChange={persistNotesPerm}
+                                trackColor={{ false: colors.separator, true: colors.primary }}
+                                thumbColor="#fff"
+                            />
+                        }
+                        subtitle="Tất cả mọi người"
+                    />
+                    <GroupSettingsRow
+                        label="Quyền tạo bình chọn"
+                        right={
+                            <Switch
+                                value={settings?.allowMemberCreatePoll ?? true}
+                                onValueChange={(v) => patchSettings({ allowMemberCreatePoll: v })}
+                                disabled={saving}
+                                trackColor={{ false: colors.separator, true: colors.primary }}
+                                thumbColor="#fff"
+                            />
+                        }
+                        subtitle="Tất cả mọi người"
+                    />
+                    <GroupSettingsRow
+                        label="Quyền ghim tin nhắn"
+                        right={
+                            <Switch
+                                value={settings?.allowMemberPin ?? true}
+                                onValueChange={(v) => patchSettings({ allowMemberPin: v })}
+                                disabled={saving}
+                                trackColor={{ false: colors.separator, true: colors.primary }}
+                                thumbColor="#fff"
+                            />
+                        }
+                        subtitle="Tất cả mọi người"
+                    />
+                    <GroupSettingsRow
+                        label="Quyền gửi tin nhắn"
+                        right={
+                            <Switch
+                                value={settings?.allowMemberSendMessage ?? true}
+                                onValueChange={(v) => patchSettings({ allowMemberSendMessage: v })}
+                                disabled={saving}
+                                trackColor={{ false: colors.separator, true: colors.primary }}
+                                thumbColor="#fff"
+                            />
+                        }
+                        subtitle="Tất cả mọi người"
+                        last
+                    />
                 </View>
 
-                {isOwner ? <View style={{ height: 16, backgroundColor: colors.separator }} /> : null}
-
-                {isOwner
-                    ? row(
-                          "Giải tán nhóm",
-                          undefined,
-                          undefined,
-                          () => {
-                              Alert.alert("Giải tán nhóm", `Giải tán nhóm "${groupName}"?`, [
-                                  { text: "Hủy", style: "cancel" },
-                                  { text: "Giải tán", style: "destructive", onPress: onDisband },
-                              ]);
-                          },
-                          true,
-                          true,
-                      )
-                    : null}
+                {isOwner ? (
+                    <>
+                        <View style={{ height: 14 }} />
+                        <View
+                            style={{
+                                backgroundColor: colors.card,
+                                marginHorizontal: 12,
+                                marginTop: 6,
+                                borderRadius: 14,
+                                overflow: "hidden",
+                                borderWidth: 0.5,
+                                borderColor: colors.border,
+                            }}
+                        >
+                            <GroupSettingsRow
+                                label="Giải tán nhóm"
+                                danger
+                                first
+                                last
+                                centerLabel
+                                onPress={() => {
+                                    Alert.alert("Giải tán nhóm", `Giải tán nhóm \"${groupName}\"?`, [
+                                        { text: "Hủy", style: "cancel" },
+                                        { text: "Giải tán", style: "destructive", onPress: onDisband },
+                                    ]);
+                                }}
+                            />
+                        </View>
+                    </>
+                ) : null}
 
                 {saving ? (
                     <Text style={{ textAlign: "center", color: colors.textSecondary, marginTop: 8, fontSize: 12 }}>Đang lưu…</Text>
@@ -449,6 +725,52 @@ export default function GroupSettingsScreen({
                     />
                 </SafeAreaView>
             </Modal>
+
+            <RolesManagementSheet
+                visible={rolesVisible}
+                members={membersState}
+                ownerId={ownerId}
+                canManage={isOwner}
+                busy={saving || pickerBusy}
+                onClose={() => setRolesVisible(false)}
+                onAddAdmin={() => {
+                    // Tránh mở 2 Modal chồng nhau (iOS pageSheet) khiến picker bị "không hiện".
+                    setRolesVisible(false);
+                    setTimeout(() => openPicker("ADD_ADMIN"), 220);
+                }}
+                onRemoveAdmin={(uid) => void handleRemoveAdmin(uid)}
+            />
+
+            <BlockedMembersSheet
+                visible={blockedVisible}
+                loading={blockedLoading}
+                members={blockedMembers || []}
+                busy={saving || pickerBusy}
+                canManage={isOwnerOrAdmin}
+                onClose={() => setBlockedVisible(false)}
+                onOpenBlockPicker={() => {
+                    // Tránh mở 2 Modal chồng nhau (iOS pageSheet) khiến picker bị "không hiện".
+                    setBlockedVisible(false);
+                    setTimeout(() => openPicker("BLOCK"), 220);
+                }}
+                onUnblock={(uid) => void handleUnblockMember(uid)}
+            />
+
+            <MemberActionPickerSheet
+                visible={pickerVisible}
+                mode={pickerMode}
+                members={membersState}
+                ownerId={ownerId}
+                busy={pickerBusy || saving}
+                onClose={() => {
+                    setPickerBusy(false);
+                    setPickerVisible(false);
+                }}
+                onPick={(uid) => {
+                    if (pickerMode === "ADD_ADMIN") void handleAddAdmin(uid);
+                    else void handleBlockMember(uid);
+                }}
+            />
         </View>
     );
 }

@@ -79,6 +79,7 @@ import {
   isStrangerMessagesNotAllowedError,
 } from "@/shared/utils/chatErrors";
 import { useLocalSearchParams } from "expo-router";
+import type { GroupDetail, GroupSettings } from "@/shared/types";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -212,6 +213,10 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<
     (MessageDynamo & { isError?: boolean })[]
   >([]);
+  const messagesRef = useRef<(MessageDynamo & { isError?: boolean })[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   /** Gom các tin IMAGE liên tiếp (web gửi từng ảnh một) để hiển thị một cụm giống web */
   const chatRows = useMemo(() => buildMobileChatRows(messages), [messages]);
   const [partnerProfileDetail, setPartnerProfileDetail] =
@@ -340,6 +345,72 @@ export default function ChatScreen() {
     void refreshGroupJoinBadge();
   }, [isFocused, refreshGroupJoinBadge]);
 
+  // ─── Đồng bộ quyền nhóm (web bật/tắt → mobile áp dụng) ─────────────────────
+  const [groupDetail, setGroupDetail] = useState<GroupDetail | null>(null);
+  const [groupSettings, setGroupSettings] = useState<GroupSettings | null>(null);
+
+  const refreshGroupPermissions = useCallback(async () => {
+    if (roomType !== "GROUP" || !roomId) {
+      setGroupDetail(null);
+      setGroupSettings(null);
+      return;
+    }
+    try {
+      const g = await groupService.getGroupDetails(roomId);
+      setGroupDetail(g);
+      if (g?.settings) setGroupSettings(g.settings as GroupSettings);
+      else {
+        const s = await groupService.getGroupSettings(roomId);
+        setGroupSettings(s);
+      }
+    } catch {
+      /* giữ trạng thái cũ nếu lỗi mạng */
+    }
+  }, [roomType, roomId]);
+
+  useEffect(() => {
+    void refreshGroupPermissions();
+  }, [refreshGroupPermissions]);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    if (roomType !== "GROUP" || !roomId) return;
+    const t = setInterval(() => {
+      void refreshGroupPermissions();
+    }, 2000);
+    return () => clearInterval(t);
+  }, [isFocused, roomType, roomId, refreshGroupPermissions]);
+
+  const isGroupOwnerOrAdmin = useMemo(() => {
+    if (roomType !== "GROUP") return true;
+    if (!currentUserId) return false;
+    const ownerId = groupDetail?.ownerId;
+    if (ownerId && String(ownerId) === String(currentUserId)) return true;
+    const role = groupDetail?.members?.find(
+      (m) => String(m.userId) === String(currentUserId),
+    )?.role;
+    return role === "ADMIN";
+  }, [roomType, currentUserId, groupDetail]);
+
+  const canSendMessage = useMemo(() => {
+    if (roomType !== "GROUP") return true;
+    if (isGroupDisbanded) return false;
+    if (isGroupOwnerOrAdmin) return true;
+    return groupSettings?.allowMemberSendMessage ?? true;
+  }, [roomType, isGroupDisbanded, isGroupOwnerOrAdmin, groupSettings]);
+
+  const canCreatePoll = useMemo(() => {
+    if (roomType !== "GROUP") return false;
+    if (isGroupOwnerOrAdmin) return true;
+    return groupSettings?.allowMemberCreatePoll ?? true;
+  }, [roomType, isGroupOwnerOrAdmin, groupSettings]);
+
+  const canPinMessage = useMemo(() => {
+    if (roomType !== "GROUP") return true;
+    if (isGroupOwnerOrAdmin) return true;
+    return groupSettings?.allowMemberPin ?? true;
+  }, [roomType, isGroupOwnerOrAdmin, groupSettings]);
+
   // ─── Deleted Messages state ───
   const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(
     new Set(),
@@ -373,6 +444,26 @@ export default function ChatScreen() {
   useEffect(() => {
     processedStrangerKeys.current.clear();
   }, [roomId]);
+
+  // ─── Highlight tin nhắn trưởng/phó (pref local) ────────────────────────────
+  const [highlightAdminPref, setHighlightAdminPref] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const uid = useAuthStore.getState().user?.id || currentUserId || "anon";
+    const key = `minizalo:${uid}:groupHighlightAdmin:${roomId}`;
+    if (roomType !== "GROUP" || !roomId) {
+      setHighlightAdminPref(false);
+      return;
+    }
+    AsyncStorage.getItem(key)
+      .then((v) => {
+        if (!cancelled) setHighlightAdminPref(v === "1");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId, roomType, currentUserId]);
 
   /** Store gọi applyStrangerMessageRejection (chat-errors / REST 403) — ChatScreen dùng state local nên đồng bộ tin SYSTEM + gỡ temp. */
   useEffect(() => {
@@ -820,6 +911,23 @@ export default function ChatScreen() {
         }
         const newMsg: MessageDynamo = parsed as MessageDynamo;
 
+        // Fallback sync: nếu nhận thông báo PIN_NOTIFICATION từ web (có replyToMessageId),
+        // nhưng client vì lý do nào đó không nhận được event /pin, thì vẫn đồng bộ danh sách ghim.
+        if (
+          newMsg?.type === "PIN_NOTIFICATION" &&
+          typeof newMsg.replyToMessageId === "string" &&
+          newMsg.replyToMessageId.trim().length > 0
+        ) {
+          void syncPinnedFromServer(roomId, { preserveIfEmpty: true });
+          // Retry để vượt qua eventual-consistency của Dynamo/pins endpoint.
+          setTimeout(() => {
+            void syncPinnedFromServer(roomId, { preserveIfEmpty: true });
+          }, 1200);
+          setTimeout(() => {
+            void syncPinnedFromServer(roomId, { preserveIfEmpty: true });
+          }, 3200);
+        }
+
         setMessages((prev) => {
           if (prev.some((m) => m.messageId === newMsg.messageId)) {
             return prev;
@@ -982,33 +1090,16 @@ export default function ChatScreen() {
           return;
         }
         if (!payload?.messageId) return;
-        setMessages((prev) => {
-          const found = prev.some((m) => m.messageId === payload.messageId);
-          if (!found) {
-            chatService
-              .getPinnedMessages(roomId, 5)
-              .then((pinResult) => {
-                if (pinResult?.messages) {
-                  setMessages((curr) => {
-                    const existingIds = new Set(curr.map((m) => m.messageId));
-                    const newPinned = pinResult.messages.filter(
-                      (m) => !existingIds.has(m.messageId),
-                    );
-                    return newPinned.length > 0
-                      ? [...curr, ...newPinned]
-                      : curr;
-                  });
-                }
-              })
-              .catch(() => {});
-            return prev;
-          }
-          return prev.map((m) =>
-            m.messageId === payload.messageId
-              ? { ...m, pinned: !!payload.isPinned }
-              : m,
-          );
-        });
+
+        // Update nhanh cho mượt, rồi sync lại toàn bộ danh sách pins để đồng bộ ghim/bỏ ghim từ web.
+        const targetId = String(payload.messageId);
+        const nextPinned = !!payload.isPinned;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.messageId === targetId ? { ...m, pinned: nextPinned } : m,
+          ),
+        );
+        void syncPinnedFromServer(roomId, { preserveIfEmpty: nextPinned });
         // Không showToast ở đây vì backend sẽ broadcast system message PIN_NOTIFICATION
       } catch (err) {
         // Error parsing pin WS message
@@ -1043,6 +1134,10 @@ export default function ChatScreen() {
   );
 
   const handleSend = async (content: string) => {
+    if (!canSendMessage) {
+      showToast("Chỉ trưởng/phó nhóm được gửi tin nhắn", "info");
+      return;
+    }
     if (sending || !content.trim()) return;
 
     let workingRoomId = activeRoomId;
@@ -1157,6 +1252,10 @@ export default function ChatScreen() {
 
   // ─── Send image(s) ───
   const handleSendImage = async (assets: ImagePicker.ImagePickerAsset[]) => {
+    if (!canSendMessage) {
+      showToast("Chỉ trưởng/phó nhóm được gửi tin nhắn", "info");
+      return;
+    }
     if (!roomId || sending || isUploadingActive || assets.length === 0) return;
     for (const a of assets) {
       const sz = a.fileSize;
@@ -1326,6 +1425,10 @@ export default function ChatScreen() {
   const handleSendFile = async (
     files: DocumentPicker.DocumentPickerAsset[],
   ) => {
+    if (!canSendMessage) {
+      showToast("Chỉ trưởng/phó nhóm được gửi tin nhắn", "info");
+      return;
+    }
     if (!roomId || sending || isUploadingActive || !files || files.length === 0)
       return;
     for (const f of files) {
@@ -1737,6 +1840,11 @@ export default function ChatScreen() {
   const handleTogglePin = (msg?: MessageDynamo) => {
     const target = msg || selectedMessage;
     if (!target || !roomId) return;
+    if (!canPinMessage) {
+      showToast("Bạn không có quyền ghim tin nhắn", "info");
+      closeActionSheet();
+      return;
+    }
     const nextPin = !target.pinned;
 
     if (nextPin) {
@@ -1921,6 +2029,80 @@ export default function ChatScreen() {
     [chatRows],
   );
 
+  /** Đồng bộ pinned từ server (để web ghim/bỏ ghim mobile cập nhật ngay). */
+  const syncPinnedFromServer = useCallback(
+    async (roomIdStr: string, opts?: { preserveIfEmpty?: boolean }) => {
+      try {
+        const pinResult = await chatService.getPinnedMessages(roomIdStr, 5);
+        const raw = pinResult?.messages;
+        const pinnedMsgs: MessageDynamo[] = Array.isArray(raw)
+          ? raw.map((m) => ({ ...m, pinned: true }))
+          : [];
+        const preserveIfEmpty = opts?.preserveIfEmpty === true;
+        const pinnedIds = new Set(
+          pinnedMsgs.map((m) => m.messageId).filter(Boolean),
+        );
+
+        setMessages((curr) => {
+          const existingIds = new Set(curr.map((m) => m.messageId));
+          const merged = [...curr];
+
+          // Merge missing pinned messages so \"Xem\" có thể cuộn tới được
+          for (const m of pinnedMsgs) {
+            if (!m?.messageId || existingIds.has(m.messageId)) continue;
+            merged.push(m);
+            existingIds.add(m.messageId);
+          }
+
+          // Nếu vừa ghim mà API pins trả rỗng (eventual consistency),
+          // đừng xoá trạng thái pinned hiện có để tránh UI \"Tin nhắn ghim\" tự biến mất.
+          const shouldClear = !(preserveIfEmpty && pinnedIds.size === 0);
+          const next = merged.map((m) => ({
+            ...m,
+            pinned: shouldClear ? pinnedIds.has(m.messageId) : !!m.pinned,
+          }));
+
+          // Keep newest-first order
+          next.sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          );
+          return next;
+        });
+      } catch {
+        // ignore
+      }
+    },
+    [setMessages],
+  );
+
+  /** Dùng chung cho các link \"Xem\": đảm bảo tin đã có rồi mới cuộn. */
+  const scrollToMessageEnsuringLoaded = useCallback(
+    async (messageId: string) => {
+      const mid = String(messageId || "").trim();
+      if (!mid) return;
+      const exists = messagesRef.current.some((m) => m.messageId === mid);
+      if (!exists && roomId) {
+        await syncPinnedFromServer(roomId);
+      }
+      scrollToPinnedMessage(mid);
+      if (!messagesRef.current.some((m) => m.messageId === mid)) {
+        showToast(
+          "Không tìm thấy tin nhắn được ghim trong danh sách hiện tại",
+          "info",
+        );
+      }
+    },
+    [roomId, scrollToPinnedMessage, showToast, syncPinnedFromServer],
+  );
+
+  const scrollToMessageId = useCallback(
+    (messageId: string) => {
+      void scrollToMessageEnsuringLoaded(messageId);
+    },
+    [scrollToMessageEnsuringLoaded],
+  );
+
   const highlightedMessageId = useChatStore((s) => s.highlightedMessageId);
   const clearHighlightedMessageId = useChatStore(
     (s) => s.setHighlightedMessageId,
@@ -2021,12 +2203,25 @@ export default function ChatScreen() {
             }
           }}
           onImagePress={(url) => handleGalleryOpen(url)}
+          onScrollToMessageId={scrollToMessageId}
         />
       );
     }
 
     const itemMsg = item.message;
     const isMe = itemMsg.senderId === currentUserId;
+
+    const isAdminSender =
+      roomType === "GROUP" &&
+      highlightAdminPref &&
+      !isMe &&
+      !!itemMsg.senderId &&
+      (String(itemMsg.senderId) === String(groupDetail?.ownerId) ||
+        groupDetail?.members?.some(
+          (m) => String(m.userId) === String(itemMsg.senderId) && m.role === "ADMIN",
+        ) === true) &&
+      itemMsg.type !== "SYSTEM" &&
+      itemMsg.type !== "PIN_NOTIFICATION";
 
     // ─── PIN_NOTIFICATION: hiển thị dạng thông báo hệ thống giữa chat ───
     if (
@@ -2079,7 +2274,7 @@ export default function ChatScreen() {
             </Text>
             {isPinAction && pinnedMsgId && (
               <TouchableOpacity
-                onPress={() => scrollToPinnedMessage(pinnedMsgId)}
+                onPress={() => void scrollToMessageEnsuringLoaded(pinnedMsgId)}
                 style={{ marginLeft: 6 }}
               >
                 <Text
@@ -2114,6 +2309,7 @@ export default function ChatScreen() {
         isMe={isMe}
         showSenderName={roomType === "GROUP"}
         isSearchHighlight={highlightedMessageId === itemMsg.messageId}
+        isAdminHighlight={isAdminSender}
         onPress={handleMessagePress}
         onLongPress={handleMessageLongPress}
         onPressReactions={(msg) => setReactionListMessage(msg)}
@@ -2145,6 +2341,7 @@ export default function ChatScreen() {
           }
         }}
         onImagePress={(url) => handleGalleryOpen(url)}
+        onScrollToMessageId={scrollToMessageId}
       />
     );
   };
@@ -2696,8 +2893,14 @@ export default function ChatScreen() {
             onSend={handleSend}
             onSendImage={handleSendImage}
             onSendFile={handleSendFile}
+            disabled={!canSendMessage}
+            disabledText={
+              isGroupDisbanded
+                ? "Nhóm đã giải tán"
+                : "Chỉ trưởng/phó nhóm được gửi tin nhắn"
+            }
             onCreatePoll={
-              roomType === "GROUP" && roomId && roomId !== "new"
+              roomType === "GROUP" && roomId && roomId !== "new" && canCreatePoll
                 ? () =>
                     router.push(
                       `/create-poll?roomId=${encodeURIComponent(roomId)}&groupName=${encodeURIComponent(displayName)}`,
