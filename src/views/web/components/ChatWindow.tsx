@@ -27,6 +27,9 @@ import { addIncomingChatMessageFromStomp } from "@/shared/utils/chatWebSocketInb
 import type { IMessage } from "@stomp/stompjs";
 import { CallType } from "@/shared/services/callService";
 import PinnedMessagesBar from "./PinnedMessagesBar";
+import AiSummaryModal from "./AiSummaryModal";
+import { Sparkles } from 'lucide-react';
+import { Ionicons } from '@/shared/components/Icons';
 
 interface ChatWindowProps {
   roomId: string;
@@ -92,6 +95,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   } | null>(null);
   const [friendsListReady, setFriendsListReady] = useState(false);
   const [friendInviteOpen, setFriendInviteOpen] = useState(false);
+  const [isAiSummaryOpen, setIsAiSummaryOpen] = useState(false);
 
   // Call Store Actions
   const { initiateCall, resetCall } = useCallStore();
@@ -1147,6 +1151,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {/* AI Summary Button */}
+            <button
+              onClick={() => setIsAiSummaryOpen(true)}
+              title="AI Tóm tắt chat"
+              className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
+                isAiSummaryOpen
+                  ? "bg-yellow-100 text-yellow-600"
+                  : "hover:bg-yellow-50 text-yellow-500"
+              }`}
+            >
+              <Sparkles className="w-5 h-5 fill-current" />
+            </button>
             <button
               onClick={() => void handleCall("VOICE")}
               title="Cuộc gọi thoại"
@@ -1193,19 +1209,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 : "hover:bg-gray-100 text-gray-500"
                 }`}
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+              <Ionicons name="search-outline" size={20} className="text-gray-500" />
             </button>
             {/* Nút thông tin — hiện cho CẢ 2 loại phòng */}
             <button
@@ -1216,19 +1220,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 : "hover:bg-gray-100 text-gray-500"
                 }`}
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+              <Ionicons name="information-circle-outline" size={20} />
             </button>
           </div>
         </div>
@@ -1482,6 +1474,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             });
             await fetchSentRequests();
           }}
+        />
+      )}
+
+      {isAiSummaryOpen && (
+        <AiSummaryModal
+          roomId={roomId}
+          onClose={() => setIsAiSummaryOpen(false)}
         />
       )}
     </div>
