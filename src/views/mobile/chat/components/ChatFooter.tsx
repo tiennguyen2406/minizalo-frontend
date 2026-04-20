@@ -12,6 +12,10 @@ interface ChatFooterProps {
     onSendFile?: (files: DocumentPicker.DocumentPickerAsset[]) => void;
     /** Nhóm: mở form tạo bình chọn (giống web). */
     onCreatePoll?: () => void;
+    /** Disable toàn bộ gửi tin nhắn (khi admin trên web tắt quyền gửi). */
+    disabled?: boolean;
+    /** Text hiển thị khi bị disable. */
+    disabledText?: string;
     uploadProgress?: number | null;
     uploadText?: string;
     replyTo?: {
@@ -26,7 +30,18 @@ export interface ChatFooterHandle {
 }
 
 const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
-    { onSend, onSendImage, onSendFile, onCreatePoll, uploadProgress, uploadText, replyTo, onCancelReply },
+    {
+        onSend,
+        onSendImage,
+        onSendFile,
+        onCreatePoll,
+        disabled,
+        disabledText,
+        uploadProgress,
+        uploadText,
+        replyTo,
+        onCancelReply,
+    },
     ref
 ) => {
     const [message, setMessage] = useState("");
@@ -412,6 +427,7 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
                 <TouchableOpacity 
                     style={{ marginRight: 10 }}
                     onPress={toggleEmojiPicker}
+                    disabled={!!disabled}
                 >
                     <MaterialIcons 
                         name="emoji-emotions" 
@@ -432,12 +448,14 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
                             setShowEmojiPicker(false);
                         }}
                         onBlur={() => setIsFocused(false)}
-                        placeholder="Tin nhắn"
+                        placeholder={disabled ? (disabledText || "Bạn không có quyền gửi tin nhắn") : "Tin nhắn"}
                         placeholderTextColor={colors.textSecondary}
+                        editable={!disabled}
                         style={{
                             fontSize: 16,
                             color: colors.text,
                             paddingVertical: 6,
+                            opacity: disabled ? 0.65 : 1,
                         }}
                         multiline
                         onSubmitEditing={handleSend}
@@ -446,6 +464,7 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
                     <Pressable 
                         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
                         onPress={() => {
+                            if (disabled) return;
                             if (isFocused) {
                                 // Tap while already focused -> Check clipboard
                                 checkHasContent().then((hasContent: boolean) => {
@@ -460,27 +479,27 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
 
                 {/* Right Icons */}
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {(message.trim().length > 0 || clipboardImage) ? (
+                    {disabled ? null : (message.trim().length > 0 || clipboardImage) ? (
                         <TouchableOpacity onPress={clipboardImage ? handlePasteImage : handleSend}>
                             <Ionicons name="send" size={26} color={colors.primary} />
                         </TouchableOpacity>
                     ) : (
                         <>
-                            <TouchableOpacity onPress={pickFile}>
+                            <TouchableOpacity onPress={pickFile} disabled={!!disabled}>
                                 <SimpleLineIcons name="options" size={22} color={colors.textSecondary} />
                             </TouchableOpacity>
 
                             {onCreatePoll && (
-                                <TouchableOpacity onPress={onCreatePoll} style={{ marginLeft: 16 }}>
+                                <TouchableOpacity onPress={onCreatePoll} style={{ marginLeft: 16 }} disabled={!!disabled}>
                                     <Ionicons name="stats-chart-outline" size={26} color={colors.textSecondary} />
                                 </TouchableOpacity>
                             )}
 
-                            <TouchableOpacity onPress={takePhoto} style={{ marginLeft: 16 }}>
+                            <TouchableOpacity onPress={takePhoto} style={{ marginLeft: 16 }} disabled={!!disabled}>
                                 <Ionicons name="camera-outline" size={26} color={colors.textSecondary} />
                             </TouchableOpacity>
 
-                            <TouchableOpacity onPress={pickImage} style={{ marginLeft: 16 }}>
+                            <TouchableOpacity onPress={pickImage} style={{ marginLeft: 16 }} disabled={!!disabled}>
                                 <Ionicons name="image-outline" size={26} color={colors.textSecondary} />
                             </TouchableOpacity>
                         </>

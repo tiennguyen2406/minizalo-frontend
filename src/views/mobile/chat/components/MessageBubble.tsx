@@ -27,6 +27,12 @@ function isGroupActionSystemText(text?: string | null): boolean {
     );
 }
 
+function isPollSystemMessageText(text?: string | null): boolean {
+    const t = String(text || "").toLowerCase();
+    if (!t) return false;
+    return t.includes("cuộc bình chọn") || t.includes("khóa bình chọn") || t.includes("bình chọn");
+}
+
 function formatFileSize(bytes: number): string {
     if (!bytes || bytes <= 0) return "0 B";
     const units = ["B", "KB", "MB", "GB"];
@@ -114,6 +120,10 @@ interface MessageBubbleProps {
     onAddFriend?: () => void;
     /** Nhấn từ màn tìm kiếm tin nhắn — viền vàng quanh bubble */
     isSearchHighlight?: boolean;
+    /** Làm nổi tin nhắn của trưởng/phó nhóm (user setting local). */
+    isAdminHighlight?: boolean;
+    /** SYSTEM: bấm "Xem" để cuộn tới tin nhắn liên quan (vd: poll). */
+    onScrollToMessageId?: (messageId: string) => void;
 }
 
 // Tạo màu nhất quán cho mỗi tên (giống Zalo)
@@ -154,6 +164,8 @@ export default function MessageBubble({
     partnerName,
     onAddFriend,
     isSearchHighlight,
+    isAdminHighlight,
+    onScrollToMessageId,
 }: MessageBubbleProps) {
     const colors = useThemeColors();
     const theme = useThemeStore(s => s.theme);
@@ -517,14 +529,20 @@ export default function MessageBubble({
         ? "SYSTEM"
         : message.type;
 
-    const hl = !!isSearchHighlight;
+    const hl = !!isSearchHighlight || !!isAdminHighlight;
 
     if (effectiveType === "POLL") {
         const pid = String(message.content || "").trim();
         const rid = String(message.chatRoomId || "").trim();
         return (
-            <View style={{ paddingHorizontal: 10, paddingVertical: 6, width: "100%" }}>
-                <PollBubbleMobile pollId={pid} roomId={rid} />
+            <View style={{ paddingHorizontal: 10, paddingVertical: 6, width: "100%", alignItems: "center" }}>
+                <Pressable
+                    onLongPress={() => handleLongPress()}
+                    delayLongPress={250}
+                    style={{ width: "100%", alignItems: "center" }}
+                >
+                    <PollBubbleMobile pollId={pid} roomId={rid} />
+                </Pressable>
             </View>
         );
     }
@@ -547,21 +565,64 @@ export default function MessageBubble({
             }}
         >
             {effectiveType === "SYSTEM" ? (
-                <View
-                    style={{
-                        alignSelf: "center",
-                        backgroundColor: "rgba(239, 68, 68, 0.10)",
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: 16,
-                        marginVertical: 4,
-                        alignItems: "center",
-                    }}
-                >
-                    <Text style={{ fontSize: 13, color: "#b91c1c", textAlign: "center", fontWeight: "600" }}>
-                        {message.content}
-                    </Text>
-                </View>
+                (() => {
+                    const raw = String(message.content || "").trim();
+                    const canView =
+                        !!message.replyToMessageId &&
+                        isPollSystemMessageText(raw) &&
+                        typeof onScrollToMessageId === "function";
+
+                    return (
+                        <View
+                            style={{
+                                alignSelf: "center",
+                                backgroundColor: "rgba(16, 185, 129, 0.10)",
+                                paddingHorizontal: 12,
+                                paddingVertical: 7,
+                                borderRadius: 999,
+                                marginVertical: 4,
+                                flexDirection: "row",
+                                alignItems: "center",
+                                maxWidth: "92%",
+                            }}
+                        >
+                            <Ionicons
+                                name="stats-chart-outline"
+                                size={14}
+                                color="#10b981"
+                                style={{ marginRight: 6 }}
+                            />
+                            <Text
+                                style={{
+                                    fontSize: 12.8,
+                                    color: colors.textSecondary,
+                                    flexShrink: 1,
+                                    fontWeight: "600",
+                                }}
+                                numberOfLines={2}
+                            >
+                                {raw}
+                            </Text>
+                            {canView ? (
+                                <TouchableOpacity
+                                    onPress={() => onScrollToMessageId?.(message.replyToMessageId)}
+                                    style={{ marginLeft: 8 }}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <Text
+                                        style={{
+                                            color: colors.primary,
+                                            fontWeight: "800",
+                                            fontSize: 12.8,
+                                        }}
+                                    >
+                                        Xem
+                                    </Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
+                    );
+                })()
             ) : (
                 <TouchableOpacity
                     activeOpacity={0.8}

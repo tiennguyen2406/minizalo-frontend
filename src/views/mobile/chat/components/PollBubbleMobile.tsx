@@ -166,213 +166,87 @@ export default function PollBubbleMobile({ pollId, roomId }: PollBubbleMobilePro
   const totalVotes = poll.options.reduce((s, opt) => s + (opt.votes?.length || 0), 0);
   const isCreator = poll.createdById === currentUserId;
   const canManage = isCreator && !poll.closed;
+  const hasVoted = selectedOptionIds.length > 0;
 
   const renderOptionRow = (opt: PollOption, interactive: boolean) => {
-    const votesCount = opt.votes?.length || 0;
-    const percent = totalVotes > 0 ? Math.round((votesCount / totalVotes) * 100) : 0;
     const isSelected = selectedOptionIds.includes(opt.id);
     return (
       <Pressable
         key={opt.id}
         onPress={() => interactive && toggleOption(opt.id)}
         style={{
-          marginBottom: 8,
-          borderRadius: 10,
+          backgroundColor: "#f1f5f9",
+          borderRadius: 8,
+          paddingVertical: 12,
+          paddingHorizontal: 12,
+          marginBottom: 10,
           borderWidth: 1,
-          borderColor: isSelected ? colors.primary : colors.border,
-          backgroundColor: colors.card,
-          overflow: "hidden",
+          borderColor: isSelected ? colors.primary : "rgba(0,0,0,0.05)",
         }}
       >
-        <View
+        <Text
           style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: `${percent}%`,
-            backgroundColor: `${colors.primary}22`,
+            color: colors.text,
+            fontSize: 15,
+            fontWeight: "600",
           }}
-        />
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            paddingVertical: 10,
-            paddingHorizontal: 12,
-            gap: 10,
-          }}
+          numberOfLines={2}
         >
-          <View
-            style={{
-              width: 22,
-              height: 22,
-              borderRadius: 6,
-              borderWidth: 2,
-              borderColor: isSelected ? colors.primary : colors.border,
-              backgroundColor: isSelected ? colors.primary : "transparent",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
-          </View>
-          <Text style={{ flex: 1, color: colors.text, fontSize: 15, fontWeight: "600" }}>
-            {opt.text}
-          </Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: "700" }}>
-            {votesCount}
-          </Text>
-        </View>
+          {opt.text}
+        </Text>
       </Pressable>
     );
   };
 
   const InlineOptions = ({ interactive }: { interactive: boolean }) => (
-    <View style={{ paddingTop: 4 }}>
+    <View style={{ paddingTop: 8 }}>
       {poll.options.map((opt) => renderOptionRow(opt, interactive))}
-      {!poll.closed && poll.allowAddOptions && interactive && (
-        <View style={{ marginTop: 8 }}>
-          {isAddingOption ? (
-            <View style={{ gap: 8 }}>
-              <TextInput
-                value={newOptionText}
-                onChangeText={setNewOptionText}
-                placeholder="Thêm lựa chọn..."
-                placeholderTextColor={colors.textSecondary}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 10,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  color: colors.text,
-                  fontSize: 15,
-                }}
-              />
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <TouchableOpacity
-                  onPress={handleAddOption}
-                  disabled={isSubmitting || !newOptionText.trim()}
-                  style={{
-                    flex: 1,
-                    backgroundColor: colors.primary,
-                    paddingVertical: 10,
-                    borderRadius: 10,
-                    alignItems: "center",
-                    opacity: !newOptionText.trim() ? 0.5 : 1,
-                  }}
-                >
-                  <Text style={{ color: "#fff", fontWeight: "700" }}>Thêm</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    setIsAddingOption(false);
-                    setNewOptionText("");
-                  }}
-                  style={{
-                    paddingVertical: 10,
-                    paddingHorizontal: 16,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text style={{ color: colors.text }}>Hủy</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity onPress={() => setIsAddingOption(true)}>
-              <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 14 }}>
-                + Thêm phương án
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
     </View>
   );
 
   return (
-    <View style={{ width: "100%", maxWidth: 400, alignSelf: "center" }}>
-      <View
+    <View style={{ width: "88%", maxWidth: 340, alignSelf: "center" }}>
+      <Pressable
+        onPress={() => setDetailOpen(true)}
         style={{
-          borderRadius: 14,
+          borderRadius: 12,
           borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          overflow: "hidden",
+          borderColor: "rgba(0,0,0,0.08)",
+          backgroundColor: "#fff",
+          paddingHorizontal: 14,
+          paddingTop: 12,
+          paddingBottom: 14,
         }}
       >
-        <View style={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <Ionicons name="stats-chart-outline" size={18} color={colors.primary} />
-            <Text
-              style={{
-                color: colors.primary,
-                fontSize: 12,
-                fontWeight: "800",
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-              }}
-            >
-              Bình chọn
-            </Text>
-            {poll.closed && (
-              <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "700" }}>Đã đóng</Text>
-            )}
-          </View>
-          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "700" }}>
-            {poll.question}
-          </Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-            {poll.closed
-              ? `${totalVotes} lượt bình chọn`
-              : poll.allowMultipleChoices
-                ? "Có thể chọn nhiều phương án"
-                : "Chỉ chọn một phương án"}
-          </Text>
-        </View>
+        <Text style={{ color: "#111827", fontSize: 16.5, fontWeight: "800", marginBottom: 10 }}>
+          {poll.question}
+        </Text>
 
-        <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
-          {!poll.closed ? (
-            <>
-              <TouchableOpacity
-                onPress={() => setDetailOpen(true)}
-                style={{
-                  backgroundColor: colors.primary,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>Mở bình chọn</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 8 }}>
-                Kết quả ({poll.options.length} phương án)
-              </Text>
-              <InlineOptions interactive={false} />
-              <TouchableOpacity
-                onPress={() => setDetailOpen(true)}
-                style={{
-                  marginTop: 12,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.primary, fontWeight: "700" }}>Xem chi tiết</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      </View>
+        <InlineOptions interactive={!poll.closed && !hasVoted} />
+
+        <TouchableOpacity
+          onPress={hasVoted ? () => setDetailOpen(true) : handleVote}
+          disabled={poll.closed || isSubmitting || selectedOptionIds.length === 0}
+          style={{
+            marginTop: 2,
+            borderRadius: 10,
+            paddingVertical: 12,
+            backgroundColor: "#e5efff",
+            alignItems: "center",
+            opacity: poll.closed || selectedOptionIds.length === 0 ? 0.55 : 1,
+          }}
+        >
+          <Text style={{ color: "#2563eb", fontSize: 15.5, fontWeight: "800" }}>
+            {poll.closed
+              ? "Đã đóng"
+              : hasVoted
+                ? "Sửa bình chọn"
+                : isSubmitting
+                  ? "Đang gửi..."
+                  : "Bình chọn"}
+          </Text>
+        </TouchableOpacity>
+      </Pressable>
 
       <Modal visible={detailOpen} transparent animationType="slide" onRequestClose={() => setDetailOpen(false)}>
         <KeyboardAvoidingView
@@ -419,7 +293,37 @@ export default function PollBubbleMobile({ pollId, roomId }: PollBubbleMobilePro
               </View>
 
               <ScrollView style={{ paddingHorizontal: 16, paddingTop: 12 }} keyboardShouldPersistTaps="handled">
-                <InlineOptions interactive={!poll.closed} />
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 10 }}>
+                  {poll.closed ? `${totalVotes} lượt bình chọn` : poll.allowMultipleChoices ? "Chọn nhiều phương án" : "Chỉ chọn 1 phương án"}
+                </Text>
+                {poll.options.map((opt) => {
+                  const votesCount = opt.votes?.length || 0;
+                  const isSelected = selectedOptionIds.includes(opt.id);
+                  return (
+                    <Pressable
+                      key={opt.id}
+                      onPress={() => !poll.closed && toggleOption(opt.id)}
+                      style={{
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        backgroundColor: colors.card,
+                        paddingHorizontal: 12,
+                        paddingVertical: 12,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Text style={{ flex: 1, color: colors.text, fontSize: 15, fontWeight: "700" }}>
+                          {opt.text}
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: "800" }}>
+                          {votesCount}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
 
                 {!poll.closed && (
                   <TouchableOpacity
