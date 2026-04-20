@@ -3,14 +3,16 @@ import { View, Text, Modal, TouchableOpacity, ActivityIndicator, ScrollView, Cli
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useThemeColors } from "@/shared/theme/colors";
+import { chatService, ChatSummary } from "@/shared/services/chatService";
 
 interface AiSummaryModalProps {
     visible: boolean;
     onClose: () => void;
     onSummarize: (startTime: string, endTime: string) => Promise<string>;
+    roomId: string;
 }
 
-export default function AiSummaryModal({ visible, onClose, onSummarize }: AiSummaryModalProps) {
+export default function AiSummaryModal({ visible, onClose, onSummarize, roomId }: AiSummaryModalProps) {
     const colors = useThemeColors();
     const [startDate, setStartDate] = useState(new Date(Date.now() - 86400000)); // Hôm qua
     const [endDate, setEndDate] = useState(new Date()); // Hôm nay
@@ -18,6 +20,31 @@ export default function AiSummaryModal({ visible, onClose, onSummarize }: AiSumm
     const [showPicker, setShowPicker] = useState<"start" | "end" | null>(null);
     const [loading, setLoading] = useState(false);
     const [summary, setSummary] = useState("");
+    const [view, setView] = useState<"summary" | "history">("summary");
+    const [history, setHistory] = useState<ChatSummary[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+
+    const fetchHistory = async () => {
+        setLoadingHistory(true);
+        try {
+            const data = await chatService.getSummaryHistory(roomId);
+            // Sắp xếp mới nhất lên đầu
+            setHistory(data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        } catch (error) {
+            console.error("Fetch history error:", error);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    const toggleHistory = () => {
+        if (view === "summary") {
+            setView("history");
+            fetchHistory();
+        } else {
+            setView("summary");
+        }
+    };
 
     const handleSummarize = async () => {
         setLoading(true);
@@ -55,6 +82,15 @@ export default function AiSummaryModal({ visible, onClose, onSummarize }: AiSumm
     const formatDate = (date: Date) => {
         return date.toLocaleDateString("vi-VN");
     };
+
+    const formatDateTime = (dateStr: string) => {
+        try {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString("vi-VN") + " " + d.toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' });
+        } catch {
+            return dateStr;
+        }
+    }
 
     const renderFormattedText = (text: string) => {
         if (!text) return null;
@@ -145,12 +181,29 @@ export default function AiSummaryModal({ visible, onClose, onSummarize }: AiSumm
                                 <Text style={{ fontSize: 12, color: colors.textSecondary }}>Hỗ trợ bởi Google Gemini</Text>
                             </View>
                         </View>
-                        <TouchableOpacity 
-                            onPress={onClose}
-                            style={{ backgroundColor: colors.border, padding: 8, borderRadius: 20 }}
-                        >
-                            <Ionicons name="close" size={20} color={colors.textSecondary} />
-                        </TouchableOpacity>
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                            <TouchableOpacity 
+                                onPress={toggleHistory}
+                                style={{ 
+                                    backgroundColor: view === "history" ? "#0068FF" : colors.border, 
+                                    padding: 8, 
+                                    borderRadius: 12, 
+                                    marginRight: 8 
+                                }}
+                            >
+                                <Ionicons 
+                                    name={view === "history" ? "book" : "time-outline"} 
+                                    size={20} 
+                                    color={view === "history" ? "white" : colors.textSecondary} 
+                                />
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                onPress={onClose}
+                                style={{ backgroundColor: colors.border, padding: 8, borderRadius: 20 }}
+                            >
+                                <Ionicons name="close" size={20} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 20 }}>
@@ -198,7 +251,7 @@ export default function AiSummaryModal({ visible, onClose, onSummarize }: AiSumm
                         />
                     )}
 
-                    {!summary && (
+                    {!summary && view === "summary" && (
                         <TouchableOpacity 
                             style={{ 
                                 backgroundColor: "#0068FF", 
@@ -227,76 +280,125 @@ export default function AiSummaryModal({ visible, onClose, onSummarize }: AiSumm
                     )}
 
                     <View style={{ flex: 1, position: 'relative' }}>
-                        <ScrollView 
-                            style={{ 
-                                flex: 1, 
-                                backgroundColor: colors.card, 
-                                borderRadius: 16, 
-                                padding: 16,
-                                borderWidth: 1,
-                                borderColor: colors.border
-                            }}
-                            showsVerticalScrollIndicator={false}
-                        >
-                            {summary ? (
-                                <View style={{ paddingBottom: 20 }}>
-                                    {renderFormattedText(summary)}
-                                </View>
-                            ) : (
-                                <View style={{ alignItems: "center", justifyContent: "center", marginTop: 60 }}>
-                                    <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-                                        <Ionicons name="chatbubbles-outline" size={40} color={colors.textSecondary} style={{ opacity: 0.5 }} />
-                                    </View>
-                                    <Text style={{ color: colors.text, fontWeight: '600', fontSize: 16, marginBottom: 8 }}>Chưa có bản tóm tắt</Text>
-                                    <Text style={{ color: colors.textSecondary, textAlign: "center", lineHeight: 22, paddingHorizontal: 20 }}>
-                                        Hãy chọn khoảng thời gian mà bạn muốn AI tổng hợp thông tin, sau đó bấm nút để xem kết quả nhé!
-                                    </Text>
-                                </View>
-                            )}
-                        </ScrollView>
-
-                        {summary && !loading && (
-                            <View style={{ 
-                                flexDirection: 'row', 
-                                position: 'absolute', 
-                                bottom: 12, 
-                                right: 12, 
-                                gap: 8 
-                            }}>
-                                <TouchableOpacity 
-                                    onPress={copyToClipboard}
+                        {view === "summary" ? (
+                            <>
+                                <ScrollView 
                                     style={{ 
-                                        backgroundColor: '#0068FF', 
-                                        width: 44, 
-                                        height: 44, 
-                                        borderRadius: 22, 
-                                        justifyContent: 'center', 
-                                        alignItems: 'center',
-                                        elevation: 4,
-                                        shadowColor: '#000',
-                                        shadowOffset: { width: 0, height: 2 },
-                                        shadowOpacity: 0.25,
-                                        shadowRadius: 3.84,
-                                    }}
-                                >
-                                    <Ionicons name="copy-outline" size={20} color="white" />
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                    onPress={() => { setSummary(""); }}
-                                    style={{ 
-                                        backgroundColor: 'white', 
-                                        width: 44, 
-                                        height: 44, 
-                                        borderRadius: 22, 
-                                        justifyContent: 'center', 
-                                        alignItems: 'center',
+                                        flex: 1, 
+                                        backgroundColor: colors.card, 
+                                        borderRadius: 16, 
+                                        padding: 16,
                                         borderWidth: 1,
-                                        borderColor: '#eee',
-                                        elevation: 2,
+                                        borderColor: colors.border
                                     }}
+                                    showsVerticalScrollIndicator={false}
                                 >
-                                    <Ionicons name="refresh-outline" size={20} color="#666" />
-                                </TouchableOpacity>
+                                    {summary ? (
+                                        <View style={{ paddingBottom: 20 }}>
+                                            {renderFormattedText(summary)}
+                                        </View>
+                                    ) : (
+                                        <View style={{ alignItems: "center", justifyContent: "center", marginTop: 60 }}>
+                                            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                                                <Ionicons name="chatbubbles-outline" size={40} color={colors.textSecondary} style={{ opacity: 0.5 }} />
+                                            </View>
+                                            <Text style={{ color: colors.text, fontWeight: '600', fontSize: 16, marginBottom: 8 }}>Chưa có bản tóm tắt</Text>
+                                            <Text style={{ color: colors.textSecondary, textAlign: "center", lineHeight: 22, paddingHorizontal: 20 }}>
+                                                Hãy chọn khoảng thời gian mà bạn muốn AI tổng hợp thông tin, sau đó bấm nút để xem kết quả nhé!
+                                            </Text>
+                                        </View>
+                                    )}
+                                </ScrollView>
+
+                                {summary && !loading && (
+                                    <View style={{ 
+                                        flexDirection: 'row', 
+                                        position: 'absolute', 
+                                        bottom: 12, 
+                                        right: 12, 
+                                        gap: 8 
+                                    }}>
+                                        <TouchableOpacity 
+                                            onPress={copyToClipboard}
+                                            style={{ 
+                                                backgroundColor: '#0068FF', 
+                                                width: 44, 
+                                                height: 44, 
+                                                borderRadius: 22, 
+                                                justifyContent: 'center', 
+                                                alignItems: 'center',
+                                                elevation: 4,
+                                                shadowColor: '#000',
+                                                shadowOffset: { width: 0, height: 2 },
+                                                shadowOpacity: 0.25,
+                                                shadowRadius: 3.84,
+                                            }}
+                                        >
+                                            <Ionicons name="copy-outline" size={20} color="white" />
+                                        </TouchableOpacity>
+                                        <TouchableOpacity 
+                                            onPress={() => { setSummary(""); }}
+                                            style={{ 
+                                                backgroundColor: 'white', 
+                                                width: 44, 
+                                                height: 44, 
+                                                borderRadius: 22, 
+                                                justifyContent: 'center', 
+                                                alignItems: 'center',
+                                                borderWidth: 1,
+                                                borderColor: '#eee',
+                                                elevation: 2,
+                                            }}
+                                        >
+                                            <Ionicons name="refresh-outline" size={20} color="#666" />
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </>
+                        ) : (
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: 12 }}>Lịch sử tóm tắt (5 ngày gần đây)</Text>
+                                {loadingHistory ? (
+                                    <ActivityIndicator color="#0068FF" style={{ marginTop: 40 }} />
+                                ) : history.length > 0 ? (
+                                    <ScrollView showsVerticalScrollIndicator={false}>
+                                        {history.map((item) => (
+                                            <TouchableOpacity 
+                                                key={item.summaryId}
+                                                style={{ 
+                                                    backgroundColor: colors.card, 
+                                                    padding: 16, 
+                                                    borderRadius: 12, 
+                                                    marginBottom: 12,
+                                                    borderWidth: 1,
+                                                    borderColor: colors.border
+                                                }}
+                                                onPress={() => {
+                                                    setSummary(item.content);
+                                                    setView("summary");
+                                                }}
+                                            >
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                        <Ionicons name="calendar-outline" size={14} color="#0068FF" style={{ marginRight: 4 }} />
+                                                        <Text style={{ fontSize: 13, color: "#0068FF", fontWeight: '600' }}>
+                                                            {formatDateTime(item.createdAt)}
+                                                        </Text>
+                                                    </View>
+                                                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>Hết hạn sau 5 ngày</Text>
+                                                </View>
+                                                <Text style={{ color: colors.text, fontSize: 14 }} numberOfLines={3}>
+                                                    {item.content.replace(/\*\*/g, "").replace(/\n/g, " ")}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                ) : (
+                                    <View style={{ alignItems: "center", justifyContent: "center", marginTop: 60 }}>
+                                        <Ionicons name="time-outline" size={48} color={colors.textSecondary} style={{ opacity: 0.3, marginBottom: 16 }} />
+                                        <Text style={{ color: colors.textSecondary }}>Chưa có lịch sử tóm tắt nào.</Text>
+                                    </View>
+                                )}
                             </View>
                         )}
                     </View>
