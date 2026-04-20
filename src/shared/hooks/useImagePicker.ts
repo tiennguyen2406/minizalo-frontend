@@ -16,6 +16,8 @@ export function useImagePicker(options?: UseImagePickerOptions) {
     const folder = options?.folder ?? "images/";
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [preview, setPreview] = useState<string | null>(null);
+    const [selectedFile, setSelectedFile] = useState<File | ImagePicker.ImagePickerAsset | null>(null);
 
     const requestPermission = async (type: "camera" | "library") => {
         const { status } = type === "camera" 
@@ -72,22 +74,51 @@ export function useImagePicker(options?: UseImagePickerOptions) {
         return null;
     };
 
+    const selectFile = (file: File | ImagePicker.ImagePickerAsset) => {
+        setSelectedFile(file);
+        if (file instanceof File) {
+            setPreview(URL.createObjectURL(file));
+        } else {
+            setPreview(file.uri);
+        }
+    };
+
+    const clearPreview = () => {
+        setPreview(null);
+        setSelectedFile(null);
+    };
+
     /** 
-     * Upload asset lên MinIO qua Presigned URL.
+     * Upload asset hoặc File lên MinIO qua Presigned URL.
      * Trả về URL sạch (không query) nếu thành công.
      */
-    const upload = async (asset: ImagePicker.ImagePickerAsset): Promise<string | null> => {
+    const upload = async (input?: File | ImagePicker.ImagePickerAsset): Promise<string | null> => {
+        const target = input || selectedFile;
+        if (!target) return null;
+
         setUploading(true);
         setError(null);
         try {
-            // 1. Fetch URI để lấy Blob thực sự
-            const response = await fetch(asset.uri);
-            const blob = await response.blob();
+            let blob: Blob;
+            let uri: string;
+            let fileName: string;
+
+            if (target instanceof File) {
+                blob = target;
+                uri = URL.createObjectURL(target);
+                fileName = target.name;
+            } else {
+                // 1. Fetch URI để lấy Blob thực sự
+                const response = await fetch(target.uri);
+                blob = await response.blob();
+                uri = target.uri;
+                fileName = target.fileName || `img_${Date.now()}`;
+            }
             
             // 2. Xác định contentType chính xác
             let contentType = blob.type;
             if (!contentType || contentType === "application/octet-stream") {
-                const extension = asset.uri.split(".").pop()?.toLowerCase();
+                const extension = uri.split(".").pop()?.toLowerCase();
                 const mimeMap: Record<string, string> = {
                     "png": "image/png",
                     "webp": "image/webp",
@@ -98,10 +129,12 @@ export function useImagePicker(options?: UseImagePickerOptions) {
                 contentType = mimeMap[extension || ""] || "image/jpeg";
             }
 
-            const cleanFileName = asset.fileName || `img_${Date.now()}.${contentType.split("/")[1] || "jpg"}`;
+            if (!fileName.includes(".")) {
+                fileName += `.${contentType.split("/")[1] || "jpg"}`;
+            }
             
             // 3. Lấy link upload (có gắn signature cho PUT + Content-Type)
-            const presignedUrl = await mediaService.getPresignedUrl(folder, cleanFileName, contentType);
+            const presignedUrl = await mediaService.getPresignedUrl(folder, fileName, contentType);
 
             // 4. Thực hiện upload trực tiếp (QUAN TRỌNG: Phải dùng cùng contentType đã ký)
             await mediaService.uploadFile(presignedUrl, blob, contentType);
@@ -122,6 +155,9 @@ export function useImagePicker(options?: UseImagePickerOptions) {
     return {
         uploading,
         error,
+        preview,
+        selectFile,
+        clearPreview,
         pickImage,
         takePhoto,
         upload,
