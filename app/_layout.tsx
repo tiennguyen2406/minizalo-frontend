@@ -15,7 +15,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import IncomingCallModal from "@/views/mobile/chat/components/IncomingCallModal";
 import CallModal from "@/views/mobile/chat/components/CallModal";
-import { Toaster } from 'react-hot-toast';
+import UniversalToaster from "@/shared/components/UniversalToaster";
 
 // Quyết liệt chặn tất cả các cảnh báo và lỗi liên quan đến expo-notifications trên Expo Go
 LogBox.ignoreLogs([
@@ -148,15 +148,7 @@ export default function RootLayout() {
                             <CallModal />
                         </View>
                     )}
-                    <Toaster 
-                        position="top-center" 
-                        reverseOrder={false} 
-                        toastOptions={{
-                            style: {
-                                zIndex: 999999,
-                            },
-                        }}
-                    />
+                    <UniversalToaster />
                 </View>
             </SafeAreaProvider>
         </QueryClientProvider>
