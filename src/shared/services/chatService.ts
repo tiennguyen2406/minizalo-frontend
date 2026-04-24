@@ -122,10 +122,22 @@ export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom 
     return frontendRoom;
 }
 
+export interface ChatSummary {
+    roomId: string;
+    createdAt: string;
+    summaryId: string;
+    content: string;
+    ttl: number;
+}
+
 export const chatService = {
     summarizeChat: async (roomId: string, startTime: string, endTime: string): Promise<string> => {
         const response = await api.post(`/chat/rooms/${roomId}/ai/summarize`, { startTime, endTime });
         return response.data.summary;
+    },
+    getSummaryHistory: async (roomId: string): Promise<ChatSummary[]> => {
+        const response = await api.get(`/chat/rooms/${roomId}/ai/history`);
+        return response.data;
     },
     getChatRooms: async (): Promise<ChatRoomResponse[]> => {
         console.log("Fetching chat rooms from:", API_BASE_URL + "/chat/rooms");

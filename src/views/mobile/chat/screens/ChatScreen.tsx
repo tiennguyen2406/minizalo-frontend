@@ -2391,6 +2391,7 @@ export default function ChatScreen() {
 
       <AiSummaryModal
         visible={showAiModal}
+        roomId={typeof roomId === "string" ? roomId : (id || "")}
         onClose={() => setShowAiModal(false)}
         onSummarize={async (startTime, endTime) => {
           const roomIdStr = typeof roomId === "string" ? roomId : id;
