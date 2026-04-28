@@ -32,7 +32,7 @@ class WebSocketService {
         this.client = new Client({
             brokerURL: WS_URL,
             debug: () => {},
-            reconnectDelay: 5000,
+            reconnectDelay: 1000, // Thử lại sau 1s thay vì 5s (nhanh hơn cho mobile)
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
 

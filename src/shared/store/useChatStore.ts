@@ -105,6 +105,8 @@ interface ChatState {
 
     // Actions
     setRooms: (rooms: import('../types').ChatRoom[]) => void;
+    /** Merge rooms từ API, giữ unreadCount cao nhất (tránh race condition WS + poll). */
+    mergeRooms: (rooms: import('../types').ChatRoom[]) => void;
     upsertRoom: (room: import('../types').ChatRoom) => void;
     setCurrentRoom: (roomId: string | null) => void;
     addMessage: (roomId: string, message: Message) => void;
@@ -154,8 +156,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
     friendshipWelcomeByRoomId: {},
     strangerRejectionSignal: null,
     uploadProgressByRoom: {},
+    /** Track IDs of messages already seen per room (max 100) — tạch khỏi messages[] để tránh false duplicate */
+    _seenMsgIds: {} as Record<string, Set<string>>,
 
     setRooms: (rooms) => set({ rooms }),
+
+    /** Merge rooms từ API vào store, giữ unreadCount cao nhất giữa store và server.
+     *  Không xóa các room đã có trong store nhưng chưa có trong API (VD: synthetic room từ WebSocket).
+     */
+    mergeRooms: (newRooms) => set((state) => {
+        const apiIds = new Set(newRooms.map((r) => String(r.id)));
+
+        const merged = newRooms.map((r) => {
+            const ridStr = String(r.id);
+            const existing = state.rooms.find((er) => String(er.id) === ridStr);
+            
+            let finalUnread = r.unreadCount ?? 0;
+
+            // Nếu đang mở đúng phòng này, ép unreadCount về 0 bất kể server nói gì
+            if (state.currentRoomId && String(state.currentRoomId) === ridStr) {
+                finalUnread = 0;
+            }
+
+            return {
+                ...r,
+                unreadCount: finalUnread,
+            };
+        });
+
+        const storeOnlyRooms = state.rooms.filter((r) => !apiIds.has(String(r.id)));
+        const all = [...merged, ...storeOnlyRooms];
+        all.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        return { rooms: all };
+    }),
 
     upsertRoom: (room) => set((state) => {
         const existingIndex = state.rooms.findIndex(r => r.id === room.id);
@@ -171,7 +204,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }),
 
     setCurrentRoom: (roomId) => set((state) => {
-        if (!roomId) return { currentRoomId: null };
+        if (!roomId) {
+            // Khi thoát phòng: xóa messages và seenMsgIds của phòng đó khỏi store.
+            // Mobile ChatScreen dùng useState riêng nên không bị ảnh hưởng.
+            // Xóa seenMsgIds để đảm bảo lần sau WS message không bị block bởi false duplicate.
+            if (state.currentRoomId) {
+                const prevRoomId = String(state.currentRoomId);
+                const newMessages = { ...state.messages };
+                delete newMessages[prevRoomId];
+                const newSeen = { ...(state as any)._seenMsgIds };
+                delete newSeen[prevRoomId];
+                return { currentRoomId: null, messages: newMessages, _seenMsgIds: newSeen };
+            }
+            return { currentRoomId: null };
+        }
         const idNorm = String(roomId);
         const newRooms = state.rooms.map(room =>
             String(room.id) === idNorm ? { ...room, unreadCount: 0 } : room
@@ -181,11 +227,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     addMessage: (roomId, message) => set((state) => {
         const roomIdNorm = String(roomId);
-        const roomMessages = state.messages[roomIdNorm] || state.messages[roomId] || [];
-        // Prevent duplicates by ID
-        if (roomMessages.some(m => m.id === message.id)) return state;
+
+        // Duplicate check dùng _seenMsgIds (nhẹ và không bị stale sau khi xóa messages)
+        const seenMap = (state as any)._seenMsgIds as Record<string, Set<string>>;
+        const seenSet: Set<string> = seenMap[roomIdNorm] || new Set<string>();
+        const msgId = message.id || '';
+        if (msgId && seenSet.has(msgId)) {
+            console.log(`[addMessage] DUPLICATE blocked roomId=${roomId} msgId=${msgId}`);
+            return state;
+        }
+
+        // Update seenMsgIds (giới hạn 100 entries để tránh memory leak)
+        const newSeen = new Set(seenSet);
+        if (msgId) {
+            newSeen.add(msgId);
+            if (newSeen.size > 100) {
+                // Xóa entry củ nhất
+                const firstKey = newSeen.values().next().value;
+                if (firstKey) newSeen.delete(firstKey);
+            }
+        }
 
         // Bỏ tin nhắn optimistic (temp-*) của sender khi nhận được real message
+        const roomMessages = state.messages[roomIdNorm] || state.messages[roomId] || [];
         let filteredMessages = [...roomMessages];
         if (message.id && !message.id.startsWith('temp-')) {
             const tempIdx = filteredMessages.findIndex(m =>
@@ -201,8 +265,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // Lấy userId từ JWT token (an toàn hơn user?.id có thể null)
         const currentUserIdRaw = useAuthStore.getState().user?.id || getMyUserIdFromToken();
-        const currentUserId = currentUserIdRaw != null ? String(currentUserIdRaw) : null;
-        const senderNorm = message.senderId != null ? String(message.senderId) : '';
+        const currentUserId = currentUserIdRaw != null ? String(currentUserIdRaw).toLowerCase() : null;
+        // Normalize senderId to lowercase for case-insensitive UUID comparison
+        const senderNorm = message.senderId != null ? String(message.senderId).toLowerCase() : '';
 
         const msgTypeUpper = String(message.type || '').toUpperCase();
         const isNoiseMessage =
@@ -221,12 +286,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 // 3. Không phải tin nhắn do chính user gửi
                 // 4. Không phải tin hệ thống / ghim (không đếm badge)
                 const isTemp = message.id && message.id.startsWith('temp-');
+                // If currentUserId is null (not yet loaded), treat as NOT mine to avoid missing badge
                 const isMine = currentUserId != null && senderNorm !== '' && senderNorm === currentUserId;
                 const currentOpen = state.currentRoomId != null ? String(state.currentRoomId) : null;
                 const isUnread =
                     currentOpen !== roomIdNorm && !isTemp && !isMine && !isNoiseMessage;
-                
-                console.log(`[Store] addMessage room=${roomId} isUnread=${isUnread} | currentRoom=${state.currentRoomId} sender=${message.senderId} me=${currentUserId}`);
                 
                 return {
                     ...room,
@@ -263,6 +327,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 [roomIdNorm]: [...filteredMessages, message],
             },
             rooms: newRooms,
+            _seenMsgIds: {
+                ...(state as any)._seenMsgIds,
+                [roomIdNorm]: newSeen,
+            },
         };
     }),
 
@@ -322,10 +390,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     markRoomAsRead: (roomId) => set((state) => {
         const id = String(roomId);
-        const room = state.rooms.find((r) => String(r.id) === id);
-        if (!room || room.unreadCount === 0) return state;
+        // Cập nhật ngay lập tức count về 0 trong danh sách rooms
         const newRooms = state.rooms.map((r) =>
-            String(r.id) === id ? { ...r, unreadCount: 0 } : r,
+            String(r.id) === id ? { ...r, unreadCount: 0 } : r
         );
         return { rooms: newRooms };
     }),

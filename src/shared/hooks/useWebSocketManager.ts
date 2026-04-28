@@ -20,7 +20,6 @@ import {
 } from '@/shared/utils/chatErrors';
 import { addIncomingChatMessageFromStomp } from '@/shared/utils/chatWebSocketInbound';
 import { getDirectChatPartnerDisplayName } from '@/shared/utils/strangerChatRooms';
-import { useInAppNotifStore } from '@/views/mobile/chat/components/InAppNotification';
 
 function mapChatRoomResponsesToStore(
     currentUserId: string | undefined,
@@ -57,10 +56,14 @@ function mapChatRoomResponsesToStore(
                       createdAt: r.lastMessage.createdAt,
                   }
                 : undefined,
-            unreadCount: Math.max(
-                existing ? (existing.unreadCount ?? 0) : 0,
-                r.unreadCount || 0,
-            ),
+            unreadCount: (() => {
+                const ridStr = String(r.id);
+                const currentOpen = useChatStore.getState().currentRoomId;
+                if (currentOpen && String(currentOpen) === ridStr) return 0;
+                
+                // Tin tưởng vào server unreadCount khi sync danh sách phòng
+                return r.unreadCount || 0;
+            })(),
             participants: (r.members || []).map((m: any) => ({
                 id: m.user?.id || m.id || '',
                 username: m.user?.username || m.username || '',
@@ -85,11 +88,11 @@ function mapChatRoomResponsesToStore(
 async function fetchRoomsMergeWithStore(): Promise<void> {
     const user = useAuthStore.getState().user;
     const data: ChatRoomResponse[] = await chatService.getChatRooms();
-    const existingRooms = useChatStore.getState().rooms;
-    useChatStore
-        .getState()
-        .setRooms(mapChatRoomResponsesToStore(user?.id, data, existingRooms));
+    // mergeRooms đọc rooms hiện tại atomically bên trong set() → không cần snapshot trước
+    const mapped = mapChatRoomResponsesToStore(user?.id, data, []);
+    useChatStore.getState().mergeRooms(mapped);
 }
+
 
 /** Lỗi gửi chat cá nhân (vd: chỉ bạn bè) — subscribe một lần cho web + mobile. */
 function useChatErrorsSubscription() {
@@ -252,46 +255,8 @@ function useGlobalChatTopicSubscriptions() {
 
                 addIncomingChatMessageFromStomp(roomId, raw);
 
-                if (Platform.OS !== 'web' && dynamo) {
-                    const curOpen = useChatStore.getState().currentRoomId;
-                    const isCurrentlyViewing =
-                        curOpen != null && String(curOpen) === String(roomId);
-                    const senderId =
-                        typeof dynamo.senderId === 'string' ? dynamo.senderId : '';
-                    const myId = useAuthStore.getState().user?.id;
-                    if (senderId && myId && senderId !== myId && !isCurrentlyViewing) {
-                        if (!useChatStore.getState().isRoomMuted(roomId)) {
-                            const roomData = useChatStore
-                                .getState()
-                                .rooms.find((r) => r.id === roomId);
-                            const senderLabel =
-                                (typeof dynamo.senderName === 'string' && dynamo.senderName) ||
-                                (typeof dynamo.senderUsername === 'string' &&
-                                    dynamo.senderUsername) ||
-                                'Tin nhắn mới';
-                            const msgType =
-                                typeof dynamo.type === 'string' ? dynamo.type : '';
-                            const msgContent =
-                                typeof dynamo.content === 'string' ? dynamo.content : '';
-                            useInAppNotifStore.getState().show({
-                                title: senderLabel,
-                                body:
-                                    msgType === 'IMAGE'
-                                        ? '[Hình ảnh]'
-                                        : msgType === 'VIDEO'
-                                          ? '[Video]'
-                                          : msgType === 'FILE'
-                                            ? '[Tập tin]'
-                                            : msgType === 'POLL'
-                                              ? '[Bình chọn]'
-                                            : msgContent || 'Đã gửi một tin nhắn',
-                                avatarUrl: roomData?.avatarUrl || undefined,
-                                roomId: roomId,
-                            });
-                        }
-                    }
-                }
             };
+
 
             webSocketService.subscribe(`/topic/chat/${roomId}`, handler);
             handlersRef.current.set(roomId, handler);
@@ -313,10 +278,47 @@ export function useWebSocketManager() {
     useRoomUpdatesSubscription();
     useGlobalChatTopicSubscriptions();
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    _useWebSocketManagerBoth();
+
     if (Platform.OS !== 'web') return;
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
     _useWebSocketManagerWeb();
+}
+
+/** Logic dùng chung cho cả Web và Mobile để đồng bộ nhanh */
+function _useWebSocketManagerBoth() {
+    const accessToken = useAuthStore((s) => s.accessToken);
+    const lastActiveAt = useRef(Date.now());
+
+    useEffect(() => {
+        if (!accessToken) return;
+
+        const refreshData = () => {
+            // Chỉ refresh nếu đã im lìm hơn 5s để tránh spam khi toggle app liên tục
+            if (Date.now() - lastActiveAt.current > 5000) {
+                void fetchRoomsMergeWithStore();
+            }
+            lastActiveAt.current = Date.now();
+            // Re-activate socket nếu cần
+            webSocketService.activate(accessToken);
+        };
+
+        if (Platform.OS === 'web') {
+            const onVis = () => {
+                if (document.visibilityState === 'visible') refreshData();
+            };
+            document.addEventListener('visibilitychange', onVis);
+            return () => document.removeEventListener('visibilitychange', onVis);
+        } else {
+            const { AppState } = require('react-native');
+            const subscription = AppState.addEventListener('change', (nextState: string) => {
+                if (nextState === 'active') refreshData();
+            });
+            return () => subscription.remove();
+        }
+    }, [accessToken]);
 }
 
 function _useWebSocketManagerWeb() {
@@ -361,10 +363,16 @@ function _useWebSocketManagerWeb() {
                               createdAt: r.lastMessage.createdAt,
                           }
                         : undefined,
-                    unreadCount: Math.max(
-                        existing ? (existing.unreadCount ?? 0) : 0,
-                        r.unreadCount || 0,
-                    ),
+                    unreadCount: (() => {
+                        const ridStr = String(r.id);
+                        const currentOpen = useChatStore.getState().currentRoomId;
+                        if (currentOpen && String(currentOpen) === ridStr) return 0;
+                        
+                        return Math.max(
+                            existing ? (existing.unreadCount ?? 0) : 0,
+                            r.unreadCount || 0,
+                        );
+                    })(),
                     participants: (r.members || []).map((m: any) => ({
                         id: m.user?.id || m.id || '',
                         username: m.user?.username || m.username || '',
