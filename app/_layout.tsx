@@ -9,9 +9,8 @@ import {
     initNotificationHandler
 } from "@/services/notificationService";
 import { useAuthStore } from "@/shared/store/authStore";
-import { useChatStore } from "@/shared/store/useChatStore";
-import { InAppNotificationBanner } from "@/views/mobile/chat/components/InAppNotification";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { webSocketService } from "@/shared/services/WebSocketService";
 import IncomingCallModal from "@/views/mobile/chat/components/IncomingCallModal";
 import CallModal from "@/views/mobile/chat/components/CallModal";
@@ -106,20 +105,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
             <SafeAreaProvider initialMetrics={initialWindowMetrics}>
                 <View style={{ flex: 1 }}>
-                    {isMobile && (
-                        <InAppNotificationBanner
-                            onPress={(roomId) => {
-                                if (!roomId) return;
-                                const room = useChatStore
-                                    .getState()
-                                    .rooms.find((r) => String(r.id) === String(roomId));
-                                const t = room?.type === "GROUP" ? "GROUP" : "DIRECT";
-                                const nm = encodeURIComponent(room?.name?.trim() || "Chat");
-                                router.push(`/chat/${roomId}?name=${nm}&type=${t}`);
-                            }}
-                        />
-                    )}
-                    <Stack
+                <Stack
                         screenOptions={{
                             headerShown: false,
                             animation: "slide_from_right",

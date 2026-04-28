@@ -230,6 +230,36 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         }),
     [requests, partner?.id],
   );
+  
+  // ─── Mark messages as read when focusing or receiving ─────────────────────
+  useEffect(() => {
+    if (!roomId || messagesState.length === 0) return;
+
+    // Lấy tin nhắn mới nhất
+    const newestMsg = messagesState[messagesState.length - 1]; // Web list is chronological (last is newest)
+    const uid = currentUserId || "";
+    
+    if (
+      newestMsg && 
+      newestMsg.id && 
+      !newestMsg.id.startsWith("temp-") &&
+      newestMsg.senderId !== uid &&
+      newestMsg.senderId !== "system" &&
+      newestMsg.type !== "SYSTEM" &&
+      newestMsg.type !== "PIN_NOTIFICATION"
+    ) {
+      // Nếu chính mình chưa có trong danh sách readBy của tin này
+      const readBy = newestMsg.readBy || [];
+      if (!readBy.includes(uid)) {
+        webSocketService.sendReadReceipt({
+          roomId: roomId,
+          messageId: newestMsg.id,
+        });
+        // Cập nhật store local
+        useChatStore.getState().markRoomAsRead(roomId);
+      }
+    }
+  }, [roomId, messagesState, currentUserId]);
 
   useEffect(() => {
     let cancelled = false;

@@ -49,7 +49,6 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
     const colors = useThemeColors();
 
     const [isFocused, setIsFocused] = useState(false);
-    const [showPasteTooltip, setShowPasteTooltip] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [keyboardVisible, setKeyboardVisible] = useState(false);
     const inputRef = useRef<TextInput>(null);
@@ -127,8 +126,7 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
     };
 
     const showToast = (msg: string) => {
-        // We could use a local toast or just ignore, 
-        // but feedback is nice.
+        // Log or show a simple toast if needed
     };
 
     const handlePasteImage = async () => {
@@ -222,7 +220,6 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
 
 
     const handlePressInput = () => {
-        setShowPasteTooltip(false);
         setShowEmojiPicker(false);
         inputRef.current?.focus();
     };
@@ -285,53 +282,6 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
                 </View>
             )}
 
-            {/* Small Paste Tooltip that appears on Tap while already focused */}
-            {showPasteTooltip && (
-                <View style={{
-                    position: 'absolute',
-                    top: -45,
-                    left: 20,
-                    zIndex: 2000,
-                }}>
-                    <TouchableOpacity 
-                        onPress={() => {
-                            setShowPasteTooltip(false);
-                            handlePasteFromClipboard();
-                        }}
-                        activeOpacity={0.8}
-                        style={{
-                            backgroundColor: colors.card,
-                            paddingHorizontal: 20,
-                            paddingVertical: 8,
-                            borderRadius: 8,
-                            borderWidth: 0.5,
-                            borderColor: colors.border,
-                            elevation: 5,
-                            shadowColor: "#000",
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.2,
-                            shadowRadius: 3,
-                        }}
-                    >
-                        <Text style={{ color: colors.text, fontWeight: "600" }}>Dán</Text>
-                    </TouchableOpacity>
-                    {/* Triangle arrow for tooltip */}
-                    <View style={{
-                        width: 0,
-                        height: 0,
-                        backgroundColor: "transparent",
-                        borderStyle: "solid",
-                        borderLeftWidth: 8,
-                        borderRightWidth: 8,
-                        borderTopWidth: 8,
-                        borderLeftColor: "transparent",
-                        borderRightColor: "transparent",
-                        borderTopColor: colors.card,
-                        alignSelf: 'center',
-                        marginTop: -1,
-                    }} />
-                </View>
-            )}
 
             {replyTo && (
                 <View
@@ -444,7 +394,6 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
                         onChangeText={setMessage}
                         onFocus={() => {
                             setIsFocused(true);
-                            setShowPasteTooltip(false);
                             setShowEmojiPicker(false);
                         }}
                         onBlur={() => setIsFocused(false)}
@@ -459,21 +408,6 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
                         }}
                         multiline
                         onSubmitEditing={handleSend}
-                    />
-                    {/* Invisible pressable overlay for focus and "Dán" on second tap */}
-                    <Pressable 
-                        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-                        onPress={() => {
-                            if (disabled) return;
-                            if (isFocused) {
-                                // Tap while already focused -> Check clipboard
-                                checkHasContent().then((hasContent: boolean) => {
-                                    if (hasContent) setShowPasteTooltip(true);
-                                });
-                            } else {
-                                handlePressInput();
-                            }
-                        }}
                     />
                 </View>
 
