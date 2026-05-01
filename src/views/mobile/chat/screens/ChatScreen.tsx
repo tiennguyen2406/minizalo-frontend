@@ -68,6 +68,7 @@ import AiSummaryModal from "../components/AiSummaryModal";
 import AiOptionsBottomSheet from "../components/AiOptionsBottomSheet";
 import UnreadAiSummaryModal from "../components/UnreadAiSummaryModal";
 import AiPersonaBotModal from "../components/AiPersonaBotModal";
+import AiTaskModal, { AiTaskMode } from "../components/AiTaskModal";
 const {
   documentDirectory,
   cacheDirectory,
@@ -325,6 +326,8 @@ export default function ChatScreen() {
   const [showAiModal, setShowAiModal] = useState(false);
   const [showAiMenu, setShowAiMenu] = useState(false);
   const [showAiPersonaModal, setShowAiPersonaModal] = useState(false);
+  const [showAiTaskModal, setShowAiTaskModal] = useState(false);
+  const [aiTaskMode, setAiTaskMode] = useState<AiTaskMode>("translate");
   const [forwardingMessage, setForwardingMessage] =
     useState<MessageDynamo | null>(null);
   const [forwardLoading, setForwardLoading] = useState(false);
@@ -2567,6 +2570,17 @@ export default function ChatScreen() {
         onClose={() => setShowAiMenu(false)}
         onSelectSummarize={() => setShowAiModal(true)}
         onSelectPersona={() => setShowAiPersonaModal(true)}
+        onSelectTask={(mode) => {
+          setAiTaskMode(mode);
+          setShowAiTaskModal(true);
+        }}
+      />
+
+      <AiTaskModal
+        visible={showAiTaskModal}
+        mode={aiTaskMode}
+        roomId={typeof roomId === "string" ? roomId : (id || "")}
+        onClose={() => setShowAiTaskModal(false)}
       />
 
       <AiPersonaBotModal

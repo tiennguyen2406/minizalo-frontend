@@ -17,24 +17,47 @@ const PERSONAS = [
     { id: "tai_chinh", name: "Tài Chính", icon: "cash", prompt: "Tài chính và Đầu tư", color: "#8b5cf6" },
 ];
 
+interface ChatMessage {
+    role: 'user' | 'bot';
+    text: string;
+}
+
 export default function AiPersonaBotModal({ visible, onClose }: AiPersonaBotModalProps) {
     const colors = useThemeColors();
     const [selectedPersona, setSelectedPersona] = useState(PERSONAS[0]);
-    const [question, setQuestion] = useState("");
-    const [answer, setAnswer] = useState("");
+    const [inputValue, setInputValue] = useState("");
+    const [history, setHistory] = useState<Record<string, ChatMessage[]>>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleAsk = async () => {
-        if (!question.trim()) return;
+        if (!inputValue.trim()) return;
+        const currentQ = inputValue.trim();
         Keyboard.dismiss();
-        setLoading(true);
+        setInputValue("");
         setError(null);
-        setAnswer("");
+        
+        const currentPersonaId = selectedPersona.id;
+        const userMsg: ChatMessage = { role: 'user', text: currentQ };
+        
+        setHistory(prev => ({
+            ...prev,
+            [currentPersonaId]: [...(prev[currentPersonaId] || []), userMsg]
+        }));
+        
+        setLoading(true);
         
         try {
-            const res = await chatService.askPersona(selectedPersona.prompt, question);
-            setAnswer(res);
+            // Format context from history if needed, or just send the current question
+            // Here we send the current question, but the prompt ensures it stays on topic
+            const res = await chatService.askPersona(selectedPersona.prompt, currentQ);
+            
+            const botMsg: ChatMessage = { role: 'bot', text: res };
+            setHistory(prev => ({
+                ...prev,
+                [currentPersonaId]: [...(prev[currentPersonaId] || []), botMsg]
+            }));
+            
         } catch (err: any) {
             console.error("Persona Bot Error:", err);
             setError("Có lỗi xảy ra khi kết nối với AI. Vui lòng thử lại.");
@@ -133,7 +156,6 @@ export default function AiPersonaBotModal({ visible, onClose }: AiPersonaBotModa
                                             key={p.id}
                                             onPress={() => {
                                                 setSelectedPersona(p);
-                                                setAnswer("");
                                                 setError(null);
                                             }}
                                             style={{
@@ -172,17 +194,32 @@ export default function AiPersonaBotModal({ visible, onClose }: AiPersonaBotModa
                                 </View>
                             </View>
 
-                            {/* User Question */}
-                            {loading || answer || error ? (
-                                <View style={{ marginBottom: 20, flexDirection: 'row', justifyContent: 'flex-end' }}>
-                                    <View style={{ backgroundColor: '#0068FF', padding: 12, borderRadius: 16, borderTopRightRadius: 4, maxWidth: '85%' }}>
-                                        <Text style={{ color: 'white', lineHeight: 22 }}>{question}</Text>
-                                    </View>
-                                </View>
-                            ) : null}
+                            {/* Chat History */}
+                            {(history[selectedPersona.id] || []).map((msg, index) => {
+                                if (msg.role === 'user') {
+                                    return (
+                                        <View key={index} style={{ marginBottom: 20, flexDirection: 'row', justifyContent: 'flex-end' }}>
+                                            <View style={{ backgroundColor: '#0068FF', padding: 12, borderRadius: 16, borderTopRightRadius: 4, maxWidth: '85%' }}>
+                                                <Text style={{ color: 'white', lineHeight: 22 }}>{msg.text}</Text>
+                                            </View>
+                                        </View>
+                                    );
+                                } else {
+                                    return (
+                                        <View key={index} style={{ flexDirection: 'row', marginBottom: 20 }}>
+                                            <View style={{ backgroundColor: selectedPersona.color, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                                                <Ionicons name={selectedPersona.icon as any} size={20} color="white" />
+                                            </View>
+                                            <View style={{ flex: 1, backgroundColor: colors.card, padding: 16, borderRadius: 16, borderTopLeftRadius: 4, borderWidth: 1, borderColor: colors.border }}>
+                                                {renderFormattedText(msg.text)}
+                                            </View>
+                                        </View>
+                                    );
+                                }
+                            })}
 
-                            {/* Bot Answer */}
-                            {loading ? (
+                            {/* Loading Indicator */}
+                            {loading && (
                                 <View style={{ flexDirection: 'row', marginBottom: 20 }}>
                                     <View style={{ backgroundColor: selectedPersona.color, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                                         <Ionicons name={selectedPersona.icon as any} size={20} color="white" />
@@ -191,7 +228,10 @@ export default function AiPersonaBotModal({ visible, onClose }: AiPersonaBotModa
                                         <ActivityIndicator color={selectedPersona.color} size="small" />
                                     </View>
                                 </View>
-                            ) : error ? (
+                            )}
+                            
+                            {/* Error Message */}
+                            {error && (
                                 <View style={{ flexDirection: 'row', marginBottom: 20 }}>
                                     <View style={{ backgroundColor: '#ef4444', width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                                         <Ionicons name="alert" size={20} color="white" />
@@ -200,16 +240,7 @@ export default function AiPersonaBotModal({ visible, onClose }: AiPersonaBotModa
                                         <Text style={{ color: '#b91c1c' }}>{error}</Text>
                                     </View>
                                 </View>
-                            ) : answer ? (
-                                <View style={{ flexDirection: 'row', marginBottom: 20 }}>
-                                    <View style={{ backgroundColor: selectedPersona.color, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                                        <Ionicons name={selectedPersona.icon as any} size={20} color="white" />
-                                    </View>
-                                    <View style={{ flex: 1, backgroundColor: colors.card, padding: 16, borderRadius: 16, borderTopLeftRadius: 4, borderWidth: 1, borderColor: colors.border }}>
-                                        {renderFormattedText(answer)}
-                                    </View>
-                                </View>
-                            ) : null}
+                            )}
                             <View style={{ height: 20 }} />
                         </ScrollView>
 
@@ -217,8 +248,8 @@ export default function AiPersonaBotModal({ visible, onClose }: AiPersonaBotModa
                         <View style={{ paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 24, paddingLeft: 16, paddingRight: 8, paddingVertical: 6, borderWidth: 1, borderColor: colors.border }}>
                                 <TextInput
-                                    value={question}
-                                    onChangeText={setQuestion}
+                                    value={inputValue}
+                                    onChangeText={setInputValue}
                                     placeholder={`Hỏi chuyên gia ${selectedPersona.name}...`}
                                     placeholderTextColor={colors.textSecondary}
                                     style={{ flex: 1, color: colors.text, fontSize: 15, paddingVertical: 8 }}
@@ -227,9 +258,9 @@ export default function AiPersonaBotModal({ visible, onClose }: AiPersonaBotModa
                                 />
                                 <TouchableOpacity 
                                     onPress={handleAsk}
-                                    disabled={loading || !question.trim()}
+                                    disabled={loading || !inputValue.trim()}
                                     style={{ 
-                                        backgroundColor: !question.trim() ? colors.border : selectedPersona.color, 
+                                        backgroundColor: !inputValue.trim() ? colors.border : selectedPersona.color, 
                                         width: 36, 
                                         height: 36, 
                                         borderRadius: 18, 
@@ -241,7 +272,7 @@ export default function AiPersonaBotModal({ visible, onClose }: AiPersonaBotModa
                                     {loading ? (
                                         <ActivityIndicator color="white" size="small" />
                                     ) : (
-                                        <Ionicons name="send" size={16} color={!question.trim() ? colors.textSecondary : "white"} style={{ marginLeft: 2 }} />
+                                        <Ionicons name="send" size={16} color={!inputValue.trim() ? colors.textSecondary : "white"} style={{ marginLeft: 2 }} />
                                     )}
                                 </TouchableOpacity>
                             </View>

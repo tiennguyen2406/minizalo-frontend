@@ -8,6 +8,7 @@ interface AiOptionsBottomSheetProps {
     onClose: () => void;
     onSelectSummarize: () => void;
     onSelectPersona: () => void;
+    onSelectTask: (mode: "translate" | "improve" | "extract") => void;
 }
 
 export default function AiOptionsBottomSheet({
@@ -15,6 +16,7 @@ export default function AiOptionsBottomSheet({
     onClose,
     onSelectSummarize,
     onSelectPersona,
+    onSelectTask,
 }: AiOptionsBottomSheetProps) {
     const colors = useThemeColors();
 
@@ -127,7 +129,7 @@ export default function AiOptionsBottomSheet({
 
                             {/* Option 3: Dịch thuật */}
                             <TouchableOpacity
-                                onPress={() => handleComingSoon("Dịch thuật tự động")}
+                                onPress={() => handleFeatureSelect(() => onSelectTask("translate"))}
                                 style={{
                                     flexDirection: "row",
                                     alignItems: "center",
@@ -151,7 +153,7 @@ export default function AiOptionsBottomSheet({
 
                             {/* Option 4: Viết lại tin nhắn */}
                             <TouchableOpacity
-                                onPress={() => handleComingSoon("Cải thiện tin nhắn")}
+                                onPress={() => handleFeatureSelect(() => onSelectTask("improve"))}
                                 style={{
                                     flexDirection: "row",
                                     alignItems: "center",
@@ -175,7 +177,7 @@ export default function AiOptionsBottomSheet({
 
                             {/* Option 5: Trích xuất lịch */}
                             <TouchableOpacity
-                                onPress={() => handleComingSoon("Trích xuất thông tin")}
+                                onPress={() => handleFeatureSelect(() => onSelectTask("extract"))}
                                 style={{
                                     flexDirection: "row",
                                     alignItems: "center",
