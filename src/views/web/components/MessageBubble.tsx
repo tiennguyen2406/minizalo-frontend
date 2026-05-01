@@ -857,7 +857,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     {/* Nội dung tin nhắn */}
                     <div
                         className={clsx(
-                            'px-3.5 py-2.5 break-words relative flex flex-col group/bubble',
+                            'px-3.5 py-2.5 break-words relative flex flex-col group/bubble message-bubble-content',
                             bubbleRadius,
                             isMine
                                 ? (message.isRecall ? 'bg-gray-100 text-gray-500 italic border border-transparent' : 'bg-[#e5f1ff] text-gray-900 border border-blue-100')

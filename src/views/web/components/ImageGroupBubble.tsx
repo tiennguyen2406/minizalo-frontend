@@ -110,7 +110,7 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
                     {/* Image Grid */}
                     <div
                         className={clsx(
-                            'rounded-2xl overflow-hidden p-1 relative',
+                            'rounded-2xl overflow-hidden p-1 relative message-bubble-content',
                             isMine ? 'bg-[#e5f1ff] border border-blue-100' : 'bg-white shadow-sm border border-gray-100'
                         )}
                         style={getGridStyle()}

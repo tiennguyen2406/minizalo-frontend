@@ -131,13 +131,17 @@ export interface ChatSummary {
 }
 
 export const chatService = {
-    summarizeChat: async (roomId: string, startTime: string, endTime: string): Promise<string> => {
-        const response = await api.post(`/chat/rooms/${roomId}/ai/summarize`, { startTime, endTime });
+    summarizeChat: async (roomId: string, startTime: string, endTime: string, isUnreadOnly: boolean = false, timezone?: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/${roomId}/ai/summarize`, { startTime, endTime, isUnreadOnly, timezone });
         return response.data.summary;
     },
     getSummaryHistory: async (roomId: string): Promise<ChatSummary[]> => {
         const response = await api.get(`/chat/rooms/${roomId}/ai/history`);
         return response.data;
+    },
+    askPersona: async (persona: string, question: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/persona-chat`, { persona, question });
+        return response.data.answer;
     },
     getChatRooms: async (): Promise<ChatRoomResponse[]> => {
         console.log("Fetching chat rooms from:", API_BASE_URL + "/chat/rooms");

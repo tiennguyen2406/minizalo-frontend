@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState, useMemo } from "react";
+import React, { useEffect, useCallback, useState, useMemo, useRef, useLayoutEffect } from "react";
 import SearchMessagePanel from "./SearchMessagePanel";
 import { Box, Avatar } from "zmp-ui";
 import MessageList from "./MessageList";
@@ -28,7 +28,9 @@ import type { IMessage } from "@stomp/stompjs";
 import { CallType } from "@/shared/services/callService";
 import PinnedMessagesBar from "./PinnedMessagesBar";
 import AiSummaryModal from "./AiSummaryModal";
-import { Sparkles } from 'lucide-react';
+import { ArrowUp, Sparkles, X } from 'lucide-react';
+import toast from 'react-hot-toast';
+import UnreadAiSummaryModal from "./UnreadAiSummaryModal";
 import { Ionicons } from '@/shared/components/Icons';
 
 interface ChatWindowProps {
@@ -96,6 +98,51 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   const [friendsListReady, setFriendsListReady] = useState(false);
   const [friendInviteOpen, setFriendInviteOpen] = useState(false);
   const [isAiSummaryOpen, setIsAiSummaryOpen] = useState(false);
+  const [showUnreadAiModal, setShowUnreadAiModal] = useState(false);
+  const [unreadAiDates, setUnreadAiDates] = useState<{ start?: string; end?: string }>({});
+  const [unreadAiCount, setUnreadAiCount] = useState(0);
+  const [initialUnreadCount, setInitialUnreadCount] = useState(0);
+  const [firstUnreadMessage, setFirstUnreadMessage] = useState<any>(null);
+  const [sessionUnreadCount, setSessionUnreadCount] = useState(0);
+  const isAtBottomRef = useRef(true);
+  const [jumpSignal, setJumpSignal] = useState(0);
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
+  const bannerTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const clearUnreadBanner = useCallback(() => {
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    setInitialUnreadCount(0);
+    setSessionUnreadCount(0);
+    setFirstUnreadMessage(null);
+    setIsBannerDismissed(true);
+  }, []);
+
+  // Track which room's timer we've already started
+  const bannerTimerStartedForRoom = useRef<string | null>(null);
+
+  // Auto-hide unread banner after 7s — start timer the moment initialUnreadCount becomes > 0
+  useEffect(() => {
+    if (!roomId) return;
+    // Only start the timer once per room entry
+    if (bannerTimerStartedForRoom.current === roomId) return;
+    if (initialUnreadCount <= 0 && !firstUnreadMessage) return;
+    if (isBannerDismissed) return;
+
+    bannerTimerStartedForRoom.current = roomId;
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    bannerTimerRef.current = setTimeout(() => {
+      clearUnreadBanner();
+    }, 7000);
+
+    return () => {
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    };
+  }, [roomId, initialUnreadCount, firstUnreadMessage, isBannerDismissed, clearUnreadBanner]);
+
+  // Reset timer tracking when room changes
+  useEffect(() => {
+    bannerTimerStartedForRoom.current = null;
+  }, [roomId]);
 
   // Call Store Actions
   const { initiateCall, resetCall } = useCallStore();
@@ -305,10 +352,16 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     }
   };
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (customLimit?: number) => {
     if (!roomId) return;
     try {
-      const result = await chatService.getChatHistory(roomId);
+      // Read unreadCount from store directly so we always get the CURRENT value,
+      // not a stale closure value from when the callback was created.
+      const liveUnreadCount = customLimit
+        ? 0
+        : (useChatStore.getState().rooms.find(r => String(r.id) === String(roomId))?.unreadCount || 0);
+      const limit = customLimit || (liveUnreadCount > 0 ? Math.max(100, Math.min(300, liveUnreadCount + 20)) : 40);
+      const result = await chatService.getChatHistory(roomId, limit);
       setHistoryLastKey(result.lastEvaluatedKey ?? null);
       setHistoryHasMore(!!result.lastEvaluatedKey);
       const sorted = (result.messages || [])
@@ -334,7 +387,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     } catch (error) {
       console.error("Failed to fetch chat history", error);
     }
-  }, [roomId]);
+  }, [roomId, setMessages]);
 
   const loadMoreHistory = useCallback(async () => {
     if (!roomId || loadingOlder || !historyHasMore || !historyLastKey) return;
@@ -342,7 +395,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     try {
       const result = await chatService.getChatHistory(
         roomId,
-        20,
+        40,
         historyLastKey,
       );
       setHistoryLastKey(result.lastEvaluatedKey ?? null);
@@ -367,40 +420,88 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     }
   }, [roomId, historyLastKey, historyHasMore, loadingOlder, prependMessages]);
 
+  const handleJumpToOldestUnread = useCallback(() => {
+    // Trigger the jump signal — MessageList.handleJumpToUnread will
+    // use externalFirstUnread to find and scroll to the target.
+    setJumpSignal(prev => prev + 1);
+    // Only HIDE the banner visually — do NOT clear firstUnreadMessage yet!
+    // handleJumpToUnread needs it to know WHERE to scroll.
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    setIsBannerDismissed(true);
+  }, []);
+
   useEffect(() => {
     setFriendInviteOpen(false);
   }, [roomId]);
 
+  // Capture unread count as soon as roomId changes, BEFORE any other effects
+  useLayoutEffect(() => {
+    if (!roomId) return;
+    setIsBannerDismissed(false); // Reset dismissal lock for new room
+    const rooms = useChatStore.getState().rooms;
+    const room = rooms.find(r => String(r.id) === String(roomId));
+    const count = room?.unreadCount || 0;
+    
+    if (count > 0) {
+      console.log(`[ChatWindow] Found ${count} unread messages for room ${roomId}`);
+      setInitialUnreadCount(count);
+      // Fetch the oldest unread message immediately
+      chatService.getOldestUnreadMessage(roomId).then(msg => {
+        if (msg && !isBannerDismissed) {
+          const mapped = mapDynamoToMessage(msg, roomId);
+          setFirstUnreadMessage(mapped);
+        }
+      });
+    } else {
+      setInitialUnreadCount(0);
+      setFirstUnreadMessage(null);
+    }
+    setSessionUnreadCount(0);
+    isAtBottomRef.current = true;
+  }, [roomId]);
+
   useEffect(() => {
     if (!roomId) return;
+    
     setCurrentRoom(roomId);
     webSocketService.activate();
+
+    // Reset history state for the new room BEFORE fetching
+    setHistoryLastKey(null);
+    setHistoryHasMore(false);
+    setSearchOpen(false);
+    setBlockStatus(null);
+    setIsInfoOpen(false);
+    closeGroupInfo();
+
     fetchHistory();
 
-    /** Tin nhắn mới — backup realtime khi subscribe toàn cục chưa kịp (multicast). */
     const chatTopic = `/topic/chat/${roomId}`;
-    const onInboundChat = (stompMessage: IMessage) => {
-      const raw = stompMessage.body;
-      if (raw == null) return;
-      addIncomingChatMessageFromStomp(roomId, String(raw));
-    };
-    webSocketService.subscribe(chatTopic, onInboundChat);
-    // Thông báo chỉ cho riêng user (vd: không thể xem lịch sử)
+    // Thông báo chỉ cho riêng user
     const noticeDest = `/user/queue/chat-notices`;
-    const onInboundNotice = (stompMessage: IMessage) => {
+    const onInboundMsg = (stompMessage: IMessage) => {
       try {
         const raw = String(stompMessage.body || "").trim();
         if (!raw) return;
-        const payload = JSON.parse(raw) as { roomId?: string };
-        if (payload?.roomId && String(payload.roomId) !== String(roomId)) return;
+        const payload = JSON.parse(raw);
+        
+        // If not at bottom, increment session unread
+        if (!isAtBottomRef.current) {
+          setSessionUnreadCount(prev => prev + 1);
+          if (!firstUnreadMessage) {
+            setFirstUnreadMessage(payload);
+          }
+        }
+
         addIncomingChatMessageFromStomp(roomId, raw);
-      } catch {
-        // fallback: vẫn thử add
+      } catch (e) {
         const raw = stompMessage.body;
         if (raw != null) addIncomingChatMessageFromStomp(roomId, String(raw));
       }
     };
-    webSocketService.subscribe(noticeDest, onInboundNotice);
+
+    webSocketService.subscribe(chatTopic, onInboundMsg);
+    webSocketService.subscribe(noticeDest, onInboundMsg);
 
     // Subscribe to recall events
     const recallTopic = `/topic/chat/${roomId}/recall`;
@@ -558,12 +659,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     }
 
     // Đóng panel info khi chuyển phòng
-    setIsInfoOpen(false);
-    closeGroupInfo();
-    setSearchOpen(false);
-    setHistoryLastKey(null);
-    setHistoryHasMore(false);
-    setBlockStatus(null);
 
     // Check block status for DIRECT rooms
     if (!isGroupRoom && partner?.id) {
@@ -574,8 +669,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     }
 
     return () => {
-      webSocketService.unsubscribe(chatTopic, onInboundChat);
-      webSocketService.unsubscribe(noticeDest, onInboundNotice);
+      webSocketService.unsubscribe(chatTopic, onInboundMsg);
+      webSocketService.unsubscribe(noticeDest, onInboundMsg);
       webSocketService.unsubscribe(recallTopic);
       webSocketService.unsubscribe(reactionTopic);
       webSocketService.unsubscribe(pinTopic);
@@ -584,6 +679,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       setCurrentRoom(null);
     };
   }, [roomId, fetchHistory]);
+
 
   // Load group detail once so permission UI works without mở panel info
   useEffect(() => {
@@ -1269,12 +1365,54 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
         {/* Messages + Input */}
         <Box
-          className="flex-1 overflow-hidden flex flex-col"
+          className="flex-1 overflow-hidden flex flex-col relative"
           style={{
             backgroundColor: "var(--bg-chat-messages)",
             transition: "background-color 0.3s ease",
           }}
         >
+          {/* Unread Banner: show when there are unreads (oldest unread is behind the current view) */}
+          {(!isBannerDismissed && (initialUnreadCount + sessionUnreadCount > 0 || !!firstUnreadMessage)) && (
+              <div 
+                  className="absolute top-4 left-0 right-0 z-[1000] flex justify-center animate-in slide-in-from-top-4 duration-300 pointer-events-none"
+              >
+                  <div className="flex items-center bg-blue-600 text-white rounded-full shadow-2xl overflow-hidden border border-blue-400/30 backdrop-blur-sm pointer-events-auto">
+                      <button 
+                          onClick={handleJumpToOldestUnread}
+                          className="flex items-center gap-2 px-5 py-2 hover:bg-blue-700 transition-colors border-r border-blue-500/50"
+                      >
+                          <ArrowUp className="w-4 h-4" />
+                          <span className="text-sm font-bold">
+                              Quay lại {initialUnreadCount + sessionUnreadCount || 1} tin chưa đọc
+                          </span>
+                      </button>
+                      <button 
+                          onClick={() => {
+                            if (firstUnreadMessage?.createdAt) {
+                              setUnreadAiDates({ 
+                                  start: firstUnreadMessage.createdAt, 
+                                  end: new Date().toISOString() 
+                              });
+                            }
+                            setUnreadAiCount(initialUnreadCount + sessionUnreadCount);
+                            setShowUnreadAiModal(true);
+                            clearUnreadBanner();
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 hover:bg-blue-700 transition-colors border-r border-blue-500/50 text-yellow-300"
+                      >
+                          <Sparkles className="w-4 h-4 fill-yellow-300/20" />
+                          <span className="text-sm font-bold">AI</span>
+                      </button>
+                      <button 
+                          onClick={clearUnreadBanner}
+                          className="p-2 hover:bg-blue-700 transition-colors"
+                      >
+                          <X className="w-4 h-4" />
+                      </button>
+                  </div>
+              </div>
+          )}
+
           <MessageList
             roomId={roomId}
             messages={messagesState}
@@ -1290,6 +1428,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             onLoadOlder={loadMoreHistory}
             hasMoreOlder={historyHasMore}
             loadingOlder={loadingOlder}
+            onShowUnreadAi={(start, end) => {
+              setUnreadAiDates({ start, end });
+              setShowUnreadAiModal(true);
+            }}
+            externalFirstUnread={firstUnreadMessage}
+            externalUnreadCount={initialUnreadCount + sessionUnreadCount}
+            onScrollStatusChange={(atBottom) => {
+              isAtBottomRef.current = atBottom;
+              if (atBottom) {
+                // Only clear session unread count when reaching bottom
+                setSessionUnreadCount(0);
+                // initialUnreadCount stays until the user jumps or closes the banner
+              }
+            }}
+            jumpSignal={jumpSignal}
           />
 
           {/* Blocked chat overlay / nhóm đã giải tán */}
@@ -1511,6 +1664,16 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         <AiSummaryModal
           roomId={roomId}
           onClose={() => setIsAiSummaryOpen(false)}
+        />
+      )}
+
+      {showUnreadAiModal && (
+        <UnreadAiSummaryModal
+          roomId={roomId}
+          unreadCount={unreadAiCount || 1}
+          initialStartDate={unreadAiDates.start}
+          initialEndDate={unreadAiDates.end}
+          onClose={() => setShowUnreadAiModal(false)}
         />
       )}
     </div>

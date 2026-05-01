@@ -155,12 +155,12 @@ function useRoomUpdatesSubscription() {
             try {
                 const raw = String(stompMsg.body || '').trim();
                 if (!raw) return;
-                let payload: { action?: 'ADDED' | 'REMOVED' | 'DISBANDED'; roomId?: string } | null = null;
+                let payload: { action?: 'ADDED' | 'REMOVED' | 'DISBANDED' | 'UNREAD_UPDATE'; roomId?: string } | null = null;
                 try {
                     payload = JSON.parse(raw);
                 } catch {
                     // Fallback nếu backend gửi kiểu "action=REMOVED, roomId=..." (phòng hờ)
-                    const mAction = raw.match(/action["']?\s*[:=]\s*["']?(ADDED|REMOVED|DISBANDED)/i);
+                    const mAction = raw.match(/action["']?\s*[:=]\s*["']?(ADDED|REMOVED|DISBANDED|UNREAD_UPDATE)/i);
                     const mRoom = raw.match(/roomId["']?\s*[:=]\s*["']?([0-9a-fA-F-]{16,})/i);
                     payload = {
                         action: (mAction?.[1]?.toUpperCase() as any) || undefined,
@@ -174,7 +174,7 @@ function useRoomUpdatesSubscription() {
                     return;
                 }
 
-                if (payload.action === 'DISBANDED') {
+                if (payload.action === 'DISBANDED' || payload.action === 'UNREAD_UPDATE') {
                     await fetchRoomsMergeWithStore();
                     return;
                 }
