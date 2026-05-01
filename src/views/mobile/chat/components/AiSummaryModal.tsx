@@ -10,16 +10,35 @@ interface AiSummaryModalProps {
     onClose: () => void;
     onSummarize: (startTime: string, endTime: string) => Promise<string>;
     roomId: string;
+    initialStartDate?: Date;
+    initialEndDate?: Date;
+    autoSummarize?: boolean;
+    isUnreadMode?: boolean;
 }
 
-export default function AiSummaryModal({ visible, onClose, onSummarize, roomId }: AiSummaryModalProps) {
+export default function AiSummaryModal({ visible, onClose, onSummarize, roomId, initialStartDate, initialEndDate, autoSummarize, isUnreadMode }: AiSummaryModalProps) {
     const colors = useThemeColors();
     const [startDate, setStartDate] = useState(new Date(Date.now() - 86400000)); // Hôm qua
     const [endDate, setEndDate] = useState(new Date()); // Hôm nay
-    
-    const [showPicker, setShowPicker] = useState<"start" | "end" | null>(null);
+
     const [loading, setLoading] = useState(false);
     const [summary, setSummary] = useState("");
+
+    React.useEffect(() => {
+        if (visible) {
+            if (initialStartDate) setStartDate(initialStartDate);
+            if (initialEndDate) setEndDate(initialEndDate);
+            
+            // Nếu có cờ tự động, chờ một chút để date state cập nhật rồi chạy
+            if (autoSummarize && !summary && !loading) {
+                setTimeout(() => {
+                    handleSummarize();
+                }, 300);
+            }
+        }
+    }, [visible, initialStartDate, initialEndDate, autoSummarize]);
+    
+    const [showPicker, setShowPicker] = useState<"start" | "end" | null>(null);
     const [view, setView] = useState<"summary" | "history">("summary");
     const [history, setHistory] = useState<ChatSummary[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
@@ -177,7 +196,9 @@ export default function AiSummaryModal({ visible, onClose, onSummarize, roomId }
                                 <Ionicons name="sparkles" size={24} color="#FFD700" />
                             </View>
                             <View>
-                                <Text style={{ fontSize: 20, fontWeight: "bold", color: colors.text }}>AI Tóm Tắt Chat</Text>
+                                <Text style={{ fontSize: 20, fontWeight: "bold", color: colors.text }}>
+                                    {isUnreadMode ? "Tóm tắt tin nhắn mới" : "AI Tóm Tắt Chat"}
+                                </Text>
                                 <Text style={{ fontSize: 12, color: colors.textSecondary }}>Hỗ trợ bởi Google Gemini</Text>
                             </View>
                         </View>
@@ -206,29 +227,31 @@ export default function AiSummaryModal({ visible, onClose, onSummarize, roomId }
                         </View>
                     </View>
 
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 20 }}>
-                        <TouchableOpacity 
-                            style={{ flex: 1, backgroundColor: colors.card, padding: 14, borderRadius: 12, marginRight: 8, borderWidth: 1, borderColor: colors.border }}
-                            onPress={() => setShowPicker("start")}
-                        >
-                            <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4, textTransform: 'uppercase' }}>Từ ngày</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Ionicons name="calendar-outline" size={16} color="#0068FF" style={{ marginRight: 6 }} />
-                                <Text style={{ color: colors.text, fontWeight: "600", fontSize: 15 }}>{formatDate(startDate)}</Text>
-                            </View>
-                        </TouchableOpacity>
+                    {!isUnreadMode && (
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 20 }}>
+                            <TouchableOpacity 
+                                style={{ flex: 1, backgroundColor: colors.card, padding: 14, borderRadius: 12, marginRight: 8, borderWidth: 1, borderColor: colors.border }}
+                                onPress={() => setShowPicker("start")}
+                            >
+                                <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4, textTransform: 'uppercase' }}>Từ ngày</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Ionicons name="calendar-outline" size={16} color="#0068FF" style={{ marginRight: 6 }} />
+                                    <Text style={{ color: colors.text, fontWeight: "600", fontSize: 15 }}>{formatDate(startDate)}</Text>
+                                </View>
+                            </TouchableOpacity>
 
-                        <TouchableOpacity 
-                            style={{ flex: 1, backgroundColor: colors.card, padding: 14, borderRadius: 12, marginLeft: 8, borderWidth: 1, borderColor: colors.border }}
-                            onPress={() => setShowPicker("end")}
-                        >
-                            <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4, textTransform: 'uppercase' }}>Đến hết</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Ionicons name="calendar" size={16} color="#0068FF" style={{ marginRight: 6 }} />
-                                <Text style={{ color: colors.text, fontWeight: "600", fontSize: 15 }}>{formatDate(endDate)}</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
+                            <TouchableOpacity 
+                                style={{ flex: 1, backgroundColor: colors.card, padding: 14, borderRadius: 12, marginLeft: 8, borderWidth: 1, borderColor: colors.border }}
+                                onPress={() => setShowPicker("end")}
+                            >
+                                <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4, textTransform: 'uppercase' }}>Đến hết</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Ionicons name="calendar" size={16} color="#0068FF" style={{ marginRight: 6 }} />
+                                    <Text style={{ color: colors.text, fontWeight: "600", fontSize: 15 }}>{formatDate(endDate)}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+                    )}
 
                     {showPicker && (
                         <DateTimePicker

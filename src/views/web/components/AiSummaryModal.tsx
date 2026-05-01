@@ -56,7 +56,8 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
             const endIso = new Date(endDate);
             endIso.setHours(23, 59, 59, 999);
             
-            const result = await chatService.summarizeChat(roomId, startIso, endIso.toISOString());
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const result = await chatService.summarizeChat(roomId, startIso, endIso.toISOString(), false, timezone);
             setSummary(result);
             // Refresh history after creating a new one
             fetchHistory(); 
