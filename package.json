@@ -45,6 +45,7 @@
     "qrcode.react": "^4.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-hot-toast": "^2.6.0",
     "react-native": "0.81.5",
     "react-native-agora": "^4.6.2",
     "react-native-gesture-handler": "^2.30.0",

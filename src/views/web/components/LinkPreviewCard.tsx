@@ -24,7 +24,7 @@ const LinkPreviewCard: React.FC<LinkPreviewCardProps> = ({ url }) => {
         let cancelled = false;
         const run = async () => {
             const cached = previewCache.get(url);
-            if (cached && cached !== "loading" && cached !== "error") {
+            if (cached) {
                 if (!cancelled) {
                     setData(cached);
                     setLoading(false);

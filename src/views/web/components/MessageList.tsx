@@ -2,12 +2,15 @@ import React, { useEffect, useRef, useCallback, useState, useLayoutEffect, useMe
 import MessageBubble from './MessageBubble';
 import ImageGroupBubble from './ImageGroupBubble';
 import { Message, User } from '@/shared/types';
-import { useChatStore } from '@/shared/store/useChatStore';
+
 import { getImageAttachmentUrls } from '@/shared/utils/messageAttachments';
 import { buildChatGalleryItems, findChatGalleryIndex, type ChatGalleryItem } from '@/shared/utils/chatGallery';
 import { getImageUrl } from '@/shared/utils/mediaUtils';
 import { dedupCallMessages } from '@/shared/utils/dedupCallMessages';
 import LazyImage from './LazyImage';
+import { chatService } from '@/shared/services/chatService';
+import { ArrowUp, Sparkles } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface MessageListProps {
     messages: Message[];
@@ -25,6 +28,11 @@ interface MessageListProps {
     onLoadOlder?: () => void;
     hasMoreOlder?: boolean;
     loadingOlder?: boolean;
+    onShowUnreadAi?: (startDate: string, endDate: string) => void;
+    externalFirstUnread?: any;
+    externalUnreadCount?: number;
+    onScrollStatusChange?: (atBottom: boolean) => void;
+    jumpSignal?: number;
 }
 
 // ── Skeleton row ──────────────────────────────────────────────────────────────
@@ -157,7 +165,9 @@ const IMAGE_GROUP_THRESHOLD_MS = 60_000;
 
 type RenderItem =
     | { type: 'message'; message: Message; index: number }
-    | { type: 'imageGroup'; messages: Message[]; startIndex: number };
+    | { type: 'imageGroup'; messages: Message[]; startIndex: number }
+    | { type: 'date'; content: string; id: string }
+    | { type: 'system'; content: string; id: string };
 
 function getEffectiveType(msg: Message): string {
     if (getImageAttachmentUrls(msg).length > 0) return 'IMAGE';
@@ -173,13 +183,28 @@ function getEffectiveType(msg: Message): string {
 
 function buildRenderItems(messages: Message[]): RenderItem[] {
     const items: RenderItem[] = [];
-    let i = 0;
-    while (i < messages.length) {
+    
+    for (let i = 0; i < messages.length; i++) {
         const msg = messages[i];
-        const effectiveType = getEffectiveType(msg);
+        
+        // Add date divider
+        const prevMsg = i > 0 ? messages[i - 1] : null;
+        const currDate = new Date(msg.createdAt).toLocaleDateString();
+        const prevDate = prevMsg ? new Date(prevMsg.createdAt).toLocaleDateString() : null;
+        
+        if (currDate !== prevDate) {
+            items.push({ type: 'date', content: currDate, id: `date-${msg.id}` });
+        }
 
+        // Handle system messages (PILL format)
+        if (msg.type === 'SYSTEM' || msg.type === 'PIN_NOTIFICATION') {
+            items.push({ type: 'system', content: msg.content || '', id: msg.id });
+            continue;
+        }
+
+        // Handle image grouping
+        const effectiveType = getEffectiveType(msg);
         if (effectiveType === 'IMAGE' && (msg.fileUrl || msg.attachments?.[0]?.url) && !msg.isRecall) {
-            // Try to build an image group
             const group: Message[] = [msg];
             let j = i + 1;
             while (j < messages.length) {
@@ -200,15 +225,12 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
             }
             if (group.length >= 2) {
                 items.push({ type: 'imageGroup', messages: group, startIndex: i });
-                i = j;
-            } else {
-                items.push({ type: 'message', message: msg, index: i });
-                i++;
+                i = j - 1; // Subtract 1 because for loop will increment
+                continue;
             }
-        } else {
-            items.push({ type: 'message', message: msg, index: i });
-            i++;
         }
+
+        items.push({ type: 'message', message: msg, index: i });
     }
     return items;
 }
@@ -228,22 +250,32 @@ const MessageList: React.FC<MessageListProps> = ({
     onLoadOlder,
     hasMoreOlder = false,
     loadingOlder = false,
+    onShowUnreadAi,
+    externalFirstUnread,
+    externalUnreadCount,
+    onScrollStatusChange,
+    jumpSignal,
 }) => {
     // Dedup CALL message: khi session đã end → ẩn bubble STARTED, chỉ giữ bubble kết thúc.
     // Phải dedup TRƯỚC khi dùng bất kỳ index-based access (prevMsg/nextMsg/startIndex) để tránh lệch.
     const messages = useMemo(() => dedupCallMessages(messagesRaw), [messagesRaw]);
     const scrollRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const isNearBottom = useRef(true);
-    const prevCount = useRef(0);
-    const prevRoomId = useRef<string | undefined>(undefined);
+    const prevRoomId = useRef<string | undefined>(roomId);
+    const prevCount = useRef<number>(0);
+    const isNearBottom = useRef<boolean>(true);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
-    const scheduledScroll = useRef(false);
+    const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+    const [isJumping, setIsJumping] = useState(false);
+    const jumpActive = useRef(false);
+    const jumpingTimeout = useRef<any>(null);
     const scrollRestoreRef = useRef<{ prevSH: number; prevST: number } | null>(null);
     const loadOlderLock = useRef(false);
-
-    const highlightedMessageId = useChatStore((s) => s.highlightedMessageId);
-    const setHighlightedMessageId = useChatStore((s) => s.setHighlightedMessageId);
+    const lastHandledJumpSignal = useRef<number>(0);
+    const prevLastMsgId = useRef<string | number | undefined>(undefined);
+    const [highlightMsgId, setHighlightMsgId] = useState<string | null>(null);
+    // Track which room we've already done the initial scroll-to-bottom for
+    const hasScrolledToBottomForRoom = useRef<string | null>(null);
 
     const chatGalleryItems = useMemo(
         () => buildChatGalleryItems(messages, getImageUrl),
@@ -268,109 +300,219 @@ const MessageList: React.FC<MessageListProps> = ({
             ? chatGalleryItems[chatGalleryIndex]
             : null;
 
-    // Scroll to highlighted message
-    useEffect(() => {
-        if (!highlightedMessageId) return;
-        // Wait for render
-        const timer = setTimeout(() => {
-            const el = document.getElementById(`msg-${highlightedMessageId}`);
-            if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // Flash effect
-                el.style.transition = 'background-color 0.5s ease';
-                el.style.backgroundColor = 'rgba(253, 224, 71, 0.4)'; // yellow-300 light
-                setTimeout(() => {
-                    el.style.backgroundColor = 'transparent';
-                    setHighlightedMessageId(null);
-                }, 2000);
-            }
-        }, 100);
-        return () => clearTimeout(timer);
-    }, [highlightedMessageId, messages, setHighlightedMessageId]);
-
-    // Reliable scroll: both scrollTop (for container) and scrollIntoView (fallback)
+    // Only use scrollTop — NEVER scrollIntoView, which can scroll parent containers
     const doScroll = useCallback(() => {
         const el = scrollRef.current;
         if (el) el.scrollTop = el.scrollHeight;
-        messagesEndRef.current?.scrollIntoView({ block: 'end' });
-        scheduledScroll.current = false;
     }, []);
-
-    const scheduleScroll = useCallback(() => {
-        if (scheduledScroll.current) return;
-        scheduledScroll.current = true;
-        // Double RAF: first ensures layout is committed, second ensures paint
-        requestAnimationFrame(() => requestAnimationFrame(doScroll));
-    }, [doScroll]);
 
     const handleScroll = useCallback(() => {
         const el = scrollRef.current;
         if (!el) return;
-        isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+        
+        const sh = el.scrollHeight;
+        const st = el.scrollTop;
+        const ch = el.clientHeight;
+        const fromBottom = sh - st - ch;
+        
+        // Ultra-strict threshold for "at bottom" (10px)
+        const atBottom = fromBottom < 10;
+        isNearBottom.current = atBottom;
+        
+        setShowScrollToBottom(fromBottom > 200);
+
+        if (onScrollStatusChange) {
+            onScrollStatusChange(atBottom);
+        }
+
+        // Trigger loading older messages when near top (proactive 250px threshold)
         if (
             onLoadOlder &&
             hasMoreOlder &&
             !loadingOlder &&
-            el.scrollTop < 100 &&
+            st < 250 && 
             !loadOlderLock.current
         ) {
             loadOlderLock.current = true;
             scrollRestoreRef.current = { prevSH: el.scrollHeight, prevST: el.scrollTop };
             onLoadOlder();
         }
-    }, [onLoadOlder, hasMoreOlder, loadingOlder]);
-
-    useEffect(() => {
-        if (!loadingOlder) {
-            loadOlderLock.current = false;
-        }
-    }, [loadingOlder]);
+    }, [onLoadOlder, hasMoreOlder, loadingOlder, onScrollStatusChange]);
 
     useLayoutEffect(() => {
-        if (!loadingOlder && scrollRestoreRef.current) {
-            const el = scrollRef.current;
-            const saved = scrollRestoreRef.current;
-            scrollRestoreRef.current = null;
-            if (el && saved) {
-                const newSh = el.scrollHeight;
-                el.scrollTop = newSh - saved.prevSH + saved.prevST;
+        if (!loadingOlder) {
+            // Restore scroll position so content doesn't jump when older messages are prepended
+            if (scrollRestoreRef.current && scrollRef.current) {
+                const el = scrollRef.current;
+                const { prevSH, prevST } = scrollRestoreRef.current;
+                const newSH = el.scrollHeight;
+                // Add the difference in height to the previous scrollTop
+                el.scrollTop = prevST + (newSH - prevSH);
+                scrollRestoreRef.current = null;
             }
+            loadOlderLock.current = false;
         }
     }, [loadingOlder, messages.length]);
 
-    // Main scroll effect - fires on roomId change OR new messages
-    useEffect(() => {
-        if (messages.length === 0) return;
-        const roomChanged = roomId !== prevRoomId.current;
-        const isNew = messages.length > prevCount.current;
 
-        if (roomChanged) {
-            // New room: always scroll, reset tracking
-            prevRoomId.current = roomId;
-            prevCount.current = messages.length;
-            isNearBottom.current = true;
-            setIsInitialLoad(true);
-            scheduleScroll();
-            // Extra scroll after images might load
-            setTimeout(doScroll, 300);
-            setTimeout(() => setIsInitialLoad(false), 100);
-        } else if (isNew) {
-            // New message: only scroll if near bottom
-            prevCount.current = messages.length;
-            const last = messages[messages.length - 1];
-            const lastType = last ? getEffectiveType(last) : '';
-            const isMyMedia = !!last && last.senderId === currentUserId && (lastType === 'IMAGE' || lastType === 'VIDEO');
-            if (isMyMedia) {
-                scheduleScroll();
-                setTimeout(doScroll, 300);
-            } else if (isNearBottom.current) {
-                scheduleScroll();
+    const jumpRetryCount = useRef(0);
+    const lastJumpTargetId = useRef<string | null>(null);
+
+    // ─── Jump to oldest unread (mirrors mobile: find by message ID, scroll by offsetTop) ──
+    const handleJumpToUnread = useCallback((isRetry = false) => {
+        if (!isRetry) {
+            jumpRetryCount.current = 0;
+            // Priority: use externalFirstUnread from server, then fall back to oldest local message
+            lastJumpTargetId.current = externalFirstUnread?.id ?? null;
+            jumpActive.current = true;
+            setIsJumping(true);
+        }
+        
+        const msgId = lastJumpTargetId.current;
+        if (!msgId) {
+            jumpActive.current = false;
+            setIsJumping(false);
+            return;
+        }
+
+        const el = document.getElementById(`msg-${msgId}`);
+
+        if (el && scrollRef.current) {
+            jumpRetryCount.current = 0;
+            toast.dismiss('jump-unread');
+            isNearBottom.current = false;
+            jumpActive.current = false;
+            setIsJumping(false);
+            const container = scrollRef.current;
+            
+            const doLockScroll = () => {
+                const elActual = document.getElementById(`msg-${msgId}`);
+                if (!elActual || !container) return;
+                const cRect = container.getBoundingClientRect();
+                const eRect = elActual.getBoundingClientRect();
+                const relTop = eRect.top - cRect.top;
+                const targetTop = container.scrollTop + relTop - (container.clientHeight / 2) + (eRect.height / 2);
+                container.scrollTop = Math.max(0, targetTop);
+            };
+
+            // Immediate scroll
+            doLockScroll();
+            
+            // Lock-on scrolls to counter async image loading layout shifts
+            setTimeout(doLockScroll, 100);
+            setTimeout(doLockScroll, 300);
+            setTimeout(doLockScroll, 600);
+
+            // Highlight via React state (survives re-renders, not overridden by Tailwind)
+            setHighlightMsgId(msgId);
+            setTimeout(() => setHighlightMsgId(null), 3500);
+
+            if (jumpingTimeout.current) clearTimeout(jumpingTimeout.current);
+        } else {
+            // Not in DOM yet — load older pages and retry (same as mobile "đang tải thêm")
+            if (jumpRetryCount.current < 5) {
+                jumpRetryCount.current++;
+                if (!isRetry) toast.loading("Đang tìm tin nhắn cũ chưa đọc...", { id: 'jump-unread' });
+                
+                if (!loadingOlder && hasMoreOlder) {
+                    onLoadOlder?.();
+                }
+                
+                const delay = loadingOlder ? 1200 : 800;
+                setTimeout(() => handleJumpToUnread(true), delay);
+            } else {
+                toast.dismiss('jump-unread');
+                jumpActive.current = false;
+                setIsJumping(false);
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [messages, roomId]);
+    }, [messages, externalFirstUnread, loadingOlder, hasMoreOlder, onLoadOlder]);
 
-    // Show skeleton on first load (no messages yet)
+    const scrollToBottom = () => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTo({
+                top: scrollRef.current.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+    };
+
+
+    useEffect(() => {
+        if (jumpSignal && jumpSignal > lastHandledJumpSignal.current) {
+            lastHandledJumpSignal.current = jumpSignal;
+            handleJumpToUnread();
+        }
+    }, [jumpSignal, handleJumpToUnread]);
+
+    useEffect(() => {
+        if (messages.length === 0) {
+            prevCount.current = 0;
+            prevLastMsgId.current = undefined;
+            return;
+        }
+        
+        const currentRoomId = roomId || '';
+        const roomChanged = currentRoomId !== '' && currentRoomId !== prevRoomId.current;
+        const isNew = messages.length > prevCount.current;
+        
+        const lastMsg = messages[messages.length - 1];
+        const lastMsgId = lastMsg?.id;
+        const lastMessageIsNew = lastMsgId !== prevLastMsgId.current;
+        const lastMessageIsMine = lastMsg?.senderId === currentUserId;
+
+        if (roomChanged) {
+            prevRoomId.current = currentRoomId;
+            prevCount.current = messages.length;
+            prevLastMsgId.current = lastMsgId;
+            // DON'T scroll here — useLayoutEffect handles initial scroll-to-bottom.
+            // Only update state so future messages auto-scroll correctly.
+            isNearBottom.current = true;
+            jumpActive.current = false;
+            setIsInitialLoad(true);
+            setTimeout(() => setIsInitialLoad(false), 100);
+        } else if (isNew) {
+            // ONLY auto-scroll if a NEW message arrived at the BOTTOM
+            // and (user is near bottom OR user is the sender)
+            const isJumpingActive = isJumping || jumpActive.current;
+
+            if (lastMessageIsNew && !isJumpingActive && (isNearBottom.current || lastMessageIsMine)) {
+                isNearBottom.current = true;
+                doScroll();
+            }
+            prevCount.current = messages.length;
+            prevLastMsgId.current = lastMsgId;
+        } else {
+            prevCount.current = messages.length;
+            prevLastMsgId.current = lastMsgId;
+        }
+    }, [messages.length, roomId, doScroll, currentUserId, isJumping]);
+
+    // THE SINGLE SOURCE OF TRUTH for initial scroll-to-bottom.
+    // useLayoutEffect fires synchronously after DOM update, before browser paint.
+    useLayoutEffect(() => {
+        if (!roomId || messages.length === 0) return;
+        if (hasScrolledToBottomForRoom.current === roomId) return;
+
+        // Mark as done so we don't re-scroll when more messages arrive
+        hasScrolledToBottomForRoom.current = roomId;
+        jumpActive.current = false;
+        isNearBottom.current = true;
+
+        const el = scrollRef.current;
+        if (!el) return;
+
+        // Immediate synchronous scroll (before paint)
+        el.scrollTop = el.scrollHeight;
+
+        // Fallback scrolls: images/async content may increase scrollHeight after render.
+        // Use multiple delays to catch any late layout changes.
+        requestAnimationFrame(() => { if (el) el.scrollTop = el.scrollHeight; });
+        setTimeout(() => { if (el) el.scrollTop = el.scrollHeight; }, 100);
+        setTimeout(() => { if (el) el.scrollTop = el.scrollHeight; }, 300);
+        setTimeout(() => { if (el) el.scrollTop = el.scrollHeight; }, 600);
+    }, [roomId, messages.length]);
+
     if (isInitialLoad && messages.length === 0) {
         return (
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px 0' }}>
@@ -382,21 +524,21 @@ const MessageList: React.FC<MessageListProps> = ({
         );
     }
 
-    // Build participant lookup
     const participantMap = participants.reduce((acc, p) => {
         acc[p.id] = p;
         return acc;
     }, {} as Record<string, User>);
-
     return (
         <div
             ref={scrollRef}
             className="flex-1 overflow-y-auto bg-[var(--bg-chat-messages)]"
             onScroll={handleScroll}
-            style={{ scrollBehavior: 'auto', minHeight: 0 }}
+            style={{ scrollBehavior: 'auto', minHeight: 0, position: 'relative', overflowAnchor: 'none' }}
         >
             <style>{animationCSS}</style>
-            <div className="flex flex-col justify-end min-h-full px-4 pt-4 pb-2">
+
+            <div className="flex flex-col min-h-full px-4 pt-4 pb-2">
+                <div className="flex-1" />
                 {loadingOlder ? (
                     <div className="flex justify-center py-2 text-xs text-gray-500 shrink-0">
                         Đang tải tin nhắn cũ…
@@ -411,24 +553,22 @@ const MessageList: React.FC<MessageListProps> = ({
                         if (item.type === 'imageGroup') {
                             const group = item.messages;
                             const firstMsg = group[0];
-                            const lastMsg = group[group.length - 1];
                             const isMine = firstMsg.senderId === currentUserId;
                             const sender = participantMap[firstMsg.senderId];
-                            const isFirstInGroup = !messages[item.startIndex - 1] || messages[item.startIndex - 1].senderId !== firstMsg.senderId;
                             const nextAfterGroup = messages[item.startIndex + group.length];
                             const isLastInGroup = !nextAfterGroup || nextAfterGroup.senderId !== firstMsg.senderId;
-                            const showAvatar = !isMine && isLastInGroup;
-                            const senderName = !isMine && isFirstInGroup
-                                ? (firstMsg.senderName || sender?.fullName || sender?.username || firstMsg.senderId?.slice(0, 8))
-                                : undefined;
-
+                            
                             return (
-                                <div key={`img-group-${firstMsg.id}`} id={`msg-${firstMsg.id}`}>
-                                    <ImageGroupBubble
+                                <div key={`img-group-${firstMsg.id}`} className="relative">
+                                    {group.map(m => (
+                                        <div key={`anchor-${m.id}`} id={`msg-${m.id}`} className="absolute top-0 left-0 w-0 h-0 pointer-events-none" />
+                                    ))}
+                                    <div className={highlightMsgId && group.some(m => m.id === highlightMsgId) ? 'msg-highlight-wrapper' : ''}>
+                                        <ImageGroupBubble
                                         messages={group}
                                         isMine={isMine}
-                                        showAvatar={showAvatar}
-                                        senderName={senderName}
+                                        showAvatar={!isMine && isLastInGroup}
+                                        senderName={!isMine ? (firstMsg.senderName || sender?.fullName || sender?.username) : undefined}
                                         senderAvatar={sender?.avatarUrl}
                                         participants={participants}
                                         onRecall={onRecall}
@@ -438,98 +578,88 @@ const MessageList: React.FC<MessageListProps> = ({
                                         onTogglePin={onTogglePin}
                                         onOpenChatGallery={handleOpenChatGallery}
                                     />
+                                    </div>
                                 </div>
                             );
                         }
 
-                        const msg = item.message;
-                        const index = item.index;
-                        const isMine = msg.senderId === currentUserId;
+                        if (item.type === 'date') {
+                             return (
+                                <div key={item.id} className="flex justify-center my-4">
+                                    <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-[11px] text-gray-500 font-medium">
+                                        {item.content}
+                                    </span>
+                                </div>
+                             );
+                        }
 
-                        const prevMsg = messages[index - 1];
-                        const nextMsg = messages[index + 1];
+                        if (item.type === 'system') {
+                             return (
+                                <div key={item.id} className="flex justify-center my-2">
+                                    <span className="text-[11px] text-gray-400 italic text-center px-6">
+                                        {item.content}
+                                    </span>
+                                </div>
+                             );
+                        }
 
-                        const isFirstInGroup = !prevMsg || prevMsg.senderId !== msg.senderId;
-                        const isLastInGroup = !nextMsg || nextMsg.senderId !== msg.senderId;
-                        const showAvatar = !isMine && isLastInGroup;
+                        if (item.type === 'message') {
+                            const msg = item.message;
+                            const index = item.index;
+                            const isMine = msg.senderId === currentUserId;
+                            const prevMsg = messages[index - 1];
+                            const nextMsg = messages[index + 1];
 
-                        const sender = participantMap[msg.senderId];
-                        const senderName = !isMine && isFirstInGroup
-                            ? (msg.senderName || sender?.fullName || sender?.username || msg.senderId?.slice(0, 8))
-                            : undefined;
-                        const senderAvatar = sender?.avatarUrl || undefined;
+                            const isFirstInGroup = !prevMsg || prevMsg.senderId !== msg.senderId;
+                            const isLastInGroup = !nextMsg || nextMsg.senderId !== msg.senderId;
+                            const sender = participantMap[msg.senderId];
 
-                        const marginBottom = isLastInGroup ? 'mb-3' : 'mb-0.5';
-                        const repliedMessage = msg.replyToId
-                            ? messages.find(m => m.id === msg.replyToId)
-                            : undefined;
-                        const isLatestMessage = index === messages.length - 1;
+                            const readCount = msg.readBy?.filter(id => id !== currentUserId).length ?? 0;
+                            const isRead = readCount > 0;
+                            const isOptimistic = typeof msg.id === 'string' && msg.id.startsWith('temp-');
+                            const isFailed = typeof msg.id === 'string' && msg.id.startsWith('failed-');
 
-                        // Optimistic: temp- prefix = sending (id có thể thiếu với payload WS lệch)
-                        const msgId = msg.id;
-                        const isOptimistic =
-                            typeof msgId === 'string' && msgId.startsWith('temp-');
-                        const isFailed =
-                            typeof msgId === 'string' && msgId.startsWith('failed-');
-                        const readCount = msg.readBy?.filter(id => id !== currentUserId).length ?? 0;
-                        const isRead = readCount > 0;
+                            return (
+                                <div key={msg.id || `msg-${index}`} id={`msg-${msg.id}`}
+                                    className={highlightMsgId === msg.id ? 'msg-highlight-wrapper' : ''}
+                                >
+                                    <MessageBubble
+                                        message={msg}
+                                        isMine={isMine}
+                                        showAvatar={!isMine && isLastInGroup}
+                                        isFirstInGroup={isFirstInGroup}
+                                        isLastInGroup={isLastInGroup}
+                                        senderName={!isMine && isFirstInGroup ? (msg.senderName || sender?.fullName || sender?.username) : undefined}
+                                        senderAvatar={sender?.avatarUrl}
+                                        onRecall={onRecall}
+                                        onReact={onReact}
+                                        onReply={onReply}
+                                        onTogglePin={onTogglePin}
+                                        onRemoveAllReactions={onRemoveAllReactions}
+                                        onDeleteForMe={onDeleteForMe}
+                                        onForward={onForward ? (m) => onForward(m as Message) : undefined}
+                                        participants={participants}
+                                        repliedMessage={msg.replyToId ? messages.find(m => m.id === msg.replyToId) : undefined}
+                                        onOpenChatGallery={handleOpenChatGallery}
+                                        onScrollToMessage={(mid) => {
+                                            const el = document.getElementById(`msg-${mid}`);
+                                            if (el) {
+                                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                el.classList.add('bg-blue-50/50');
+                                                setTimeout(() => el.classList.remove('bg-blue-50/50'), 2000);
+                                            }
+                                        }}
+                                    />
+                                    {isMine && isLastInGroup && (
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: 4, marginTop: -6, marginBottom: 4 }}>
+                                            <MessageStatus isOptimistic={isOptimistic} isFailed={isFailed} isRead={isRead} readCount={readCount} />
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        }
 
-                        return (
-                            <div key={msg.id || `msg-${index}`} id={`msg-${msg.id}`}>
-                                <MessageBubble
-                                    message={msg}
-                                    isMine={isMine}
-                                    showAvatar={showAvatar}
-                                    isFirstInGroup={isFirstInGroup}
-                                    isLastInGroup={isLastInGroup}
-                                    senderName={senderName}
-                                    senderAvatar={senderAvatar}
-                                    marginBottom={marginBottom}
-                                    onRecall={onRecall}
-                                    onReact={onReact}
-                                    onReply={onReply}
-                                    onTogglePin={onTogglePin}
-                                    onRemoveAllReactions={onRemoveAllReactions}
-                                    onDeleteForMe={onDeleteForMe}
-                                    onForward={onForward}
-                                    participants={participants}
-                                    repliedMessage={repliedMessage}
-                                    isLatestMessage={isLatestMessage}
-                                    onImageLoad={() => {
-                                        if (isLatestMessage && msg.senderId === currentUserId) {
-                                            scheduleScroll();
-                                            setTimeout(doScroll, 150);
-                                        }
-                                    }}
-                                    onScrollToMessage={(messageId) => {
-                                        const el = document.getElementById(`msg-${messageId}`);
-                                        if (el) {
-                                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                            el.classList.add('bg-yellow-100');
-                                            setTimeout(() => el.classList.remove('bg-yellow-100'), 1500);
-                                        }
-                                    }}
-                                    onOpenChatGallery={handleOpenChatGallery}
-                                />
-                                {/* Status icon below LAST message in a sent group */}
-                                {isMine && isLastInGroup && (
-                                    <div style={{
-                                        display: 'flex',
-                                        justifyContent: 'flex-end',
-                                        paddingRight: 4,
-                                        marginTop: -6,
-                                        marginBottom: 4,
-                                    }}>
-                                        <MessageStatus
-                                            isOptimistic={isOptimistic}
-                                            isFailed={isFailed}
-                                            isRead={isRead}
-                                            readCount={readCount}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        );
+                        return null;
                     })
                 )}
                 <div ref={messagesEndRef} style={{ height: 1, flexShrink: 0 }} />
@@ -541,73 +671,39 @@ const MessageList: React.FC<MessageListProps> = ({
                     onClick={() => setChatGalleryIndex(null)}
                     role="presentation"
                 >
-                    {chatGalleryItems.length > 1 && (
-                        <>
-                            <button
-                                type="button"
-                                className="absolute left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-xl text-white hover:bg-white/30"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setChatGalleryIndex((prev) =>
-                                        prev === null
-                                            ? null
-                                            : (prev - 1 + chatGalleryItems.length) %
-                                              chatGalleryItems.length,
-                                    );
-                                }}
-                                aria-label="Ảnh trước"
-                            >
-                                ‹
-                            </button>
-                            <button
-                                type="button"
-                                className="absolute right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-xl text-white hover:bg-white/30"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setChatGalleryIndex((prev) =>
-                                        prev === null ? null : (prev + 1) % chatGalleryItems.length,
-                                    );
-                                }}
-                                aria-label="Ảnh sau"
-                            >
-                                ›
-                            </button>
-                            <span className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white">
-                                {(chatGalleryIndex ?? 0) + 1} / {chatGalleryItems.length}
-                            </span>
-                        </>
-                    )}
                     <button
                         type="button"
-                        className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
+                        className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
                         onClick={(e) => {
                             e.stopPropagation();
                             setChatGalleryIndex(null);
                         }}
-                        aria-label="Đóng"
                     >
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                     <div className="mx-auto max-h-[90vh] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
                         {activeGalleryItem.kind === 'video' ? (
-                            <video
-                                src={activeGalleryItem.url}
-                                controls
-                                playsInline
-                                preload="metadata"
-                                className="max-h-[88vh] max-w-[92vw] rounded-lg"
-                            />
+                            <video src={activeGalleryItem.url} controls playsInline preload="metadata" className="max-h-[88vh] max-w-[92vw] rounded-lg" />
                         ) : (
-                            <img
-                                src={activeGalleryItem.url}
-                                alt=""
-                                className="max-h-[88vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
-                            />
+                            <img src={activeGalleryItem.url} alt="" className="max-h-[88vh] max-w-[92vw] rounded-lg object-contain shadow-2xl" />
                         )}
                     </div>
                 </div>
+            )}
+
+            {showScrollToBottom && (
+                <button
+                    onClick={scrollToBottom}
+                    className="fixed bottom-28 right-10 w-11 h-11 rounded-full bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition-all z-[100] hover:scale-110 active:scale-95"
+                    title="Cuộn xuống dưới cùng"
+                    style={{
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+                    }}
+                >
+                    <ArrowUp className="w-6 h-6 rotate-180" />
+                </button>
             )}
         </div>
     );
@@ -625,6 +721,15 @@ const animationCSS = `
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+@keyframes msgHighlight {
+    0%   { background-color: #fef08a; box-shadow: 0 0 16px rgba(234,179,8,0.7); }
+    70%  { background-color: #fef08a; box-shadow: 0 0 16px rgba(234,179,8,0.7); }
+    100% { background-color: transparent; box-shadow: none; }
+}
+.msg-highlight-wrapper {
+    animation: msgHighlight 3.5s ease forwards;
+    border-radius: 8px;
 }
 `;
 

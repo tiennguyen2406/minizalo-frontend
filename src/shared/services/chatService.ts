@@ -122,10 +122,38 @@ export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom 
     return frontendRoom;
 }
 
+export interface ChatSummary {
+    roomId: string;
+    createdAt: string;
+    summaryId: string;
+    content: string;
+    ttl: number;
+}
+
 export const chatService = {
-    summarizeChat: async (roomId: string, startTime: string, endTime: string): Promise<string> => {
-        const response = await api.post(`/chat/rooms/${roomId}/ai/summarize`, { startTime, endTime });
+    summarizeChat: async (roomId: string, startTime: string, endTime: string, isUnreadOnly: boolean = false, timezone?: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/${roomId}/ai/summarize`, { startTime, endTime, isUnreadOnly, timezone });
         return response.data.summary;
+    },
+    getSummaryHistory: async (roomId: string): Promise<ChatSummary[]> => {
+        const response = await api.get(`/chat/rooms/${roomId}/ai/history`);
+        return response.data;
+    },
+    askPersona: async (persona: string, question: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/persona-chat`, { persona, question });
+        return response.data.answer;
+    },
+    translateText: async (text: string, targetLanguage?: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/translate`, { text, targetLanguage });
+        return response.data.result;
+    },
+    improveText: async (text: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/improve-text`, { text });
+        return response.data.result;
+    },
+    extractEvents: async (roomId: string, startTime: string, endTime: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/${roomId}/ai/extract-events`, { startTime, endTime });
+        return response.data.events;
     },
     getChatRooms: async (): Promise<ChatRoomResponse[]> => {
         console.log("Fetching chat rooms from:", API_BASE_URL + "/chat/rooms");
@@ -221,4 +249,41 @@ export const chatService = {
     deleteRoom: async (roomId: string): Promise<void> => {
         await api.delete(`/chat/rooms/${roomId}`);
     },
+
+    /**
+     * Lấy context xung quanh tin nhắn chưa đọc cũ nhất.
+     * Dùng cho nút "Tin nhắn chưa đọc" để scroll chính xác bất kể số lượng tin chưa đọc.
+     * @returns null nếu không có tin chưa đọc (HTTP 204)
+     */
+    getUnreadContext: async (
+        roomId: string,
+        countBefore: number = 5,
+        countAfter: number = 15
+    ): Promise<UnreadContextResponse | null> => {
+        const res = await api.get<UnreadContextResponse>(
+            `/chat/${roomId}/unread-context`,
+            { params: { countBefore, countAfter } }
+        );
+        if (res.status === 204 || !res.data) return null;
+        return res.data;
+    },
+
+    /** Lấy duy nhất tin nhắn chưa đọc cũ nhất */
+    getOldestUnreadMessage: async (roomId: string): Promise<MessageDynamo | null> => {
+        const ctx = await chatService.getUnreadContext(roomId, 0, 0);
+        return ctx?.targetMessage || null;
+    },
 };
+
+export interface UnreadContextResponse {
+    targetMessage: MessageDynamo;
+    /** Các tin nhắn MỚI HƠN target – đã đảo ngược, index 0 = gần target nhất */
+    messagesAfter: MessageDynamo[];
+    /** Các tin nhắn CŨ HƠN target – index 0 = gần target nhất (giảm dần) */
+    messagesBefore: MessageDynamo[];
+    hasMoreBefore: boolean;
+    hasMoreAfter: boolean;
+    /** Index của targetMessage trong mảng FlatList = messagesAfter.length */
+    targetIndexInList: number;
+}
+

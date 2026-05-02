@@ -20,7 +20,9 @@ export default function ImagePicker({ label = "Chọn ảnh", folder, onUploaded
     const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] ?? null;
         if (!file) return;
+
         selectFile(file);
+        
         const url = await upload(file);
         if (url && onUploaded) {
             onUploaded(url);
@@ -29,92 +31,45 @@ export default function ImagePicker({ label = "Chọn ảnh", folder, onUploaded
     };
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="flex flex-col gap-2">
             <input
                 ref={inputRef}
                 type="file"
                 accept="image/*"
-                style={{ display: "none" }}
+                className="hidden"
                 onChange={handleChange}
             />
             <button
                 type="button"
                 onClick={handleClick}
                 disabled={uploading}
-                style={{
-                    padding: "8px 14px",
-                    borderRadius: 999,
-                    border: "1px dashed #93c5fd",
-                    backgroundColor: "#eff6ff",
-                    color: "#1d4ed8",
-                    fontSize: 14,
-                    fontWeight: 500,
-                    cursor: uploading ? "wait" : "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                }}
+                className={`px-4 py-2 rounded-full border border-dashed border-blue-300 bg-blue-50 text-blue-700 text-sm font-medium flex items-center gap-2 hover:bg-blue-100 transition-colors ${uploading ? 'cursor-wait' : 'cursor-pointer'}`}
             >
-                <span
-                    style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: "50%",
-                        backgroundColor: "#1d4ed8",
-                        color: "#fff",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 12,
-                        fontWeight: 700,
-                    }}
-                >
+                <span className="w-5 h-5 rounded-full bg-blue-700 text-white flex items-center justify-center font-bold text-xs">
                     +
                 </span>
                 {uploading ? "Đang tải ảnh..." : label}
             </button>
 
             {preview && (
-                <div
-                    style={{
-                        position: "relative",
-                        width: 140,
-                        height: 140,
-                        borderRadius: 16,
-                        overflow: "hidden",
-                        boxShadow: "0 4px 16px rgba(15,23,42,0.12)",
-                    }}
-                >
+                <div className="relative w-32 h-32 rounded-xl overflow-hidden shadow-lg border-2 border-white">
                     <img
                         src={preview}
-                        alt="Xem trước ảnh"
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        alt="Xem tiếp"
+                        className="w-full h-full object-cover"
                     />
                     <button
                         type="button"
                         onClick={clearPreview}
-                        style={{
-                            position: "absolute",
-                            top: 6,
-                            right: 6,
-                            width: 22,
-                            height: 22,
-                            borderRadius: "50%",
-                            border: "none",
-                            backgroundColor: "rgba(15,23,42,0.75)",
-                            color: "#fff",
-                            cursor: "pointer",
-                            fontSize: 14,
-                            lineHeight: 1,
-                        }}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center text-lg leading-none hover:bg-black transition-colors"
                     >
-                        ×
+                        &times;
                     </button>
                 </div>
             )}
 
             {error && (
-                <div style={{ fontSize: 12, color: "#b91c1c" }}>
+                <div className="text-xs text-red-600 px-1">
                     {error}
                 </div>
             )}

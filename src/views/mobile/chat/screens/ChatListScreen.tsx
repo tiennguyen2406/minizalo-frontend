@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from "react";
+import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, Alert, TouchableOpacity, Modal, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -16,7 +16,7 @@ import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 import { getChatPreviewText } from "@/shared/utils/chatPreview";
 export default function ChatListScreen() {
     const router = useRouter();
-    const { rooms, setRooms, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
+    const { rooms, setRooms, mergeRooms, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
     const colors = useThemeColors();
     const currentUserId = useAuthStore((s) => s.user?.id);
     const friends = useFriendStore((s) => s.friends);
@@ -48,8 +48,10 @@ export default function ChatListScreen() {
                 const aPinned = pinnedRooms.has(a.id);
                 const bPinned = pinnedRooms.has(b.id);
                 if (aPinned !== bPinned) return aPinned ? -1 : 1;
-                return 0;
+                // Sort by most recent message within each group
+                return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
             });
+
     }, [rooms, currentUserId, friends, friendsListReady, inboxTab, pinnedRooms]);
 
     const friendIdSet = useMemo(() => {
@@ -107,9 +109,6 @@ export default function ChatListScreen() {
 
             // Map sang ChatRoom interface của store (giống Web)
             const storeRooms = data.map((r) => {
-                const existing = existingRooms.find(
-                    (er) => String(er.id) === String(r.id),
-                );
                 let resolvedName = r.name;
                 if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
                     const partner = (r.members || []).find(
@@ -136,7 +135,8 @@ export default function ChatListScreen() {
                             recalled: r.lastMessage.recalled || false,
                         }
                         : undefined,
-                    unreadCount: Math.max(existing ? existing.unreadCount : 0, r.unreadCount || 0),
+                    // unreadCount sẽ được merge an toàn bên trong mergeRooms (tránh race condition)
+                    unreadCount: r.unreadCount || 0,
                     participants: (r.members || []).map((m: any) => ({
                         id: m.user?.id || m.id || '',
                         username: m.user?.username || m.username || '',
@@ -149,7 +149,8 @@ export default function ChatListScreen() {
             });
 
             storeRooms.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-            setRooms(storeRooms);
+            // Dùng mergeRooms thay setRooms để giữ unreadCount cao nhất (tránh race condition WS)
+            mergeRooms(storeRooms);
 
             hasLoadedOnce.current = true;
             // Fade in animation
@@ -167,13 +168,13 @@ export default function ChatListScreen() {
             setLoading(false);
         }
     };
-    // Auto-fetch when screen is focused + poll every 10s as fallback
+    // Fetch chats when screen is focused
     useFocusEffect(
         useCallback(() => {
             fetchChats(true);
             void fetchFriends().finally(() => setFriendsListReady(true));
 
-            // Xóa currentRoomId khi ở màn hình danh sách (để store biết đang ở ngoài, tăng unreadCount bình thường)
+            // Xóa currentRoomId khi ở màn hình danh sách
             useChatStore.getState().setCurrentRoom(null);
 
             const interval = setInterval(() => {
@@ -183,6 +184,17 @@ export default function ChatListScreen() {
             return () => clearInterval(interval);
         }, [fetchFriends])
     );
+
+    // Xử lý khi quay lại app từ nền (để xóa trễ push noti)
+    useEffect(() => {
+        const subscription = AppState.addEventListener("change", (nextAppState) => {
+            if (nextAppState === "active") {
+                fetchChats(false);
+                fetchFriends();
+            }
+        });
+        return () => subscription.remove();
+    }, []);
 
     const renderItem = ({ item }: { item: (typeof rooms)[number] }) => {
         const processedAvatar = item.avatarUrl ? getImageUrl(item.avatarUrl) : "";

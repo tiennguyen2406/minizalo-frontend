@@ -58,10 +58,14 @@ function mapChatRoomResponsesToStore(
                       createdAt: r.lastMessage.createdAt,
                   }
                 : undefined,
-            unreadCount: Math.max(
-                existing ? (existing.unreadCount ?? 0) : 0,
-                r.unreadCount || 0,
-            ),
+            unreadCount: (() => {
+                const ridStr = String(r.id);
+                const currentOpen = useChatStore.getState().currentRoomId;
+                if (currentOpen && String(currentOpen) === ridStr) return 0;
+                
+                // Tin tưởng vào server unreadCount khi sync danh sách phòng
+                return r.unreadCount || 0;
+            })(),
             participants: (r.members || []).map((m: any) => ({
                 id: m.user?.id || m.id || '',
                 username: m.user?.username || m.username || '',
@@ -86,11 +90,11 @@ function mapChatRoomResponsesToStore(
 async function fetchRoomsMergeWithStore(): Promise<void> {
     const user = useAuthStore.getState().user;
     const data: ChatRoomResponse[] = await chatService.getChatRooms();
-    const existingRooms = useChatStore.getState().rooms;
-    useChatStore
-        .getState()
-        .setRooms(mapChatRoomResponsesToStore(user?.id, data, existingRooms));
+    // mergeRooms đọc rooms hiện tại atomically bên trong set() → không cần snapshot trước
+    const mapped = mapChatRoomResponsesToStore(user?.id, data, []);
+    useChatStore.getState().mergeRooms(mapped);
 }
+
 
 /** Lỗi gửi chat cá nhân (vd: chỉ bạn bè) — subscribe một lần cho web + mobile. */
 function useChatErrorsSubscription() {
@@ -153,12 +157,12 @@ function useRoomUpdatesSubscription() {
             try {
                 const raw = String(stompMsg.body || '').trim();
                 if (!raw) return;
-                let payload: { action?: 'ADDED' | 'REMOVED' | 'DISBANDED'; roomId?: string } | null = null;
+                let payload: { action?: 'ADDED' | 'REMOVED' | 'DISBANDED' | 'UNREAD_UPDATE'; roomId?: string } | null = null;
                 try {
                     payload = JSON.parse(raw);
                 } catch {
                     // Fallback nếu backend gửi kiểu "action=REMOVED, roomId=..." (phòng hờ)
-                    const mAction = raw.match(/action["']?\s*[:=]\s*["']?(ADDED|REMOVED|DISBANDED)/i);
+                    const mAction = raw.match(/action["']?\s*[:=]\s*["']?(ADDED|REMOVED|DISBANDED|UNREAD_UPDATE)/i);
                     const mRoom = raw.match(/roomId["']?\s*[:=]\s*["']?([0-9a-fA-F-]{16,})/i);
                     payload = {
                         action: (mAction?.[1]?.toUpperCase() as any) || undefined,
@@ -172,7 +176,7 @@ function useRoomUpdatesSubscription() {
                     return;
                 }
 
-                if (payload.action === 'DISBANDED') {
+                if (payload.action === 'DISBANDED' || payload.action === 'UNREAD_UPDATE') {
                     await fetchRoomsMergeWithStore();
                     return;
                 }
@@ -305,6 +309,7 @@ function useGlobalChatTopicSubscriptions() {
                 }
             };
 
+
             webSocketService.subscribe(`/topic/chat/${roomId}`, handler);
             handlersRef.current.set(roomId, handler);
         });
@@ -325,10 +330,47 @@ export function useWebSocketManager() {
     useRoomUpdatesSubscription();
     useGlobalChatTopicSubscriptions();
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    _useWebSocketManagerBoth();
+
     if (Platform.OS !== 'web') return;
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
     _useWebSocketManagerWeb();
+}
+
+/** Logic dùng chung cho cả Web và Mobile để đồng bộ nhanh */
+function _useWebSocketManagerBoth() {
+    const accessToken = useAuthStore((s) => s.accessToken);
+    const lastActiveAt = useRef(Date.now());
+
+    useEffect(() => {
+        if (!accessToken) return;
+
+        const refreshData = () => {
+            // Chỉ refresh nếu đã im lìm hơn 5s để tránh spam khi toggle app liên tục
+            if (Date.now() - lastActiveAt.current > 5000) {
+                void fetchRoomsMergeWithStore();
+            }
+            lastActiveAt.current = Date.now();
+            // Re-activate socket nếu cần
+            webSocketService.activate(accessToken);
+        };
+
+        if (Platform.OS === 'web') {
+            const onVis = () => {
+                if (document.visibilityState === 'visible') refreshData();
+            };
+            document.addEventListener('visibilitychange', onVis);
+            return () => document.removeEventListener('visibilitychange', onVis);
+        } else {
+            const { AppState } = require('react-native');
+            const subscription = AppState.addEventListener('change', (nextState: string) => {
+                if (nextState === 'active') refreshData();
+            });
+            return () => subscription.remove();
+        }
+    }, [accessToken]);
 }
 
 function _useWebSocketManagerWeb() {
@@ -373,10 +415,16 @@ function _useWebSocketManagerWeb() {
                               createdAt: r.lastMessage.createdAt,
                           }
                         : undefined,
-                    unreadCount: Math.max(
-                        existing ? (existing.unreadCount ?? 0) : 0,
-                        r.unreadCount || 0,
-                    ),
+                    unreadCount: (() => {
+                        const ridStr = String(r.id);
+                        const currentOpen = useChatStore.getState().currentRoomId;
+                        if (currentOpen && String(currentOpen) === ridStr) return 0;
+                        
+                        return Math.max(
+                            existing ? (existing.unreadCount ?? 0) : 0,
+                            r.unreadCount || 0,
+                        );
+                    })(),
                     participants: (r.members || []).map((m: any) => ({
                         id: m.user?.id || m.id || '',
                         username: m.user?.username || m.username || '',

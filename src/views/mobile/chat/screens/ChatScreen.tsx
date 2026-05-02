@@ -66,6 +66,10 @@ import { useThemeStore } from "@/shared/store/themeStore";
 import * as Clipboard from "expo-clipboard";
 import * as FileSystem from "expo-file-system/legacy";
 import AiSummaryModal from "../components/AiSummaryModal";
+import AiOptionsBottomSheet from "../components/AiOptionsBottomSheet";
+import UnreadAiSummaryModal from "../components/UnreadAiSummaryModal";
+import AiPersonaBotModal from "../components/AiPersonaBotModal";
+import AiTaskModal, { AiTaskMode } from "../components/AiTaskModal";
 const {
   documentDirectory,
   cacheDirectory,
@@ -231,6 +235,69 @@ export default function ChatScreen() {
   );
   const [loaded, setLoaded] = useState(false);
 
+  const [initialUnreadCount, setInitialUnreadCount] = useState(0);
+  const [firstUnreadMessage, setFirstUnreadMessage] = useState<MessageDynamo | null>(null);
+  const [showUnreadAiModal, setShowUnreadAiModal] = useState(false);
+  const [aiSummaryDates, setAiSummaryDates] = useState<{ start?: Date; end?: Date }>({});
+  
+  useEffect(() => {
+    if (activeRoomId) {
+      const room = rooms.find((r) => String(r.id) === String(activeRoomId));
+      
+      // 1. Chỉ chạy logic init unread Banner MỘT LẦN duy nhất khi vào phòng
+      if (lastInitRoomIdRef.current !== activeRoomId) {
+        lastInitRoomIdRef.current = String(activeRoomId);
+
+        if (room && (room.unreadCount || 0) < 10) {
+          useChatStore.getState().markRoomAsRead(String(activeRoomId));
+          if (messages.length > 0) {
+            const newest = messages[messages.length - 1];
+            if (newest && newest.messageId && newest.senderId !== currentUserId) {
+              webSocketService.sendReadReceipt({
+                roomId: String(activeRoomId),
+                messageId: newest.messageId,
+              });
+            }
+          }
+        }
+
+        if (room && room.unreadCount && room.unreadCount >= 10) {
+          setInitialUnreadCount(room.unreadCount);
+          chatService.getOldestUnreadMessage(String(activeRoomId)).then(msg => {
+            if (msg) setFirstUnreadMessage(msg);
+          }).catch(() => {});
+        }
+      }
+    } else {
+      lastInitRoomIdRef.current = null;
+    }
+  }, [activeRoomId, messages.length, currentUserId, rooms]);
+
+  // 2. Logic Timer 10 giây riêng biệt, đảm bảo bền bỉ không bị reset
+  useEffect(() => {
+    if (initialUnreadCount > 0 && activeRoomId && initTimerSetRef.current !== activeRoomId) {
+      initTimerSetRef.current = activeRoomId;
+      const timer = setTimeout(() => {
+        setInitialUnreadCount(0);
+      }, 10000); // 10 giây
+      return () => clearTimeout(timer);
+    }
+    if (!activeRoomId) {
+      initTimerSetRef.current = null;
+    }
+  }, [activeRoomId, initialUnreadCount > 0]);
+
+  useEffect(() => {
+    if (activeRoomId) {
+      useChatStore.getState().setCurrentRoom(activeRoomId);
+    }
+    return () => {
+      useChatStore.getState().setCurrentRoom(null);
+      // Xóa highlight khi thoát phòng để không bị cuộn lại khi vào lại
+      useChatStore.getState().setHighlightedMessageId(null);
+    };
+  }, [activeRoomId]);
+
   const flatListRef = useRef<FlatList>(null);
   const galleryRef = useRef<FlatList>(null);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
@@ -260,9 +327,14 @@ export default function ChatScreen() {
     useState<MessageDynamo | null>(null);
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
+  const [showAiMenu, setShowAiMenu] = useState(false);
+  const [showAiPersonaModal, setShowAiPersonaModal] = useState(false);
+  const [showAiTaskModal, setShowAiTaskModal] = useState(false);
+  const [aiTaskMode, setAiTaskMode] = useState<AiTaskMode>("translate");
   const [forwardingMessage, setForwardingMessage] =
     useState<MessageDynamo | null>(null);
   const [forwardLoading, setForwardLoading] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [forwardSearch, setForwardSearch] = useState("");
   const [selectedForwardRooms, setSelectedForwardRooms] = useState<Set<string>>(
     new Set(),
@@ -273,11 +345,76 @@ export default function ChatScreen() {
     content: string;
   } | null>(null);
 
-  // Dùng Refs cho phân trang để tránh vòng lặp re-render vô tận & stale closures trong useCallback
+  // Dùng Refs cho phân trang và trạng thái
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
   const lastKeyRef = useRef<string | null>(null);
-  const [isLoadingMore, setIsLoadingMore] = useState(false); // Chỉ dành cho việc hiển thị UI
+  const isAtBottomRef = useRef(true);
+  const lastReadMessageIdRef = useRef<string | null>(null);
+  const lastInitRoomIdRef = useRef<string | null>(null);
+  const initTimerSetRef = useRef<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // ─── Đánh dấu đã đọc dựa trên tầm mắt ──────────────────────────────────────
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 40, 
+    minimumViewTime: 100,
+  }).current;
+
+  const onViewableItemsChangedHandler = useRef((info: { viewableItems: any[] }) => {
+    if (!info.viewableItems || info.viewableItems.length === 0) return;
+
+    const uid = useUserStore.getState().profile?.id;
+    if (!uid) return;
+
+    let newestVisibleMsg: MessageDynamo | null = null;
+    
+    for (const v of info.viewableItems) {
+      const row = v.item as MobileChatRow;
+      if (row.kind === 'message') {
+        const m = row.message;
+        if (m.senderId !== uid && m.senderId !== 'system' && !m.messageId?.startsWith('temp-')) {
+          if (!newestVisibleMsg || (m.createdAt > newestVisibleMsg.createdAt)) {
+            newestVisibleMsg = m;
+          }
+        }
+      } else if (row.kind === 'imageGroup') {
+        for (const m of row.messages) {
+          if (m.senderId !== uid && !m.messageId?.startsWith('temp-')) {
+            if (!newestVisibleMsg || (m.createdAt > newestVisibleMsg.createdAt)) {
+              newestVisibleMsg = m;
+            }
+          }
+        }
+      }
+    }
+
+    if (newestVisibleMsg && newestVisibleMsg.messageId !== lastReadMessageIdRef.current) {
+      const readBy = newestVisibleMsg.readBy || [];
+      if (!readBy.includes(uid)) {
+        lastReadMessageIdRef.current = newestVisibleMsg.messageId!;
+        webSocketService.sendReadReceipt({
+          roomId: useChatStore.getState().currentRoomId || "",
+          messageId: newestVisibleMsg.messageId!,
+        });
+        useChatStore.getState().markRoomAsRead(useChatStore.getState().currentRoomId || "");
+      }
+    }
+
+    // Kiểm tra xem đã cuộn tới tin nhắn chưa đọc cũ nhất chưa để ẩn Banner
+    if (initialUnreadCount > 0 && firstUnreadMessage) {
+      const fumid = firstUnreadMessage.messageId;
+      const isFirstUnreadVisible = info.viewableItems.some(v => {
+        const row = v.item as MobileChatRow;
+        if (row.kind === 'message') return row.message.messageId === fumid;
+        if (row.kind === 'imageGroup') return row.messages.some(m => m.messageId === fumid);
+        return false;
+      });
+      if (isFirstUnreadVisible) {
+        setInitialUnreadCount(0);
+      }
+    }
+  }).current;
 
   const openGroupInfo = () => {
     router.push({
@@ -523,9 +660,8 @@ export default function ChatScreen() {
     blockStatus?.blockedByYou || blockStatus?.blockedByOther,
   );
 
-  const isStrangerEmptyThread = useMemo(
-    () =>
-      roomType === "DIRECT" && isStranger && !isBlockedChat && !hasChatActivity,
+  const isStrangerEmptyThread = useMemo(() =>
+    roomType === "DIRECT" && isStranger && !isBlockedChat && !hasChatActivity,
     [roomType, isStranger, isBlockedChat, hasChatActivity],
   );
 
@@ -1763,6 +1899,46 @@ export default function ChatScreen() {
     }
   };
 
+  const handleJumpToUnread = async () => {
+    if (!firstUnreadMessage?.messageId || !activeRoomId) return;
+
+    // Luôn đặt Highlight ID để Effect tự động nạp lịch sử nếu cần
+    setHighlightedMessageId(firstUnreadMessage.messageId);
+
+    // Tìm index của tin chưa đọc cũ nhất trong danh sách hiện tại
+    const targetIdx = messages.findIndex((m) => m.messageId === firstUnreadMessage.messageId);
+
+    if (targetIdx !== -1) {
+      flatListRef.current?.scrollToIndex({
+        index: targetIdx,
+        animated: true,
+        viewPosition: 0.5,
+      });
+    } else {
+      // Nếu chưa có trên máy, Toast thông báo đang tải thêm
+      showToast("Đang tìm tin nhắn cũ nhất chưa đọc...", "info");
+    }
+
+    // Sau khi nhấn, thực hiện các yêu cầu: ẩn banner, đánh dấu đã đọc locally/server
+    setInitialUnreadCount(0);
+    useChatStore.getState().markRoomAsRead(activeRoomId);
+    webSocketService.sendReadReceipt({
+      roomId: activeRoomId,
+      messageId: firstUnreadMessage.messageId,
+    });
+  };
+
+  const handleAiSummarizeUnread = async () => {
+    if (!firstUnreadMessage || !activeRoomId) return;
+
+    // Tính mốc từ tin nhắn chưa đọc cổ nhất
+    const startDate = new Date(firstUnreadMessage.createdAt);
+    const endDate = new Date(); // Đến hiện tại
+
+    setAiSummaryDates({ start: startDate, end: endDate });
+    setShowUnreadAiModal(true);
+  };
+
   const handleDeleteMessage = (msg?: MessageDynamo) => {
     const target = msg || selectedMessage;
     if (!target) return;
@@ -2139,7 +2315,7 @@ export default function ChatScreen() {
   );
 
   const highlightedMessageId = useChatStore((s) => s.highlightedMessageId);
-  const clearHighlightedMessageId = useChatStore(
+  const setHighlightedMessageId = useChatStore(
     (s) => s.setHighlightedMessageId,
   );
 
@@ -2153,8 +2329,8 @@ export default function ChatScreen() {
         scrollToPinnedMessage(highlightedMessageId);
       });
       const clearAnim = setTimeout(() => {
-        clearHighlightedMessageId(null);
-      }, 2400);
+        setHighlightedMessageId(null);
+      }, 5000); // 5 giây như yêu cầu cho unread jump (dùng chung cho search)
       return () => clearTimeout(clearAnim);
     }
 
@@ -2168,7 +2344,7 @@ export default function ChatScreen() {
     }
 
     showToast("Không tìm thấy tin nhắn trong cuộc trò chuyện", "info");
-    clearHighlightedMessageId(null);
+    setHighlightedMessageId(null);
   }, [
     highlightedMessageId,
     messages,
@@ -2178,7 +2354,7 @@ export default function ChatScreen() {
     fetchMessages,
     scrollToPinnedMessage,
     showToast,
-    clearHighlightedMessageId,
+    setHighlightedMessageId,
   ]);
 
   const renderMessage = ({ item }: { item: MobileChatRow }) => {
@@ -2421,16 +2597,60 @@ export default function ChatScreen() {
             openChatOptions();
           }
         }}
-        onAiPress={() => setShowAiModal(true)}
+        onAiPress={() => setShowAiMenu(true)}
+      />
+
+      <AiOptionsBottomSheet
+        visible={showAiMenu}
+        onClose={() => setShowAiMenu(false)}
+        onSelectSummarize={() => setShowAiModal(true)}
+        onSelectPersona={() => setShowAiPersonaModal(true)}
+        onSelectTask={(mode) => {
+          setAiTaskMode(mode);
+          setShowAiTaskModal(true);
+        }}
+      />
+
+      <AiTaskModal
+        visible={showAiTaskModal}
+        mode={aiTaskMode}
+        roomId={typeof roomId === "string" ? roomId : (id || "")}
+        onClose={() => setShowAiTaskModal(false)}
+      />
+
+      <AiPersonaBotModal
+        visible={showAiPersonaModal}
+        onClose={() => setShowAiPersonaModal(false)}
       />
 
       <AiSummaryModal
         visible={showAiModal}
+        roomId={typeof roomId === "string" ? roomId : (id || "")}
         onClose={() => setShowAiModal(false)}
         onSummarize={async (startTime, endTime) => {
           const roomIdStr = typeof roomId === "string" ? roomId : id;
           if (!roomIdStr) return "Không rõ ID vòng chat.";
           return await chatService.summarizeChat(roomIdStr, startTime, endTime);
+        }}
+      />
+
+      {/* Modal Tóm tắt tin nhắn CHƯA ĐỌC - UI HOÀN TOÀN MỚI */}
+      <UnreadAiSummaryModal
+        visible={showUnreadAiModal}
+        unreadCount={initialUnreadCount}
+        onClose={() => {
+          setShowUnreadAiModal(false);
+          setAiSummaryDates({});
+        }}
+        onSummarize={async () => {
+          const roomIdStr = typeof roomId === "string" ? roomId : id;
+          if (!roomIdStr) return "Không rõ ID vòng chat.";
+          
+          // Sử dụng mốc thời gian từ tin nhắn chưa đọc cổ nhất, và bật mode isUnreadOnly
+          const startTime = aiSummaryDates.start?.toISOString() || new Date(Date.now() - 3600000).toISOString();
+          const endTime = aiSummaryDates.end?.toISOString() || new Date().toISOString();
+          
+          return await chatService.summarizeChat(roomIdStr, startTime, endTime, true);
         }}
       />
 
@@ -2738,6 +2958,72 @@ export default function ChatScreen() {
         style={{ flex: 1 }}
       >
         <View style={{ flex: 1 }}>
+          {initialUnreadCount > 0 && (
+            <View
+              style={{
+                position: "absolute",
+                top: 10,
+                alignSelf: "center",
+                flexDirection: "row",
+                alignItems: "center",
+                zIndex: 999,
+                backgroundColor: colors.primary,
+                borderRadius: 24,
+                padding: 2, // Tạo khoảng hở cho border bên trong nếu cần
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 5,
+                elevation: 8,
+              }}
+            >
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={handleJumpToUnread}
+                style={{
+                  paddingVertical: 8,
+                  paddingLeft: 16,
+                  paddingRight: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  borderRightWidth: 1,
+                  borderRightColor: "rgba(255,255,255,0.2)",
+                }}
+              >
+                <Ionicons
+                  name="arrow-up"
+                  size={16}
+                  color="white"
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={{ color: "white", fontSize: 13, fontWeight: "700" }}>
+                  {initialUnreadCount} tin nhắn mới
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={handleAiSummarizeUnread}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons
+                  name="sparkles"
+                  size={18}
+                  color="#FFD700"
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={{ color: "white", fontSize: 13, fontWeight: "700" }}>
+                  AI
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <FlatList
             style={{ flex: 1 }}
             ref={flatListRef}
@@ -2758,6 +3044,19 @@ export default function ChatScreen() {
             initialNumToRender={15}
             maxToRenderPerBatch={10}
             windowSize={11}
+            onViewableItemsChanged={onViewableItemsChangedHandler}
+            viewabilityConfig={viewabilityConfig}
+            onScroll={(e) => {
+              const offset = e.nativeEvent.contentOffset.y;
+              // FlatList inverted: offset gần 0 có nghĩa là đang ở dưới cùng
+              isAtBottomRef.current = offset < 50;
+              
+              if (offset > 400) {
+                if (!showScrollToBottom) setShowScrollToBottom(true);
+              } else {
+                if (showScrollToBottom) setShowScrollToBottom(false);
+              }
+            }}
             removeClippedSubviews={Platform.OS === "android"}
             onScrollToIndexFailed={(info) => {
               // Item chưa render trong viewport — scroll đến vị trí ước tính
@@ -2947,6 +3246,37 @@ export default function ChatScreen() {
             replyTo={replyTo}
             onCancelReply={() => setReplyTo(null)}
           />
+        )}
+
+        {showScrollToBottom && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => {
+              flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+              setShowScrollToBottom(false);
+            }}
+            style={{
+              position: "absolute",
+              bottom: 85, // Phía trên ô nhập text (ChatFooter cao tầm 60-70px)
+              right: 16,
+              width: 42,
+              height: 42,
+              borderRadius: 21,
+              backgroundColor: theme === "dark" ? "#2c2c2e" : "#ffffff",
+              justifyContent: "center",
+              alignItems: "center",
+              elevation: 5,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 4,
+              zIndex: 1000,
+              borderWidth: 1,
+              borderColor: theme === "dark" ? "#3a3a3c" : "#e5e5ea",
+            }}
+          >
+            <Ionicons name="chevron-down" size={24} color={colors.primary} />
+          </TouchableOpacity>
         )}
       </KeyboardAvoidingView>
 
