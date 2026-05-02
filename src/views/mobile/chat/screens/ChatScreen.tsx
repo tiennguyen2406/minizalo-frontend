@@ -49,6 +49,7 @@ import {
   findChatGalleryIndex,
 } from "@/shared/utils/chatGallery";
 import { getChatWallpaperUri } from "@/shared/utils/chatWallpaper";
+import { dedupCallMessages } from "@/shared/utils/dedupCallMessages";
 import { Video, ResizeMode } from "expo-av";
 import GroupInfoScreen from "../components/GroupInfoScreen";
 import ChatOptionsScreen from "./ChatOptionsScreen";
@@ -222,7 +223,9 @@ export default function ChatScreen() {
     messagesRef.current = messages;
   }, [messages]);
   /** Gom các tin IMAGE liên tiếp (web gửi từng ảnh một) để hiển thị một cụm giống web */
-  const chatRows = useMemo(() => buildMobileChatRows(messages), [messages]);
+  // Dedup call message: session đã end → ẩn bubble STARTED, chỉ giữ bubble kết thúc.
+  const visibleMessages = useMemo(() => dedupCallMessages(messages), [messages]);
+  const chatRows = useMemo(() => buildMobileChatRows(visibleMessages), [visibleMessages]);
   const [partnerProfileDetail, setPartnerProfileDetail] =
     useState<UserProfile | null>(null);
 
@@ -1042,6 +1045,38 @@ export default function ChatScreen() {
             return;
           }
           if (p.roomListEvent === "ADDED" && p.roomId) {
+            return;
+          }
+
+          // BE phát `messageUpdate=true` khi cập nhật in-place 1 tin hiện có
+          // (vd: group call STARTED → ENDED). Patch trực tiếp tin đã có trong list,
+          // KHÔNG prepend tin mới để không nhảy bubble và không "bump" room lên top.
+          const pu = parsed as {
+            messageUpdate?: boolean;
+            messageId?: string;
+            content?: string;
+            type?: string;
+            recalled?: boolean;
+          };
+          if (pu.messageUpdate === true && typeof pu.messageId === "string" && pu.messageId) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.messageId === pu.messageId
+                  ? ({
+                      ...m,
+                      content: pu.recalled ? "[Tin nhắn đã thu hồi]" : pu.content ?? m.content,
+                      type: (pu.type as any) ?? m.type,
+                      recalled: !!pu.recalled,
+                    } as any)
+                  : m,
+              ),
+            );
+            // Cập nhật luôn useChatStore để lastMessage ở room list đồng bộ.
+            useChatStore.getState().updateMessage(roomId, pu.messageId, {
+              content: pu.recalled ? "[Tin nhắn đã thu hồi]" : pu.content ?? "",
+              type: (pu.type as any) ?? undefined,
+              isRecall: !!pu.recalled,
+            } as any);
             return;
           }
         }

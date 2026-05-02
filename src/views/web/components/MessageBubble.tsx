@@ -754,27 +754,71 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const renderCallContent = () => {
         try {
             const data = JSON.parse(message.content || '{}');
-            const { status, duration, callType, callerId } = data;
+            const { status, duration, callType } = data;
+            const isGroupCall = !!data.isGroupCall;
+            const callSessionId: string | undefined = data.callSessionId;
             const isCallFromMe = isMine;
             const isVideo = callType === 'VIDEO';
+
+            const statusUpper = String(status || '').toUpperCase();
+            // GROUP CALL đã kết thúc: ẩn nút "Tham gia", chỉ hiện duration + "Đã kết thúc"
+            // (giống Zalo: 1 bubble duy nhất, state chuyển từ STARTED → ENDED tại chỗ).
+            const isFinalStatus =
+                statusUpper === 'ENDED' ||
+                statusUpper === 'MISSED' ||
+                statusUpper === 'CANCELLED' ||
+                statusUpper === 'REJECTED';
+            const groupEnded = isGroupCall && isFinalStatus;
 
             let statusText = '';
             let Icon = isVideo ? Video : Phone;
             let iconColor = 'text-blue-500';
 
-            if (status === 'ENDED') {
-                statusText = duration > 0 ? `${Math.floor(duration / 60)} phút ${duration % 60} giây` : 'Cuộc gọi đi';
+            if (statusUpper === 'ENDED') {
+                statusText =
+                    duration > 0
+                        ? `${Math.floor(duration / 60)} phút ${duration % 60} giây`
+                        : 'Cuộc gọi đi';
                 Icon = isCallFromMe ? PhoneOutgoing : PhoneIncoming;
                 iconColor = 'text-green-500';
-            } else if (status === 'REJECTED' || status === 'CANCELLED') {
-                statusText = isCallFromMe ? 'Bạn đã hủy' : 'Cuộc gọi nhỡ';
+            } else if (statusUpper === 'REJECTED' || statusUpper === 'CANCELLED') {
+                statusText = isGroupCall
+                    ? 'Không có ai tham gia'
+                    : isCallFromMe
+                    ? 'Bạn đã hủy'
+                    : 'Cuộc gọi nhỡ';
+                Icon = PhoneMissed;
+                iconColor = 'text-red-500';
+            } else if (statusUpper === 'MISSED') {
+                statusText = isGroupCall ? 'Không có ai tham gia' : 'Cuộc gọi nhỡ';
                 Icon = PhoneMissed;
                 iconColor = 'text-red-500';
             } else {
-                statusText = isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại';
+                statusText = isGroupCall
+                    ? isVideo
+                        ? 'Cuộc gọi nhóm video'
+                        : 'Cuộc gọi nhóm thoại'
+                    : isVideo
+                    ? 'Cuộc gọi video'
+                    : 'Cuộc gọi thoại';
             }
 
-            const handleRedial = () => {
+            const title = isGroupCall
+                ? isVideo
+                    ? 'Cuộc gọi nhóm video'
+                    : 'Cuộc gọi nhóm thoại'
+                : isVideo
+                ? 'Cuộc gọi video'
+                : 'Cuộc gọi thoại';
+
+            const handlePrimaryAction = () => {
+                if (isGroupCall) {
+                    if (callSessionId) {
+                        useCallStore.getState().joinGroupCall(callSessionId);
+                    }
+                    return;
+                }
+
                 const receiverId = isMine ? data.receiverId : data.callerId;
                 if (receiverId) {
                     useCallStore.getState().initiateCall(
@@ -794,32 +838,41 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             <Icon size={15} />
                         </div>
                         <div className="flex flex-col">
-                            <span className="font-bold text-zinc-800 text-[13px]">
-                                {status === 'ENDED' ? (isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại') : statusText}
-                            </span>
-                            {status === 'ENDED' && (
+                            <span className="font-bold text-zinc-800 text-[13px]">{title}</span>
+                            {statusUpper === 'ENDED' && (
                                 <div className="flex items-center gap-1 text-zinc-500 text-[11px] mt-0.5">
                                     <Icon size={10} className={iconColor} />
                                     <span>{statusText}</span>
                                 </div>
                             )}
-                            {(status === 'REJECTED' || status === 'CANCELLED') && (
+                            {(statusUpper === 'REJECTED' || statusUpper === 'CANCELLED' || statusUpper === 'MISSED') && (
                                 <div className="flex items-center gap-1 text-zinc-500 text-[11px] mt-0.5">
                                     <PhoneMissed size={10} className="text-red-500" />
                                     <span>{statusText}</span>
                                 </div>
                             )}
+                            {groupEnded && (
+                                <span className="text-red-500 text-[11px] mt-0.5 ">Đã kết thúc</span>
+                            )}
                         </div>
                     </div>
 
-                    <div className="h-[1px] bg-gray-100 w-full mb-1" />
-
-                    <button
-                        onClick={handleRedial}
-                        className="w-full py-0.5 text-blue-600 font-semibold text-[12px] hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-center gap-1"
-                    >
-                        Gọi lại
-                    </button>
+                    {/*
+                      - GROUP đã kết thúc: không render nút (đúng mockup Zalo).
+                      - GROUP đang gọi: "Nhấn để tham gia".
+                      - 1-1: giữ nguyên "Gọi lại".
+                    */}
+                    {!groupEnded && (
+                        <>
+                            <div className="h-[1px] bg-gray-100 w-full mb-1" />
+                            <button
+                                onClick={handlePrimaryAction}
+                                className="w-full py-0.5 text-blue-600 font-semibold text-[12px] hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-center gap-1"
+                            >
+                                {isGroupCall ? 'Nhấn để tham gia' : 'Gọi lại'}
+                            </button>
+                        </>
+                    )}
                 </div>
             );
         } catch (e) {
