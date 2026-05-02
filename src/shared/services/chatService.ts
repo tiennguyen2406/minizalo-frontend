@@ -143,6 +143,18 @@ export const chatService = {
         const response = await api.post(`/chat/rooms/persona-chat`, { persona, question });
         return response.data.answer;
     },
+    translateText: async (text: string, targetLanguage?: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/translate`, { text, targetLanguage });
+        return response.data.result;
+    },
+    improveText: async (text: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/improve-text`, { text });
+        return response.data.result;
+    },
+    extractEvents: async (roomId: string, startTime: string, endTime: string): Promise<string> => {
+        const response = await api.post(`/chat/rooms/${roomId}/ai/extract-events`, { startTime, endTime });
+        return response.data.events;
+    },
     getChatRooms: async (): Promise<ChatRoomResponse[]> => {
         console.log("Fetching chat rooms from:", API_BASE_URL + "/chat/rooms");
         try {
