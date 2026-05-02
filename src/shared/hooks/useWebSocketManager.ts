@@ -6,7 +6,7 @@
  * để hoạt động trên mọi trang (contacts, files, v.v...)
  */
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import type { IMessage } from '@stomp/stompjs';
 import { useAuthStore } from '@/shared/store/authStore';
 import { useChatStore } from '@/shared/store/useChatStore';
@@ -20,6 +20,8 @@ import {
 } from '@/shared/utils/chatErrors';
 import { addIncomingChatMessageFromStomp } from '@/shared/utils/chatWebSocketInbound';
 import { getDirectChatPartnerDisplayName } from '@/shared/utils/strangerChatRooms';
+import { useInAppNotifStore } from '@/views/mobile/chat/components/InAppNotification';
+import { showLocalNotification } from '@/services/notificationService';
 
 function mapChatRoomResponsesToStore(
     currentUserId: string | undefined,
@@ -255,6 +257,56 @@ function useGlobalChatTopicSubscriptions() {
 
                 addIncomingChatMessageFromStomp(roomId, raw);
 
+                if (Platform.OS !== 'web' && dynamo) {
+                    const curOpen = useChatStore.getState().currentRoomId;
+                    const isCurrentlyViewing =
+                        curOpen != null && String(curOpen) === String(roomId);
+                    const senderId =
+                        typeof dynamo.senderId === 'string' ? dynamo.senderId : '';
+                    const myId = useAuthStore.getState().user?.id;
+                    if (senderId && myId && senderId !== myId && !isCurrentlyViewing) {
+                        if (!useChatStore.getState().isRoomMuted(roomId)) {
+                            const roomData = useChatStore
+                                .getState()
+                                .rooms.find((r) => r.id === roomId);
+                            const senderLabel =
+                                (typeof dynamo.senderName === 'string' && dynamo.senderName) ||
+                                (typeof dynamo.senderUsername === 'string' &&
+                                    dynamo.senderUsername) ||
+                                'Tin nhắn mới';
+                            const msgType =
+                                typeof dynamo.type === 'string' ? dynamo.type : '';
+                            const msgContent =
+                                typeof dynamo.content === 'string' ? dynamo.content : '';
+                            const bodyText =
+                                msgType === 'IMAGE'
+                                    ? '[Hình ảnh]'
+                                    : msgType === 'VIDEO'
+                                      ? '[Video]'
+                                      : msgType === 'FILE'
+                                        ? '[Tập tin]'
+                                        : msgType === 'POLL'
+                                          ? '[Bình chọn]'
+                                          : msgContent || 'Đã gửi một tin nhắn';
+
+                            // Background: dùng local push (heads-up). Foreground: dùng in-app banner.
+                            if (AppState.currentState !== 'active') {
+                                void showLocalNotification(senderLabel, bodyText, {
+                                    type: 'MESSAGE',
+                                    roomId,
+                                    senderId,
+                                });
+                            } else {
+                                useInAppNotifStore.getState().show({
+                                    title: senderLabel,
+                                    body: bodyText,
+                                    avatarUrl: roomData?.avatarUrl || undefined,
+                                    roomId: roomId,
+                                });
+                            }
+                        }
+                    }
+                }
             };
 
 

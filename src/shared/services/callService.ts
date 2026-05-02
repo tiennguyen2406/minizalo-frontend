@@ -15,6 +15,37 @@ export interface IncomingCallPayload {
     };
 }
 
+export type GroupCallParticipantStatus = 'INVITED' | 'JOINED' | 'LEFT' | 'DECLINED';
+
+export interface GroupCallParticipantDto {
+    userId: string;
+    status: GroupCallParticipantStatus | string;
+}
+
+export interface GroupCallSessionResponse {
+    token: string;
+    appId: string;
+    channelName: string;
+    callSessionId: string;
+    expireAt: number;
+    callType: CallType;
+    hostId: string;
+    conversationId: string;
+    participants: GroupCallParticipantDto[];
+}
+
+export interface GroupCallEventPayload {
+    eventType: string;
+    callSessionId: string;
+    channelName: string;
+    conversationId: string;
+    hostId: string;
+    callType: CallType;
+    actorId?: string;
+    actorStatus?: string;
+    participants?: GroupCallParticipantDto[];
+}
+
 export interface CallHistory {
     id: string;
     callerId: string;
@@ -88,6 +119,30 @@ class CallService {
             // No logs here to avoid console noise
             return null;
         }
+    }
+
+    async initiateGroupCall(conversationId: string, receiverIds: string[], callType: CallType): Promise<GroupCallSessionResponse> {
+        const response = await api.post<GroupCallSessionResponse>("/call/initiate-group", {
+            conversationId,
+            receiverIds,
+            callType,
+        });
+        return response.data;
+    }
+
+    async joinGroupCall(callSessionId: string): Promise<GroupCallSessionResponse> {
+        const response = await api.post<GroupCallSessionResponse>("/call/join", {
+            callSessionId,
+        });
+        return response.data;
+    }
+
+    async leaveGroupCall(callSessionId: string): Promise<void> {
+        await api.post("/call/leave", { callSessionId });
+    }
+
+    async endGroupCall(callSessionId: string): Promise<void> {
+        await api.post("/call/end-group", { callSessionId });
     }
 }
 

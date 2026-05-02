@@ -3,7 +3,7 @@ import { useCallStore } from '@/shared/store/useCallStore';
 import { Phone, Video, X, PhoneOff, VideoOff } from 'lucide-react';
 
 const IncomingCallNotification = () => {
-    const { incomingCall, acceptCall, rejectCall } = useCallStore();
+    const { incomingCall, incomingCallKind, acceptCall, acceptCallNoCamera, joinGroupCall, joinGroupCallNoCamera, rejectCall } = useCallStore();
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     useEffect(() => {
@@ -85,7 +85,9 @@ const IncomingCallNotification = () => {
                             Từ chối
                         </button>
                         <button
-                            onClick={() => acceptCall(incomingCall.callSessionId)}
+                            onClick={() => (incomingCallKind === 'group'
+                                ? joinGroupCall(incomingCall.callSessionId)
+                                : acceptCall(incomingCall.callSessionId))}
                             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-500 text-white hover:bg-green-600 transition-colors text-sm font-medium"
                         >
                             {callType === 'VIDEO' ? <Video size={16} /> : <Phone size={16} />}
@@ -95,7 +97,9 @@ const IncomingCallNotification = () => {
 
                     {callType === 'VIDEO' && (
                         <button
-                            onClick={() => acceptCall(incomingCall.callSessionId)}
+                            onClick={() => (incomingCallKind === 'group'
+                                ? joinGroupCallNoCamera(incomingCall.callSessionId)
+                                : acceptCallNoCamera(incomingCall.callSessionId))}
                             className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors text-xs font-medium"
                         >
                             <VideoOff size={14} />

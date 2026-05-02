@@ -6,6 +6,7 @@ import { Message, User } from '@/shared/types';
 import { getImageAttachmentUrls } from '@/shared/utils/messageAttachments';
 import { buildChatGalleryItems, findChatGalleryIndex, type ChatGalleryItem } from '@/shared/utils/chatGallery';
 import { getImageUrl } from '@/shared/utils/mediaUtils';
+import { dedupCallMessages } from '@/shared/utils/dedupCallMessages';
 import LazyImage from './LazyImage';
 import { chatService } from '@/shared/services/chatService';
 import { ArrowUp, Sparkles } from 'lucide-react';
@@ -235,7 +236,7 @@ function buildRenderItems(messages: Message[]): RenderItem[] {
 }
 
 const MessageList: React.FC<MessageListProps> = ({
-    messages,
+    messages: messagesRaw,
     currentUserId,
     roomId,
     participants = [],
@@ -255,6 +256,9 @@ const MessageList: React.FC<MessageListProps> = ({
     onScrollStatusChange,
     jumpSignal,
 }) => {
+    // Dedup CALL message: khi session đã end → ẩn bubble STARTED, chỉ giữ bubble kết thúc.
+    // Phải dedup TRƯỚC khi dùng bất kỳ index-based access (prevMsg/nextMsg/startIndex) để tránh lệch.
+    const messages = useMemo(() => dedupCallMessages(messagesRaw), [messagesRaw]);
     const scrollRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const prevRoomId = useRef<string | undefined>(roomId);

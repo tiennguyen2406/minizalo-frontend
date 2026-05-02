@@ -25,7 +25,7 @@ const CallModal: React.FC<CallModalProps> = ({
     avatarUrl,
     onEnd,
 }) => {
-    const { activeCall, callStatus, resetCall, endCall, cancelCall } = useCallStore();
+    const { activeCall, callStatus, resetCall, endCall, cancelCall, leaveGroupCall, endGroupCall } = useCallStore();
     const user = useAuthStore(state => state.user);
     const accessToken = useAuthStore(state => state.accessToken);
 
@@ -38,7 +38,7 @@ const CallModal: React.FC<CallModalProps> = ({
     const [client, setClient] = useState<IAgoraRTCClient | null>(null);
     const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
     const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
-    const [remoteUser, setRemoteUser] = useState<IAgoraRTCRemoteUser | null>(null);
+    const [remoteUsers, setRemoteUsers] = useState<IAgoraRTCRemoteUser[]>([]);
 
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
@@ -140,26 +140,45 @@ const CallModal: React.FC<CallModalProps> = ({
             };
 
             rtcClient.on('user-published', async (remUser, mediaType) => {
-                await rtcClient.subscribe(remUser, mediaType);
+                // Wrap try/catch: 1 user subscribe fail không được kéo cả handler chết (Edge nhạy hơn Chrome).
+                try {
+                    await rtcClient.subscribe(remUser, mediaType);
+                } catch (e) {
+                    console.warn('[WebAgora] subscribe failed for uid', remUser.uid, mediaType, e);
+                    return;
+                }
                 if (mediaType === 'video') {
-                    setRemoteUser(remUser);
-                    remUser.videoTrack?.play('remote-video-container', WEB_REMOTE_VIDEO_OPTS);
+                    setRemoteUsers([...rtcClient.remoteUsers]);
+                    // 1-1: play ngay vì container đã tồn tại sẵn
+                    // Group: KHÔNG play ngay vì div chưa mount — useEffect sẽ retry sau khi React render
+                    if (!activeCall?.isGroupCall) {
+                        remUser.videoTrack?.play('remote-video-container', WEB_REMOTE_VIDEO_OPTS);
+                    }
                 }
                 if (mediaType === 'audio') {
                     remUser.audioTrack?.play();
-                    setRemoteUser((prev) => prev || remUser);
+                    setRemoteUsers([...rtcClient.remoteUsers]);
                 }
                 cancelRemoteGoneTimer();
             });
 
             rtcClient.on('user-unpublished', (remUser, mediaType) => {
                 if (mediaType === 'video') {
-                    setRemoteUser((prev) => prev?.uid === remUser.uid ? null : prev);
+                    setRemoteUsers([...rtcClient.remoteUsers]);
                 }
             });
 
+            // Group VOICE call bug: Agora đôi khi auto-subscribe audio mà KHÔNG fire `user-published`
+            // đúng flow (hoặc fire trước khi handler mount). Khi đó `setRemoteUsers` ở handler
+            // `user-published` không chạy → UI stuck "Đang kết nối" dù nghe được nhau.
+            // `user-joined` fire ngay khi peer vào channel (trước cả lúc họ publish) → đảm bảo state
+            // `remoteUsers` populate để `isConnected` flip đúng.
+            rtcClient.on('user-joined', () => {
+                setRemoteUsers([...rtcClient.remoteUsers]);
+            });
+
             rtcClient.on('user-left', () => {
-                setRemoteUser(null);
+                setRemoteUsers([...rtcClient.remoteUsers]);
                 scheduleEndIfRemoteGone();
             });
 
@@ -176,8 +195,9 @@ const CallModal: React.FC<CallModalProps> = ({
                 setLocalAudioTrack(audio);
                 audioTrackRef.current = audio;
 
+                const startWithCamera = activeCall.startWithCamera ?? true;
                 let video: ICameraVideoTrack | null = null;
-                if (finalCallType === 'VIDEO') {
+                if (finalCallType === 'VIDEO' && startWithCamera) {
                     try {
                         video = await AgoraRTC.createCameraVideoTrack();
                         setLocalVideoTrack(video);
@@ -189,6 +209,9 @@ const CallModal: React.FC<CallModalProps> = ({
                     } catch (camErr) {
                         console.warn('[WebAgora] Camera unavailable, continuing audio-only:', camErr);
                     }
+                }
+                if (finalCallType === 'VIDEO' && !startWithCamera) {
+                    setIsVideoOff(true);
                 }
 
                 await rtcClient.join(
@@ -204,24 +227,47 @@ const CallModal: React.FC<CallModalProps> = ({
                     await rtcClient.publish([audio]);
                 }
 
-                // Subscribe to already-published remote tracks (fix case remote published before we joined)
+                // GROUP CALL: join xong Agora channel = đã "connected" ở phía mình.
+                // Group call KHÔNG có khái niệm "đang đổ chuông chờ nhấc máy" như 1-1 — ngay khi
+                // host khởi tạo là họ đã ở trong channel. Không dựa vào WS PARTICIPANT_JOINED
+                // vì có trường hợp delivery delay hoặc host là người đầu tiên → UI stuck "Đang kết nối".
+                // 1-1 giữ nguyên logic: callStatus flip qua WS event 'ACCEPTED'.
+                if (activeCall.isGroupCall) {
+                    useCallStore.getState().setCallStatus('connected');
+                }
+
+                // Subscribe to already-published remote tracks (fix case remote published before we joined).
+                // LƯU Ý: 3 bước — render container TRƯỚC, subscribe ĐỘC LẬP từng user (Promise.allSettled),
+                // rồi update state lần 2 để trigger useEffect replay.
+                // Trước đây dùng `for...of await`: 1 user fail (Edge ↔ Mobile chậm hơn) → break loop →
+                // setRemoteUsers không chạy → React state thiếu user đó → container không render → play() fail mãi
+                // → gây bug "Edge không thấy camera user thứ 2, chỉ thấy khi có user thứ 3 join".
                 setTimeout(async () => {
-                    try {
-                        for (const ru of rtcClient.remoteUsers) {
-                            if ((ru as any).hasAudio) {
-                                await rtcClient.subscribe(ru, 'audio');
-                                ru.audioTrack?.play();
-                                setRemoteUser((prev) => prev || ru);
+                    // Bước 1: Render container tất cả remote users NGAY.
+                    setRemoteUsers([...rtcClient.remoteUsers]);
+
+                    // Bước 2: Subscribe song song, 1 fail không ảnh hưởng user khác.
+                    await Promise.allSettled(
+                        rtcClient.remoteUsers.map(async (ru) => {
+                            try {
+                                if ((ru as any).hasAudio) {
+                                    await rtcClient.subscribe(ru, 'audio');
+                                    ru.audioTrack?.play();
+                                }
+                                if ((ru as any).hasVideo) {
+                                    await rtcClient.subscribe(ru, 'video');
+                                    if (!activeCall?.isGroupCall) {
+                                        ru.videoTrack?.play('remote-video-container', WEB_REMOTE_VIDEO_OPTS);
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('[WebAgora] subscribe existing failed for uid', ru.uid, e);
                             }
-                            if ((ru as any).hasVideo) {
-                                await rtcClient.subscribe(ru, 'video');
-                                setRemoteUser(ru);
-                                ru.videoTrack?.play('remote-video-container', WEB_REMOTE_VIDEO_OPTS);
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('[WebAgora] subscribe existing remote tracks failed', e);
-                    }
+                        }),
+                    );
+
+                    // Bước 3: Trigger useEffect chạy lại với tham chiếu mới → videoTrack giờ đã sẵn sàng.
+                    setRemoteUsers([...rtcClient.remoteUsers]);
                 }, 250);
             } catch (err) {
                 console.error('[WebAgora] Join failed', err);
@@ -269,33 +315,76 @@ const CallModal: React.FC<CallModalProps> = ({
         
         setLocalAudioTrack(null);
         setLocalVideoTrack(null);
-        setRemoteUser(null);
+        setRemoteUsers([]);
         initializedRef.current = false;
     };
 
-    // Ensure remote video starts playing even if DOM isn't ready at the exact publish moment.
+    // Đồng bộ remote video vào đúng container mỗi khi remoteUsers thay đổi (join/leave/publish video sau audio).
+    // Quan trọng: depend vào `remoteUsers` (reference) chứ không phải `remoteUsers.length` — nếu không, trường hợp
+    // user publish audio trước rồi publish video sau (cùng một remoteUser), length không đổi → effect không chạy → video không play.
     useEffect(() => {
         if (finalCallType !== 'VIDEO') return;
-        if (!remoteUser?.videoTrack) return;
+        const rtcClient = clientRef.current;
+        if (!rtcClient) return;
+        const isGroup = !!activeCall?.isGroupCall;
 
-        const tryPlay = (attempt: number) => {
-            const el = document.getElementById('remote-video-container');
-            if (el) {
-                remoteUser.videoTrack?.play('remote-video-container', WEB_REMOTE_VIDEO_OPTS);
+        if (remotePlayRetryRef.current) {
+            window.clearTimeout(remotePlayRetryRef.current);
+            remotePlayRetryRef.current = null;
+        }
+
+        const tryPlayAll = (attempt: number) => {
+            if (!isGroup) {
+                const el = document.getElementById('remote-video-container');
+                const ru = rtcClient.remoteUsers?.[0];
+                if (el && ru?.videoTrack) {
+                    ru.videoTrack.play('remote-video-container', WEB_REMOTE_VIDEO_OPTS);
+                    return;
+                }
+                if (attempt < 10) {
+                    remotePlayRetryRef.current = window.setTimeout(() => tryPlayAll(attempt + 1), 120);
+                }
                 return;
             }
-            if (attempt >= 5) return;
-            remotePlayRetryRef.current = window.setTimeout(() => tryPlay(attempt + 1), 150);
+            // Group: cho mỗi remote user → nếu có videoTrack VÀ container đã mount → play
+            let pending = false;
+            for (const ru of rtcClient.remoteUsers) {
+                const containerId = `remote-video-${ru.uid}`;
+                const el = document.getElementById(containerId);
+                if (!el) {
+                    pending = true;
+                    continue;
+                }
+                if (ru.videoTrack) {
+                    // Agora SDK: play() là idempotent — nếu đã bind vào container này thì no-op.
+                    // Nếu trước đó bị bind container khác hoặc chưa bind → tự gắn vào container đúng.
+                    try {
+                        ru.videoTrack.play(containerId, WEB_REMOTE_VIDEO_OPTS);
+                    } catch (e) {
+                        console.warn('[WebAgora] play remote video failed', e);
+                    }
+                } else {
+                    // Track chưa subscribe xong (audio published trước, video đến sau) → chờ lần effect sau
+                    pending = true;
+                }
+            }
+            // Edge đôi khi commit DOM hoặc resolve videoTrack chậm hơn Chrome → nới retry để an toàn.
+            if (pending && attempt < 30) {
+                remotePlayRetryRef.current = window.setTimeout(() => tryPlayAll(attempt + 1), 200);
+            }
         };
 
-        tryPlay(0);
+        // Delay 1 frame để React commit DOM mới
+        const rafId = window.requestAnimationFrame(() => tryPlayAll(0));
+
         return () => {
+            window.cancelAnimationFrame(rafId);
             if (remotePlayRetryRef.current) {
                 window.clearTimeout(remotePlayRetryRef.current);
                 remotePlayRetryRef.current = null;
             }
         };
-    }, [finalCallType, remoteUser?.uid, !!remoteUser?.videoTrack]);
+    }, [finalCallType, activeCall?.isGroupCall, remoteUsers]);
 
     // Re-attach local preview khi DOM mount xong (fix: preview trắng đen vì track tạo trước element).
     useEffect(() => {
@@ -325,7 +414,7 @@ const CallModal: React.FC<CallModalProps> = ({
     }, [callStatus]);
 
     // Timer logic
-    const isConnectedForTimer = callStatus === 'connected' || !!remoteUser;
+    const isConnectedForTimer = callStatus === 'connected' || remoteUsers.length > 0;
     useEffect(() => {
         let timer: NodeJS.Timeout;
         if (isConnectedForTimer) {
@@ -342,7 +431,41 @@ const CallModal: React.FC<CallModalProps> = ({
         return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
     };
 
+    // Thực thi leave (self only) cho group call
+    const doLeaveGroup = async () => {
+        if (!activeCall) return;
+        await leaveGroupCall(activeCall.callSessionId).catch(() => {});
+        await stopAndCloseTracks();
+        finalOnEnd();
+    };
+
+    // Host giải tán group call cho tất cả
+    const doEndGroupForAll = async () => {
+        if (!activeCall) return;
+        await endGroupCall(activeCall.callSessionId).catch(() => {});
+        await stopAndCloseTracks();
+        finalOnEnd();
+    };
+
     const handleEndCall = async () => {
+        // Group call: host có prompt chọn; non-host mặc định Thoát.
+        if (activeCall?.isGroupCall) {
+            const myId = String((user as any)?.id || '');
+            const isHost = !!myId && myId === String(activeCall.hostId);
+            if (isHost) {
+                // eslint-disable-next-line no-alert
+                const choice = window.confirm(
+                    "Nhấn OK để KẾT THÚC cuộc gọi cho TẤT CẢ.\nNhấn Cancel để CHỈ THOÁT (cuộc gọi vẫn tiếp tục cho người khác).",
+                );
+                if (choice) await doEndGroupForAll();
+                else await doLeaveGroup();
+            } else {
+                await doLeaveGroup();
+            }
+            return;
+        }
+
+        // 1-1 như cũ
         if (activeCall) {
             if (callStatus === 'calling') await cancelCall(activeCall.callSessionId);
             else await endCall(activeCall.callSessionId);
@@ -389,18 +512,57 @@ const CallModal: React.FC<CallModalProps> = ({
         }
     };
 
-    const isConnected = callStatus === 'connected' || !!remoteUser;
+    const isConnected = callStatus === 'connected' || remoteUsers.length > 0;
     const isWaiting = !isConnected;
 
     if (!isOpen) return null;
 
+    // Web grid — landscape-first, CSS grid thật + col-span cho tile lẻ cuối.
+    //   1 → 1 ô full
+    //   2 → [A][B]                  (2 cột × 1 hàng)
+    //   3 → [A][B] / [C span 2]
+    //   4 → 2×2
+    //   5 → [A][B] / [C][D] / [E span 2]
+    //   6+ → 3 cột × N hàng
+    const groupTotal = remoteUsers.length;
+    const groupCols = groupTotal <= 1 ? 1 : groupTotal <= 5 ? 2 : 3;
+    const groupSpanIdx =
+        groupTotal === 3 ? 2 : groupTotal === 5 ? 4 : -1; // index của tile span 2
+
     const videoStage = (
         <div className="relative flex min-h-0 flex-1 w-full flex-col bg-[#0068FF]">
-            <div
-                id="remote-video-container"
-                className="relative flex min-h-0 flex-1 w-full items-center justify-center bg-[#0068FF] [&_video]:max-h-full [&_video]:max-w-full [&_video]:object-contain"
-            />
-            {!remoteUser && (
+            {activeCall?.isGroupCall ? (
+                <div
+                    className="relative grid min-h-0 flex-1 w-full gap-2 p-2 bg-[#0068FF]"
+                    style={{
+                        gridTemplateColumns: `repeat(${groupCols}, minmax(0, 1fr))`,
+                        gridAutoRows: '1fr',
+                    }}
+                >
+                    {remoteUsers.map((ru, idx) => (
+                        <div
+                            key={String(ru.uid)}
+                            id={`remote-video-${ru.uid}`}
+                            className="relative flex items-center justify-center overflow-hidden rounded-xl bg-black/25 [&_video]:h-full [&_video]:w-full [&_video]:object-contain"
+                            style={idx === groupSpanIdx ? { gridColumn: 'span 2' } : undefined}
+                        />
+                    ))}
+                    {remoteUsers.length === 0 ? (
+                        <div
+                            className="flex items-center justify-center text-white/70"
+                            style={{ gridColumn: `span ${groupCols}` }}
+                        >
+                            Đang chờ người tham gia…
+                        </div>
+                    ) : null}
+                </div>
+            ) : (
+                <div
+                    id="remote-video-container"
+                    className="relative flex min-h-0 flex-1 w-full items-center justify-center bg-[#0068FF] [&_video]:max-h-full [&_video]:max-w-full [&_video]:object-contain"
+                />
+            )}
+            {!activeCall?.isGroupCall && remoteUsers.length === 0 && (
                 <div className="pointer-events-none absolute inset-0 z-[5] flex flex-col items-center justify-center bg-[#0068FF]/55 px-6">
                     <div className="relative mb-5">
                         {isWaiting && (

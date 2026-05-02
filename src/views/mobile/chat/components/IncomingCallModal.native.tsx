@@ -6,7 +6,7 @@ import { useCallStore } from '@/shared/store/useCallStore';
 const BLUE = '#0068FF';
 
 const IncomingCallModal = () => {
-    const { incomingCall, acceptCall, rejectCall } = useCallStore();
+    const { incomingCall, incomingCallKind, acceptCall, acceptCallNoCamera, joinGroupCall, joinGroupCallNoCamera, rejectCall } = useCallStore();
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const opacityAnim = useRef(new Animated.Value(0.4)).current;
 
@@ -61,7 +61,12 @@ const IncomingCallModal = () => {
 
                 <View style={styles.actionsContainer}>
                     {callType === 'VIDEO' && (
-                        <TouchableOpacity style={styles.secondaryAction} onPress={() => acceptCall(incomingCall.callSessionId)}>
+                        <TouchableOpacity
+                            style={styles.secondaryAction}
+                            onPress={() => (incomingCallKind === 'group'
+                                ? joinGroupCallNoCamera(incomingCall.callSessionId)
+                                : acceptCallNoCamera(incomingCall.callSessionId))}
+                        >
                             <Ionicons name="videocam-off-outline" size={18} color="rgba(255,255,255,0.8)" />
                             <Text style={styles.secondaryText}>Trả lời không mở camera</Text>
                         </TouchableOpacity>
@@ -75,7 +80,12 @@ const IncomingCallModal = () => {
                         </View>
 
                         <View style={styles.actionItem}>
-                            <TouchableOpacity style={styles.acceptBtn} onPress={() => acceptCall(incomingCall.callSessionId)}>
+                            <TouchableOpacity
+                                style={styles.acceptBtn}
+                                onPress={() => (incomingCallKind === 'group'
+                                    ? joinGroupCall(incomingCall.callSessionId)
+                                    : acceptCall(incomingCall.callSessionId))}
+                            >
                                 <Ionicons name={callType === 'VIDEO' ? 'videocam' : 'call'} size={32} color="#fff" />
                             </TouchableOpacity>
                             <Text style={styles.actionLabel}>Trả lời</Text>
