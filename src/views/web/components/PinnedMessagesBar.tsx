@@ -89,7 +89,8 @@ export default function PinnedMessagesBar({
       m.type === "FILE" ||
       m.type === "IMAGE" ||
       m.type === "VIDEO" ||
-      m.type === "DOCUMENT"
+      m.type === "DOCUMENT" ||
+      m.type === "VOICE"
     )
       return getPinnedBarPreview(m, participantMap, pol);
     return m.content || getPinnedBarPreview(m, participantMap, pol);

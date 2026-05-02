@@ -679,6 +679,33 @@ const MessageList: React.FC<MessageListProps> = ({
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
+                    <button
+                        type="button"
+                        className="absolute right-16 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
+                        title="Tải về"
+                        onClick={async (e) => {
+                            e.stopPropagation();
+                            const url = activeGalleryItem.url;
+                            try {
+                                const response = await fetch(url);
+                                const blob = await response.blob();
+                                const blobUrl = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = blobUrl;
+                                a.download = url.split('/').pop()?.split('?')[0] || `file_${Date.now()}`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                window.URL.revokeObjectURL(blobUrl);
+                            } catch (error) {
+                                window.open(url, '_blank');
+                            }
+                        }}
+                    >
+                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                    </button>
                     <div className="mx-auto max-h-[90vh] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
                         {activeGalleryItem.kind === 'video' ? (
                             <video src={activeGalleryItem.url} controls playsInline preload="metadata" className="max-h-[88vh] max-w-[92vw] rounded-lg" />

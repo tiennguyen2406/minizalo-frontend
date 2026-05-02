@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import RecordRTC, { StereoAudioRecorder } from 'recordrtc';
 import { createPortal } from 'react-dom';
 import { validateFileSize } from '@/shared/constants';
 
@@ -18,228 +19,83 @@ const EMOJI_LIST = [
     '😀','😂','🥹','😍','🥰','😎','🤩','😭','😡','🥺',
     '👍','👎','❤️','🔥','✅','🎉','💯','🙏','😴','🤔',
     '😅','😆','😋','🤗','😐','😑','🙄','😏','😬','🥲',
-    '🫡','🫠','🤣','😇','🥳','😤','😩','😫','😓','😒',
-    '👋','🤝','👏','🙌','💪','👀','💀','🫶','❤️‍🔥','💔',
+    '🤔','🤨','😐','😑','😶','🫥','😶‍🌫️','😏','😒','🙄',
+    '😬','😮‍💨','🤥','🫨','😌','😔','😪','🤤','😴','😷',
+    '🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','😵‍💫',
+    '🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','🫤','😟',
+    '🙁','☹️','😮','😯','😲','😳','🥺','🥹','😦','😧',
+    '😨','😰','😥','😢','😭','😱','😖','😣','😞','😓',
+    '😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀',
+    '☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','😺',
+    '😸','😻','😼','😽','🙀','😿','😾','🙈','🙉','🙊'
 ];
 
-const MAX_ROWS = 5;
-const LINE_HEIGHT = 22; // px
-
-const MessageInput: React.FC<MessageInputProps> = ({
-    onSend,
-    onSendFile,
+const MessageInput: React.FC<MessageInputProps> = ({ 
+    onSend, 
+    onSendFile, 
     onSendFiles,
     onSendLike,
     onTyping,
     replyingTo,
     onCancelReply,
     isSendingFile,
-    onCreatePoll,
+    onCreatePoll
 }) => {
     const [text, setText] = useState('');
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [previewUrls, setPreviewUrls] = useState<string[]>([]);
     const [showEmoji, setShowEmoji] = useState(false);
-    const [emojiPos, setEmojiPos] = useState<{ bottom: number; left: number } | null>(null);
-    const [failedSend, setFailedSend] = useState(false);
-    const [fileError, setFileError] = useState<string | null>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+
+    const mediaRecorderRef = useRef<RecordRTC | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const imageInputRef = useRef<HTMLInputElement>(null);
-    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const emojiRef = useRef<HTMLDivElement>(null);
-    const emojiBtnRef = useRef<HTMLButtonElement>(null);
-    const emojiPopupRef = useRef<HTMLDivElement>(null);
+    const emojiPickerRef = useRef<HTMLDivElement>(null);
 
-    // ── Auto-resize textarea ───────────────────────────────────────────────────
-    const resizeTextarea = useCallback(() => {
-        const el = textareaRef.current;
-        if (!el) return;
-        el.style.height = 'auto';
-        const maxH = MAX_ROWS * LINE_HEIGHT + 16; // padding
-        el.style.height = Math.min(el.scrollHeight, maxH) + 'px';
-        el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden';
-    }, []);
-
-    useEffect(() => {
-        resizeTextarea();
-    }, [text, resizeTextarea]);
-
-    // ── Close emoji picker on outside click ───────────────────────────────────
-    useEffect(() => {
-        const handler = (e: MouseEvent) => {
-            const target = e.target as Node;
-            const inBtn = emojiRef.current?.contains(target);
-            const inPopup = emojiPopupRef.current?.contains(target);
-            if (!inBtn && !inPopup) {
-                setShowEmoji(false);
-            }
-        };
-        if (showEmoji) document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, [showEmoji]);
-
-    // ── Typing indicator with debounce ────────────────────────────────────────
-    const notifyTyping = useCallback((val: string) => {
-        if (!onTyping) return;
-        onTyping(val.length > 0);
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        if (val.length > 0) {
-            typingTimeoutRef.current = setTimeout(() => onTyping(false), 3000);
-        }
-    }, [onTyping]);
-
-    // ── Send ──────────────────────────────────────────────────────────────────
-    const handleSend = useCallback(async () => {
-        // Multi-file send
-        if (selectedFiles.length > 0 && onSendFiles) {
-            try {
-                setFailedSend(false);
-                onSendFiles(selectedFiles);
-                clearFilePreview();
-            } catch {
-                setFailedSend(true);
-            }
-            return;
-        }
-        if (selectedFile && onSendFile) {
-            try {
-                setFailedSend(false);
-                onSendFile(selectedFile);
-                clearFilePreview();
-            } catch {
-                setFailedSend(true);
-            }
-            return;
-        }
-        const trimmed = text.trim();
-        if (!trimmed) return;
-        try {
-            setFailedSend(false);
-            onSend(trimmed);
+    const handleSend = () => {
+        if (text.trim()) {
+            onSend(text.trim());
             setText('');
-            if (onTyping) onTyping(false);
-            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-            // reset height
-            if (textareaRef.current) textareaRef.current.style.height = 'auto';
-        } catch {
-            setFailedSend(true);
         }
-    }, [text, selectedFile, selectedFiles, onSend, onSendFile, onSendFiles, onTyping]);
-
-    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const val = e.target.value;
-        setText(val);
-        notifyTyping(val);
-        setFailedSend(false);
     };
 
-    // ── Keyboard: Enter = send, Shift+Enter = newline ─────────────────────────
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length > 0) {
+            if (onSendFiles) {
+                onSendFiles(files);
+            } else if (onSendFile) {
+                onSendFile(files[0]);
+            }
+        }
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSend();
         }
     };
 
-    // ── File select ───────────────────────────────────────────────────────────
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
-        const fileArr = Array.from(files);
+    const notifyTyping = useCallback((content: string) => {
+        if (onTyping) {
+            onTyping(content.length > 0);
+        }
+    }, [onTyping]);
 
-        // Validate all files first
-        for (const f of fileArr) {
-            const verr = validateFileSize(f);
-            if (verr) {
-                setFileError(verr);
-                e.target.value = '';
-                return;
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+                setShowEmoji(false);
             }
-        }
-        setFileError(null);
-
-        if (fileArr.length === 1) {
-            const file = fileArr[0];
-            setSelectedFile(file);
-            setSelectedFiles([]);
-            previewUrls.forEach(u => URL.revokeObjectURL(u));
-            setPreviewUrls([]);
-            if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-                setPreviewUrl(URL.createObjectURL(file));
-            } else {
-                setPreviewUrl(null);
-            }
-        } else {
-            // Multi files
-            clearFilePreview();
-            setSelectedFiles(fileArr);
-            const urls = fileArr
-                .filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'))
-                .map(f => URL.createObjectURL(f));
-            setPreviewUrls(urls);
-        }
-        e.target.value = '';
-    };
-
-    // ── Multi-image select ───────────────────────────────────────────────────
-    const handleMultiImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
-        const fileArr = Array.from(files);
-        if (fileArr.length === 1) {
-            // Single file: use normal flow
-            handleFileSelect(e);
-            return;
-        }
-        for (const f of fileArr) {
-            const verr = validateFileSize(f);
-            if (verr) {
-                setFileError(verr);
-                e.target.value = '';
-                return;
-            }
-        }
-        setFileError(null);
-        // Multi files
-        clearFilePreview();
-        setSelectedFiles(fileArr);
-        const urls = fileArr
-            .filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'))
-            .map(f => URL.createObjectURL(f));
-        setPreviewUrls(urls);
-        e.target.value = '';
-    };
-
-    // ── Paste image from clipboard ────────────────────────────────────────────
-    const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        const items = Array.from(e.clipboardData.items);
-        const imageItem = items.find(item => item.type.startsWith('image/'));
-        if (!imageItem) return;
-        e.preventDefault();
-        const file = imageItem.getAsFile();
-        if (!file) return;
-        const verr = validateFileSize(file);
-        if (verr) {
-            setFileError(verr);
-            return;
-        }
-        setFileError(null);
-        setSelectedFile(file);
-        setPreviewUrl(URL.createObjectURL(file));
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-
-    const clearFilePreview = () => {
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        previewUrls.forEach(u => URL.revokeObjectURL(u));
-        setSelectedFile(null);
-        setSelectedFiles([]);
-        setPreviewUrl(null);
-        setPreviewUrls([]);
-    };
 
     const formatFileSize = (bytes: number) => {
         if (bytes < 1024) return bytes + ' B';
@@ -266,376 +122,227 @@ const MessageInput: React.FC<MessageInputProps> = ({
         setShowEmoji(false);
     };
 
-    const hasContent = text.trim().length > 0 || !!selectedFile || selectedFiles.length > 0;
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    };
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            const recorder = new RecordRTC(stream, {
+                type: 'audio',
+                mimeType: 'audio/wav',
+                recorderType: StereoAudioRecorder,
+                numberOfAudioChannels: 1,
+                desiredSampRate: 16000,
+            });
+
+            mediaRecorderRef.current = recorder;
+            recorder.startRecording();
+            
+            setIsRecording(true);
+            setRecordingTime(0);
+            recordingIntervalRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1);
+            }, 1000);
+        } catch (err) {
+            console.error("Error accessing microphone:", err);
+            alert("Không thể truy cập microphone. Vui lòng kiểm tra quyền truy cập.");
+        }
+    };
+
+    const stopRecordingAndSend = () => {
+        const recorder = mediaRecorderRef.current;
+        if (recorder) {
+            recorder.stopRecording(() => {
+                const blob = recorder.getBlob();
+                const audioFile = new File([blob], `voice_${Date.now()}.wav`, { type: 'audio/wav' });
+                
+                if (onSendFile) {
+                    onSendFile(audioFile);
+                }
+
+                const internalRecorder = recorder.getInternalRecorder() as any;
+                if (internalRecorder && internalRecorder.stream) {
+                    internalRecorder.stream.getTracks().forEach((t: any) => t.stop());
+                }
+                
+                setIsRecording(false);
+                setRecordingTime(0);
+                if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+            });
+        }
+    };
+
+    const cancelRecording = () => {
+        const recorder = mediaRecorderRef.current;
+        if (recorder) {
+            recorder.destroy();
+            mediaRecorderRef.current = null;
+        }
+        setIsRecording(false);
+        setRecordingTime(0);
+        if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+    };
 
     return (
-        <div style={{
-            backgroundColor: 'var(--bg-primary)',
-            borderTop: '1px solid var(--border-primary)',
-            transition: 'background-color 0.3s ease',
-            display: 'flex',
-            flexDirection: 'column',
-        }}>
-            {fileError ? (
-                <div style={{
-                    padding: '8px 12px',
-                    background: '#fef2f2',
-                    color: '#b91c1c',
-                    fontSize: 13,
-                    borderBottom: '1px solid #fecaca',
-                }}>
-                    {fileError}
-                    <button type="button" onClick={() => setFileError(null)} style={{ marginLeft: 8, textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>Đóng</button>
-                </div>
-            ) : null}
-
-            {/* ── Reply preview ── */}
-            {replyingTo && (() => {
-                const rAtt = replyingTo.attachments?.[0];
-                const rUrl = replyingTo.fileUrl || rAtt?.url;
-                let rt: string = replyingTo.type;
-                if ((rt === 'TEXT' || !rt) && rUrl && rAtt) {
-                    const mime = (rAtt.type || '').toLowerCase();
-                    if (mime.startsWith('image')) rt = 'IMAGE';
-                    else if (mime.startsWith('video')) rt = 'VIDEO';
-                    else rt = 'FILE';
-                }
-                const showImg = rt === 'IMAGE' && rUrl;
-                return (
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    background: 'var(--bg-secondary, #f8f9fa)',
-                    borderBottom: '1px solid var(--border-primary)',
-                }}>
-                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0, flex: 1, borderLeft: '3px solid #0068ff', paddingLeft: 8 }}>
-                        {showImg ? (
-                            <img src={rUrl} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-                        ) : rt === 'VIDEO' ? (
-                            <div style={{ width: 40, height: 40, borderRadius: 6, background: '#1e293b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>▶</div>
-                        ) : (rt === 'FILE' || rt === 'DOCUMENT') ? (
-                            <div style={{ width: 40, height: 40, borderRadius: 6, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                            </div>
-                        ) : null}
-                        <div style={{ display: 'flex', flexDirection: 'column', fontSize: 13, minWidth: 0 }}>
-                        <span style={{ fontWeight: 600, color: '#0068ff', marginBottom: 2 }}>
-                            Trả lời {replyingTo.senderName || 'Người dùng'}
+        <div className="border-t border-gray-200 bg-white p-4">
+            {replyingTo && (
+                <div className="mb-2 flex items-center justify-between rounded-lg bg-gray-50 p-2 border-l-4 border-blue-500">
+                    <div className="flex flex-col">
+                        <span className="text-xs font-bold text-blue-600">Trả lời: {replyingTo.senderName}</span>
+                        <span className="text-sm text-gray-600 truncate max-w-md">
+                            {replyingTo.type === 'VOICE' ? 'Tin nhắn thoại' : replyingTo.content || '[Tin nhắn]'}
                         </span>
-                        <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
-                            {rt === 'IMAGE' ? 'Ảnh'
-                                : rt === 'VIDEO'
-                                    ? `Video${(replyingTo.fileName || rAtt?.name) ? ` · ${replyingTo.fileName || rAtt?.name}` : ''}`
-                                : (rt === 'FILE' || rt === 'DOCUMENT') ? (replyingTo.fileName || rAtt?.name || rAtt?.filename || 'Tệp đính kèm')
-                                : replyingTo.content || '[Tin nhắn]'}
-                        </span>
-                        </div>
                     </div>
-                    {onCancelReply && (
-                        <button onClick={onCancelReply} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text-muted)', display: 'flex' }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                        </button>
-                    )}
-                </div>
-                );
-            })()}
-
-            {/* ── Multi-image preview ── */}
-            {selectedFiles.length > 1 && (
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    background: '#eff6ff',
-                    borderBottom: '1px solid #bfdbfe',
-                    overflowX: 'auto',
-                }}>
-                    <div style={{ display: 'flex', gap: 6, flex: 1 }}>
-                        {selectedFiles.map((f, i) => (
-                            <div key={i} style={{ position: 'relative', width: 56, height: 56, borderRadius: 8, overflow: 'hidden', flexShrink: 0, border: '1px solid #dbeafe' }}>
-                                {f.type.startsWith('image/') ? (
-                                    <img src={previewUrls[i] || ''} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : (
-                                    <div style={{ width: '100%', height: '100%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5">
-                                            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0, marginLeft: 4 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1e3a5f' }}>{selectedFiles.length} ảnh</span>
-                        <button onClick={clearFilePreview} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94a3b8', display: 'flex' }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                        </button>
-                    </div>
+                    <button onClick={onCancelReply} className="p-1 hover:bg-gray-200 rounded-full">
+                        <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
             )}
 
-            {/* ── File / Image preview (single) ── */}
-            {selectedFile && selectedFiles.length === 0 && (
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '8px 12px',
-                    background: '#eff6ff',
-                    borderBottom: '1px solid #bfdbfe',
-                }}>
-                    {previewUrl && selectedFile.type.startsWith('image/') && (
-                        <img
-                            src={previewUrl}
-                            alt="preview"
-                            style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid #dbeafe' }}
+            <div className="flex items-end gap-2">
+                {!isRecording && (
+                    <div className="flex gap-1 mb-1">
+                        <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="p-2 hover:bg-gray-100 rounded-full text-gray-600 transition-colors"
+                            title="Gửi file/ảnh"
+                        >
+                            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                            </svg>
+                        </button>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleFileSelect} 
+                            className="hidden" 
+                            multiple 
+                        />
+                        
+                        <button 
+                            onClick={onCreatePoll}
+                            className="p-2 hover:bg-gray-100 rounded-full text-gray-600 transition-colors"
+                            title="Tạo bình chọn"
+                        >
+                            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
+
+                <div className="relative flex-1">
+                    {isRecording ? (
+                        <div className="flex items-center justify-between bg-blue-50 rounded-2xl px-4 h-[42px] border border-blue-100">
+                            <div className="flex items-center gap-3">
+                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                                <span className="text-sm font-medium text-blue-700 tabular-nums">
+                                    Đang ghi âm: {formatTime(recordingTime)}
+                                </span>
+                            </div>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={cancelRecording}
+                                    className="px-3 py-1 text-sm font-semibold text-gray-500 hover:text-red-500 transition-colors"
+                                >
+                                    Hủy
+                                </button>
+                                <button 
+                                    onClick={stopRecordingAndSend}
+                                    className="px-4 py-1 bg-blue-600 text-white text-sm font-bold rounded-full hover:bg-blue-700 transition-all shadow-sm"
+                                >
+                                    Gửi ngay
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <textarea
+                            ref={textareaRef}
+                            value={text}
+                            onChange={(e) => {
+                                setText(e.target.value);
+                                notifyTyping(e.target.value);
+                            }}
+                            onKeyDown={handleKeyDown}
+                            placeholder="Nhập tin nhắn..."
+                            rows={1}
+                            className="w-full resize-none rounded-2xl bg-gray-100 px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-[42px] max-h-32"
                         />
                     )}
-                    {previewUrl && selectedFile.type.startsWith('video/') && (
-                        <div style={{ position: 'relative', width: 64, height: 64, borderRadius: 8, overflow: 'hidden', background: '#000' }}>
-                            <video src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }}>
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z" /></svg>
-                            </div>
-                        </div>
-                    )}
-                    {!previewUrl && (
-                        <div style={{ width: 48, height: 48, background: '#dbeafe', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round">
-                                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                        </div>
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: '#1e3a5f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {selectedFile.name}
-                        </p>
-                        <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>{formatFileSize(selectedFile.size)}</p>
-                    </div>
-                    <button onClick={clearFilePreview} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#94a3b8', display: 'flex' }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                    </button>
                 </div>
-            )}
 
-            {/* ── Hidden file inputs ── */}
-            <input ref={imageInputRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }} onChange={handleMultiImageSelect} />
-            <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
-
-            {/* ── Toolbar ── */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '6px 8px 2px' }}>
-                {/* Emoji */}
-                <div style={{ position: 'relative' }} ref={emojiRef}>
-                    <button
-                        ref={emojiBtnRef}
-                        onClick={() => {
-                            setShowEmoji(v => {
-                                if (!v && emojiBtnRef.current) {
-                                    const rect = emojiBtnRef.current.getBoundingClientRect();
-                                    setEmojiPos({ bottom: window.innerHeight - rect.top + 6, left: rect.left });
-                                }
-                                return !v;
-                            });
-                        }}
-                        title="Biểu cảm"
-                        style={toolbarBtnStyle(showEmoji)}
-                    >
-                        <span style={{ fontSize: 20, lineHeight: 1 }}>😊</span>
-                    </button>
-
-                    {showEmoji && emojiPos && createPortal(
-                        <div ref={emojiPopupRef} style={{
-                            position: 'fixed',
-                            bottom: emojiPos.bottom,
-                            left: emojiPos.left,
-                            zIndex: 9999,
-                            background: '#fff',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: 12,
-                            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                            padding: 10,
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(10, 1fr)',
-                            gap: 2,
-                            width: 280,
-                        }}>
-                            {EMOJI_LIST.map(em => (
-                                <button
-                                    key={em}
-                                    onClick={() => insertEmoji(em)}
-                                    style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        fontSize: 20,
-                                        padding: '3px 2px',
-                                        borderRadius: 6,
-                                        lineHeight: 1,
-                                        transition: 'background 0.1s',
-                                    }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                {!isRecording && (
+                    <div className="flex gap-1 mb-1">
+                        <div className="relative">
+                            <button 
+                                onClick={() => setShowEmoji(!showEmoji)}
+                                className="p-2 hover:bg-gray-100 rounded-full text-gray-600 transition-colors"
+                            >
+                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </button>
+                            
+                            {showEmoji && (
+                                <div 
+                                    ref={emojiPickerRef}
+                                    className="absolute bottom-full right-0 mb-2 grid grid-cols-8 gap-1 rounded-xl border border-gray-200 bg-white p-2 shadow-2xl z-50 w-64 max-h-48 overflow-y-auto scrollbar-hide"
                                 >
-                                    {em}
+                                    {EMOJI_LIST.map((emoji, i) => (
+                                        <button 
+                                            key={i} 
+                                            onClick={() => insertEmoji(emoji)}
+                                            className="p-1.5 hover:bg-gray-100 rounded text-xl transition-colors"
+                                        >
+                                            {emoji}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {!text.trim() ? (
+                            <div className="flex gap-1">
+                                <button 
+                                    onClick={startRecording}
+                                    className="p-2 hover:bg-red-50 rounded-full text-gray-600 hover:text-red-500 transition-colors"
+                                    title="Ghi âm"
+                                >
+                                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                    </svg>
                                 </button>
-                            ))}
-                        </div>,
-                        document.body
-                    )}
-                </div>
-
-                {/* Image / Video */}
-                <button
-                    onClick={() => imageInputRef.current?.click()}
-                    disabled={isSendingFile}
-                    title="Gửi ảnh / video"
-                    style={toolbarBtnStyle(false)}
-                >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                </button>
-
-                {/* File attach */}
-                <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isSendingFile}
-                    title="Đính kèm tệp"
-                    style={toolbarBtnStyle(false)}
-                >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                </button>
-
-                {/* Create Poll */}
-                {onCreatePoll && (
-                    <button
-                        onClick={onCreatePoll}
-                        disabled={isSendingFile}
-                        title="Tạo bình chọn"
-                        style={toolbarBtnStyle(false)}
-                    >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                        </svg>
-                    </button>
-                )}
-            </div>
-
-            {/* ── Input row ── */}
-            <div style={{ display: 'flex', alignItems: 'flex-end', padding: '2px 8px 10px', gap: 6 }}>
-                <div style={{ flex: 1, position: 'relative' }}>
-                    <textarea
-                        ref={textareaRef}
-                        value={text}
-                        onChange={handleChange}
-                        onKeyDown={handleKeyDown}
-                        onPaste={handlePaste}
-                        disabled={!!selectedFile}
-                        placeholder={selectedFile ? 'Nhấn gửi để gửi tệp...' : 'Nhập tin nhắn... (Shift+Enter để xuống dòng)'}
-                        rows={1}
-                        style={{
-                            width: '100%',
-                            resize: 'none',
-                            border: '1.5px solid #e5e7eb',
-                            borderRadius: 20,
-                            padding: '8px 14px',
-                            fontSize: 14,
-                            lineHeight: `${LINE_HEIGHT}px`,
-                            background: 'var(--bg-secondary, #f3f4f6)',
-                            color: 'var(--text-primary)',
-                            outline: 'none',
-                            transition: 'border-color 0.15s',
-                            boxSizing: 'border-box',
-                            fontFamily: 'inherit',
-                            overflowY: 'hidden',
-                        }}
-                        onFocus={e => (e.target.style.borderColor = '#0068ff')}
-                        onBlur={e => (e.target.style.borderColor = '#e5e7eb')}
-                    />
-                </div>
-
-                {/* Send / Like / Error */}
-                {failedSend ? (
-                    <button
-                        onClick={handleSend}
-                        title="Gửi lại"
-                        style={{
-                            width: 38, height: 38, borderRadius: '50%',
-                            background: '#fef2f2', border: '1px solid #fca5a5',
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            flexShrink: 0, color: '#ef4444',
-                        }}
-                    >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                        </svg>
-                    </button>
-                ) : hasContent ? (
-                    <button
-                        onClick={handleSend}
-                        disabled={isSendingFile}
-                        title="Gửi"
-                        style={{
-                            width: 38, height: 38, borderRadius: '50%',
-                            background: isSendingFile ? '#93c5fd' : '#0068ff',
-                            border: 'none', cursor: isSendingFile ? 'wait' : 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            flexShrink: 0, transition: 'background 0.15s, transform 0.1s',
-                        }}
-                        onMouseEnter={e => !isSendingFile && (e.currentTarget.style.transform = 'scale(1.08)')}
-                        onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
-                    >
-                        {isSendingFile ? (
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="white" style={{ animation: 'spin 1s linear infinite' }}>
-                                <path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-                            </svg>
+                                <button 
+                                    onClick={onSendLike}
+                                    className="p-2 hover:bg-gray-100 rounded-full transition-colors text-2xl leading-none"
+                                    title="Gửi icon Like"
+                                >
+                                    👍
+                                </button>
+                            </div>
                         ) : (
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                                <path d="M22 2L11 13" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                                <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                            </svg>
+                            <button 
+                                onClick={handleSend}
+                                disabled={!text.trim()}
+                                className="p-2 rounded-full text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                            >
+                                <svg className="h-6 w-6 fill-current" viewBox="0 0 24 24">
+                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                                </svg>
+                            </button>
                         )}
-                    </button>
-                ) : (
-                    <button
-                        onClick={() => onSendLike?.()}
-                        title="Gửi Like"
-                        style={{
-                            width: 38, height: 38, borderRadius: '50%', background: 'none', border: 'none',
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            flexShrink: 0, fontSize: 22, lineHeight: 1,
-                            transition: 'transform 0.15s',
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.2)')}
-                        onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
-                    >
-                        👍
-                    </button>
+                    </div>
                 )}
             </div>
         </div>
     );
 };
-
-function toolbarBtnStyle(active: boolean): React.CSSProperties {
-    return {
-        width: 34, height: 34, borderRadius: '50%', background: active ? '#eff6ff' : 'none',
-        border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
-        justifyContent: 'center', color: active ? '#0068ff' : '#6b7280',
-        transition: 'background 0.12s, color 0.12s',
-        flexShrink: 0,
-    };
-}
 
 export default MessageInput;

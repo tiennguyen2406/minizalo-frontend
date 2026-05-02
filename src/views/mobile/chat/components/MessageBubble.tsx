@@ -13,6 +13,7 @@ import { Video, ResizeMode } from "expo-av";
 import { useThemeStore } from "@/shared/store/themeStore";
 import { isImageAttachment, isVideoAttachment } from "@/shared/utils/messageAttachments";
 import PollBubbleMobile from "./PollBubbleMobile";
+import AudioMessageItem from "./AudioMessageItem";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -462,9 +463,15 @@ export default function MessageBubble({
 
     const imageAttachments = (message.attachments || []).filter((a) => isImageAttachment(a));
     const videoAttachments = (message.attachments || []).filter((a) => isVideoAttachment(a));
-    const fileAttachments = (message.attachments || []).filter(
+    const allFiles = (message.attachments || []).filter(
         (a) => !isImageAttachment(a) && !isVideoAttachment(a),
     );
+    const audioAttachments = allFiles.filter((a) => {
+        const ext = (a.filename || a.name || "").split('.').pop()?.toLowerCase() || "";
+        return ["m4a", "mp3", "wav", "webm", "ogg", "aac"].includes(ext) || (a.type || "").startsWith("audio/");
+    });
+    const fileAttachments = allFiles.filter((a) => !audioAttachments.includes(a));
+
 
     const burstImagePairs = useMemo(() => {
         if (!imageGroupMessages || imageGroupMessages.length < 2) return null;
@@ -485,6 +492,7 @@ export default function MessageBubble({
     const hasImages = imageCells.length > 0 && !isRecalled;
     const hasVideos = videoAttachments.length > 0 && !isRecalled;
     const hasFiles = fileAttachments.length > 0 && !isRecalled;
+    const hasAudioFiles = audioAttachments.length > 0 && !isRecalled;
     const hasText = !!message.content && !isRecalled;
     const hideFilenameCaption =
         !!imageGroupMessages && imageGroupMessages.length >= 2;
@@ -506,7 +514,7 @@ export default function MessageBubble({
         isCallMessage = true;
     }
 
-    const isMediaOnly = (hasImages || hasVideos || hasFiles) && !layoutHasText && !isRecalled && !isCallMessage;
+    const isMediaOnly = (hasImages || hasVideos || hasFiles || hasAudioFiles) && !layoutHasText && !isRecalled && !isCallMessage;
     const bubbleBackground = isRecalled
         ? (theme === 'dark' ? "#1c1c1e" : "#e5e5ea")
         : (isMediaOnly
@@ -945,6 +953,17 @@ export default function MessageBubble({
                                 </View>
                             );
                         })()}
+
+                        {/* Audio attachments */}
+                        {hasAudioFiles && (
+                            <View style={{ marginTop: (hasImages || hasVideos) ? 8 : 0 }}>
+                                {audioAttachments.map((att, idx) => (
+                                    <View key={`audio-${idx}`} style={{ marginBottom: idx === audioAttachments.length - 1 ? 0 : 8 }}>
+                                        <AudioMessageItem url={getImageUrl(att.url)} isMe={isMe} />
+                                    </View>
+                                ))}
+                            </View>
+                        )}
 
                         {/* File attachments */}
                         {hasFiles && (
