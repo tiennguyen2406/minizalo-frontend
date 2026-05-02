@@ -193,7 +193,7 @@ export const chatService = {
         roomId: string, 
         content: string, 
         replyToMessageId?: string,
-        type: "TEXT" | "IMAGE" | "FILE" | "VIDEO" | "FOLDER" = "TEXT",
+        type: "TEXT" | "IMAGE" | "FILE" | "VIDEO" | "FOLDER" | "VOICE" | string = "TEXT",
         attachments?: Attachment[]
     ): Promise<MessageDynamo> => {
         const body: any = {

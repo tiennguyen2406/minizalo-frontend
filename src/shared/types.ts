@@ -10,7 +10,23 @@ export interface User {
 export interface ChatMessageRequest {
     receiverId: string;
     content: string;
-    type: "TEXT" | "IMAGE" | "VIDEO" | "FILE" | "STICKER" | "REPLY" | "FORWARD";
+    type:
+        | "TEXT"
+        | "IMAGE"
+        | "VIDEO"
+        | "FILE"
+        | "DOCUMENT"
+        | "FOLDER"
+        | "STICKER"
+        | "REPLY"
+        | "FORWARD"
+        | "SYSTEM"
+        | "PIN_NOTIFICATION"
+        | "POLL"
+        | "VOICE"
+        | "LINK"
+        | "CALL_VOICE"
+        | "CALL_VIDEO";
     replyToId?: string;
     // Field backend thực sự sử dụng cho reply
     replyToMessageId?: string;
@@ -62,7 +78,7 @@ export interface PinMessageRequest {
     roomId: string;
     messageId: string;
     pin: boolean;
-    messageType?: string; // TEXT, IMAGE, VIDEO, FILE, LINK
+    messageType?: string; // TEXT, IMAGE, VIDEO, FILE, VOICE, LINK
 }
 
 export interface Attachment {
@@ -94,6 +110,8 @@ export interface Message {
         | "SYSTEM"
         | "PIN_NOTIFICATION"
         | "POLL"
+        | "VOICE"
+        | "LINK"
         | "CALL_VOICE"
         | "CALL_VIDEO";
     createdAt: string; // ISO string

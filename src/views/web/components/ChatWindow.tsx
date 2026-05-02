@@ -32,6 +32,9 @@ import AiSummaryModal from "./AiSummaryModal";
 import { ArrowUp, Sparkles, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import UnreadAiSummaryModal from "./UnreadAiSummaryModal";
+import AiOptionsModal from "./AiOptionsModal";
+import AiPersonaBotModalWeb from "./AiPersonaBotModalWeb";
+import AiTaskModalWeb, { AiTaskMode } from "./AiTaskModalWeb";
 import { Ionicons } from '@/shared/components/Icons';
 
 interface ChatWindowProps {
@@ -102,6 +105,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   const [groupCallInviteOpen, setGroupCallInviteOpen] = useState(false);
   const [groupCallType, setGroupCallType] = useState<CallType>("VOICE");
   const [isAiSummaryOpen, setIsAiSummaryOpen] = useState(false);
+  const [isAiOptionsOpen, setIsAiOptionsOpen] = useState(false);
+  const [isAiPersonaOpen, setIsAiPersonaOpen] = useState(false);
+  const [isAiTaskOpen, setIsAiTaskOpen] = useState(false);
+  const [aiTaskMode, setAiTaskMode] = useState<AiTaskMode>("translate");
   const [showUnreadAiModal, setShowUnreadAiModal] = useState(false);
   const [unreadAiDates, setUnreadAiDates] = useState<{ start?: string; end?: string }>({});
   const [unreadAiCount, setUnreadAiCount] = useState(0);
@@ -852,9 +859,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
       // 2. Determine type
       const mimeType = file.type.toLowerCase();
-      let msgType: "IMAGE" | "VIDEO" | "FILE" = "FILE";
+      let msgType: "IMAGE" | "VIDEO" | "VOICE" | "FILE" = "FILE";
       if (mimeType.startsWith("image/")) msgType = "IMAGE";
       else if (mimeType.startsWith("video/")) msgType = "VIDEO";
+      else if (mimeType.startsWith("audio/")) msgType = "VOICE";
 
       const attachment = {
         url: uploadResult.fileUrl,
@@ -1067,7 +1075,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       const isAnyImage = files.some((f) =>
         f.type.toLowerCase().startsWith("image/"),
       );
-      const msgType: "IMAGE" | "VIDEO" | "FILE" = isAnyVideo
+      const isAnyAudio = files.some((f) =>
+        f.type.toLowerCase().startsWith("audio/"),
+      );
+      const msgType: "IMAGE" | "VIDEO" | "VOICE" | "FILE" = isAnyAudio
+        ? "VOICE"
+        : isAnyVideo
         ? "VIDEO"
         : isAnyImage
           ? "IMAGE"
@@ -1146,21 +1159,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     const newMsgs = currentMsgs.map((m) =>
       m.id === messageId ? { ...m, pinned: !currentPinStatus } : m,
     );
-
-    // Add systemic pin/unpin notification locally (chỉ hiển thị cho người nhấn)
-    const targetMessage = currentMsgs.find(m => m.id === messageId);
-    if (targetMessage) {
-      newMsgs.push({
-        id: `sys-${Date.now()}-${Math.random()}`,
-        senderId: 'system',
-        roomId,
-        content: !currentPinStatus ? 'Bạn đã ghim tin nhắn' : 'Bạn đã bỏ ghim tin nhắn',
-        type: 'SYSTEM',
-        createdAt: new Date().toISOString(),
-        isRecall: currentPinStatus,
-        replyToId: !currentPinStatus ? messageId : undefined,
-      });
-    }
 
     setMessages(roomId, newMsgs);
   };
@@ -1297,12 +1295,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
           <div className="flex items-center gap-1 shrink-0">
             {/* AI Summary Button */}
             <button
-              onClick={() => setIsAiSummaryOpen(true)}
-              title="AI Tóm tắt chat"
+              onClick={() => setIsAiOptionsOpen(true)}
+              title="Trợ lý AI Gemini"
               className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
-                isAiSummaryOpen
-                  ? "bg-yellow-100 text-yellow-600"
-                  : "hover:bg-yellow-50 text-yellow-500"
+                isAiOptionsOpen
+                  ? "bg-purple-100 text-purple-600"
+                  : "hover:bg-purple-50 text-purple-500"
               }`}
             >
               <Sparkles className="w-5 h-5 fill-current" />
@@ -1389,8 +1387,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             transition: "background-color 0.3s ease",
           }}
         >
-          {/* Unread Banner: show when there are unreads (oldest unread is behind the current view) */}
-          {(!isBannerDismissed && (initialUnreadCount + sessionUnreadCount > 0 || !!firstUnreadMessage)) && (
+          {/* Unread Banner: show when there are enough unreads to likely be off-screen (>= 10) */}
+          {(!isBannerDismissed && (initialUnreadCount + sessionUnreadCount >= 10)) && (
               <div 
                   className="absolute top-4 left-0 right-0 z-[1000] flex justify-center animate-in slide-in-from-top-4 duration-300 pointer-events-none"
               >
@@ -1691,6 +1689,32 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         <AiSummaryModal
           roomId={roomId}
           onClose={() => setIsAiSummaryOpen(false)}
+        />
+      )}
+
+      {isAiOptionsOpen && (
+        <AiOptionsModal
+          onClose={() => setIsAiOptionsOpen(false)}
+          onSelectSummarize={() => setIsAiSummaryOpen(true)}
+          onSelectPersona={() => setIsAiPersonaOpen(true)}
+          onSelectTask={(mode) => {
+            setAiTaskMode(mode);
+            setIsAiTaskOpen(true);
+          }}
+        />
+      )}
+
+      {isAiPersonaOpen && (
+        <AiPersonaBotModalWeb
+          onClose={() => setIsAiPersonaOpen(false)}
+        />
+      )}
+
+      {isAiTaskOpen && (
+        <AiTaskModalWeb
+          mode={aiTaskMode}
+          roomId={roomId}
+          onClose={() => setIsAiTaskOpen(false)}
         />
       )}
 

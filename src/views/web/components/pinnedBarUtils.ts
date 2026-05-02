@@ -23,14 +23,17 @@ export function getPinnedBarPreview(
     t === "VIDEO" ||
     t === "FILE" ||
     t === "DOCUMENT" ||
-    t === "FOLDER"
+    t === "FOLDER" ||
+    t === "VOICE"
   ) {
     const kind =
       t === "IMAGE"
         ? "Hình ảnh"
         : t === "VIDEO"
           ? "Video"
-          : "Tệp đính kèm";
+          : t === "VOICE"
+            ? "Tin nhắn thoại"
+            : "Tệp đính kèm";
     return `${name}: ${kind}`;
   }
   const raw = (msg.content || "").replace(/\s+/g, " ").trim();
@@ -44,6 +47,11 @@ export function getPinnedBarPreview(
   return `${name}: ${raw.slice(0, max)}${tail}`;
 }
 
-export function pinnedKindLabel(msg: Message): "Tin nhắn" | "Bình chọn" {
-  return msg.type === "POLL" ? "Bình chọn" : "Tin nhắn";
+export function pinnedKindLabel(msg: Message): string {
+  if (msg.type === "POLL") return "Bình chọn";
+  if (msg.type === "VOICE") return "Tin nhắn thoại";
+  if (msg.type === "IMAGE") return "Hình ảnh";
+  if (msg.type === "VIDEO") return "Video";
+  if (msg.type === "FILE" || msg.type === "DOCUMENT" || msg.type === "FOLDER") return "Tệp đính kèm";
+  return "Tin nhắn";
 }

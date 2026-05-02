@@ -230,6 +230,7 @@ export default function ChatScreen() {
     useState<UserProfile | null>(null);
 
   const [sending, setSending] = useState(false);
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<any | null>(
     null,
   );
@@ -239,11 +240,11 @@ export default function ChatScreen() {
   const [firstUnreadMessage, setFirstUnreadMessage] = useState<MessageDynamo | null>(null);
   const [showUnreadAiModal, setShowUnreadAiModal] = useState(false);
   const [aiSummaryDates, setAiSummaryDates] = useState<{ start?: Date; end?: Date }>({});
-  
+
   useEffect(() => {
     if (activeRoomId) {
       const room = rooms.find((r) => String(r.id) === String(activeRoomId));
-      
+
       // 1. Chỉ chạy logic init unread Banner MỘT LẦN duy nhất khi vào phòng
       if (lastInitRoomIdRef.current !== activeRoomId) {
         lastInitRoomIdRef.current = String(activeRoomId);
@@ -265,7 +266,7 @@ export default function ChatScreen() {
           setInitialUnreadCount(room.unreadCount);
           chatService.getOldestUnreadMessage(String(activeRoomId)).then(msg => {
             if (msg) setFirstUnreadMessage(msg);
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
     } else {
@@ -357,7 +358,7 @@ export default function ChatScreen() {
 
   // ─── Đánh dấu đã đọc dựa trên tầm mắt ──────────────────────────────────────
   const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 40, 
+    itemVisiblePercentThreshold: 40,
     minimumViewTime: 100,
   }).current;
 
@@ -368,7 +369,7 @@ export default function ChatScreen() {
     if (!uid) return;
 
     let newestVisibleMsg: MessageDynamo | null = null;
-    
+
     for (const v of info.viewableItems) {
       const row = v.item as MobileChatRow;
       if (row.kind === 'message') {
@@ -599,7 +600,7 @@ export default function ChatScreen() {
       .then((v) => {
         if (!cancelled) setHighlightAdminPref(v === "1");
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       cancelled = true;
     };
@@ -1179,10 +1180,10 @@ export default function ChatScreen() {
           prev.map((m) =>
             m.messageId === payload.messageId
               ? {
-                  ...m,
-                  recalled: true,
-                  recalledAt: payload.recalledAt || new Date().toISOString(),
-                }
+                ...m,
+                recalled: true,
+                recalledAt: payload.recalledAt || new Date().toISOString(),
+              }
               : m,
           ),
         );
@@ -1798,10 +1799,10 @@ export default function ChatScreen() {
               prev.map((m) =>
                 m.messageId === target.messageId
                   ? {
-                      ...m,
-                      recalled: true,
-                      recalledAt: new Date().toISOString(),
-                    }
+                    ...m,
+                    recalled: true,
+                    recalledAt: new Date().toISOString(),
+                  }
                   : m,
               ),
             );
@@ -1937,6 +1938,60 @@ export default function ChatScreen() {
 
     setAiSummaryDates({ start: startDate, end: endDate });
     setShowUnreadAiModal(true);
+  };
+
+  const handleDownloadMessage = async (msg?: MessageDynamo) => {
+    const target = msg || selectedMessage;
+    if (!target) return;
+
+    try {
+      const getFileUrl = () => {
+        if (target.attachments && target.attachments.length > 0) {
+          return target.attachments[0].url;
+        }
+        return (target as any).fileUrl || target.content;
+      };
+
+      const rawUrl = getFileUrl();
+      if (!rawUrl) {
+        showToast("Không tìm thấy đường dẫn tệp", "error");
+        return;
+      }
+
+      const url = getImageUrl(rawUrl);
+      const extension = url.split(".").pop()?.split("?")[0]?.toLowerCase() || "";
+      const isMedia = ["jpg", "jpeg", "png", "gif", "mp4", "mov"].includes(extension);
+
+      const filename = target.attachments?.[0]?.name || target.attachments?.[0]?.filename || (target as any).fileName || `file_${Date.now()}.${extension}`;
+      const localUri = `${cacheDirectory}${filename}`;
+
+      showToast("Đang tải xuống...");
+      const downloadRes = await downloadAsync(url, localUri);
+
+      if (!downloadRes) throw new Error("Download failed");
+
+      if (isMedia) {
+        const MediaLibrary = require("expo-media-library");
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status === "granted") {
+          await MediaLibrary.saveToLibraryAsync(downloadRes.uri);
+          showToast("Đã lưu vào thiết bị!");
+        } else {
+          showToast("Không có quyền lưu tệp", "error");
+        }
+      } else {
+        const Sharing = require("expo-sharing");
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(downloadRes.uri);
+        } else {
+          showToast("Không thể chia sẻ tệp này", "error");
+        }
+      }
+      setSelectedMessage(null); // Hide menu
+    } catch (error) {
+      console.error("Download failed:", error);
+      showToast("Lỗi khi tải xuống", "error");
+    }
   };
 
   const handleDeleteMessage = (msg?: MessageDynamo) => {
@@ -2161,6 +2216,7 @@ export default function ChatScreen() {
     if (m.type === "POLL") return "[Bình chọn]";
     if (m.type === "IMAGE") return "[Hình ảnh]";
     if (m.type === "VIDEO") return "[Video]";
+    if (m.type === "VOICE") return "[Tin nhắn thoại]";
     if (
       m.type === "FILE" ||
       m.type === "DOCUMENT" ||
@@ -2395,9 +2451,9 @@ export default function ChatScreen() {
           replyPreview={
             replySource
               ? {
-                  senderName: replySource.senderName,
-                  content: replySource.content || "[Tin nhắn]",
-                }
+                senderName: replySource.senderName,
+                content: replySource.content || "[Tin nhắn]",
+              }
               : null
           }
           partnerName={displayName}
@@ -2533,9 +2589,9 @@ export default function ChatScreen() {
         replyPreview={
           replySource
             ? {
-                senderName: replySource.senderName,
-                content: replySource.content || "[Tin nhắn]",
-              }
+              senderName: replySource.senderName,
+              content: replySource.content || "[Tin nhắn]",
+            }
             : null
         }
         partnerName={displayName}
@@ -2582,1981 +2638,2023 @@ export default function ChatScreen() {
         </>
       ) : null}
       <View style={{ flex: 1, zIndex: 2 }}>
-      <ChatHeader
-        name={displayName}
-        roomType={roomType}
-        isStranger={isStranger}
-        strangerSubtitleRow={
-          isStrangerEmptyThread ? { visible: true } : undefined
-        }
-        showMenuBadge={roomType === "GROUP" ? groupJoinPendingBadge : false}
-        onMenuPress={() => {
-          if (roomType === "GROUP") {
-            openGroupInfo();
-          } else {
-            openChatOptions();
+        <ChatHeader
+          name={displayName}
+          roomType={roomType}
+          isStranger={isStranger}
+          strangerSubtitleRow={
+            isStrangerEmptyThread ? { visible: true } : undefined
           }
-        }}
-        onAiPress={() => setShowAiMenu(true)}
-      />
-
-      <AiOptionsBottomSheet
-        visible={showAiMenu}
-        onClose={() => setShowAiMenu(false)}
-        onSelectSummarize={() => setShowAiModal(true)}
-        onSelectPersona={() => setShowAiPersonaModal(true)}
-        onSelectTask={(mode) => {
-          setAiTaskMode(mode);
-          setShowAiTaskModal(true);
-        }}
-      />
-
-      <AiTaskModal
-        visible={showAiTaskModal}
-        mode={aiTaskMode}
-        roomId={typeof roomId === "string" ? roomId : (id || "")}
-        onClose={() => setShowAiTaskModal(false)}
-      />
-
-      <AiPersonaBotModal
-        visible={showAiPersonaModal}
-        onClose={() => setShowAiPersonaModal(false)}
-      />
-
-      <AiSummaryModal
-        visible={showAiModal}
-        roomId={typeof roomId === "string" ? roomId : (id || "")}
-        onClose={() => setShowAiModal(false)}
-        onSummarize={async (startTime, endTime) => {
-          const roomIdStr = typeof roomId === "string" ? roomId : id;
-          if (!roomIdStr) return "Không rõ ID vòng chat.";
-          return await chatService.summarizeChat(roomIdStr, startTime, endTime);
-        }}
-      />
-
-      {/* Modal Tóm tắt tin nhắn CHƯA ĐỌC - UI HOÀN TOÀN MỚI */}
-      <UnreadAiSummaryModal
-        visible={showUnreadAiModal}
-        unreadCount={initialUnreadCount}
-        onClose={() => {
-          setShowUnreadAiModal(false);
-          setAiSummaryDates({});
-        }}
-        onSummarize={async () => {
-          const roomIdStr = typeof roomId === "string" ? roomId : id;
-          if (!roomIdStr) return "Không rõ ID vòng chat.";
-          
-          // Sử dụng mốc thời gian từ tin nhắn chưa đọc cổ nhất, và bật mode isUnreadOnly
-          const startTime = aiSummaryDates.start?.toISOString() || new Date(Date.now() - 3600000).toISOString();
-          const endTime = aiSummaryDates.end?.toISOString() || new Date().toISOString();
-          
-          return await chatService.summarizeChat(roomIdStr, startTime, endTime, true);
-        }}
-      />
-
-      {/* Thanh trắng Kết bạn — ngay dưới header (hội thoại trống + người lạ), giống Zalo */}
-      {isStrangerEmptyThread && roomType === "DIRECT" && (
-        <View
-          style={{
-            backgroundColor: theme === "dark" ? colors.card : "#ffffff",
-            paddingVertical: 10,
-            alignItems: "center",
-            justifyContent: "center",
-            borderBottomWidth: StyleSheet.hairlineWidth,
-            borderBottomColor: colors.border,
+          showMenuBadge={roomType === "GROUP" ? groupJoinPendingBadge : false}
+          onMenuPress={() => {
+            if (roomType === "GROUP") {
+              openGroupInfo();
+            } else {
+              openChatOptions();
+            }
           }}
-        >
-          <TouchableOpacity
-            onPress={handleStrangerFriendPress}
-            disabled={friendRequestStatus === "SENT"}
-            activeOpacity={0.75}
+          onAiPress={() => setShowAiMenu(true)}
+        />
+
+        <AiOptionsBottomSheet
+          visible={showAiMenu}
+          onClose={() => setShowAiMenu(false)}
+          onSelectSummarize={() => setShowAiModal(true)}
+          onSelectPersona={() => setShowAiPersonaModal(true)}
+          onSelectTask={(mode) => {
+            setAiTaskMode(mode);
+            setShowAiTaskModal(true);
+          }}
+        />
+
+        <AiTaskModal
+          visible={showAiTaskModal}
+          mode={aiTaskMode}
+          roomId={typeof roomId === "string" ? roomId : (id || "")}
+          onClose={() => setShowAiTaskModal(false)}
+        />
+
+        <AiPersonaBotModal
+          visible={showAiPersonaModal}
+          onClose={() => setShowAiPersonaModal(false)}
+        />
+
+        <AiSummaryModal
+          visible={showAiModal}
+          roomId={typeof roomId === "string" ? roomId : (id || "")}
+          onClose={() => setShowAiModal(false)}
+          onSummarize={async (startTime, endTime) => {
+            const roomIdStr = typeof roomId === "string" ? roomId : id;
+            if (!roomIdStr) return "Không rõ ID vòng chat.";
+            return await chatService.summarizeChat(roomIdStr, startTime, endTime);
+          }}
+        />
+
+        {/* Modal Tóm tắt tin nhắn CHƯA ĐỌC - UI HOÀN TOÀN MỚI */}
+        <UnreadAiSummaryModal
+          visible={showUnreadAiModal}
+          unreadCount={initialUnreadCount}
+          onClose={() => {
+            setShowUnreadAiModal(false);
+            setAiSummaryDates({});
+          }}
+          onSummarize={async () => {
+            const roomIdStr = typeof roomId === "string" ? roomId : id;
+            if (!roomIdStr) return "Không rõ ID vòng chat.";
+
+            // Sử dụng mốc thời gian từ tin nhắn chưa đọc cổ nhất, và bật mode isUnreadOnly
+            const startTime = aiSummaryDates.start?.toISOString() || new Date(Date.now() - 3600000).toISOString();
+            const endTime = aiSummaryDates.end?.toISOString() || new Date().toISOString();
+
+            return await chatService.summarizeChat(roomIdStr, startTime, endTime, true);
+          }}
+        />
+
+        {/* Thanh trắng Kết bạn — ngay dưới header (hội thoại trống + người lạ), giống Zalo */}
+        {isStrangerEmptyThread && roomType === "DIRECT" && (
+          <View
             style={{
-              flexDirection: "row",
+              backgroundColor: theme === "dark" ? colors.card : "#ffffff",
+              paddingVertical: 10,
               alignItems: "center",
+              justifyContent: "center",
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: colors.border,
             }}
           >
-            <Ionicons
-              name={
-                friendRequestStatus === "SENT"
-                  ? "time-outline"
-                  : friendRequestStatus === "INCOMING"
-                    ? "person-add"
-                    : "person-add-outline"
-              }
-              size={20}
-              color={
-                friendRequestStatus === "SENT"
-                  ? colors.textSecondary
-                  : colors.primary
-              }
-              style={{ marginRight: 8 }}
-            />
-            <Text
+            <TouchableOpacity
+              onPress={handleStrangerFriendPress}
+              disabled={friendRequestStatus === "SENT"}
+              activeOpacity={0.75}
               style={{
-                fontSize: 15,
-                fontWeight: "600",
-                color:
-                  friendRequestStatus === "SENT"
-                    ? colors.textSecondary
-                    : colors.text,
+                flexDirection: "row",
+                alignItems: "center",
               }}
             >
-              {friendRequestStatus === "SENT"
-                ? "Đã gửi lời mời"
-                : friendRequestStatus === "INCOMING"
-                  ? "Chấp nhận kết bạn"
-                  : "Kết bạn"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+              <Ionicons
+                name={
+                  friendRequestStatus === "SENT"
+                    ? "time-outline"
+                    : friendRequestStatus === "INCOMING"
+                      ? "person-add"
+                      : "person-add-outline"
+                }
+                size={20}
+                color={
+                  friendRequestStatus === "SENT"
+                    ? colors.textSecondary
+                    : colors.primary
+                }
+                style={{ marginRight: 8 }}
+              />
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: "600",
+                  color:
+                    friendRequestStatus === "SENT"
+                      ? colors.textSecondary
+                      : colors.text,
+                }}
+              >
+                {friendRequestStatus === "SENT"
+                  ? "Đã gửi lời mời"
+                  : friendRequestStatus === "INCOMING"
+                    ? "Chấp nhận kết bạn"
+                    : "Kết bạn"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-      {/* Banner người lạ - Kết bạn (khi đã có hoạt động trong hội thoại — tránh trùng với hàng header + thẻ preview) */}
-      {isStranger && roomType === "DIRECT" && !isStrangerEmptyThread && (
-        <View
-          style={{
-            backgroundColor: theme === "dark" ? "#1c1c1e" : "#f0f2f5",
-            paddingVertical: 10,
-            alignItems: "center",
-            borderBottomWidth: 0.5,
-            borderBottomColor: colors.border,
-          }}
-        >
-          <TouchableOpacity
-            onPress={() => {
-              if (resolvedTargetUserId) {
-                if (friendRequestStatus === "NONE") {
-                  useFriendStore
-                    .getState()
-                    .sendRequest(resolvedTargetUserId)
-                    .then(() => {
-                      fetchSentRequests();
-                      Alert.alert("Thành công", "Đã gửi lời mời kết bạn.");
-                    })
-                    .catch(() =>
-                      Alert.alert("Lỗi", "Gửi lời mời kết bạn thất bại."),
-                    );
-                } else if (friendRequestStatus === "INCOMING") {
-                  const req = requests.find((r: any) => {
-                    const id = r?.user?.id || r?.userId || r?.friend?.id;
-                    return id === resolvedTargetUserId;
-                  });
-                  if (req) {
+        {/* Banner người lạ - Kết bạn (khi đã có hoạt động trong hội thoại — tránh trùng với hàng header + thẻ preview) */}
+        {isStranger && roomType === "DIRECT" && !isStrangerEmptyThread && (
+          <View
+            style={{
+              backgroundColor: theme === "dark" ? "#1c1c1e" : "#f0f2f5",
+              paddingVertical: 10,
+              alignItems: "center",
+              borderBottomWidth: 0.5,
+              borderBottomColor: colors.border,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => {
+                if (resolvedTargetUserId) {
+                  if (friendRequestStatus === "NONE") {
                     useFriendStore
                       .getState()
-                      .acceptRequest(req.id)
+                      .sendRequest(resolvedTargetUserId)
                       .then(() => {
-                        fetchFriends();
-                        setShowWelcomePicker(true);
-                        showToast("Đã chấp nhận lời mời kết bạn", "success");
+                        fetchSentRequests();
+                        Alert.alert("Thành công", "Đã gửi lời mời kết bạn.");
                       })
                       .catch(() =>
-                        Alert.alert(
-                          "Lỗi",
-                          "Chấp nhận lời mời kết bạn thất bại.",
-                        ),
+                        Alert.alert("Lỗi", "Gửi lời mời kết bạn thất bại."),
                       );
+                  } else if (friendRequestStatus === "INCOMING") {
+                    const req = requests.find((r: any) => {
+                      const id = r?.user?.id || r?.userId || r?.friend?.id;
+                      return id === resolvedTargetUserId;
+                    });
+                    if (req) {
+                      useFriendStore
+                        .getState()
+                        .acceptRequest(req.id)
+                        .then(() => {
+                          fetchFriends();
+                          setShowWelcomePicker(true);
+                          showToast("Đã chấp nhận lời mời kết bạn", "success");
+                        })
+                        .catch(() =>
+                          Alert.alert(
+                            "Lỗi",
+                            "Chấp nhận lời mời kết bạn thất bại.",
+                          ),
+                        );
+                    }
                   }
                 }
-              }
-            }}
-            disabled={friendRequestStatus === "SENT"}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor:
-                friendRequestStatus === "SENT" ? "#e1e4e8" : "#fff",
-              paddingHorizontal: 20,
-              paddingVertical: 8,
-              borderRadius: 20,
-              borderWidth: 1,
-              borderColor:
-                friendRequestStatus === "SENT" ? "#e1e4e8" : colors.border,
-              elevation: 2,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.1,
-              shadowRadius: 2,
-            }}
-          >
-            <Ionicons
-              name={
-                friendRequestStatus === "SENT"
-                  ? "time-outline"
-                  : friendRequestStatus === "INCOMING"
-                    ? "person-add"
-                    : "person-add"
-              }
-              size={18}
-              color={
-                friendRequestStatus === "SENT"
-                  ? colors.textSecondary
-                  : colors.primary
-              }
-              style={{ marginRight: 8 }}
-            />
-            <Text
+              }}
+              disabled={friendRequestStatus === "SENT"}
               style={{
-                color:
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor:
+                  friendRequestStatus === "SENT" ? "#e1e4e8" : "#fff",
+                paddingHorizontal: 20,
+                paddingVertical: 8,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor:
+                  friendRequestStatus === "SENT" ? "#e1e4e8" : colors.border,
+                elevation: 2,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+              }}
+            >
+              <Ionicons
+                name={
+                  friendRequestStatus === "SENT"
+                    ? "time-outline"
+                    : friendRequestStatus === "INCOMING"
+                      ? "person-add"
+                      : "person-add"
+                }
+                size={18}
+                color={
                   friendRequestStatus === "SENT"
                     ? colors.textSecondary
-                    : colors.text,
-                fontWeight: "600",
-                fontSize: 15,
-              }}
-            >
-              {friendRequestStatus === "SENT"
-                ? "Đã gửi lời mời"
-                : friendRequestStatus === "INCOMING"
-                  ? "Chấp nhận kết bạn"
-                  : "Kết bạn"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Header pinned messages */}
-      {messages.some((m) => m.pinned) &&
-        (() => {
-          const pinned = messages.filter((m) => m.pinned);
-          const latest = pinned[0];
-          if (!latest) return null;
-
-          const getIcon = (m: MessageDynamo) => {
-            if (m.type === "IMAGE") return "image-outline";
-            if (m.type === "VIDEO") return "videocam-outline";
-            if (m.type === "POLL") return "stats-chart-outline";
-            if (
-              m.type === "FILE" ||
-              (m.attachments && m.attachments.length > 0)
-            )
-              return "document-text-outline";
-            return "pin-outline";
-          };
-
-          return (
-            <View
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderBottomWidth: 0.5,
-                borderBottomColor:
-                  theme === "dark"
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(0,0,0,0.05)",
-                backgroundColor: theme === "dark" ? "#1c1c1e" : "#eef6ff",
-              }}
-            >
-              <TouchableOpacity
-                activeOpacity={0.8}
+                    : colors.primary
+                }
+                style={{ marginRight: 8 }}
+              />
+              <Text
                 style={{
-                  borderRadius: 8,
-                  paddingHorizontal: 8,
-                  paddingVertical: 6,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
+                  color:
+                    friendRequestStatus === "SENT"
+                      ? colors.textSecondary
+                      : colors.text,
+                  fontWeight: "600",
+                  fontSize: 15,
                 }}
-                onPress={() => setShowPinnedList(true)}
               >
-                <View
+                {friendRequestStatus === "SENT"
+                  ? "Đã gửi lời mời"
+                  : friendRequestStatus === "INCOMING"
+                    ? "Chấp nhận kết bạn"
+                    : "Kết bạn"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Header pinned messages */}
+        {messages.some((m) => m.pinned) &&
+          (() => {
+            const pinned = messages.filter((m) => m.pinned);
+            const latest = pinned[0];
+            if (!latest) return null;
+
+            const getIcon = (m: MessageDynamo) => {
+              if (m.type === "IMAGE") return "image-outline";
+              if (m.type === "VIDEO") return "videocam-outline";
+              if (m.type === "VOICE") return "mic-outline";
+              if (m.type === "POLL") return "stats-chart-outline";
+              if (
+                m.type === "FILE" ||
+                m.type === "DOCUMENT" ||
+                (m.attachments && m.attachments.length > 0)
+              )
+                return "document-text-outline";
+              return "pin-outline";
+            };
+
+            return (
+              <View
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderBottomWidth: 0.5,
+                  borderBottomColor:
+                    theme === "dark"
+                      ? "rgba(255,255,255,0.1)"
+                      : "rgba(0,0,0,0.05)",
+                  backgroundColor: theme === "dark" ? "#1c1c1e" : "#eef6ff",
+                }}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.8}
                   style={{
+                    borderRadius: 8,
+                    paddingHorizontal: 8,
+                    paddingVertical: 6,
                     flexDirection: "row",
                     alignItems: "center",
-                    flex: 1,
+                    justifyContent: "space-between",
                   }}
+                  onPress={() => setShowPinnedList(true)}
                 >
                   <View
                     style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 12,
-                      backgroundColor:
-                        theme === "dark"
-                          ? "rgba(255,255,255,0.1)"
-                          : "rgba(0,104,255,0.1)",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginRight: 8,
-                    }}
-                  >
-                    <Ionicons
-                      name={getIcon(latest)}
-                      size={14}
-                      color={colors.primary}
-                    />
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      numberOfLines={1}
-                      style={{
-                        color: colors.primary,
-                        fontSize: 13,
-                        fontWeight: "600",
-                      }}
-                    >
-                      Tin nhắn ghim
-                    </Text>
-                    <Text
-                      numberOfLines={1}
-                      style={{
-                        color: colors.textSecondary,
-                        fontSize: 12,
-                        marginTop: -1,
-                      }}
-                    >
-                      {getPinnedDisplayText(latest)}
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginLeft: 8,
-                  }}
-                >
-                  {pinned.length > 1 && (
-                    <View
-                      style={{
-                        backgroundColor:
-                          theme === "dark"
-                            ? "rgba(255,255,255,0.1)"
-                            : "rgba(0,0,0,0.05)",
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        borderRadius: 10,
-                        marginRight: 6,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: colors.textSecondary,
-                          fontSize: 10,
-                          fontWeight: "700",
-                        }}
-                      >
-                        +{pinned.length - 1}
-                      </Text>
-                    </View>
-                  )}
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                </View>
-              </TouchableOpacity>
-            </View>
-          );
-        })()}
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "height" : undefined}
-        style={{ flex: 1 }}
-      >
-        <View style={{ flex: 1 }}>
-          {initialUnreadCount > 0 && (
-            <View
-              style={{
-                position: "absolute",
-                top: 10,
-                alignSelf: "center",
-                flexDirection: "row",
-                alignItems: "center",
-                zIndex: 999,
-                backgroundColor: colors.primary,
-                borderRadius: 24,
-                padding: 2, // Tạo khoảng hở cho border bên trong nếu cần
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 5,
-                elevation: 8,
-              }}
-            >
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={handleJumpToUnread}
-                style={{
-                  paddingVertical: 8,
-                  paddingLeft: 16,
-                  paddingRight: 12,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  borderRightWidth: 1,
-                  borderRightColor: "rgba(255,255,255,0.2)",
-                }}
-              >
-                <Ionicons
-                  name="arrow-up"
-                  size={16}
-                  color="white"
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={{ color: "white", fontSize: 13, fontWeight: "700" }}>
-                  {initialUnreadCount} tin nhắn mới
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={handleAiSummarizeUnread}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <Ionicons
-                  name="sparkles"
-                  size={18}
-                  color="#FFD700"
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={{ color: "white", fontSize: 13, fontWeight: "700" }}>
-                  AI
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <FlatList
-            style={{ flex: 1 }}
-            ref={flatListRef}
-            data={chatRows}
-            inverted
-            keyExtractor={(row, index) =>
-              row.kind === "imageGroup"
-                ? `ig-${row.messages.map((m) => m.messageId || "x").join("-")}-${index}`
-                : `${row.message.messageId || "msg"}-${index}`
-            }
-            renderItem={renderMessage}
-            contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
-            showsVerticalScrollIndicator={false}
-            onTouchStart={() => footerRef.current?.closeEmojiPicker()}
-            onScrollBeginDrag={() => footerRef.current?.closeEmojiPicker()}
-            onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.5}
-            initialNumToRender={15}
-            maxToRenderPerBatch={10}
-            windowSize={11}
-            onViewableItemsChanged={onViewableItemsChangedHandler}
-            viewabilityConfig={viewabilityConfig}
-            onScroll={(e) => {
-              const offset = e.nativeEvent.contentOffset.y;
-              // FlatList inverted: offset gần 0 có nghĩa là đang ở dưới cùng
-              isAtBottomRef.current = offset < 50;
-              
-              if (offset > 400) {
-                if (!showScrollToBottom) setShowScrollToBottom(true);
-              } else {
-                if (showScrollToBottom) setShowScrollToBottom(false);
-              }
-            }}
-            removeClippedSubviews={Platform.OS === "android"}
-            onScrollToIndexFailed={(info) => {
-              // Item chưa render trong viewport — scroll đến vị trí ước tính
-              // rồi retry sau khi layout xong
-              const offset = info.averageItemLength * info.index;
-              flatListRef.current?.scrollToOffset({ offset, animated: false });
-              setTimeout(() => {
-                flatListRef.current?.scrollToIndex({
-                  index: info.index,
-                  animated: true,
-                  viewPosition: 0.5,
-                });
-              }, 200);
-            }}
-            ListFooterComponent={
-              <View style={{ paddingBottom: 20 }}>
-                {isLoadingMore ? (
-                  <View style={{ paddingVertical: 10 }}>
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  </View>
-                ) : null}
-              </View>
-            }
-            ListEmptyComponent={() => (
-              <View
-                style={{
-                  flex: 1,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  transform: [{ scaleY: -1 }],
-                }}
-              >
-                {loaded && isStrangerEmptyThread ? (
-                  <View style={{ height: 1 }} />
-                ) : loaded ? (
-                  <Text style={{ color: colors.textSecondary }}>
-                    Hãy gửi tin nhắn đầu tiên! 👋
-                  </Text>
-                ) : (
-                  <Text style={{ color: colors.textSecondary }}>
-                    Đang tải tin nhắn...
-                  </Text>
-                )}
-              </View>
-            )}
-          />
-          {isStrangerEmptyThread ? (
-            <StrangerProfilePreviewCard
-              displayName={
-                partnerProfileDetail?.displayName?.trim() || displayName
-              }
-              avatarUrl={
-                (partnerProfileDetail?.avatarUrl ?? partnerAvatar) || null
-              }
-              coverPhotoUrl={partnerProfileDetail?.coverPhotoUrl ?? null}
-            />
-          ) : null}
-        </View>
-        {isGroupDisbanded ? (
-          <View
-            style={{
-              paddingHorizontal: 16,
-              paddingVertical: 14,
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-              backgroundColor: colors.card,
-              alignItems: "center",
-            }}
-          >
-            <Text
-              style={{
-                color: colors.textSecondary,
-                fontSize: 13,
-                textAlign: "center",
-              }}
-            >
-              Nhóm đã được giải tán. Bạn không thể gửi tin nhắn vào nhóm này nữa.
-            </Text>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={async () => {
-                if (!roomId) return;
-                try {
-                  await useChatStore.getState().deleteRoom(roomId);
-                  router.back();
-                } catch {
-                  showToast("Không xóa được cuộc trò chuyện", "error");
-                }
-              }}
-              style={{ marginTop: 10 }}
-            >
-              <Text
-                style={{
-                  color: colors.primary,
-                  fontSize: 14,
-                  fontWeight: "600",
-                  textAlign: "center",
-                }}
-              >
-                Xóa trò chuyện
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : roomType === "DIRECT" &&
-          blockStatus &&
-          (blockStatus.blockedByYou || blockStatus.blockedByOther) ? (
-          <View
-            style={{
-              paddingHorizontal: 16,
-              paddingVertical: 16,
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-              backgroundColor: colors.card,
-              alignItems: "center",
-            }}
-          >
-            <Text
-              style={{
-                color: colors.text,
-                fontSize: 13,
-                marginBottom: blockStatus.blockedByYou ? 10 : 0,
-                textAlign: "center",
-              }}
-            >
-              {blockStatus.blockedByYou
-                ? "Bạn đã chặn tin nhắn"
-                : "Bạn đã bị chặn tin nhắn"}
-            </Text>
-            {blockStatus.blockedByYou && partnerId && (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={async () => {
-                  try {
-                    await unblockUser(partnerId);
-                    setBlockStatus({
-                      blockedByYou: false,
-                      blockedByOther: false,
-                      blockerName: null,
-                    });
-                  } catch {
-                    showToast("Không bỏ chặn được người này", "error");
-                  }
-                }}
-                style={{
-                  marginTop: 8,
-                  alignSelf: "center",
-                  paddingHorizontal: 16,
-                  paddingVertical: 8,
-                  borderRadius: 999,
-                  backgroundColor: colors.primary,
-                }}
-              >
-                <Text
-                  style={{
-                    color: "#ffffff",
-                    fontSize: 14,
-                    fontWeight: "600",
-                  }}
-                >
-                  Bỏ chặn
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : (
-          <ChatFooter
-            ref={footerRef}
-            onSend={handleSend}
-            onSendImage={handleSendImage}
-            onSendFile={handleSendFile}
-            disabled={!canSendMessage}
-            disabledText={
-              isGroupDisbanded
-                ? "Nhóm đã giải tán"
-                : "Chỉ trưởng/phó nhóm được gửi tin nhắn"
-            }
-            onCreatePoll={
-              roomType === "GROUP" && roomId && roomId !== "new" && canCreatePoll
-                ? () =>
-                    router.push(
-                      `/create-poll?roomId=${encodeURIComponent(roomId)}&groupName=${encodeURIComponent(displayName)}`,
-                    )
-                : undefined
-            }
-            uploadProgress={uploadState?.progress ?? null}
-            uploadText={uploadState?.text}
-            replyTo={replyTo}
-            onCancelReply={() => setReplyTo(null)}
-          />
-        )}
-
-        {showScrollToBottom && (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => {
-              flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-              setShowScrollToBottom(false);
-            }}
-            style={{
-              position: "absolute",
-              bottom: 85, // Phía trên ô nhập text (ChatFooter cao tầm 60-70px)
-              right: 16,
-              width: 42,
-              height: 42,
-              borderRadius: 21,
-              backgroundColor: theme === "dark" ? "#2c2c2e" : "#ffffff",
-              justifyContent: "center",
-              alignItems: "center",
-              elevation: 5,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.2,
-              shadowRadius: 4,
-              zIndex: 1000,
-              borderWidth: 1,
-              borderColor: theme === "dark" ? "#3a3a3c" : "#e5e5ea",
-            }}
-          >
-            <Ionicons name="chevron-down" size={24} color={colors.primary} />
-          </TouchableOpacity>
-        )}
-      </KeyboardAvoidingView>
-
-      {/* Action sheet khi nhấn giữ tin nhắn */}
-      <Modal
-        transparent
-        animationType="fade"
-        visible={showActionSheet && !!selectedMessage}
-        onRequestClose={closeActionSheet}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "flex-end",
-          }}
-          onPress={closeActionSheet}
-        >
-          <View
-            style={{
-              backgroundColor: colors.card,
-              paddingBottom: 32,
-              paddingTop: 12,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              borderWidth: 1,
-              borderColor: colors.border,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: -3 },
-              shadowOpacity: 0.1,
-              shadowRadius: 10,
-              elevation: 20,
-            }}
-          >
-            <View
-              style={{
-                alignSelf: "center",
-                width: 36,
-                height: 5,
-                borderRadius: 999,
-                backgroundColor: colors.border,
-                marginBottom: 20,
-              }}
-            />
-
-            {/* Hàng reaction giống Zalo */}
-            {selectedMessage && !selectedMessage.recalled && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-around",
-                  marginBottom: 16,
-                  paddingHorizontal: 24,
-                }}
-              >
-                {["❤️", "👍", "😂", "😮", "😢", "😡"].map((emoji) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    onPress={async () => {
-                      if (!selectedMessage || !roomId || !currentUserId) return;
-
-                      // Optimistic UI update
-                      const emojiToSet = emoji;
-                      const msgId = selectedMessage.messageId;
-
-                      setMessages((prev) =>
-                        prev.map((m) => {
-                          if (m.messageId === msgId) {
-                            const existingReactions = Array.isArray(m.reactions)
-                              ? m.reactions
-                              : [];
-                            // Find if I already reacted with THIS SPECIFIC emoji
-                            const sameEmojiIndex = existingReactions.findIndex(
-                              (r) =>
-                                r.userId === currentUserId &&
-                                r.emoji === emojiToSet,
-                            );
-
-                            let nextReactions = [...existingReactions];
-
-                            if (sameEmojiIndex >= 0) {
-                              // Toggle off this specific emoji
-                              nextReactions.splice(sameEmojiIndex, 1);
-                            } else {
-                              // Add this emoji (keep other emojis from me)
-                              nextReactions.push({
-                                userId: currentUserId,
-                                emoji: emojiToSet,
-                              });
-                            }
-                            return { ...m, reactions: nextReactions };
-                          }
-                          return m;
-                        }),
-                      );
-
-                      // Close sheet immediately for smoothness
-                      closeActionSheet();
-
-                      // Send to server in background
-                      try {
-                        await MessageService.setReaction(
-                          roomId,
-                          msgId,
-                          emojiToSet,
-                        );
-                      } catch (err) {
-                        // If error, we might want to revert but for "smoothness" and Zalo-like feel,
-                        // often we just let it be or show a quiet toast
-                        console.error("Reaction failed sync:", err);
-                      }
-                    }}
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 22,
-                      backgroundColor: colors.card,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ fontSize: 22 }}>{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
-
-                {/* Biểu tượng gỡ cảm xúc */}
-                {selectedMessage?.reactions?.some(
-                  (r) => r.userId === currentUserId,
-                ) && (
-                  <TouchableOpacity
-                    onPress={async () => {
-                      if (!selectedMessage || !roomId || !currentUserId) return;
-                      const msgId = selectedMessage.messageId;
-
-                      // Optimistic UI update: gỡ toàn bộ reactions của tôi
-                      setMessages((prev) =>
-                        prev.map((m) => {
-                          if (m.messageId === msgId) {
-                            const nextReactions = (m.reactions || []).filter(
-                              (r) => r.userId !== currentUserId,
-                            );
-                            return { ...m, reactions: nextReactions };
-                          }
-                          return m;
-                        }),
-                      );
-
-                      closeActionSheet();
-
-                      try {
-                        await MessageService.removeReaction(roomId, msgId);
-                      } catch (err) {
-                        console.error("Remove reaction failed sync:", err);
-                      }
-                    }}
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 22,
-                      backgroundColor: colors.card,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderWidth: 1,
-                      borderColor: "#ef4444", // red border for remove action
-                    }}
-                  >
-                    <Ionicons name="trash-outline" size={22} color="#ef4444" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            {selectedMessage &&
-              selectedMessage.senderId === currentUserId &&
-              !selectedMessage.recalled && (
-                <TouchableOpacity
-                  onPress={() => handleRecall()}
-                  style={{
-                    paddingVertical: 12,
-                    paddingHorizontal: 20,
-                    flexDirection: "row",
-                    alignItems: "center",
-                  }}
-                >
-                  <Ionicons
-                    name="refresh-outline"
-                    size={20}
-                    color="#ea580c"
-                    style={{ marginRight: 12 }}
-                  />
-                  <Text
-                    style={{
-                      color: "#ea580c",
-                      fontSize: 16,
-                      fontWeight: "600",
-                    }}
-                  >
-                    Thu hồi tin nhắn
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-            {selectedMessage && !selectedMessage.recalled && (
-              <TouchableOpacity
-                onPress={() => handleStartReply()}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 20,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <Ionicons
-                  name="arrow-redo-outline"
-                  size={20}
-                  color={colors.text}
-                  style={{ marginRight: 12 }}
-                />
-                <Text style={{ color: colors.text, fontSize: 16 }}>
-                  Trả lời
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {selectedMessage &&
-              !selectedMessage.recalled &&
-              (selectedMessage.type === "TEXT" ||
-                selectedMessage.type === "IMAGE") && (
-                <TouchableOpacity
-                  onPress={() => handleCopyMessage()}
-                  style={{
-                    paddingVertical: 12,
-                    paddingHorizontal: 20,
-                    flexDirection: "row",
-                    alignItems: "center",
-                  }}
-                >
-                  <Ionicons
-                    name="copy-outline"
-                    size={20}
-                    color={colors.text}
-                    style={{ marginRight: 12 }}
-                  />
-                  <Text style={{ color: colors.text, fontSize: 16 }}>
-                    Sao chép
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-            {selectedMessage && !selectedMessage.recalled && (
-              <TouchableOpacity
-                onPress={() => handleOpenForward()}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 20,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <Ionicons
-                  name="share-outline"
-                  size={20}
-                  color="#60a5fa"
-                  style={{ marginRight: 12 }}
-                />
-                <Text
-                  style={{ color: "#60a5fa", fontSize: 16, fontWeight: "500" }}
-                >
-                  Chuyển tiếp
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {selectedMessage && !selectedMessage.recalled && (
-              <TouchableOpacity
-                onPress={() => handleTogglePin()}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 20,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <Ionicons
-                  name={selectedMessage.pinned ? "pin" : "pin-outline"}
-                  size={20}
-                  color={colors.text}
-                  style={{ marginRight: 12 }}
-                />
-                <Text style={{ color: colors.text, fontSize: 16 }}>
-                  {selectedMessage.pinned ? "Bỏ ghim" : "Ghim"}
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {selectedMessage && (
-              <TouchableOpacity
-                onPress={() => handleDeleteMessage()}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 20,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={20}
-                  color="#ef4444"
-                  style={{ marginRight: 12 }}
-                />
-                <Text
-                  style={{ color: "#ef4444", fontSize: 16, fontWeight: "500" }}
-                >
-                  Xóa
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              onPress={closeActionSheet}
-              style={{
-                paddingVertical: 14,
-                paddingHorizontal: 20,
-                flexDirection: "row",
-                alignItems: "center",
-              }}
-            >
-              <Ionicons
-                name="close-outline"
-                size={20}
-                color={colors.textSecondary}
-                style={{ marginRight: 12 }}
-              />
-              <Text style={{ color: colors.textSecondary, fontSize: 16 }}>
-                Đóng
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Danh sách tin nhắn đã ghim - overlay dạng bottom sheet */}
-      <Modal
-        transparent
-        animationType="slide"
-        visible={showPinnedList}
-        onRequestClose={() => setShowPinnedList(false)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "flex-end",
-          }}
-          onPress={() => setShowPinnedList(false)}
-        >
-          <View
-            style={{
-              backgroundColor: colors.card,
-              paddingTop: 16,
-              paddingBottom: 32,
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-              maxHeight: "75%",
-              borderWidth: 1,
-              borderColor: colors.border,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: -2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 10,
-              elevation: 20,
-            }}
-          >
-            <Text
-              style={{
-                color: colors.text,
-                fontSize: 17,
-                fontWeight: "700",
-                textAlign: "center",
-                marginBottom: 12,
-              }}
-            >
-              Tin nhắn đã ghim
-            </Text>
-
-            <View
-              style={{
-                maxHeight: "100%",
-              }}
-            >
-              {messages.filter((m) => m.pinned).length === 0 ? (
-                <Text
-                  style={{
-                    color: colors.textSecondary,
-                    textAlign: "center",
-                    paddingVertical: 40,
-                  }}
-                >
-                  Chưa có tin nhắn nào được ghim.
-                </Text>
-              ) : (
-                messages
-                  .filter((m) => m.pinned)
-                  .map((m) => (
-                    <TouchableOpacity
-                      key={m.messageId}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        borderBottomWidth: 0.5,
-                        borderBottomColor: colors.border,
-                      }}
-                      onPress={() => {
-                        const index = chatRows.findIndex((row) =>
-                          row.kind === "imageGroup"
-                            ? row.messages.some(
-                                (x) => x.messageId === m.messageId,
-                              )
-                            : row.message.messageId === m.messageId,
-                        );
-                        if (index >= 0) {
-                          flatListRef.current?.scrollToIndex({
-                            index,
-                            animated: true,
-                          });
-                        }
-                        setShowPinnedList(false);
-                      }}
-                    >
-                      {/* Icon based on type */}
-                      <View
-                        style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: 10,
-                          backgroundColor:
-                            theme === "dark"
-                              ? "rgba(255,255,255,0.05)"
-                              : "#f0f7ff",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          marginRight: 12,
-                        }}
-                      >
-                        <Ionicons
-                          name={
-                            m.type === "IMAGE"
-                              ? "image"
-                              : m.type === "VIDEO"
-                                ? "videocam"
-                                : m.type === "POLL"
-                                  ? "stats-chart"
-                                  : m.type === "FILE" ||
-                                      (m.attachments && m.attachments.length > 0)
-                                    ? "document-text"
-                                    : "chatbubble-ellipses"
-                          }
-                          size={22}
-                          color={colors.primary}
-                        />
-                      </View>
-
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={{
-                            color: colors.text,
-                            fontSize: 15,
-                            fontWeight: "600",
-                          }}
-                          numberOfLines={1}
-                        >
-                          {getPinnedDisplayText(m)}
-                        </Text>
-                        <Text
-                          style={{
-                            color: colors.textSecondary,
-                            fontSize: 12,
-                            marginTop: 2,
-                          }}
-                        >
-                          {m.senderName} • {formatTime(m.createdAt)}
-                        </Text>
-                      </View>
-
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e?.stopPropagation?.();
-                          if (!roomId) return;
-                          webSocketService.sendPin({
-                            roomId,
-                            messageId: m.messageId,
-                            pin: false,
-                          });
-                        }}
-                        style={{ padding: 8 }}
-                      >
-                        <Ionicons
-                          name="close-circle"
-                          size={20}
-                          color={colors.textSecondary}
-                        />
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  ))
-              )}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Danh sách reaction – bấm vào dải reaction dưới tin nhắn */}
-      <Modal
-        transparent
-        animationType="slide"
-        visible={!!reactionListMessage}
-        onRequestClose={() => setReactionListMessage(null)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "flex-end",
-          }}
-          onPress={() => setReactionListMessage(null)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={() => {}}
-            style={{
-              backgroundColor: colors.card,
-              paddingTop: 16,
-              paddingBottom: 32,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              maxHeight: "75%",
-              borderWidth: 1,
-              borderColor: colors.border,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: -3 },
-              shadowOpacity: 0.1,
-              shadowRadius: 10,
-              elevation: 20,
-            }}
-          >
-            {reactionListMessage &&
-              (() => {
-                const raw = reactionListMessage?.reactions;
-                const reactions = Array.isArray(raw) ? raw : [];
-                const total = reactions.length;
-                const byEmoji = reactions.reduce<Record<string, number>>(
-                  (acc, r) => {
-                    if (!r?.emoji) return acc;
-                    acc[r.emoji] = (acc[r.emoji] || 0) + 1;
-                    return acc;
-                  },
-                  {},
-                );
-                const byUser = reactions.reduce<Record<string, string[]>>(
-                  (acc, r) => {
-                    if (!r?.userId || !r?.emoji) return acc;
-                    if (!Array.isArray(acc[r.userId])) acc[r.userId] = [];
-                    if (!acc[r.userId].includes(r.emoji))
-                      acc[r.userId].push(r.emoji);
-                    return acc;
-                  },
-                  {},
-                );
-                const userIds = Object.keys(byUser);
-                return (
-                  <>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        paddingHorizontal: 20,
-                        marginBottom: 16,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: colors.text,
-                          fontSize: 17,
-                          fontWeight: "700",
-                        }}
-                      >
-                        Tất cả {total}
-                      </Text>
-                      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                        {Object.entries(byEmoji).map(([emoji, count]) => (
-                          <Text
-                            key={emoji}
-                            style={{
-                              color: colors.text,
-                              fontSize: 14,
-                              marginLeft: 12,
-                            }}
-                          >
-                            {emoji} {count}
-                          </Text>
-                        ))}
-                      </View>
-                    </View>
-                    <View style={{ maxHeight: "100%" }}>
-                      {userIds.map((uid) => (
-                        <View
-                          key={uid}
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingHorizontal: 20,
-                            paddingVertical: 12,
-                            borderBottomWidth: 1,
-                            borderBottomColor: colors.border,
-                          }}
-                        >
-                          <View
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 20,
-                              backgroundColor: colors.card,
-                              alignItems: "center",
-                              justifyContent: "center",
-                              marginRight: 12,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: colors.text,
-                                fontSize: 15,
-                                fontWeight: "600",
-                              }}
-                            >
-                              {(reactionUserNameMap[uid] || uid)
-                                .charAt(0)
-                                .toUpperCase()}
-                            </Text>
-                          </View>
-                          <Text
-                            style={{
-                              flex: 1,
-                              color: colors.text,
-                              fontSize: 15,
-                            }}
-                            numberOfLines={1}
-                          >
-                            {reactionUserNameMap[uid] || "Người dùng"}
-                          </Text>
-                          <View style={{ flexDirection: "row" }}>
-                            {(Array.isArray(byUser[uid])
-                              ? byUser[uid]
-                              : []
-                            ).map((emoji) => (
-                              <Text
-                                key={emoji}
-                                style={{ fontSize: 18, marginLeft: 8 }}
-                              >
-                                {emoji}
-                              </Text>
-                            ))}
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                );
-              })()}
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* ─── Modal chuyển tiếp tin nhắn (multi-select) ─── */}
-
-      {/* ─── Chat-wide swipeable image gallery ─── */}
-      <Modal
-        visible={galleryIndex !== null}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setGalleryIndex(null)}
-      >
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.98)" }}>
-          <TouchableOpacity
-            onPress={() => setGalleryIndex(null)}
-            style={{
-              position: "absolute",
-              top: 52,
-              right: 20,
-              zIndex: 10,
-              padding: 8,
-            }}
-          >
-            <Ionicons name="close" size={32} color="#fff" />
-          </TouchableOpacity>
-
-          {galleryItems.length > 1 && (
-            <View
-              style={{
-                position: "absolute",
-                top: 56,
-                left: 0,
-                right: 0,
-                zIndex: 10,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: "#fff", fontSize: 18, fontWeight: "600" }}>
-                {galleryCurrentIndex + 1} / {galleryItems.length}
-              </Text>
-            </View>
-          )}
-
-          <FlatList
-            ref={galleryRef}
-            style={{ flex: 1 }}
-            data={galleryItems}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(_, i) => `chat-gallery-${i}`}
-            initialScrollIndex={Math.min(
-              galleryIndex ?? 0,
-              Math.max(0, galleryItems.length - 1),
-            )}
-            getItemLayout={(_, index) => ({
-              length: SCREEN_WIDTH,
-              offset: SCREEN_WIDTH * index,
-              index,
-            })}
-            viewabilityConfig={galleryViewabilityConfig}
-            onViewableItemsChanged={onGalleryViewableItemsChanged}
-            onMomentumScrollEnd={(e) => {
-              const idx = Math.round(
-                e.nativeEvent.contentOffset.x / SCREEN_WIDTH,
-              );
-              setGalleryCurrentIndex(idx);
-            }}
-            renderItem={({ item, index }) => {
-              const isActive = galleryCurrentIndex === index;
-              return (
-                <View
-                  style={{
-                    width: SCREEN_WIDTH,
-                    height: SCREEN_HEIGHT,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    backgroundColor: "black",
-                  }}
-                >
-                  {item.kind === "video" ? (
-                    <Video
-                      source={{ uri: item.url }}
-                      style={{
-                        width: SCREEN_WIDTH,
-                        height: SCREEN_HEIGHT * 0.75,
-                        backgroundColor: "#000",
-                      }}
-                      resizeMode={ResizeMode.CONTAIN}
-                      useNativeControls
-                      shouldPlay={isActive}
-                      isLooping={false}
-                      isMuted
-                    />
-                  ) : (
-                    <Image
-                      source={{ uri: item.url }}
-                      style={{
-                        width: SCREEN_WIDTH,
-                        height: SCREEN_HEIGHT * 0.75,
-                      }}
-                      resizeMode="contain"
-                    />
-                  )}
-                </View>
-              );
-            }}
-          />
-        </View>
-      </Modal>
-
-      {/* Generic Toast Notification */}
-      {toast.visible && (
-        <View
-          style={{
-            position: "absolute",
-            top: "40%",
-            alignSelf: "center",
-            backgroundColor:
-              toast.type === "error"
-                ? "rgba(239, 68, 68, 0.95)"
-                : "rgba(0,0,0,0.85)",
-            paddingHorizontal: 20,
-            paddingVertical: 12,
-            borderRadius: 24,
-            flexDirection: "row",
-            alignItems: "center",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 4.65,
-            elevation: 8,
-            zIndex: 99999,
-          }}
-        >
-          <Ionicons
-            name={toast.type === "error" ? "alert-circle" : "checkmark-circle"}
-            size={20}
-            color="#fff"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>
-            {toast.message}
-          </Text>
-        </View>
-      )}
-
-      {/* Welcome templates (after accepting friend request) */}
-      <Modal
-        transparent
-        animationType="fade"
-        visible={showWelcomePicker}
-        onRequestClose={() => setShowWelcomePicker(false)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.45)",
-            justifyContent: "flex-end",
-          }}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            style={{ flex: 1 }}
-            onPress={() => setShowWelcomePicker(false)}
-          />
-          <View
-            style={{
-              backgroundColor: colors.card,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              paddingTop: 12,
-              paddingBottom: 22,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <View
-              style={{
-                alignSelf: "center",
-                width: 40,
-                height: 4,
-                borderRadius: 999,
-                backgroundColor: colors.border,
-                marginBottom: 12,
-              }}
-            />
-            <Text
-              style={{
-                color: colors.text,
-                fontSize: 16,
-                fontWeight: "800",
-                paddingHorizontal: 18,
-              }}
-            >
-              Chọn 1 tin nhắn chào mừng
-            </Text>
-            <Text
-              style={{
-                color: colors.textSecondary,
-                fontSize: 12,
-                paddingHorizontal: 18,
-                marginTop: 4,
-              }}
-            >
-              Không tự gửi. Bạn chọn 1 mẫu để gửi nhanh.
-            </Text>
-
-            {[
-              "Chào bạn, rất vui được kết bạn với bạn!",
-              "Hello! Mình vừa chấp nhận lời mời, bạn đang làm gì đó?",
-              "Chào bạn, mình có thể giúp gì cho bạn không?",
-            ].map((tpl) => (
-              <TouchableOpacity
-                key={tpl}
-                onPress={() => {
-                  handleSend(tpl);
-                  showToast("Đã chọn và gửi tin nhắn chào mừng", "success");
-                  setShowWelcomePicker(false);
-                }}
-                style={{
-                  marginTop: 10,
-                  marginHorizontal: 14,
-                  paddingHorizontal: 14,
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  backgroundColor: theme === "dark" ? "#2c2c2e" : "#f3f4f6",
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <Text
-                  style={{
-                    color: colors.text,
-                    fontSize: 14,
-                    fontWeight: "600",
-                  }}
-                >
-                  {tpl}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </Modal>
-
-      {/* ─── Modal chuyển tiếp tin nhắn (multi-select) ─── */}
-      <Modal
-        transparent
-        animationType="slide"
-        visible={showForwardModal}
-        onRequestClose={() => {
-          if (!forwardLoading) {
-            setShowForwardModal(false);
-            setSelectedForwardRooms(new Set());
-          }
-        }}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.55)",
-            justifyContent: "flex-end",
-          }}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            style={{ flex: 1 }}
-            onPress={() => {
-              if (!forwardLoading) {
-                setShowForwardModal(false);
-                setSelectedForwardRooms(new Set());
-              }
-            }}
-          />
-          <View
-            style={{
-              backgroundColor: colors.card,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              paddingTop: 12,
-              maxHeight: "85%",
-              borderWidth: 1,
-              borderColor: colors.border,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: -3 },
-              shadowOpacity: 0.15,
-              shadowRadius: 12,
-              elevation: 25,
-            }}
-          >
-            {/* Handle bar */}
-            <View
-              style={{
-                alignSelf: "center",
-                width: 40,
-                height: 4,
-                borderRadius: 999,
-                backgroundColor: colors.border,
-                marginBottom: 14,
-              }}
-            />
-
-            {/* Header */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingHorizontal: 20,
-                marginBottom: 10,
-              }}
-            >
-              <View>
-                <Text
-                  style={{
-                    color: colors.text,
-                    fontSize: 17,
-                    fontWeight: "700",
-                  }}
-                >
-                  Chuyển tiếp đến
-                </Text>
-                {selectedForwardRooms.size > 0 && (
-                  <Text
-                    style={{ color: "#60a5fa", fontSize: 12, marginTop: 2 }}
-                  >
-                    Đã chọn {selectedForwardRooms.size} cuộc trò chuyện
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity
-                onPress={() => {
-                  if (!forwardLoading) {
-                    setShowForwardModal(false);
-                    setSelectedForwardRooms(new Set());
-                  }
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close" size={24} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Preview tin nhắn gốc */}
-            {forwardingMessage && (
-              <View
-                style={{
-                  marginHorizontal: 16,
-                  marginBottom: 10,
-                  padding: 10,
-                  backgroundColor: colors.card,
-                  borderRadius: 12,
-                  borderLeftWidth: 3,
-                  borderLeftColor: "#60a5fa",
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <Ionicons
-                  name={
-                    forwardingMessage.type === "IMAGE"
-                      ? "image-outline"
-                      : forwardingMessage.attachments?.length > 0
-                        ? "document-outline"
-                        : "chatbubble-outline"
-                  }
-                  size={18}
-                  color="#60a5fa"
-                  style={{ marginRight: 8 }}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={{ color: colors.text, fontSize: 13, flex: 1 }}
-                >
-                  {forwardingMessage.type === "IMAGE"
-                    ? `${forwardingMessage.attachments?.length ?? 1} hình ảnh`
-                    : forwardingMessage.attachments?.length > 0
-                      ? forwardingMessage.attachments[0].name || "Tệp đính kèm"
-                      : forwardingMessage.content || "[Tin nhắn]"}
-                </Text>
-              </View>
-            )}
-
-            {/* Ô tìm kiếm */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginHorizontal: 16,
-                marginBottom: 6,
-                backgroundColor: colors.card,
-                borderRadius: 12,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Ionicons
-                name="search-outline"
-                size={16}
-                color={colors.textSecondary}
-                style={{ marginRight: 8 }}
-              />
-              <TextInput
-                placeholder="Tìm cuộc trò chuyện..."
-                placeholderTextColor={colors.textSecondary}
-                value={forwardSearch}
-                onChangeText={setForwardSearch}
-                style={{
-                  flex: 1,
-                  color: colors.text,
-                  fontSize: 14,
-                  padding: 0,
-                }}
-              />
-              {forwardSearch.length > 0 && (
-                <TouchableOpacity onPress={() => setForwardSearch("")}>
-                  <Ionicons
-                    name="close-circle"
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Danh sách cuộc trò chuyện – multi-select */}
-            <FlatList
-              data={rooms.filter(
-                (r) =>
-                  r.id !== roomId &&
-                  (forwardSearch.trim() === "" ||
-                    r.name
-                      ?.toLowerCase()
-                      .includes(forwardSearch.toLowerCase())),
-              )}
-              keyExtractor={(item) => item.id}
-              style={{ maxHeight: 340 }}
-              contentContainerStyle={{
-                paddingHorizontal: 16,
-                paddingVertical: 4,
-              }}
-              ListEmptyComponent={() => (
-                <View style={{ alignItems: "center", paddingVertical: 28 }}>
-                  <Ionicons
-                    name="chatbubbles-outline"
-                    size={36}
-                    color={colors.textSecondary}
-                  />
-                  <Text
-                    style={{
-                      color: colors.textSecondary,
-                      marginTop: 8,
-                      fontSize: 14,
-                    }}
-                  >
-                    Không tìm thấy cuộc trò chuyện
-                  </Text>
-                </View>
-              )}
-              renderItem={({ item }) => {
-                const isSelected = selectedForwardRooms.has(item.id);
-                const avatarUri =
-                  item.avatarUrl ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "U")}&background=0068FF&color=fff`;
-                return (
-                  <TouchableOpacity
-                    onPress={() => toggleForwardRoom(item.id)}
-                    disabled={forwardLoading}
-                    activeOpacity={0.7}
-                    style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      paddingVertical: 10,
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.border,
-                      opacity: forwardLoading ? 0.5 : 1,
+                      flex: 1,
                     }}
                   >
-                    {/* Checkbox */}
                     <View
                       style={{
                         width: 24,
                         height: 24,
                         borderRadius: 12,
-                        borderWidth: 2,
-                        borderColor: isSelected ? "#60a5fa" : colors.border,
-                        backgroundColor: isSelected ? "#60a5fa" : "transparent",
-                        alignItems: "center",
+                        backgroundColor:
+                          theme === "dark"
+                            ? "rgba(255,255,255,0.1)"
+                            : "rgba(0,104,255,0.1)",
                         justifyContent: "center",
-                        marginRight: 12,
+                        alignItems: "center",
+                        marginRight: 8,
                       }}
                     >
-                      {isSelected && (
-                        <Ionicons name="checkmark" size={14} color="#fff" />
-                      )}
+                      <Ionicons
+                        name={getIcon(latest)}
+                        size={14}
+                        color={colors.primary}
+                      />
                     </View>
 
-                    {/* Avatar */}
-                    <Image
-                      source={{ uri: avatarUri }}
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                        marginRight: 12,
-                        backgroundColor: colors.card,
-                        borderWidth: isSelected ? 2 : 0,
-                        borderColor: "#60a5fa",
-                      }}
-                    />
-
-                    {/* Thông tin */}
                     <View style={{ flex: 1 }}>
                       <Text
                         numberOfLines={1}
                         style={{
-                          color: isSelected ? "#60a5fa" : colors.text,
-                          fontSize: 15,
-                          fontWeight: isSelected ? "600" : "400",
+                          color: colors.primary,
+                          fontSize: 13,
+                          fontWeight: "600",
                         }}
                       >
-                        {item.name || "Người dùng"}
+                        Tin nhắn ghim
                       </Text>
                       <Text
                         numberOfLines={1}
                         style={{
                           color: colors.textSecondary,
                           fontSize: 12,
-                          marginTop: 1,
+                          marginTop: -1,
                         }}
                       >
-                        {item.type === "GROUP" ? "👥 Nhóm" : "👤 Cá nhân"}
+                        {getPinnedDisplayText(latest)}
                       </Text>
                     </View>
-                  </TouchableOpacity>
-                );
-              }}
-            />
+                  </View>
 
-            {/* Nút gửi – cố định dưới đáy modal */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginLeft: 8,
+                    }}
+                  >
+                    {pinned.length > 1 && (
+                      <View
+                        style={{
+                          backgroundColor:
+                            theme === "dark"
+                              ? "rgba(255,255,255,0.1)"
+                              : "rgba(0,0,0,0.05)",
+                          paddingHorizontal: 6,
+                          paddingVertical: 2,
+                          borderRadius: 10,
+                          marginRight: 6,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: colors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: "700",
+                          }}
+                        >
+                          +{pinned.length - 1}
+                        </Text>
+                      </View>
+                    )}
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                  </View>
+                </TouchableOpacity>
+              </View>
+            );
+          })()}
+
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={0}
+          style={{ flex: 1 }}
+        >
+          <View style={{ flex: 1 }}>
+            {initialUnreadCount > 0 && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 10,
+                  alignSelf: "center",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  zIndex: 999,
+                  backgroundColor: colors.primary,
+                  borderRadius: 24,
+                  padding: 2, // Tạo khoảng hở cho border bên trong nếu cần
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 5,
+                  elevation: 8,
+                }}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={handleJumpToUnread}
+                  style={{
+                    paddingVertical: 8,
+                    paddingLeft: 16,
+                    paddingRight: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    borderRightWidth: 1,
+                    borderRightColor: "rgba(255,255,255,0.2)",
+                  }}
+                >
+                  <Ionicons
+                    name="arrow-up"
+                    size={16}
+                    color="white"
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={{ color: "white", fontSize: 13, fontWeight: "700" }}>
+                    {initialUnreadCount} tin nhắn mới
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={handleAiSummarizeUnread}
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name="sparkles"
+                    size={18}
+                    color="#FFD700"
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={{ color: "white", fontSize: 13, fontWeight: "700" }}>
+                    AI
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <FlatList
+              style={{ flex: 1 }}
+              ref={flatListRef}
+              data={chatRows}
+              inverted
+              keyExtractor={(row, index) =>
+                row.kind === "imageGroup"
+                  ? `ig-${row.messages.map((m) => m.messageId || "x").join("-")}-${index}`
+                  : `${row.message.messageId || "msg"}-${index}`
+              }
+              renderItem={renderMessage}
+              contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
+              showsVerticalScrollIndicator={false}
+              onTouchStart={() => footerRef.current?.closeEmojiPicker()}
+              onScrollBeginDrag={() => footerRef.current?.closeEmojiPicker()}
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.5}
+              initialNumToRender={15}
+              maxToRenderPerBatch={10}
+              windowSize={11}
+              onViewableItemsChanged={onViewableItemsChangedHandler}
+              viewabilityConfig={viewabilityConfig}
+              onScroll={(e) => {
+                const offset = e.nativeEvent.contentOffset.y;
+                // FlatList inverted: offset gần 0 có nghĩa là đang ở dưới cùng
+                isAtBottomRef.current = offset < 50;
+
+                if (offset > 400) {
+                  if (!showScrollToBottom) setShowScrollToBottom(true);
+                } else {
+                  if (showScrollToBottom) setShowScrollToBottom(false);
+                }
+              }}
+              removeClippedSubviews={Platform.OS === "android"}
+              onScrollToIndexFailed={(info) => {
+                // Item chưa render trong viewport — scroll đến vị trí ước tính
+                // rồi retry sau khi layout xong
+                const offset = info.averageItemLength * info.index;
+                flatListRef.current?.scrollToOffset({ offset, animated: false });
+                setTimeout(() => {
+                  flatListRef.current?.scrollToIndex({
+                    index: info.index,
+                    animated: true,
+                    viewPosition: 0.5,
+                  });
+                }, 200);
+              }}
+              ListFooterComponent={
+                <View style={{ paddingBottom: 20 }}>
+                  {isLoadingMore ? (
+                    <View style={{ paddingVertical: 10 }}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    </View>
+                  ) : null}
+                </View>
+              }
+              ListEmptyComponent={() => (
+                <View
+                  style={{
+                    flex: 1,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    transform: [{ scaleY: -1 }],
+                  }}
+                >
+                  {loaded && isStrangerEmptyThread ? (
+                    <View style={{ height: 1 }} />
+                  ) : loaded ? (
+                    <Text style={{ color: colors.textSecondary }}>
+                      Hãy gửi tin nhắn đầu tiên! 👋
+                    </Text>
+                  ) : (
+                    <Text style={{ color: colors.textSecondary }}>
+                      Đang tải tin nhắn...
+                    </Text>
+                  )}
+                </View>
+              )}
+            />
+            {isStrangerEmptyThread ? (
+              <StrangerProfilePreviewCard
+                displayName={
+                  partnerProfileDetail?.displayName?.trim() || displayName
+                }
+                avatarUrl={
+                  (partnerProfileDetail?.avatarUrl ?? partnerAvatar) || null
+                }
+                coverPhotoUrl={partnerProfileDetail?.coverPhotoUrl ?? null}
+              />
+            ) : null}
+          </View>
+          {isGroupDisbanded ? (
             <View
               style={{
                 paddingHorizontal: 16,
-                paddingTop: 12,
-                paddingBottom: 28,
+                paddingVertical: 14,
                 borderTopWidth: 1,
                 borderTopColor: colors.border,
+                backgroundColor: colors.card,
+                alignItems: "center",
               }}
             >
-              <TouchableOpacity
-                onPress={handleConfirmForward}
-                disabled={selectedForwardRooms.size === 0 || forwardLoading}
+              <Text
                 style={{
-                  backgroundColor:
-                    selectedForwardRooms.size === 0 ? colors.border : "#60a5fa",
-                  borderRadius: 14,
-                  paddingVertical: 14,
-                  alignItems: "center",
-                  flexDirection: "row",
-                  justifyContent: "center",
+                  color: colors.textSecondary,
+                  fontSize: 13,
+                  textAlign: "center",
                 }}
               >
-                {forwardLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
+                Nhóm đã được giải tán. Bạn không thể gửi tin nhắn vào nhóm này nữa.
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={async () => {
+                  if (!roomId) return;
+                  try {
+                    await useChatStore.getState().deleteRoom(roomId);
+                    router.back();
+                  } catch {
+                    showToast("Không xóa được cuộc trò chuyện", "error");
+                  }
+                }}
+                style={{ marginTop: 10 }}
+              >
+                <Text
+                  style={{
+                    color: colors.primary,
+                    fontSize: 14,
+                    fontWeight: "600",
+                    textAlign: "center",
+                  }}
+                >
+                  Xóa trò chuyện
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : roomType === "DIRECT" &&
+            blockStatus &&
+            (blockStatus.blockedByYou || blockStatus.blockedByOther) ? (
+            <View
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 16,
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+                backgroundColor: colors.card,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color: colors.text,
+                  fontSize: 13,
+                  marginBottom: blockStatus.blockedByYou ? 10 : 0,
+                  textAlign: "center",
+                }}
+              >
+                {blockStatus.blockedByYou
+                  ? "Bạn đã chặn tin nhắn"
+                  : "Bạn đã bị chặn tin nhắn"}
+              </Text>
+              {blockStatus.blockedByYou && partnerId && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={async () => {
+                    try {
+                      await unblockUser(partnerId);
+                      setBlockStatus({
+                        blockedByYou: false,
+                        blockedByOther: false,
+                        blockerName: null,
+                      });
+                    } catch {
+                      showToast("Không bỏ chặn được người này", "error");
+                    }
+                  }}
+                  style={{
+                    marginTop: 8,
+                    alignSelf: "center",
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    backgroundColor: colors.primary,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#ffffff",
+                      fontSize: 14,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Bỏ chặn
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <ChatFooter
+              ref={footerRef}
+              onSend={handleSend}
+              onSendImage={handleSendImage}
+              onSendFile={handleSendFile}
+              disabled={!canSendMessage}
+              disabledText={
+                isGroupDisbanded
+                  ? "Nhóm đã giải tán"
+                  : "Chỉ trưởng/phó nhóm được gửi tin nhắn"
+              }
+              onCreatePoll={
+                roomType === "GROUP" && roomId && roomId !== "new" && canCreatePoll
+                  ? () =>
+                    router.push(
+                      `/create-poll?roomId=${encodeURIComponent(roomId)}&groupName=${encodeURIComponent(displayName)}`,
+                    )
+                  : undefined
+              }
+              uploadProgress={uploadState?.progress ?? null}
+              uploadText={uploadState?.text}
+              replyTo={replyTo}
+              onCancelReply={() => setReplyTo(null)}
+              onVoiceActiveChange={setIsVoiceActive}
+            />
+          )}
+
+          {showScrollToBottom && !isVoiceActive && (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => {
+                flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+                setShowScrollToBottom(false);
+              }}
+              style={{
+                position: "absolute",
+                bottom: 85, // Phía trên ô nhập text (ChatFooter cao tầm 60-70px)
+                right: 16,
+                width: 42,
+                height: 42,
+                borderRadius: 21,
+                backgroundColor: theme === "dark" ? "#2c2c2e" : "#ffffff",
+                justifyContent: "center",
+                alignItems: "center",
+                elevation: 5,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                zIndex: 1000,
+                borderWidth: 1,
+                borderColor: theme === "dark" ? "#3a3a3c" : "#e5e5ea",
+              }}
+            >
+              <Ionicons name="chevron-down" size={24} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </KeyboardAvoidingView>
+
+        {/* Action sheet khi nhấn giữ tin nhắn */}
+        <Modal
+          transparent
+          animationType="fade"
+          visible={showActionSheet && !!selectedMessage}
+          onRequestClose={closeActionSheet}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "flex-end",
+            }}
+            onPress={closeActionSheet}
+          >
+            <View
+              style={{
+                backgroundColor: colors.card,
+                paddingBottom: 32,
+                paddingTop: 12,
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: -3 },
+                shadowOpacity: 0.1,
+                shadowRadius: 10,
+                elevation: 20,
+              }}
+            >
+              <View
+                style={{
+                  alignSelf: "center",
+                  width: 36,
+                  height: 5,
+                  borderRadius: 999,
+                  backgroundColor: colors.border,
+                  marginBottom: 20,
+                }}
+              />
+
+              {/* Hàng reaction giống Zalo */}
+              {selectedMessage && !selectedMessage.recalled && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-around",
+                    marginBottom: 16,
+                    paddingHorizontal: 24,
+                  }}
+                >
+                  {["❤️", "👍", "😂", "😮", "😢", "😡"].map((emoji) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      onPress={async () => {
+                        if (!selectedMessage || !roomId || !currentUserId) return;
+
+                        // Optimistic UI update
+                        const emojiToSet = emoji;
+                        const msgId = selectedMessage.messageId;
+
+                        setMessages((prev) =>
+                          prev.map((m) => {
+                            if (m.messageId === msgId) {
+                              const existingReactions = Array.isArray(m.reactions)
+                                ? m.reactions
+                                : [];
+                              // Find if I already reacted with THIS SPECIFIC emoji
+                              const sameEmojiIndex = existingReactions.findIndex(
+                                (r) =>
+                                  r.userId === currentUserId &&
+                                  r.emoji === emojiToSet,
+                              );
+
+                              let nextReactions = [...existingReactions];
+
+                              if (sameEmojiIndex >= 0) {
+                                // Toggle off this specific emoji
+                                nextReactions.splice(sameEmojiIndex, 1);
+                              } else {
+                                // Add this emoji (keep other emojis from me)
+                                nextReactions.push({
+                                  userId: currentUserId,
+                                  emoji: emojiToSet,
+                                });
+                              }
+                              return { ...m, reactions: nextReactions };
+                            }
+                            return m;
+                          }),
+                        );
+
+                        // Close sheet immediately for smoothness
+                        closeActionSheet();
+
+                        // Send to server in background
+                        try {
+                          await MessageService.setReaction(
+                            roomId,
+                            msgId,
+                            emojiToSet,
+                          );
+                        } catch (err) {
+                          // If error, we might want to revert but for "smoothness" and Zalo-like feel,
+                          // often we just let it be or show a quiet toast
+                          console.error("Reaction failed sync:", err);
+                        }
+                      }}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: colors.card,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text style={{ fontSize: 22 }}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+
+                  {/* Biểu tượng gỡ cảm xúc */}
+                  {selectedMessage?.reactions?.some(
+                    (r) => r.userId === currentUserId,
+                  ) && (
+                      <TouchableOpacity
+                        onPress={async () => {
+                          if (!selectedMessage || !roomId || !currentUserId) return;
+                          const msgId = selectedMessage.messageId;
+
+                          // Optimistic UI update: gỡ toàn bộ reactions của tôi
+                          setMessages((prev) =>
+                            prev.map((m) => {
+                              if (m.messageId === msgId) {
+                                const nextReactions = (m.reactions || []).filter(
+                                  (r) => r.userId !== currentUserId,
+                                );
+                                return { ...m, reactions: nextReactions };
+                              }
+                              return m;
+                            }),
+                          );
+
+                          closeActionSheet();
+
+                          try {
+                            await MessageService.removeReaction(roomId, msgId);
+                          } catch (err) {
+                            console.error("Remove reaction failed sync:", err);
+                          }
+                        }}
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 22,
+                          backgroundColor: colors.card,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderWidth: 1,
+                          borderColor: "#ef4444", // red border for remove action
+                        }}
+                      >
+                        <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                      </TouchableOpacity>
+                    )}
+                </View>
+              )}
+
+              {selectedMessage &&
+                selectedMessage.senderId === currentUserId &&
+                !selectedMessage.recalled && (
+                  <TouchableOpacity
+                    onPress={() => handleRecall()}
+                    style={{
+                      paddingVertical: 12,
+                      paddingHorizontal: 20,
+                      flexDirection: "row",
+                      alignItems: "center",
+                    }}
+                  >
                     <Ionicons
-                      name="send"
-                      size={18}
-                      color={
-                        selectedForwardRooms.size === 0
-                          ? colors.textSecondary
-                          : "#fff"
-                      }
-                      style={{ marginRight: 8 }}
+                      name="refresh-outline"
+                      size={20}
+                      color="#ea580c"
+                      style={{ marginRight: 12 }}
                     />
                     <Text
                       style={{
-                        color:
-                          selectedForwardRooms.size === 0
-                            ? colors.textSecondary
-                            : "#fff",
+                        color: "#ea580c",
                         fontSize: 16,
-                        fontWeight: "700",
+                        fontWeight: "600",
                       }}
                     >
-                      {selectedForwardRooms.size === 0
-                        ? "Chọn để chuyển tiếp"
-                        : `Chuyển tiếp`}
+                      Thu hồi tin nhắn
                     </Text>
-                  </>
+                  </TouchableOpacity>
                 )}
+
+              {selectedMessage && !selectedMessage.recalled && (
+                <TouchableOpacity
+                  onPress={() => handleStartReply()}
+                  style={{
+                    paddingVertical: 12,
+                    paddingHorizontal: 20,
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name="arrow-redo-outline"
+                    size={20}
+                    color={colors.text}
+                    style={{ marginRight: 12 }}
+                  />
+                  <Text style={{ color: colors.text, fontSize: 16 }}>
+                    Trả lời
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {selectedMessage &&
+                !selectedMessage.recalled &&
+                (selectedMessage.type === "TEXT" ||
+                  selectedMessage.type === "IMAGE") && (
+                  <TouchableOpacity
+                    onPress={() => handleCopyMessage()}
+                    style={{
+                      paddingVertical: 12,
+                      paddingHorizontal: 20,
+                      flexDirection: "row",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Ionicons
+                      name="copy-outline"
+                      size={20}
+                      color={colors.text}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={{ color: colors.text, fontSize: 16 }}>
+                      Sao chép
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+              {selectedMessage &&
+                !selectedMessage.recalled &&
+                (selectedMessage.type === "IMAGE" ||
+                  selectedMessage.type === "VIDEO" ||
+                  selectedMessage.type === "FILE" ||
+                  selectedMessage.type === "DOCUMENT") && (
+                  <TouchableOpacity
+                    onPress={() => handleDownloadMessage()}
+                    style={{
+                      paddingVertical: 12,
+                      paddingHorizontal: 20,
+                      flexDirection: "row",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Ionicons
+                      name="download-outline"
+                      size={20}
+                      color={colors.text}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={{ color: colors.text, fontSize: 16 }}>
+                      Tải về
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+              {selectedMessage && !selectedMessage.recalled && (
+                <TouchableOpacity
+                  onPress={() => handleOpenForward()}
+                  style={{
+                    paddingVertical: 12,
+                    paddingHorizontal: 20,
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name="share-outline"
+                    size={20}
+                    color="#60a5fa"
+                    style={{ marginRight: 12 }}
+                  />
+                  <Text
+                    style={{ color: "#60a5fa", fontSize: 16, fontWeight: "500" }}
+                  >
+                    Chuyển tiếp
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {selectedMessage && !selectedMessage.recalled && (
+                <TouchableOpacity
+                  onPress={() => handleTogglePin()}
+                  style={{
+                    paddingVertical: 12,
+                    paddingHorizontal: 20,
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name={selectedMessage.pinned ? "pin" : "pin-outline"}
+                    size={20}
+                    color={colors.text}
+                    style={{ marginRight: 12 }}
+                  />
+                  <Text style={{ color: colors.text, fontSize: 16 }}>
+                    {selectedMessage.pinned ? "Bỏ ghim" : "Ghim"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {selectedMessage && (
+                <TouchableOpacity
+                  onPress={() => handleDeleteMessage()}
+                  style={{
+                    paddingVertical: 12,
+                    paddingHorizontal: 20,
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={20}
+                    color="#ef4444"
+                    style={{ marginRight: 12 }}
+                  />
+                  <Text
+                    style={{ color: "#ef4444", fontSize: 16, fontWeight: "500" }}
+                  >
+                    Xóa
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                onPress={closeActionSheet}
+                style={{
+                  paddingVertical: 14,
+                  paddingHorizontal: 20,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons
+                  name="close-outline"
+                  size={20}
+                  color={colors.textSecondary}
+                  style={{ marginRight: 12 }}
+                />
+                <Text style={{ color: colors.textSecondary, fontSize: 16 }}>
+                  Đóng
+                </Text>
               </TouchableOpacity>
             </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Danh sách tin nhắn đã ghim - overlay dạng bottom sheet */}
+        <Modal
+          transparent
+          animationType="slide"
+          visible={showPinnedList}
+          onRequestClose={() => setShowPinnedList(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "flex-end",
+            }}
+            onPress={() => setShowPinnedList(false)}
+          >
+            <View
+              style={{
+                backgroundColor: colors.card,
+                paddingTop: 16,
+                paddingBottom: 32,
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                maxHeight: "75%",
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: -2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 10,
+                elevation: 20,
+              }}
+            >
+              <Text
+                style={{
+                  color: colors.text,
+                  fontSize: 17,
+                  fontWeight: "700",
+                  textAlign: "center",
+                  marginBottom: 12,
+                }}
+              >
+                Tin nhắn đã ghim
+              </Text>
+
+              <View
+                style={{
+                  maxHeight: "100%",
+                }}
+              >
+                {messages.filter((m) => m.pinned).length === 0 ? (
+                  <Text
+                    style={{
+                      color: colors.textSecondary,
+                      textAlign: "center",
+                      paddingVertical: 40,
+                    }}
+                  >
+                    Chưa có tin nhắn nào được ghim.
+                  </Text>
+                ) : (
+                  messages
+                    .filter((m) => m.pinned)
+                    .map((m) => (
+                      <TouchableOpacity
+                        key={m.messageId}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                          borderBottomWidth: 0.5,
+                          borderBottomColor: colors.border,
+                        }}
+                        onPress={() => {
+                          const index = chatRows.findIndex((row) =>
+                            row.kind === "imageGroup"
+                              ? row.messages.some(
+                                (x) => x.messageId === m.messageId,
+                              )
+                              : row.message.messageId === m.messageId,
+                          );
+                          if (index >= 0) {
+                            flatListRef.current?.scrollToIndex({
+                              index,
+                              animated: true,
+                            });
+                          }
+                          setShowPinnedList(false);
+                        }}
+                      >
+                        {/* Icon based on type */}
+                        <View
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 10,
+                            backgroundColor:
+                              theme === "dark"
+                                ? "rgba(255,255,255,0.05)"
+                                : "#f0f7ff",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            marginRight: 12,
+                          }}
+                        >
+                          <Ionicons
+                            name={
+                              m.type === "IMAGE"
+                                ? "image"
+                                : m.type === "VIDEO"
+                                  ? "videocam"
+                                  : m.type === "VOICE"
+                                    ? "mic"
+                                    : m.type === "POLL"
+                                      ? "stats-chart"
+                                      : m.type === "FILE" ||
+                                        m.type === "DOCUMENT" ||
+                                        (m.attachments && m.attachments.length > 0)
+                                        ? "document-text"
+                                        : "chatbubble-ellipses"
+                            }
+                            size={22}
+                            color={colors.primary}
+                          />
+                        </View>
+
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              color: colors.text,
+                              fontSize: 15,
+                              fontWeight: "600",
+                            }}
+                            numberOfLines={1}
+                          >
+                            {getPinnedDisplayText(m)}
+                          </Text>
+                          <Text
+                            style={{
+                              color: colors.textSecondary,
+                              fontSize: 12,
+                              marginTop: 2,
+                            }}
+                          >
+                            {m.senderName} • {formatTime(m.createdAt)}
+                          </Text>
+                        </View>
+
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (!roomId) return;
+                            // Optimistic: cập nhật ngay trên UI trước khi server phản hồi
+                            setMessages((prev) =>
+                              prev.map((msg) =>
+                                msg.messageId === m.messageId
+                                  ? { ...msg, pinned: false }
+                                  : msg,
+                              ),
+                            );
+                            webSocketService.sendPin({
+                              roomId,
+                              messageId: m.messageId,
+                              pin: false,
+                              messageType: m.type || "TEXT",
+                            });
+                          }}
+                          style={{ padding: 8 }}
+                        >
+                          <Ionicons
+                            name="close-circle"
+                            size={20}
+                            color={colors.textSecondary}
+                          />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    ))
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Danh sách reaction – bấm vào dải reaction dưới tin nhắn */}
+        <Modal
+          transparent
+          animationType="slide"
+          visible={!!reactionListMessage}
+          onRequestClose={() => setReactionListMessage(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "flex-end",
+            }}
+            onPress={() => setReactionListMessage(null)}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => { }}
+              style={{
+                backgroundColor: colors.card,
+                paddingTop: 16,
+                paddingBottom: 32,
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                maxHeight: "75%",
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: -3 },
+                shadowOpacity: 0.1,
+                shadowRadius: 10,
+                elevation: 20,
+              }}
+            >
+              {reactionListMessage &&
+                (() => {
+                  const raw = reactionListMessage?.reactions;
+                  const reactions = Array.isArray(raw) ? raw : [];
+                  const total = reactions.length;
+                  const byEmoji = reactions.reduce<Record<string, number>>(
+                    (acc, r) => {
+                      if (!r?.emoji) return acc;
+                      acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                      return acc;
+                    },
+                    {},
+                  );
+                  const byUser = reactions.reduce<Record<string, string[]>>(
+                    (acc, r) => {
+                      if (!r?.userId || !r?.emoji) return acc;
+                      if (!Array.isArray(acc[r.userId])) acc[r.userId] = [];
+                      if (!acc[r.userId].includes(r.emoji))
+                        acc[r.userId].push(r.emoji);
+                      return acc;
+                    },
+                    {},
+                  );
+                  const userIds = Object.keys(byUser);
+                  return (
+                    <>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          paddingHorizontal: 20,
+                          marginBottom: 16,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 17,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Tất cả {total}
+                        </Text>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                          {Object.entries(byEmoji).map(([emoji, count]) => (
+                            <Text
+                              key={emoji}
+                              style={{
+                                color: colors.text,
+                                fontSize: 14,
+                                marginLeft: 12,
+                              }}
+                            >
+                              {emoji} {count}
+                            </Text>
+                          ))}
+                        </View>
+                      </View>
+                      <View style={{ maxHeight: "100%" }}>
+                        {userIds.map((uid) => (
+                          <View
+                            key={uid}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              paddingHorizontal: 20,
+                              paddingVertical: 12,
+                              borderBottomWidth: 1,
+                              borderBottomColor: colors.border,
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 20,
+                                backgroundColor: colors.card,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                marginRight: 12,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: colors.text,
+                                  fontSize: 15,
+                                  fontWeight: "600",
+                                }}
+                              >
+                                {(reactionUserNameMap[uid] || uid)
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </Text>
+                            </View>
+                            <Text
+                              style={{
+                                flex: 1,
+                                color: colors.text,
+                                fontSize: 15,
+                              }}
+                              numberOfLines={1}
+                            >
+                              {reactionUserNameMap[uid] || "Người dùng"}
+                            </Text>
+                            <View style={{ flexDirection: "row" }}>
+                              {(Array.isArray(byUser[uid])
+                                ? byUser[uid]
+                                : []
+                              ).map((emoji) => (
+                                <Text
+                                  key={emoji}
+                                  style={{ fontSize: 18, marginLeft: 8 }}
+                                >
+                                  {emoji}
+                                </Text>
+                              ))}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  );
+                })()}
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* ─── Modal chuyển tiếp tin nhắn (multi-select) ─── */}
+
+        {/* ─── Chat-wide swipeable image gallery ─── */}
+        <Modal
+          visible={galleryIndex !== null}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setGalleryIndex(null)}
+        >
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.98)" }}>
+            <TouchableOpacity
+              onPress={() => setGalleryIndex(null)}
+              style={{
+                position: "absolute",
+                top: 52,
+                right: 20,
+                zIndex: 10,
+                padding: 8,
+              }}
+            >
+              <Ionicons name="close" size={32} color="#fff" />
+            </TouchableOpacity>
+
+            {galleryItems.length > 1 && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 56,
+                  left: 0,
+                  right: 0,
+                  zIndex: 10,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: "#fff", fontSize: 18, fontWeight: "600" }}>
+                  {galleryCurrentIndex + 1} / {galleryItems.length}
+                </Text>
+              </View>
+            )}
+
+            <FlatList
+              ref={galleryRef}
+              style={{ flex: 1 }}
+              data={galleryItems}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(_, i) => `chat-gallery-${i}`}
+              initialScrollIndex={Math.min(
+                galleryIndex ?? 0,
+                Math.max(0, galleryItems.length - 1),
+              )}
+              getItemLayout={(_, index) => ({
+                length: SCREEN_WIDTH,
+                offset: SCREEN_WIDTH * index,
+                index,
+              })}
+              viewabilityConfig={galleryViewabilityConfig}
+              onViewableItemsChanged={onGalleryViewableItemsChanged}
+              onMomentumScrollEnd={(e) => {
+                const idx = Math.round(
+                  e.nativeEvent.contentOffset.x / SCREEN_WIDTH,
+                );
+                setGalleryCurrentIndex(idx);
+              }}
+              renderItem={({ item, index }) => {
+                const isActive = galleryCurrentIndex === index;
+                return (
+                  <View
+                    style={{
+                      width: SCREEN_WIDTH,
+                      height: SCREEN_HEIGHT,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      backgroundColor: "black",
+                    }}
+                  >
+                    {item.kind === "video" ? (
+                      <Video
+                        source={{ uri: item.url }}
+                        style={{
+                          width: SCREEN_WIDTH,
+                          height: SCREEN_HEIGHT * 0.75,
+                          backgroundColor: "#000",
+                        }}
+                        resizeMode={ResizeMode.CONTAIN}
+                        useNativeControls
+                        shouldPlay={isActive}
+                        isLooping={false}
+                        isMuted
+                      />
+                    ) : (
+                      <Image
+                        source={{ uri: item.url }}
+                        style={{
+                          width: SCREEN_WIDTH,
+                          height: SCREEN_HEIGHT * 0.75,
+                        }}
+                        resizeMode="contain"
+                      />
+                    )}
+                  </View>
+                );
+              }}
+            />
           </View>
-        </View>
-      </Modal>
+        </Modal>
+
+        {/* Generic Toast Notification */}
+        {toast.visible && (
+          <View
+            style={{
+              position: "absolute",
+              top: "40%",
+              alignSelf: "center",
+              backgroundColor:
+                toast.type === "error"
+                  ? "rgba(239, 68, 68, 0.95)"
+                  : "rgba(0,0,0,0.85)",
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+              borderRadius: 24,
+              flexDirection: "row",
+              alignItems: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4.65,
+              elevation: 8,
+              zIndex: 99999,
+            }}
+          >
+            <Ionicons
+              name={toast.type === "error" ? "alert-circle" : "checkmark-circle"}
+              size={20}
+              color="#fff"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>
+              {toast.message}
+            </Text>
+          </View>
+        )}
+
+        {/* Welcome templates (after accepting friend request) */}
+        <Modal
+          transparent
+          animationType="fade"
+          visible={showWelcomePicker}
+          onRequestClose={() => setShowWelcomePicker(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.45)",
+              justifyContent: "flex-end",
+            }}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              style={{ flex: 1 }}
+              onPress={() => setShowWelcomePicker(false)}
+            />
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                paddingTop: 12,
+                paddingBottom: 22,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <View
+                style={{
+                  alignSelf: "center",
+                  width: 40,
+                  height: 4,
+                  borderRadius: 999,
+                  backgroundColor: colors.border,
+                  marginBottom: 12,
+                }}
+              />
+              <Text
+                style={{
+                  color: colors.text,
+                  fontSize: 16,
+                  fontWeight: "800",
+                  paddingHorizontal: 18,
+                }}
+              >
+                Chọn 1 tin nhắn chào mừng
+              </Text>
+              <Text
+                style={{
+                  color: colors.textSecondary,
+                  fontSize: 12,
+                  paddingHorizontal: 18,
+                  marginTop: 4,
+                }}
+              >
+                Không tự gửi. Bạn chọn 1 mẫu để gửi nhanh.
+              </Text>
+
+              {[
+                "Chào bạn, rất vui được kết bạn với bạn!",
+                "Hello! Mình vừa chấp nhận lời mời, bạn đang làm gì đó?",
+                "Chào bạn, mình có thể giúp gì cho bạn không?",
+              ].map((tpl) => (
+                <TouchableOpacity
+                  key={tpl}
+                  onPress={() => {
+                    handleSend(tpl);
+                    showToast("Đã chọn và gửi tin nhắn chào mừng", "success");
+                    setShowWelcomePicker(false);
+                  }}
+                  style={{
+                    marginTop: 10,
+                    marginHorizontal: 14,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    borderRadius: 14,
+                    backgroundColor: theme === "dark" ? "#2c2c2e" : "#f3f4f6",
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 14,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {tpl}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Modal>
+
+        {/* ─── Modal chuyển tiếp tin nhắn (multi-select) ─── */}
+        <Modal
+          transparent
+          animationType="slide"
+          visible={showForwardModal}
+          onRequestClose={() => {
+            if (!forwardLoading) {
+              setShowForwardModal(false);
+              setSelectedForwardRooms(new Set());
+            }
+          }}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.55)",
+              justifyContent: "flex-end",
+            }}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              style={{ flex: 1 }}
+              onPress={() => {
+                if (!forwardLoading) {
+                  setShowForwardModal(false);
+                  setSelectedForwardRooms(new Set());
+                }
+              }}
+            />
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                paddingTop: 12,
+                maxHeight: "85%",
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: -3 },
+                shadowOpacity: 0.15,
+                shadowRadius: 12,
+                elevation: 25,
+              }}
+            >
+              {/* Handle bar */}
+              <View
+                style={{
+                  alignSelf: "center",
+                  width: 40,
+                  height: 4,
+                  borderRadius: 999,
+                  backgroundColor: colors.border,
+                  marginBottom: 14,
+                }}
+              />
+
+              {/* Header */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 20,
+                  marginBottom: 10,
+                }}
+              >
+                <View>
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 17,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Chuyển tiếp đến
+                  </Text>
+                  {selectedForwardRooms.size > 0 && (
+                    <Text
+                      style={{ color: "#60a5fa", fontSize: 12, marginTop: 2 }}
+                    >
+                      Đã chọn {selectedForwardRooms.size} cuộc trò chuyện
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!forwardLoading) {
+                      setShowForwardModal(false);
+                      setSelectedForwardRooms(new Set());
+                    }
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close" size={24} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Preview tin nhắn gốc */}
+              {forwardingMessage && (
+                <View
+                  style={{
+                    marginHorizontal: 16,
+                    marginBottom: 10,
+                    padding: 10,
+                    backgroundColor: colors.card,
+                    borderRadius: 12,
+                    borderLeftWidth: 3,
+                    borderLeftColor: "#60a5fa",
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name={
+                      forwardingMessage.type === "IMAGE"
+                        ? "image-outline"
+                        : forwardingMessage.attachments?.length > 0
+                          ? "document-outline"
+                          : "chatbubble-outline"
+                    }
+                    size={18}
+                    color="#60a5fa"
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={{ color: colors.text, fontSize: 13, flex: 1 }}
+                  >
+                    {forwardingMessage.type === "IMAGE"
+                      ? `${forwardingMessage.attachments?.length ?? 1} hình ảnh`
+                      : forwardingMessage.attachments?.length > 0
+                        ? forwardingMessage.attachments[0].name || "Tệp đính kèm"
+                        : forwardingMessage.content || "[Tin nhắn]"}
+                  </Text>
+                </View>
+              )}
+
+              {/* Ô tìm kiếm */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginHorizontal: 16,
+                  marginBottom: 6,
+                  backgroundColor: colors.card,
+                  borderRadius: 12,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Ionicons
+                  name="search-outline"
+                  size={16}
+                  color={colors.textSecondary}
+                  style={{ marginRight: 8 }}
+                />
+                <TextInput
+                  placeholder="Tìm cuộc trò chuyện..."
+                  placeholderTextColor={colors.textSecondary}
+                  value={forwardSearch}
+                  onChangeText={setForwardSearch}
+                  style={{
+                    flex: 1,
+                    color: colors.text,
+                    fontSize: 14,
+                    padding: 0,
+                  }}
+                />
+                {forwardSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setForwardSearch("")}>
+                    <Ionicons
+                      name="close-circle"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Danh sách cuộc trò chuyện – multi-select */}
+              <FlatList
+                data={rooms.filter(
+                  (r) =>
+                    r.id !== roomId &&
+                    (forwardSearch.trim() === "" ||
+                      r.name
+                        ?.toLowerCase()
+                        .includes(forwardSearch.toLowerCase())),
+                )}
+                keyExtractor={(item) => item.id}
+                style={{ maxHeight: 340 }}
+                contentContainerStyle={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 4,
+                }}
+                ListEmptyComponent={() => (
+                  <View style={{ alignItems: "center", paddingVertical: 28 }}>
+                    <Ionicons
+                      name="chatbubbles-outline"
+                      size={36}
+                      color={colors.textSecondary}
+                    />
+                    <Text
+                      style={{
+                        color: colors.textSecondary,
+                        marginTop: 8,
+                        fontSize: 14,
+                      }}
+                    >
+                      Không tìm thấy cuộc trò chuyện
+                    </Text>
+                  </View>
+                )}
+                renderItem={({ item }) => {
+                  const isSelected = selectedForwardRooms.has(item.id);
+                  const avatarUri =
+                    item.avatarUrl ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "U")}&background=0068FF&color=fff`;
+                  return (
+                    <TouchableOpacity
+                      onPress={() => toggleForwardRoom(item.id)}
+                      disabled={forwardLoading}
+                      activeOpacity={0.7}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingVertical: 10,
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.border,
+                        opacity: forwardLoading ? 0.5 : 1,
+                      }}
+                    >
+                      {/* Checkbox */}
+                      <View
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          borderWidth: 2,
+                          borderColor: isSelected ? "#60a5fa" : colors.border,
+                          backgroundColor: isSelected ? "#60a5fa" : "transparent",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginRight: 12,
+                        }}
+                      >
+                        {isSelected && (
+                          <Ionicons name="checkmark" size={14} color="#fff" />
+                        )}
+                      </View>
+
+                      {/* Avatar */}
+                      <Image
+                        source={{ uri: avatarUri }}
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 22,
+                          marginRight: 12,
+                          backgroundColor: colors.card,
+                          borderWidth: isSelected ? 2 : 0,
+                          borderColor: "#60a5fa",
+                        }}
+                      />
+
+                      {/* Thông tin */}
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            color: isSelected ? "#60a5fa" : colors.text,
+                            fontSize: 15,
+                            fontWeight: isSelected ? "600" : "400",
+                          }}
+                        >
+                          {item.name || "Người dùng"}
+                        </Text>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                            marginTop: 1,
+                          }}
+                        >
+                          {item.type === "GROUP" ? "👥 Nhóm" : "👤 Cá nhân"}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+
+              {/* Nút gửi – cố định dưới đáy modal */}
+              <View
+                style={{
+                  paddingHorizontal: 16,
+                  paddingTop: 12,
+                  paddingBottom: 28,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.border,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={handleConfirmForward}
+                  disabled={selectedForwardRooms.size === 0 || forwardLoading}
+                  style={{
+                    backgroundColor:
+                      selectedForwardRooms.size === 0 ? colors.border : "#60a5fa",
+                    borderRadius: 14,
+                    paddingVertical: 14,
+                    alignItems: "center",
+                    flexDirection: "row",
+                    justifyContent: "center",
+                  }}
+                >
+                  {forwardLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name="send"
+                        size={18}
+                        color={
+                          selectedForwardRooms.size === 0
+                            ? colors.textSecondary
+                            : "#fff"
+                        }
+                        style={{ marginRight: 8 }}
+                      />
+                      <Text
+                        style={{
+                          color:
+                            selectedForwardRooms.size === 0
+                              ? colors.textSecondary
+                              : "#fff",
+                          fontSize: 16,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {selectedForwardRooms.size === 0
+                          ? "Chọn để chuyển tiếp"
+                          : `Chuyển tiếp`}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </View>
   );

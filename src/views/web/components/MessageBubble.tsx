@@ -1,11 +1,11 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Message, User } from '@/shared/types';
 import clsx from 'clsx';
 import LazyImage from './LazyImage';
 import LinkPreviewCard from './LinkPreviewCard';
 import PollBubble from './PollBubble';
 import { extractFirstHttpUrl, linkifyText } from '@/shared/utils/linkify';
-import { getImageAttachmentUrls, getVideoAttachmentUrls } from '@/shared/utils/messageAttachments';
+import { getImageAttachmentUrls, getVideoAttachmentUrls, getAudioAttachmentUrls } from '@/shared/utils/messageAttachments';
 import { getImageUrl } from '@/shared/utils/mediaUtils';
 import { useCallStore } from '@/shared/store/useCallStore';
 import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed } from 'lucide-react';
@@ -34,23 +34,118 @@ interface MessageBubbleProps {
     onOpenChatGallery?: (resolvedMediaUrl: string) => void;
 }
 
+const VoicePlayer: React.FC<{ url: string }> = ({ url }) => {
+    const audioRef = useRef<HTMLAudioElement>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [duration, setDuration] = useState(0);
+    const [currentTime, setCurrentTime] = useState(0);
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        const setAudioData = () => {
+            if (audio.duration && audio.duration !== Infinity) {
+                setDuration(audio.duration);
+            }
+        };
+        const setAudioTime = () => setCurrentTime(audio.currentTime);
+        const onEnd = () => { setIsPlaying(false); setCurrentTime(0); };
+        
+        audio.addEventListener('loadedmetadata', setAudioData);
+        audio.addEventListener('timeupdate', setAudioTime);
+        audio.addEventListener('ended', onEnd);
+        audio.addEventListener('pause', () => setIsPlaying(false));
+        audio.addEventListener('play', () => setIsPlaying(true));
+
+        return () => {
+            audio.removeEventListener('loadedmetadata', setAudioData);
+            audio.removeEventListener('timeupdate', setAudioTime);
+            audio.removeEventListener('ended', onEnd);
+            audio.removeEventListener('pause', () => setIsPlaying(false));
+            audio.removeEventListener('play', () => setIsPlaying(true));
+        };
+    }, []);
+
+    const togglePlay = () => {
+        if (audioRef.current) {
+            if (isPlaying) audioRef.current.pause();
+            else audioRef.current.play();
+        }
+    };
+
+    const formatTime = (time: number) => {
+        if (!time || isNaN(time)) return "00:00";
+        const m = Math.floor(time / 60);
+        const s = Math.floor(time % 60);
+        return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    };
+
+    const displayTime = formatTime(isPlaying || currentTime > 0 ? currentTime : duration);
+
+    return (
+        <div className="flex items-center gap-2 min-w-[120px] py-0.5">
+            <audio ref={audioRef} src={url} preload="metadata" />
+            <button 
+                onClick={togglePlay} 
+                className="w-8 h-8 rounded-full bg-[#0068ff] text-white flex items-center justify-center shrink-0 hover:bg-[#0052cc] transition-colors"
+                title={isPlaying ? "Tạm dừng" : "Phát"}
+            >
+                {isPlaying ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16" />
+                        <rect x="14" y="4" width="4" height="16" />
+                    </svg>
+                ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="ml-0.5">
+                        <path d="M5 3l14 9-14 9V3z" />
+                    </svg>
+                )}
+            </button>
+            <div className="flex gap-0.5 items-end h-5 w-8 ml-1">
+                {[...Array(4)].map((_, i) => (
+                    <div 
+                        key={i} 
+                        className={clsx("w-[3px] rounded-full bg-[#0068ff]", isPlaying ? "animate-pulse" : "")} 
+                        style={{ 
+                            height: isPlaying ? `${30 + Math.random() * 70}%` : `${30 + (i % 2) * 20}%`, 
+                            animationDelay: `${i * 0.15}s`,
+                            transition: 'height 0.2s'
+                        }} 
+                    />
+                ))}
+            </div>
+            <span className="text-sm font-medium text-gray-700 ml-1 min-w-[40px] tabular-nums">{displayTime}</span>
+        </div>
+    );
+};
+
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
 
 function effectiveTypeForMessage(msg: Message): string {
     const imgs = getImageAttachmentUrls(msg);
     const vids = getVideoAttachmentUrls(msg);
+    const audios = getAudioAttachmentUrls(msg);
+    
+    if (audios.length > 0 && imgs.length === 0 && vids.length === 0) return 'VOICE';
     if (imgs.length > 0 && vids.length === 0) return 'IMAGE';
     if (vids.length > 0 && imgs.length === 0) return 'VIDEO';
     if (imgs.length > 0 && vids.length > 0) return 'MEDIA';
+    
     const attachment = msg.attachments?.[0];
     const fileUrl = msg.fileUrl || attachment?.url;
     let t: string = msg.type as string;
-    if ((t === 'TEXT' || !t) && fileUrl && attachment) {
+    
+    if ((t === 'TEXT' || !t || t === 'VIDEO') && fileUrl && attachment) {
         const mime = (attachment.type || '').toLowerCase();
-        if (mime.startsWith('image')) t = 'IMAGE';
+        if (mime.startsWith('audio')) t = 'VOICE';
+        else if (mime.startsWith('image')) t = 'IMAGE';
         else if (mime.startsWith('video')) t = 'VIDEO';
         else t = 'FILE';
     }
+    
+    // Explicit check for VOICE type
+    if (msg.type === 'VOICE') return 'VOICE';
+    
     return t;
 }
 
@@ -683,6 +778,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         const mime = (attachment.type || '').toLowerCase();
         if (mime.startsWith('image')) effectiveType = 'IMAGE';
         else if (mime.startsWith('video')) effectiveType = 'VIDEO';
+        else if (mime.startsWith('audio')) effectiveType = 'VOICE';
         else effectiveType = 'FILE';
     }
 
@@ -1109,6 +1205,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                                 <div className="h-10 w-10 shrink-0 rounded bg-gray-800 flex items-center justify-center text-white text-[10px]">▶</div>
                                                 <span className="line-clamp-2 text-gray-700">Video{rName ? ` · ${rName}` : ''}</span>
                                             </>
+                                        ) : rt === 'VOICE' && rUrl ? (
+                                            <>
+                                                <div className="h-9 w-9 shrink-0 rounded bg-[#eff6ff] flex items-center justify-center text-blue-500">
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                                                </div>
+                                                <span className="line-clamp-2 text-gray-700">Tin nhắn thoại</span>
+                                            </>
                                         ) : (rt === 'FILE' || rt === 'DOCUMENT') ? (
                                             <>
                                                 <div className="h-9 w-9 shrink-0 rounded bg-blue-100 flex items-center justify-center text-blue-600">
@@ -1277,6 +1380,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     </button>
                                 )}
                             </div>
+                        ) : effectiveType === 'VOICE' && effectiveFileUrl ? (
+                            <VoicePlayer url={effectiveFileUrl} />
                         ) : (effectiveType === 'FILE' || effectiveType === 'DOCUMENT') &&
                             ((message.attachments && message.attachments.length > 0) || effectiveFileUrl) ? (
                             <div className="flex flex-col gap-2">
@@ -1308,7 +1413,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 )}
                             </div>
                         ) : effectiveType === 'TEXT' || effectiveType === 'REPLY' || effectiveType === 'FORWARD' ? (
-                            <span className="text-[15px] leading-relaxed pr-8">
+                            <span className="text-[15px] leading-relaxed pr-8 whitespace-pre-wrap">
                                 {linkifyText(message.content || '')}
                                 {(() => {
                                     const u = extractFirstHttpUrl(message.content || '');
@@ -1641,6 +1746,33 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             </span>
                         </>
                     )}
+                    <button
+                        type="button"
+                        className="absolute top-4 right-16 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+                        onClick={async (e) => {
+                            e.stopPropagation();
+                            const url = imageLightbox.urls[imageLightbox.index];
+                            try {
+                                const response = await fetch(url);
+                                const blob = await response.blob();
+                                const blobUrl = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = blobUrl;
+                                a.download = url.split('/').pop()?.split('?')[0] || `image_${Date.now()}.png`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                window.URL.revokeObjectURL(blobUrl);
+                            } catch (error) {
+                                window.open(url, '_blank');
+                            }
+                        }}
+                        title="Tải về"
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                    </button>
                     <button
                         type="button"
                         className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
