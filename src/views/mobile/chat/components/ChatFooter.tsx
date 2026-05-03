@@ -28,6 +28,7 @@ interface ChatFooterProps {
     } | null;
     onCancelReply?: () => void;
     onVoiceActiveChange?: (active: boolean) => void;
+    roomId?: string;
 }
 
 export interface ChatFooterHandle {
@@ -47,6 +48,7 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
         replyTo,
         onCancelReply,
         onVoiceActiveChange,
+        roomId,
     },
     ref
 ) => {
@@ -80,6 +82,38 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
             if (recordingInterval.current) clearInterval(recordingInterval.current);
         };
     }, []);
+
+    // Typing Indicator Logic
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isTypingRef = useRef(false);
+
+    useEffect(() => {
+        if (!roomId || disabled) return;
+
+        const sendTypingStatus = (typing: boolean) => {
+            if (isTypingRef.current === typing) return;
+            isTypingRef.current = typing;
+            import("@/shared/services/WebSocketService").then(({ webSocketService }) => {
+                webSocketService.sendTyping({ roomId, isTyping: typing });
+            });
+        };
+
+        if (message.length > 0) {
+            sendTypingStatus(true);
+            
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = setTimeout(() => {
+                sendTypingStatus(false);
+            }, 3000);
+        } else {
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            sendTypingStatus(false);
+        }
+
+        return () => {
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        };
+    }, [message, roomId, disabled]);
 
     const EMOJI_LIST = [
         "😊", "😰", "😍", "😂", "😎", "😭", "😚", "😜",
@@ -174,6 +208,16 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
     const handleSend = () => {
         const trimmed = message.trim();
         if (trimmed.length === 0) return;
+        
+        // Stop typing indicator immediately
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        if (isTypingRef.current && roomId) {
+            isTypingRef.current = false;
+            import("@/shared/services/WebSocketService").then(({ webSocketService }) => {
+                webSocketService.sendTyping({ roomId, isTyping: false });
+            });
+        }
+
         onSend?.(trimmed);
         setMessage("");
     };

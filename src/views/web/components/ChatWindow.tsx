@@ -119,6 +119,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   const [jumpSignal, setJumpSignal] = useState(0);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
   const bannerTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
+  const typingTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef(false);
 
   const clearUnreadBanner = useCallback(() => {
     if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
@@ -169,7 +173,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   const fetchSentRequests = useFriendStore((s) => s.fetchSentRequests);
   const fetchFriendRequests = useFriendStore((s) => s.fetchRequests);
 
-  const currentRoom = rooms.find((r) => r.id === roomId);
+  const currentRoom = useMemo(() => {
+    // 1. Tìm trực tiếp theo ID phòng
+    const directMatch = rooms.find((r) => String(r.id) === String(roomId));
+    if (directMatch) return directMatch;
+    
+    // 2. Nếu là chat cá nhân (roomId có thể là friendId), tìm phòng PRIVATE có chứa friendId đó
+    return rooms.find((r) => 
+        r.type === 'PRIVATE' && 
+        r.participants?.some(p => String(p.id) === String(roomId))
+    );
+  }, [rooms, roomId]);
   const isGroupRoom = currentRoom?.type === "GROUP";
   const isGroupDisbanded = isGroupRoom && !!currentRoom?.disbanded;
   const roomName = isGroupRoom
@@ -627,9 +641,73 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         console.error("Error parsing settings WS message:", err);
       }
     });
+    
+    // Clear typing state when switching rooms
+    setTypingUsers({});
+    Object.values(typingTimersRef.current).forEach(clearTimeout);
+    typingTimersRef.current = {};
 
     // Realtime group role/owner changes (để mở/khóa ô nhập ngay khi phong phó nhóm / chuyển trưởng nhóm)
     const groupEventsTopic = `/topic/group/${roomId}/events`;
+    const typingTopic = `/topic/typing/${roomId}`;
+    // Tìm ID thực từ currentRoom (vừa được tối ưu ở useMemo trên)
+    const actualRoomId = currentRoom?.id;
+    const typingTopicActual = actualRoomId && String(actualRoomId) !== String(roomId) ? `/topic/typing/${actualRoomId}` : null;
+
+    const onTypingEvent = (stompMessage: IMessage) => {
+      try {
+        const payload = JSON.parse(String(stompMessage.body)) as {
+          userId: string;
+          isTyping?: boolean;
+          typing?: boolean;
+        };
+        const senderId = String(payload.userId || "").trim().toLowerCase();
+        const myId = String(currentUserId || "").trim().toLowerCase();
+        
+        if (!senderId || senderId === myId) return;
+
+        // Chấp nhận cả isTyping hoặc typing
+        const isUserTyping = payload.isTyping !== undefined ? payload.isTyping : payload.typing;
+
+        setTypingUsers((prev) => {
+          const next = { ...prev };
+          if (isUserTyping) {
+            const currentRooms = useChatStore.getState().rooms;
+            const room = currentRooms.find((r) => String(r.id) === String(roomId) || (actualRoomId && String(r.id) === String(actualRoomId)));
+            const user = room?.participants?.find((p) => String(p.id).trim().toLowerCase() === senderId);
+            const name = user?.fullName || user?.username || "Ai đó";
+            next[senderId] = name;
+
+            if (typingTimersRef.current[senderId]) {
+              clearTimeout(typingTimersRef.current[senderId]);
+            }
+
+            typingTimersRef.current[senderId] = setTimeout(() => {
+              setTypingUsers((current) => {
+                const updated = { ...current };
+                delete updated[senderId];
+                return updated;
+              });
+            }, 6000);
+          } else {
+            delete next[senderId];
+            if (typingTimersRef.current[senderId]) {
+              clearTimeout(typingTimersRef.current[senderId]);
+              delete typingTimersRef.current[senderId];
+            }
+          }
+          return next;
+        });
+      } catch (err) {
+        // ignore
+      }
+    };
+
+    webSocketService.subscribe(typingTopic, onTypingEvent);
+    if (typingTopicActual) {
+      webSocketService.subscribe(typingTopicActual, onTypingEvent);
+    }
+
     const onGroupEvent = (stompMessage: IMessage) => {
       try {
         const payload = JSON.parse(String(stompMessage.body || "{}")) as {
@@ -687,9 +765,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       webSocketService.unsubscribe(pinTopic);
       webSocketService.unsubscribe(settingsTopic);
       if (isGroupRoom) webSocketService.unsubscribe(groupEventsTopic, onGroupEvent);
+      webSocketService.unsubscribe(typingTopic, onTypingEvent);
+      if (typingTopicActual) webSocketService.unsubscribe(typingTopicActual, onTypingEvent);
+      Object.values(typingTimersRef.current).forEach(clearTimeout);
+      typingTimersRef.current = {};
       setCurrentRoom(null);
     };
-  }, [roomId, fetchHistory]);
+  }, [roomId, currentRoom?.id, currentUserId, fetchHistory, addMessage, user?.fullName, user?.username, clearUnreadBanner, initialUnreadCount, firstUnreadMessage, isBannerDismissed]);
 
 
   // Load group detail once so permission UI works without mở panel info
@@ -843,6 +925,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       }
     }
     setReplyingTo(null);
+
+    // Stop typing immediately when message sent
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (isTypingRef.current && roomId) {
+      isTypingRef.current = false;
+      webSocketService.sendTyping({ roomId, isTyping: false });
+    }
   };
 
   const handleSendFile = async (file: File) => {
@@ -934,8 +1023,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   };
 
   const handleTyping = (isTyping: boolean) => {
-    if (!roomId) return;
-    webSocketService.sendTyping({ roomId, isTyping });
+    // Ưu tiên dùng ID thực tế từ store (UUID) thay vì ID tạm (có thể là userId)
+    const targetRoomId = currentRoom?.id || roomId;
+    if (!targetRoomId) return;
+    
+    const sendStatus = (typing: boolean) => {
+      if (isTypingRef.current === typing) return;
+      isTypingRef.current = typing;
+      webSocketService.sendTyping({ roomId: targetRoomId, isTyping: typing });
+    };
+
+    if (isTyping) {
+      sendStatus(true);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        sendStatus(false);
+      }, 3000);
+    } else {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      sendStatus(false);
+    }
   };
 
   const handleCall = async (type: CallType) => {
@@ -1551,29 +1658,49 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
               </span>
             </div>
           ) : (
-            <MessageInput
-              onSend={handleSend}
-              onSendFile={handleSendFile}
-              onSendFiles={handleSendFiles}
-              onSendLike={() => handleSend("👍")}
-              onTyping={handleTyping}
-              replyingTo={replyingTo}
-              onCancelReply={handleCancelReply}
-              isSendingFile={isSendingFile}
-              onCreatePoll={
-                isGroupRoom
-                  ? () => {
-                      if (!canCreatePoll) {
-                        setPermToast(
-                          "Chỉ có trưởng nhóm và phó nhóm được phép tạo bình chọn.",
-                        );
-                        return;
+            <div className="flex flex-col border-t border-gray-100 bg-white">
+              {/* Typing Indicator - Dính liền ngay trên MessageInput */}
+              {Object.keys(typingUsers).length > 0 && (
+                <div className="px-4 py-1.5 flex items-center gap-2 bg-gray-50/50 border-b border-gray-50 transition-all">
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-blue-600 italic">
+                    {(() => {
+                      const names = Object.values(typingUsers);
+                      if (names.length === 1) return `${names[0]} đang soạn tin...`;
+                      if (names.length === 2) return `${names[0]} và ${names[1]} đang soạn tin...`;
+                      return `${names.slice(0, 2).join(", ")} và ${names.length - 2} người khác đang soạn tin...`;
+                    })()}
+                  </span>
+                </div>
+              )}
+              <MessageInput
+                onSend={handleSend}
+                onSendFile={handleSendFile}
+                onSendFiles={handleSendFiles}
+                onSendLike={() => handleSend("👍")}
+                onTyping={handleTyping}
+                replyingTo={replyingTo}
+                onCancelReply={handleCancelReply}
+                isSendingFile={isSendingFile}
+                onCreatePoll={
+                  isGroupRoom
+                    ? () => {
+                        if (!canCreatePoll) {
+                          setPermToast(
+                            "Chỉ có trưởng nhóm và phó nhóm được phép tạo bình chọn.",
+                          );
+                          return;
+                        }
+                        setShowCreatePoll(true);
                       }
-                      setShowCreatePoll(true);
-                    }
-                  : undefined
-              }
-            />
+                    : undefined
+                }
+              />
+            </div>
           )}
         </Box>
       </div>
