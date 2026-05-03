@@ -280,9 +280,14 @@ class WebSocketService {
 
     sendTyping(request: TypingIndicatorRequest) {
         if (this.client.connected) {
+            // Gửi cả 2 field để chắc chắn backend nhận được (do vấn đề mapping boolean trong Java)
+            const payload = {
+                ...request,
+                typing: request.isTyping
+            };
             this.client.publish({
                 destination: "/app/chat.typing",
-                body: JSON.stringify(request),
+                body: JSON.stringify(payload),
             });
         }
     }

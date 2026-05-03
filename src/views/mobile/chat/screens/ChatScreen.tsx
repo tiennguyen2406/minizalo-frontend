@@ -345,6 +345,8 @@ export default function ChatScreen() {
     senderName?: string;
     content: string;
   } | null>(null);
+  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
+  const typingTimerRefs = useRef<Record<string, NodeJS.Timeout>>({});
 
   // Dùng Refs cho phân trang và trạng thái
   const loadingMoreRef = useRef(false);
@@ -1278,6 +1280,58 @@ export default function ChatScreen() {
       }
     });
 
+    // Subscribe typing events
+    const typingTopic = `/topic/typing/${activeRoomId}`;
+    webSocketService.subscribe(typingTopic, (stompMessage) => {
+      try {
+        const payload = JSON.parse(stompMessage.body) as {
+          userId: string;
+          isTyping?: boolean;
+          typing?: boolean;
+        };
+        const senderId = String(payload.userId || "").trim().toLowerCase();
+        const myId = String(currentUserId || "").trim().toLowerCase();
+        if (!senderId || senderId === myId) return;
+
+        // Chấp nhận cả isTyping hoặc typing
+        const isUserTyping = payload.isTyping !== undefined ? payload.isTyping : payload.typing;
+
+        setTypingUsers((prev) => {
+          const next = { ...prev };
+          if (isUserTyping) {
+            // Find user name from participants
+            const room = rooms.find((r) => String(r.id) === String(activeRoomId));
+            const user = room?.participants?.find((p) => String(p.id).trim().toLowerCase() === senderId);
+            const name = user?.fullName || user?.username || "Ai đó";
+            next[senderId] = name;
+
+            // Clear old timer if any
+            if (typingTimerRefs.current[senderId]) {
+              clearTimeout(typingTimerRefs.current[senderId]);
+            }
+
+            // Auto-remove after 6s in case we miss the 'false' event
+            typingTimerRefs.current[payload.userId] = setTimeout(() => {
+              setTypingUsers((current) => {
+                const updated = { ...current };
+                delete updated[payload.userId];
+                return updated;
+              });
+            }, 6000);
+          } else {
+            delete next[payload.userId];
+            if (typingTimerRefs.current[payload.userId]) {
+              clearTimeout(typingTimerRefs.current[payload.userId]);
+              delete typingTimerRefs.current[payload.userId];
+            }
+          }
+          return next;
+        });
+      } catch (err) {
+        // Error parsing typing WS message
+      }
+    });
+
     // Gửi tin nhắn pending (do vừa tạo room mới) sau khi WS subscribe xong
     setTimeout(sendPendingMessage, 500);
 
@@ -1289,8 +1343,12 @@ export default function ChatScreen() {
       webSocketService.unsubscribe(recallTopic);
       webSocketService.unsubscribe(reactionTopic);
       webSocketService.unsubscribe(pinTopic);
+      webSocketService.unsubscribe(typingTopic);
+      // Clean up all typing timers
+      Object.values(typingTimerRefs.current).forEach(clearTimeout);
+      typingTimerRefs.current = {};
     };
-  }, [roomId, id, fetchMessages, currentUserId, displayName, router, refreshGroupJoinBadge]);
+  }, [activeRoomId, roomId, id, fetchMessages, currentUserId, displayName, router, refreshGroupJoinBadge, rooms]);
 
   useEffect(() => {
     if (isStranger && isFocused) {
@@ -3281,8 +3339,39 @@ export default function ChatScreen() {
               )}
             </View>
           ) : (
-            <ChatFooter
-              ref={footerRef}
+            <>
+              {/* Typing Indicator */}
+              {Object.keys(typingUsers).length > 0 && !isVoiceActive && (
+                <View
+                  style={{
+                    backgroundColor: "#f9fafb",
+                    paddingHorizontal: 16,
+                    paddingVertical: 6,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    borderTopWidth: 1,
+                    borderTopColor: "#f3f4f6",
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#f3f4f6",
+                  }}
+                >
+                  <View style={{ flexDirection: "row", marginRight: 8 }}>
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "#3b82f6", marginRight: 3 }} />
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "#3b82f6", marginRight: 3, opacity: 0.6 }} />
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "#3b82f6", opacity: 0.3 }} />
+                  </View>
+                  <Text style={{ fontSize: 11, color: "#2563eb", fontWeight: "600", fontStyle: "italic" }}>
+                    {(() => {
+                      const names = Object.values(typingUsers);
+                      if (names.length === 1) return `${names[0]} đang soạn tin...`;
+                      return `${names.length} người đang soạn tin...`;
+                    })()}
+                  </Text>
+                </View>
+              )}
+              <ChatFooter
+                ref={footerRef}
+                roomId={activeRoomId || undefined}
               onSend={handleSend}
               onSendImage={handleSendImage}
               onSendFile={handleSendFile}
@@ -3306,6 +3395,7 @@ export default function ChatScreen() {
               onCancelReply={() => setReplyTo(null)}
               onVoiceActiveChange={setIsVoiceActive}
             />
+          </>
           )}
 
           {showScrollToBottom && !isVoiceActive && (
