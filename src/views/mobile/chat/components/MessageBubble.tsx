@@ -125,6 +125,13 @@ interface MessageBubbleProps {
     isAdminHighlight?: boolean;
     /** SYSTEM: bấm "Xem" để cuộn tới tin nhắn liên quan (vd: poll). */
     onScrollToMessageId?: (messageId: string) => void;
+    
+    // --- Read Receipt Props ---
+    isLastMyMessage?: boolean;
+    readByIds?: string[];
+    participants?: any[];
+    isGroup?: boolean;
+    onShowReadReceipts?: (message: MessageDynamo) => void;
 }
 
 // Tạo màu nhất quán cho mỗi tên (giống Zalo)
@@ -167,6 +174,11 @@ export default function MessageBubble({
     isSearchHighlight,
     isAdminHighlight,
     onScrollToMessageId,
+    isLastMyMessage,
+    readByIds,
+    participants,
+    isGroup,
+    onShowReadReceipts,
 }: MessageBubbleProps) {
     const colors = useThemeColors();
     const theme = useThemeStore(s => s.theme);
@@ -1342,9 +1354,85 @@ export default function MessageBubble({
                             </TouchableOpacity>
                         )
                     }
-                </TouchableOpacity >
+                </TouchableOpacity>
             )
             }
+
+            {/* ─── Read Receipts (Mobile) ─── */}
+            {isMe && isLastMyMessage && !isRecalled && !isError && (
+                <View style={{ alignSelf: "flex-end", marginRight: 12, marginTop: 2, marginBottom: 4 }}>
+                    {(() => {
+                        const count = readByIds ? readByIds.length : 0;
+                        const isRead = count > 0;
+                        const isOptimistic = String(message.messageId).startsWith("temp-");
+
+                        if (isOptimistic) {
+                            return (
+                                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginRight: 2 }}>Đang gửi...</Text>
+                                </View>
+                            );
+                        }
+
+                        if (isGroup && isRead && readByIds && participants) {
+                            const MAX_SHOW = 3;
+                            const readers = readByIds
+                                .map(id => participants.find(p => p.id === id))
+                                .filter(Boolean);
+                            const shown = readers.slice(0, MAX_SHOW);
+                            const extra = readers.length - MAX_SHOW;
+
+                            return (
+                                <TouchableOpacity 
+                                    activeOpacity={0.7} 
+                                    onPress={() => onShowReadReceipts?.(message)}
+                                    style={{ flexDirection: "row", alignItems: "center" }}
+                                >
+                                    <View style={{ flexDirection: "row-reverse" }}>
+                                        {shown.map((reader, i) => (
+                                            <Image
+                                                key={reader.id}
+                                                source={{ uri: reader.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(reader.fullName || reader.username)}&size=30&background=random` }}
+                                                style={{
+                                                    width: 14,
+                                                    height: 14,
+                                                    borderRadius: 7,
+                                                    borderWidth: 1,
+                                                    borderColor: theme === 'dark' ? "#1c1c1e" : "#fff",
+                                                    marginLeft: i > 0 ? -5 : 0,
+                                                }}
+                                            />
+                                        ))}
+                                    </View>
+                                    {extra > 0 && (
+                                        <Text style={{ fontSize: 9, color: colors.textSecondary, fontWeight: '500', marginLeft: 2 }}>
+                                            +{extra}
+                                        </Text>
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        }
+
+                        if (isRead) {
+                            return (
+                                <TouchableOpacity 
+                                    activeOpacity={0.7}
+                                    onPress={() => onShowReadReceipts?.(message)}
+                                    style={{ flexDirection: "row", alignItems: "center" }}
+                                >
+                                    <Ionicons name="checkmark-done" size={14} color="#0068ff" />
+                                </TouchableOpacity>
+                            );
+                        }
+
+                        return (
+                            <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                <Ionicons name="checkmark" size={14} color={colors.textSecondary} />
+                            </View>
+                        );
+                    })()}
+                </View>
+            )}
 
             {/* ─── Privacy blocked notice (Zalo-style) ─── */}
             {

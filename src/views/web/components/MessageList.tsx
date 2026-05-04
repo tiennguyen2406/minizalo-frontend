@@ -11,12 +11,14 @@ import LazyImage from './LazyImage';
 import { chatService } from '@/shared/services/chatService';
 import { ArrowUp, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ReadReceiptModal from './ReadReceiptModal';
 
 interface MessageListProps {
     messages: Message[];
     currentUserId: string;
     roomId?: string;
     participants?: User[];
+    isGroup?: boolean;
     onRecall?: (messageId: string | string[]) => void;
     onReact?: (messageId: string, emoji: string) => void;
     onReply?: (message: Message) => void;
@@ -114,11 +116,19 @@ function MessageStatus({
     isFailed,
     isRead,
     readCount,
+    readByIds,
+    participants,
+    isGroup,
+    onShowDetail,
 }: {
     isOptimistic: boolean;
     isFailed: boolean;
     isRead: boolean;
     readCount: number;
+    readByIds?: string[];
+    participants?: User[];
+    isGroup?: boolean;
+    onShowDetail?: () => void;
 }) {
     if (isFailed) {
         return (
@@ -136,16 +146,63 @@ function MessageStatus({
             </span>
         );
     }
+
+    // ── Nhóm chat: hiển thị avatar nhỏ stacked ──
+    if (isGroup && isRead && readCount > 0 && readByIds && participants) {
+        const MAX_SHOW = 3;
+        const readers = readByIds
+            .map(id => participants.find(p => p.id === id))
+            .filter(Boolean) as User[];
+        const shown = readers.slice(0, MAX_SHOW);
+        const extra = readers.length - MAX_SHOW;
+
+        return (
+            <div
+                style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: onShowDetail ? 'pointer' : 'default' }}
+                onClick={onShowDetail}
+                title={`Đã xem bởi ${readers.map(r => r.fullName || r.username).join(', ')}`}
+            >
+                <div style={{ display: 'flex', flexDirection: 'row-reverse' }}>
+                    {shown.map((reader, i) => (
+                        <img
+                            key={reader.id}
+                            src={reader.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(reader.fullName || reader.username)}&size=20&background=random`}
+                            alt={reader.fullName || reader.username}
+                            style={{
+                                width: 16,
+                                height: 16,
+                                borderRadius: '50%',
+                                border: '1.5px solid #fff',
+                                marginLeft: i > 0 ? -6 : 0,
+                                objectFit: 'cover',
+                            }}
+                        />
+                    ))}
+                </div>
+                {extra > 0 && (
+                    <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 500 }}>+{extra}</span>
+                )}
+            </div>
+        );
+    }
+
+    // ── Chat 1-1: tick xanh kép ──
     if (isRead && readCount > 0) {
         return (
-            <span title={`Đã xem (${readCount})`}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0068ff" strokeWidth="2.5" strokeLinecap="round">
-                    <polyline points="20 6 9 17 4 12" />
-                    <polyline points="20 6 9 17" style={{ opacity: 0.5, transform: 'translateX(-4px)' }} />
+            <span
+                title="Đã xem"
+                style={{ cursor: onShowDetail ? 'pointer' : 'default' }}
+                onClick={onShowDetail}
+            >
+                <svg width="16" height="14" viewBox="0 0 24 24" fill="none" stroke="#0068ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="18 7 9.5 17 5 12.5" />
+                    <polyline points="23 7 14.5 17 12 14.5" />
                 </svg>
             </span>
         );
     }
+
+    // ── Đã gửi (chưa đọc) ──
     return (
         <span title="Đã gửi">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round">
@@ -240,6 +297,7 @@ const MessageList: React.FC<MessageListProps> = ({
     currentUserId,
     roomId,
     participants = [],
+    isGroup,
     onRecall,
     onReact,
     onReply,
@@ -274,6 +332,7 @@ const MessageList: React.FC<MessageListProps> = ({
     const lastHandledJumpSignal = useRef<number>(0);
     const prevLastMsgId = useRef<string | number | undefined>(undefined);
     const [highlightMsgId, setHighlightMsgId] = useState<string | null>(null);
+    const [selectedReceiptMsg, setSelectedReceiptMsg] = useState<Message | null>(null);
     // Track which room we've already done the initial scroll-to-bottom for
     const hasScrolledToBottomForRoom = useRef<string | null>(null);
 
@@ -652,7 +711,16 @@ const MessageList: React.FC<MessageListProps> = ({
                                     />
                                     {isMine && isLastInGroup && (
                                         <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: 4, marginTop: -6, marginBottom: 4 }}>
-                                            <MessageStatus isOptimistic={isOptimistic} isFailed={isFailed} isRead={isRead} readCount={readCount} />
+                                            <MessageStatus
+                                                isOptimistic={isOptimistic}
+                                                isFailed={isFailed}
+                                                isRead={isRead}
+                                                readCount={readCount}
+                                                readByIds={msg.readBy?.filter(id => id !== currentUserId)}
+                                                participants={participants}
+                                                isGroup={isGroup}
+                                                onShowDetail={() => setSelectedReceiptMsg(msg)}
+                                            />
                                         </div>
                                     )}
                                 </div>
@@ -732,6 +800,14 @@ const MessageList: React.FC<MessageListProps> = ({
                     <ArrowUp className="w-6 h-6 rotate-180" />
                 </button>
             )}
+
+            <ReadReceiptModal
+                isOpen={!!selectedReceiptMsg}
+                onClose={() => setSelectedReceiptMsg(null)}
+                readByIds={selectedReceiptMsg?.readBy || []}
+                participants={participants}
+                currentUserId={currentUserId}
+            />
         </div>
     );
 };
