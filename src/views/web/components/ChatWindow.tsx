@@ -708,6 +708,39 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       webSocketService.subscribe(typingTopicActual, onTypingEvent);
     }
 
+    // ── Read Receipt realtime update ──────────────────────────────────────────
+    const readTopicId = actualRoomId || roomId;
+    const readTopic = `/topic/chat/${readTopicId}/read`;
+    const onReadEvent = (stompMessage: IMessage) => {
+      try {
+        const payload = JSON.parse(String(stompMessage.body)) as {
+          messageId: string;
+          userId: string;
+          readAt?: string;
+        };
+        if (!payload.messageId || !payload.userId) return;
+        // Cập nhật readBy vào tin nhắn tương ứng trong store
+        const currentMsgs = useChatStore.getState().messages[roomId] || [];
+        const updated = currentMsgs.map((m) => {
+          if (m.id !== payload.messageId) return m;
+          const existingReadBy = m.readBy || [];
+          if (existingReadBy.includes(payload.userId)) return m;
+          return { ...m, readBy: [...existingReadBy, payload.userId] };
+        });
+        setMessages(roomId, updated);
+      } catch (err) {
+        // ignore
+      }
+    };
+    webSocketService.subscribe(readTopic, onReadEvent);
+    // Nếu actualRoomId khác roomId, subscribe thêm topic với roomId gốc
+    const readTopicAlt = actualRoomId && String(actualRoomId) !== String(roomId)
+      ? `/topic/chat/${roomId}/read`
+      : null;
+    if (readTopicAlt) {
+      webSocketService.subscribe(readTopicAlt, onReadEvent);
+    }
+
     const onGroupEvent = (stompMessage: IMessage) => {
       try {
         const payload = JSON.parse(String(stompMessage.body || "{}")) as {
@@ -767,6 +800,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       if (isGroupRoom) webSocketService.unsubscribe(groupEventsTopic, onGroupEvent);
       webSocketService.unsubscribe(typingTopic, onTypingEvent);
       if (typingTopicActual) webSocketService.unsubscribe(typingTopicActual, onTypingEvent);
+      webSocketService.unsubscribe(readTopic, onReadEvent);
+      if (readTopicAlt) webSocketService.unsubscribe(readTopicAlt, onReadEvent);
       Object.values(typingTimersRef.current).forEach(clearTimeout);
       typingTimersRef.current = {};
       setCurrentRoom(null);
@@ -1541,6 +1576,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             messages={messagesState}
             currentUserId={currentUserId}
             participants={currentRoom?.participants || []}
+            isGroup={isGroupRoom}
             onRecall={handleRecall}
             onReact={handleReact}
             onReply={handleReply}

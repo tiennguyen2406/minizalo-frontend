@@ -70,6 +70,7 @@ import AiOptionsBottomSheet from "../components/AiOptionsBottomSheet";
 import UnreadAiSummaryModal from "../components/UnreadAiSummaryModal";
 import AiPersonaBotModal from "../components/AiPersonaBotModal";
 import AiTaskModal, { AiTaskMode } from "../components/AiTaskModal";
+import ReadReceiptModal from "../components/ReadReceiptModal";
 const {
   documentDirectory,
   cacheDirectory,
@@ -148,6 +149,9 @@ export default function ChatScreen() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(
     typeof id === "string" && id !== "new" ? id : null,
   );
+  
+  // Read receipt state
+  const [selectedReceiptMsg, setSelectedReceiptMsg] = useState<MessageDynamo | null>(null);
   const roomId = activeRoomId || "";
   const displayName = typeof name === "string" ? name : "Người dùng";
   const roomType = type === "GROUP" ? "GROUP" : "DIRECT";
@@ -1332,6 +1336,31 @@ export default function ChatScreen() {
       }
     });
 
+    // Subscribe to read events
+    const readTopic = `/topic/chat/${activeRoomId}/read`;
+    webSocketService.subscribe(readTopic, (stompMessage) => {
+      try {
+        const payload = JSON.parse(stompMessage.body) as {
+          messageId: string;
+          userId: string;
+          readAt?: string;
+        };
+        if (!payload.messageId || !payload.userId) return;
+
+        // Cập nhật readBy vào tin nhắn trong danh sách hiện tại
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.messageId !== payload.messageId) return m;
+            const existingReadBy = m.readBy || [];
+            if (existingReadBy.includes(payload.userId)) return m;
+            return { ...m, readBy: [...existingReadBy, payload.userId] };
+          }),
+        );
+      } catch (err) {
+        // Error parsing read WS message
+      }
+    });
+
     // Gửi tin nhắn pending (do vừa tạo room mới) sau khi WS subscribe xong
     setTimeout(sendPendingMessage, 500);
 
@@ -1344,6 +1373,7 @@ export default function ChatScreen() {
       webSocketService.unsubscribe(reactionTopic);
       webSocketService.unsubscribe(pinTopic);
       webSocketService.unsubscribe(typingTopic);
+      webSocketService.unsubscribe(readTopic);
       // Clean up all typing timers
       Object.values(typingTimerRefs.current).forEach(clearTimeout);
       typingTimerRefs.current = {};
@@ -2471,6 +2501,17 @@ export default function ChatScreen() {
     setHighlightedMessageId,
   ]);
 
+  const lastMyMessageId = useMemo(() => {
+    const lastRow = chatRows.find(
+      (r) =>
+        (r.kind === "message" && r.message.senderId === currentUserId) ||
+        (r.kind === "imageGroup" && r.messages[0].senderId === currentUserId)
+    );
+    if (lastRow?.kind === "message") return lastRow.message.messageId;
+    if (lastRow?.kind === "imageGroup") return lastRow.messages[0].messageId;
+    return null;
+  }, [chatRows, currentUserId]);
+
   const renderMessage = ({ item }: { item: MobileChatRow }) => {
     if (item.kind === "imageGroup") {
       const newest = item.messages[0];
@@ -2529,6 +2570,11 @@ export default function ChatScreen() {
           }}
           onImagePress={(url) => handleGalleryOpen(url)}
           onScrollToMessageId={scrollToMessageId}
+          isLastMyMessage={newest.messageId === lastMyMessageId}
+          readByIds={newest.readBy?.filter(id => id !== currentUserId)}
+          participants={room?.participants || []}
+          isGroup={roomType === "GROUP"}
+          onShowReadReceipts={(msg) => setSelectedReceiptMsg(msg)}
         />
       );
     }
@@ -2653,7 +2699,7 @@ export default function ChatScreen() {
             : null
         }
         partnerName={displayName}
-        onAddFriend={() => {
+          onAddFriend={() => {
           if (targetUserIdStr) {
             useFriendStore
               .getState()
@@ -2667,6 +2713,11 @@ export default function ChatScreen() {
         }}
         onImagePress={(url) => handleGalleryOpen(url)}
         onScrollToMessageId={scrollToMessageId}
+        isLastMyMessage={itemMsg.messageId === lastMyMessageId}
+        readByIds={itemMsg.readBy?.filter(id => id !== currentUserId)}
+        participants={room?.participants || []}
+        isGroup={roomType === "GROUP"}
+        onShowReadReceipts={(msg) => setSelectedReceiptMsg(msg)}
       />
     );
   };
