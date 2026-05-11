@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { chatService } from '@/shared/services/chatService';
 import { Sparkles, X, Copy, RotateCcw, Loader2, Flashlight } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { showToast as toast } from '@/shared/utils/toast';
 import * as Clipboard from 'expo-clipboard';
 
 interface UnreadAiSummaryModalProps {

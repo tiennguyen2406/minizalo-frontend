@@ -95,6 +95,133 @@ const LinkPreview = ({ url, isMe }: { url: string, isMe: boolean }) => {
     );
 };
 
+/** Story Reply Quote Card — hiển thị trong đoạn chat khi reply qua Khoảnh khắc */
+function StoryReplyBubble({ content, isMe, time, colors, theme, onLongPress }: {
+    content: string;
+    isMe: boolean;
+    time: string;
+    colors: any;
+    theme: string;
+    onLongPress?: () => void;
+}) {
+    let data: {
+        type?: string;
+        mediaUrl?: string | null;
+        thumbnailUri?: string | null;
+        mediaType?: string;
+        postedAt?: string;
+        storyId?: string;
+        authorId?: string;
+        replyText?: string;
+    } = {};
+    try { data = JSON.parse(content); } catch { return null; }
+    if (data.type !== "STORY_QUOTE") return null;
+
+    const thumbSrc = data.thumbnailUri || data.mediaUrl;
+
+    const cardBg = isMe
+        ? "rgba(255,255,255,0.14)"
+        : (theme === 'dark' ? "rgba(255,255,255,0.07)" : "#e8f0fb");
+    const bubbleBg = isMe
+        ? colors.primary
+        : (theme === 'dark' ? "#2c2c2e" : "#EBF3FE");
+    const titleColor = isMe ? "#fff" : (theme === 'dark' ? colors.text : "#1a1a2e");
+    const subColor = isMe ? "rgba(255,255,255,0.7)" : (theme === 'dark' ? colors.textSecondary : "#6b7280");
+    const textColor = isMe ? "#fff" : (theme === 'dark' ? colors.text : "#1a1a2e");
+    const dividerColor = isMe ? "rgba(255,255,255,0.18)" : (theme === 'dark' ? "rgba(255,255,255,0.08)" : "#d0dff5");
+    const timeColor = isMe ? "rgba(255,255,255,0.6)" : colors.textSecondary;
+
+    // Tiêu đề phân biệt: tôi gửi → "Bạn đã gửi...", người khác gửi cho tôi → "Tin nhắn gửi từ..."
+    const cardTitle = isMe
+        ? "Bạn đã gửi tin nhắn qua Khoảnh khắc"
+        : "Tin nhắn gửi từ Khoảnh khắc của bạn";
+
+    return (
+        <View style={{ alignItems: isMe ? "flex-end" : "flex-start", paddingHorizontal: 12, paddingVertical: 2 }}>
+            <TouchableOpacity
+                activeOpacity={0.85}
+                delayLongPress={250}
+                onLongPress={onLongPress}
+                style={{
+                    width: SCREEN_WIDTH * 0.70,          // width cố định, không dùng maxWidth
+                    backgroundColor: bubbleBg,
+                    borderRadius: 16,
+                    overflow: "hidden",
+                    borderWidth: 1,
+                    borderColor: isMe ? "transparent" : (theme === 'dark' ? "rgba(255,255,255,0.08)" : "#d0dff5"),
+                    elevation: 1,
+                    shadowColor: "#000",
+                    shadowOpacity: 0.06,
+                    shadowRadius: 4,
+                }}
+            >
+                {/* Phần 1: Story quote card */}
+                <View style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    borderLeftWidth: 3.5,
+                    borderLeftColor: isMe ? "rgba(255,255,255,0.8)" : "#0068FF",
+                    backgroundColor: cardBg,
+                    margin: 10,
+                    marginBottom: 0,
+                    borderRadius: 10,
+                    minHeight: 68,
+                    overflow: "hidden",
+                }}>
+                    {/* Thumbnail — kích thước cố định, không co giãn */}
+                    {thumbSrc ? (
+                        <Image
+                            source={{ uri: thumbSrc }}
+                            style={{ width: 64, height: 64, flexShrink: 0 }}
+                            resizeMode="cover"
+                        />
+                    ) : (
+                        <View style={{
+                            width: 64, height: 64, flexShrink: 0,
+                            backgroundColor: isMe ? "rgba(255,255,255,0.15)" : "#cde0ff",
+                            alignItems: "center", justifyContent: "center",
+                        }}>
+                            <Ionicons name="image-outline" size={26} color={isMe ? "white" : "#0068FF"} />
+                        </View>
+                    )}
+                    {/* Text mô tả story — lấy toàn bộ diện tích còn lại */}
+                    <View style={{ flexGrow: 1, flexShrink: 1, paddingHorizontal: 10, paddingVertical: 8 }}>
+                        <Text style={{ fontWeight: "700", fontSize: 13, color: titleColor, lineHeight: 18 }} numberOfLines={2}>
+                            {cardTitle}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: subColor, marginTop: 3, lineHeight: 16 }} numberOfLines={2}>
+                            Khoảnh khắc được đăng lúc {data.postedAt}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Phần 2: Nội dung tin nhắn người dùng */}
+                {!!data.replyText && (
+                    <>
+                        <View style={{ height: 1, backgroundColor: dividerColor, marginHorizontal: 10, marginTop: 8 }} />
+                        <Text style={{
+                            fontSize: 14.5,
+                            color: textColor,
+                            lineHeight: 20,
+                            paddingHorizontal: 12,
+                            paddingTop: 8,
+                            paddingBottom: 4,
+                        }}>
+                            {data.replyText}
+                        </Text>
+                    </>
+                )}
+
+                {/* Timestamp */}
+                <Text style={{ fontSize: 10.5, color: timeColor, textAlign: "right", paddingRight: 10, paddingBottom: 7, paddingTop: data.replyText ? 2 : 6 }}>
+                    {time}
+                </Text>
+            </TouchableOpacity>
+        </View>
+    );
+}
+
+
 interface ReplyPreview {
     senderName?: string;
     content: string;
@@ -573,6 +700,25 @@ export default function MessageBubble({
                     <PollBubbleMobile pollId={pid} roomId={rid} />
                 </Pressable>
             </View>
+        );
+    }
+
+    // STORY_QUOTE — render bubble đặc biệt
+    if (
+        !isRecalled &&
+        message.type === "TEXT" &&
+        message.content &&
+        message.content.trimStart().startsWith('{"type":"STORY_QUOTE"')
+    ) {
+        return (
+            <StoryReplyBubble
+                content={message.content}
+                isMe={isMe}
+                time={time}
+                colors={colors}
+                theme={theme}
+                onLongPress={() => onLongPress?.(message)}
+            />
         );
     }
 

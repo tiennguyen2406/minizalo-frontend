@@ -28,7 +28,7 @@ export function getChatNotificationPreview(msg: ChatMsgLike): { title: string; b
             const j = JSON.parse(msg.content || "{}");
             const st = String(j.status ?? "").toUpperCase();
             const kindFromPayload = j.callType === "VIDEO";
-            const isVideo = video || kindFromPayload;
+            const isVideo = msg.type === "CALL_VIDEO" || kindFromPayload;
             const lab = isVideo ? "video" : "thoại";
 
             if (st === "ENDED" || st === "END") {
@@ -92,6 +92,16 @@ export function getChatNotificationPreview(msg: ChatMsgLike): { title: string; b
     }
     if (msg.type === "FILE" || msg.type === "DOCUMENT") {
         return { title, body: "[Tệp đính kèm]" };
+    }
+
+    if (c.startsWith('{"type":"STORY_QUOTE"')) {
+        try {
+            const j = JSON.parse(c);
+            const text = j.replyText ? `: ${j.replyText}` : "";
+            return { title, body: `[Khoảnh khắc]${text}` };
+        } catch {
+            return { title, body: "[Khoảnh khắc]" };
+        }
     }
 
     return { title, body: c || "Tin nhắn mới" };

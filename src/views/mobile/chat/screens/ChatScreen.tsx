@@ -228,7 +228,10 @@ export default function ChatScreen() {
   }, [messages]);
   /** Gom các tin IMAGE liên tiếp (web gửi từng ảnh một) để hiển thị một cụm giống web */
   // Dedup call message: session đã end → ẩn bubble STARTED, chỉ giữ bubble kết thúc.
-  const visibleMessages = useMemo(() => dedupCallMessages(messages), [messages]);
+  const visibleMessages = useMemo(() => {
+    const visible = messages.filter((m) => !(m as any).isOnlyPinned);
+    return dedupCallMessages(visible);
+  }, [messages]);
   const chatRows = useMemo(() => buildMobileChatRows(visibleMessages), [visibleMessages]);
   const [partnerProfileDetail, setPartnerProfileDetail] =
     useState<UserProfile | null>(null);
@@ -799,11 +802,19 @@ export default function ChatScreen() {
 
           if (isLoadMore) {
             setMessages((prev) => {
-              const existingIds = new Set(prev.map((m) => m.messageId));
+              const nextPrev = prev.map((m) => {
+                if ((m as any).isOnlyPinned && filtered.some((f) => f.messageId === m.messageId)) {
+                  return { ...m, isOnlyPinned: false };
+                }
+                return m;
+              });
+              const existingIds = new Set(nextPrev.map((m) => m.messageId));
               const uniqueNewMessages = filtered.filter(
                 (m) => !existingIds.has(m.messageId),
               );
-              return [...prev, ...uniqueNewMessages];
+              const all = [...nextPrev, ...uniqueNewMessages];
+              all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+              return all;
             });
           } else {
             // Load pinned messages separately to ensure they're always present
@@ -811,29 +822,37 @@ export default function ChatScreen() {
             try {
               const pinResult = await chatService.getPinnedMessages(
                 activeRoomId,
-                5,
+                20,
               );
+              console.log("=== PIN_FETCH_RESULT ===", pinResult?.messages?.length, pinResult?.messages?.map(m => m.messageId));
               if (pinResult?.messages) {
-                pinnedMsgs = pinResult.messages.filter(
-                  (m) => !latestDeletedIds.has(m.messageId),
-                );
+                pinnedMsgs = pinResult.messages
+                  .filter((m) => !latestDeletedIds.has(m.messageId))
+                  .map((m) => ({ ...m, pinned: true }));
               }
-            } catch {
+            } catch (err) {
+              console.error("=== PIN_FETCH_ERROR ===", err);
               /* ignore pin fetch failure */
             }
 
+            const pinnedIds = new Set(pinnedMsgs.map((m) => m.messageId));
+
             // Merge: pinned messages that aren't in history + history
-            const historyIds = new Set(filtered.map((m) => m.messageId));
+            const historyWithPin = filtered.map((m) =>
+              pinnedIds.has(m.messageId) ? { ...m, pinned: true } : m
+            );
+            const historyIds = new Set(historyWithPin.map((m) => m.messageId));
             const extraPinned = pinnedMsgs.filter(
               (m) => !historyIds.has(m.messageId),
-            );
+            ).map((m) => ({ ...m, isOnlyPinned: true }) as MessageDynamo);
             setMessages((prev) => {
               const strangerSysLocal = prev.filter(
                 (m) =>
                   typeof m.messageId === "string" &&
                   m.messageId.startsWith("sys-stranger-"),
               );
-              const merged = [...filtered, ...extraPinned];
+              const merged = [...historyWithPin, ...extraPinned];
+              merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
               const mergedIds = new Set(
                 merged.map((m) => m.messageId).filter(Boolean),
               );
@@ -1091,19 +1110,16 @@ export default function ChatScreen() {
 
         // Fallback sync: nếu nhận thông báo PIN_NOTIFICATION từ web (có replyToMessageId),
         // nhưng client vì lý do nào đó không nhận được event /pin, thì vẫn đồng bộ danh sách ghim.
+        // Dùng silentSync để không rebuild toàn bộ messages array (tránh FlatList reset scroll).
         if (
           newMsg?.type === "PIN_NOTIFICATION" &&
           typeof newMsg.replyToMessageId === "string" &&
           newMsg.replyToMessageId.trim().length > 0
         ) {
-          void syncPinnedFromServer(roomId, { preserveIfEmpty: true });
-          // Retry để vượt qua eventual-consistency của Dynamo/pins endpoint.
+          // Chỉ cần sync 1 lần sau delay để tránh eventual-consistency
           setTimeout(() => {
             void syncPinnedFromServer(roomId, { preserveIfEmpty: true });
-          }, 1200);
-          setTimeout(() => {
-            void syncPinnedFromServer(roomId, { preserveIfEmpty: true });
-          }, 3200);
+          }, 1500);
         }
 
         setMessages((prev) => {
@@ -1158,9 +1174,21 @@ export default function ChatScreen() {
           return [newMsg, ...prev];
         });
 
-        setTimeout(() => {
-          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-        });
+        const isUserMessage =
+          newMsg.type === "TEXT" ||
+          newMsg.type === "IMAGE" ||
+          newMsg.type === "VIDEO" ||
+          newMsg.type === "VOICE" ||
+          newMsg.type === "FILE" ||
+          newMsg.type === "DOCUMENT" ||
+          newMsg.type === "POLL" ||
+          newMsg.type === "STORY_REPLY";
+
+        if (newMsg.senderId === currentUserId && isUserMessage) {
+          setTimeout(() => {
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+          });
+        }
       } catch (err) {
         // Error parsing WS message
       }
@@ -1277,7 +1305,9 @@ export default function ChatScreen() {
             m.messageId === targetId ? { ...m, pinned: nextPinned } : m,
           ),
         );
-        void syncPinnedFromServer(roomId, { preserveIfEmpty: nextPinned });
+        if (nextPinned) {
+          void syncPinnedFromServer(roomId, { preserveIfEmpty: true });
+        }
         // Không showToast ở đây vì backend sẽ broadcast system message PIN_NOTIFICATION
       } catch (err) {
         // Error parsing pin WS message
@@ -2317,6 +2347,9 @@ export default function ChatScreen() {
       const fileName = decodeAttachmentName(rawName) || "Tệp đính kèm";
       return `[File] ${fileName}`;
     }
+    if (m.type === "TEXT" && m.content && m.content.startsWith('{"type":"STORY_QUOTE"')) {
+      return "[Khoảnh khắc]";
+    }
     return m.content || "Tin nhắn đã ghim";
   };
 
@@ -2384,11 +2417,12 @@ export default function ChatScreen() {
     [chatRows],
   );
 
-  /** Đồng bộ pinned từ server (để web ghim/bỏ ghim mobile cập nhật ngay). */
+  /** Đồng bộ pinned từ server (để web ghim/bỏ ghim mobile cập nhật ngay).
+   *  Tối ưu: chỉ mutate các phần tử thực sự thay đổi để tránh FlatList reset scroll position. */
   const syncPinnedFromServer = useCallback(
     async (roomIdStr: string, opts?: { preserveIfEmpty?: boolean }) => {
       try {
-        const pinResult = await chatService.getPinnedMessages(roomIdStr, 5);
+        const pinResult = await chatService.getPinnedMessages(roomIdStr, 20);
         const raw = pinResult?.messages;
         const pinnedMsgs: MessageDynamo[] = Array.isArray(raw)
           ? raw.map((m) => ({ ...m, pinned: true }))
@@ -2399,30 +2433,54 @@ export default function ChatScreen() {
         );
 
         setMessages((curr) => {
+          // Kiểm tra xem có gì thay đổi không
           const existingIds = new Set(curr.map((m) => m.messageId));
-          const merged = [...curr];
 
-          // Merge missing pinned messages so \"Xem\" có thể cuộn tới được
+          // Tìm các pinned message chưa có trong danh sách hiện tại
+          const newPinnedToAdd: MessageDynamo[] = [];
           for (const m of pinnedMsgs) {
             if (!m?.messageId || existingIds.has(m.messageId)) continue;
-            merged.push(m);
-            existingIds.add(m.messageId);
+            newPinnedToAdd.push({ ...m, isOnlyPinned: true } as MessageDynamo);
           }
 
           // Nếu vừa ghim mà API pins trả rỗng (eventual consistency),
-          // đừng xoá trạng thái pinned hiện có để tránh UI \"Tin nhắn ghim\" tự biến mất.
+          // đừng xoá trạng thái pinned hiện có để tránh UI "Tin nhắn ghim" tự biến mất.
           const shouldClear = !(preserveIfEmpty && pinnedIds.size === 0);
-          const next = merged.map((m) => ({
-            ...m,
-            pinned: shouldClear ? pinnedIds.has(m.messageId) : !!m.pinned,
-          }));
 
-          // Keep newest-first order
-          next.sort(
-            (a, b) =>
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-          );
-          return next;
+          // Kiểm tra xem trạng thái pinned có thay đổi không
+          let hasChanges = newPinnedToAdd.length > 0;
+          if (!hasChanges && shouldClear) {
+            for (const m of curr) {
+              const shouldBePinned = pinnedIds.has(m.messageId);
+              if (!!m.pinned !== shouldBePinned) {
+                hasChanges = true;
+                break;
+              }
+            }
+          }
+
+          // Nếu không có gì thay đổi, giữ nguyên reference để FlatList không re-render
+          if (!hasChanges) return curr;
+
+          // Chỉ thay đổi các phần tử cần thiết
+          let result = curr.map((m) => {
+            const newPinState = shouldClear ? pinnedIds.has(m.messageId) : !!m.pinned;
+            if (!!m.pinned !== newPinState) {
+              return { ...m, pinned: newPinState };
+            }
+            return m;
+          });
+
+          // Thêm các pinned message mới
+          if (newPinnedToAdd.length > 0) {
+            result = [...result, ...newPinnedToAdd];
+            result.sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+            );
+          }
+
+          return result;
         });
       } catch {
         // ignore
@@ -3197,10 +3255,16 @@ export default function ChatScreen() {
               ref={flatListRef}
               data={chatRows}
               inverted
-              keyExtractor={(row, index) =>
+              {...(Platform.OS !== "web" ? {
+                maintainVisibleContentPosition: {
+                  minIndexForVisible: 1,
+                  autoscrollToTopThreshold: 80,
+                },
+              } : {})}
+              keyExtractor={(row) =>
                 row.kind === "imageGroup"
-                  ? `ig-${row.messages.map((m) => m.messageId || "x").join("-")}-${index}`
-                  : `${row.message.messageId || "msg"}-${index}`
+                  ? `ig-${row.messages.map((m) => m.messageId || "x").join("-")}`
+                  : `${row.message.messageId || "msg"}`
               }
               renderItem={renderMessage}
               contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}

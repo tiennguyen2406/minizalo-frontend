@@ -95,7 +95,17 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
         // 2. Xử lý theo Type thông thường
         switch (type) {
             case 'TEXT':
-                text = content;
+                if (content && content.startsWith('{"type":"STORY_QUOTE"')) {
+                    try {
+                        const data = JSON.parse(content);
+                        const txt = data.replyText ? `: ${data.replyText}` : "";
+                        text = `[Khoảnh khắc]${txt}`;
+                    } catch {
+                        text = '[Khoảnh khắc]';
+                    }
+                } else {
+                    text = content;
+                }
                 break;
             case 'IMAGE':
                 text = '[Hình ảnh]';
