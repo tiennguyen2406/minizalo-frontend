@@ -91,6 +91,7 @@ export default function TabsLayout() {
                 <Tabs.Screen
                     name="explore"
                     options={{
+                        href: null,
                         title: "Khám phá",
                         tabBarIcon: ({ color, focused }) => (
                             <TabIcon name="grid" focused={focused} color={color} />

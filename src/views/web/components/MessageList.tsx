@@ -10,7 +10,7 @@ import { dedupCallMessages } from '@/shared/utils/dedupCallMessages';
 import LazyImage from './LazyImage';
 import { chatService } from '@/shared/services/chatService';
 import { ArrowUp, Sparkles } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { showToast as toast } from '@/shared/utils/toast';
 import ReadReceiptModal from './ReadReceiptModal';
 
 interface MessageListProps {

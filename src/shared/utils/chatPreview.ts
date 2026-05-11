@@ -57,6 +57,15 @@ export function getChatPreviewText(lastMessage?: PreviewMessage | null): string 
     if (type === "SYSTEM") return String(lastMessage.content || "").trim() || "[Thông báo hệ thống]";
 
     const content = String(lastMessage.content || "").trim();
+    if (content.startsWith('{"type":"STORY_QUOTE"')) {
+        try {
+            const data = JSON.parse(content);
+            const text = data.replyText ? `: ${data.replyText}` : "";
+            return `[Khoảnh khắc]${text}`;
+        } catch {
+            return "[Khoảnh khắc]";
+        }
+    }
     if (URL_REGEX.test(content)) return "[Liên kết]";
     return content || "Chưa có tin nhắn";
 }

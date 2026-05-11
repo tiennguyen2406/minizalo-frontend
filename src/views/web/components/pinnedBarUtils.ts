@@ -38,6 +38,17 @@ export function getPinnedBarPreview(
   }
   const raw = (msg.content || "").replace(/\s+/g, " ").trim();
   if (!raw) return `${name}: [Tin nhắn]`;
+
+  if (raw.startsWith('{"type":"STORY_QUOTE"')) {
+    try {
+      const data = JSON.parse(raw);
+      const text = data.replyText ? `: ${data.replyText}` : "";
+      return `${name}: [Khoảnh khắc]${text}`;
+    } catch {
+      return `${name}: [Khoảnh khắc]`;
+    }
+  }
+
   if (/^https?:\/\//i.test(raw) || /\w+:\/\/\S+/i.test(raw)) {
     const cut = raw.length > 52 ? `${raw.slice(0, 52)}…` : raw;
     return `${name}: 🔗 Link • ${cut}`;
@@ -53,5 +64,6 @@ export function pinnedKindLabel(msg: Message): string {
   if (msg.type === "IMAGE") return "Hình ảnh";
   if (msg.type === "VIDEO") return "Video";
   if (msg.type === "FILE" || msg.type === "DOCUMENT" || msg.type === "FOLDER") return "Tệp đính kèm";
+  if (msg.type === "TEXT" && msg.content?.startsWith('{"type":"STORY_QUOTE"')) return "Khoảnh khắc";
   return "Tin nhắn";
 }

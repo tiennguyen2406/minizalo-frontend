@@ -30,7 +30,7 @@ import PinnedMessagesBar from "./PinnedMessagesBar";
 import GroupCallInviteModal from "./GroupCallInviteModal";
 import AiSummaryModal from "./AiSummaryModal";
 import { ArrowUp, Sparkles, X } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { showToast as toast } from '@/shared/utils/toast';
 import UnreadAiSummaryModal from "./UnreadAiSummaryModal";
 import AiOptionsModal from "./AiOptionsModal";
 import AiPersonaBotModalWeb from "./AiPersonaBotModalWeb";
