@@ -20,12 +20,19 @@ const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({ messages, cur
 
     // Filter out current room and apply search
     const filteredRooms = useMemo(() => {
-        return rooms
+        const list = rooms
             .filter((r) => r.id !== currentRoomId)
             .filter((r) => {
                 if (!search.trim()) return true;
                 return r.name.toLowerCase().includes(search.toLowerCase());
             });
+        // Cloud luôn nằm đầu danh sách
+        list.sort((a, b) => {
+            if (a.type === 'CLOUD' && b.type !== 'CLOUD') return -1;
+            if (b.type === 'CLOUD' && a.type !== 'CLOUD') return 1;
+            return 0;
+        });
+        return list;
     }, [rooms, currentRoomId, search]);
 
     const handleToggle = (roomId: string) => {
@@ -62,6 +69,7 @@ const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({ messages, cur
     };
 
     const getAvatar = (name: string, avatarUrl?: string, type?: string) => {
+        if (type === 'CLOUD') return '';
         if (avatarUrl) return avatarUrl;
         const bgColor = type === 'GROUP' ? '0068FF' : '4A90D9';
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bgColor}&color=fff&bold=true&size=80`;
@@ -167,17 +175,29 @@ const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({ messages, cur
                                     </div>
 
                                     {/* Avatar */}
-                                    <img
-                                        src={getAvatar(room.name, room.avatarUrl, room.type)}
-                                        alt={room.name}
-                                        className="w-10 h-10 rounded-full object-cover shrink-0"
-                                    />
+                                    {room.type === 'CLOUD' ? (
+                                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                                            <span className="text-xl">☁️</span>
+                                        </div>
+                                    ) : (
+                                        <img
+                                            src={getAvatar(room.name, room.avatarUrl, room.type)}
+                                            alt={room.name}
+                                            className="w-10 h-10 rounded-full object-cover shrink-0"
+                                        />
+                                    )}
 
                                     {/* Info */}
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-gray-800 truncate">{room.name}</div>
+                                        <div className="text-sm font-medium text-gray-800 truncate">
+                                            {room.type === 'CLOUD' ? 'Cloud của tôi' : room.name}
+                                        </div>
                                         <div className="text-xs text-gray-400 mt-0.5">
-                                            {room.type === 'GROUP' ? `${room.participants?.length || 0} thành viên` : 'Tin nhắn riêng'}
+                                            {room.type === 'CLOUD'
+                                                ? 'Lưu trữ cá nhân'
+                                                : room.type === 'GROUP'
+                                                    ? `${room.participants?.length || 0} thành viên`
+                                                    : 'Tin nhắn riêng'}
                                         </div>
                                     </div>
                                 </button>

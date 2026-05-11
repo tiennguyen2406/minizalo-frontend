@@ -69,6 +69,8 @@
     "@types/recordrtc": "^5.6.15",
     "babel-preset-expo": "^54.0.10",
     "cross-env": "^7.0.3",
+    "eslint": "^10.3.0",
+    "eslint-config-expo": "^55.0.0",
     "patch-package": "^8.0.1",
     "typescript": "^5.9.3"
   },

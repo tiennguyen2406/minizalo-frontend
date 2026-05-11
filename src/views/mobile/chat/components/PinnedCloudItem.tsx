@@ -1,13 +1,27 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 export const PinnedCloudItem = () => {
     const colors = useThemeColors();
+    const router = useRouter();
+    const rooms = useChatStore((s) => s.rooms);
+    const cloudRoom = useMemo(
+        () => rooms.find((r) => r.type === "CLOUD"),
+        [rooms],
+    );
     return (
         <TouchableOpacity
             activeOpacity={0.7}
+            onPress={() => {
+                if (!cloudRoom?.id) return;
+                router.push(
+                    `/chat/${cloudRoom.id}?name=${encodeURIComponent("Cloud của tôi")}&type=CLOUD&isStranger=false`,
+                );
+            }}
             style={{
                 flexDirection: 'row',
                 alignItems: 'center',

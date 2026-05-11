@@ -102,6 +102,11 @@ export default function ChatHeader({
             return;
         }
 
+        // CLOUD: không cho gọi chính mình
+        if (roomType === "CLOUD") {
+            return;
+        }
+
         // 1-1
         const receiverId = params.receiverId as string;
         if (!receiverId) {
@@ -279,13 +284,17 @@ export default function ChatHeader({
                             <Ionicons name="sparkles" size={22} color="#FFD700" />
                         </TouchableOpacity>
 
-                        <TouchableOpacity onPress={() => handleStartCall("VOICE")}>
-                            <Ionicons name="call-outline" size={22} color={colors.headerText} />
-                        </TouchableOpacity>
+                        {roomType !== "CLOUD" ? (
+                            <>
+                                <TouchableOpacity onPress={() => handleStartCall("VOICE")}>
+                                    <Ionicons name="call-outline" size={22} color={colors.headerText} />
+                                </TouchableOpacity>
 
-                        <TouchableOpacity onPress={() => handleStartCall("VIDEO")}>
-                            <Ionicons name="videocam-outline" size={24} color={colors.headerText} />
-                        </TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleStartCall("VIDEO")}>
+                                    <Ionicons name="videocam-outline" size={24} color={colors.headerText} />
+                                </TouchableOpacity>
+                            </>
+                        ) : null}
 
                         <TouchableOpacity onPress={onMenuPress} style={{ position: "relative" }}>
                             <Ionicons name="menu-outline" size={24} color={colors.headerText} />

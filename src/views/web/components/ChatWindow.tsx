@@ -16,7 +16,7 @@ import { useChatStore } from "@/shared/store/useChatStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { Message, User } from "@/shared/types";
 import { webSocketService } from "@/shared/services/WebSocketService";
-import { chatService, MessageDynamo } from "@/shared/services/chatService";
+import { chatService, mapChatRoomResponseToFrontend, MessageDynamo } from "@/shared/services/chatService";
 import { useCallStore } from '../../../shared/store/useCallStore';
 import { MessageService } from "@/shared/services/MessageService";
 import friendService from "@/shared/services/friendService";
@@ -36,6 +36,7 @@ import AiOptionsModal from "./AiOptionsModal";
 import AiPersonaBotModalWeb from "./AiPersonaBotModalWeb";
 import AiTaskModalWeb, { AiTaskMode } from "./AiTaskModalWeb";
 import { Ionicons } from '@/shared/components/Icons';
+import CloudOptionsModal from "./CloudOptionsModal";
 
 interface ChatWindowProps {
   roomId: string;
@@ -74,6 +75,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     rooms,
     prependMessages,
     deleteRoom,
+    mergeRooms,
   } = useChatStore();
   const { isGroupInfoOpen, openGroupInfo, closeGroupInfo, currentGroupDetail } =
     useGroupStore();
@@ -110,6 +112,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   const [isAiTaskOpen, setIsAiTaskOpen] = useState(false);
   const [aiTaskMode, setAiTaskMode] = useState<AiTaskMode>("translate");
   const [showUnreadAiModal, setShowUnreadAiModal] = useState(false);
+  const [cloudOptionsOpen, setCloudOptionsOpen] = useState(false);
   const [unreadAiDates, setUnreadAiDates] = useState<{ start?: string; end?: string }>({});
   const [unreadAiCount, setUnreadAiCount] = useState(0);
   const [initialUnreadCount, setInitialUnreadCount] = useState(0);
@@ -184,25 +187,51 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         r.participants?.some(p => String(p.id) === String(roomId))
     );
   }, [rooms, roomId]);
+
+  // Nếu vào thẳng /chat/:id mà store chưa có rooms → fetch rooms để resolve đúng type/name (đặc biệt CLOUD).
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!roomId) return;
+      if (currentRoom) return;
+      try {
+        const apiRooms = await chatService.getChatRooms();
+        if (cancelled) return;
+        const mapped = apiRooms.map(mapChatRoomResponseToFrontend);
+        mergeRooms(mapped as any);
+      } catch {
+        // ignore
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId, currentRoom, mergeRooms]);
   const isGroupRoom = currentRoom?.type === "GROUP";
+  const isCloudRoom = currentRoom?.type === "CLOUD";
   const isGroupDisbanded = isGroupRoom && !!currentRoom?.disbanded;
-  const roomName = isGroupRoom
-    ? currentRoom?.name || "Nhóm chat"
-    : currentRoom?.participants?.find((p) => p.id !== currentUserId)
-      ?.fullName ||
-    currentRoom?.participants?.find((p) => p.id !== currentUserId)
-      ?.username ||
-    currentRoom?.name ||
-    "Phòng chat";
+  const roomName = isCloudRoom
+    ? "Cloud của tôi"
+    : isGroupRoom
+      ? currentRoom?.name || "Nhóm chat"
+      : currentRoom?.participants?.find((p) => p.id !== currentUserId)
+        ?.fullName ||
+        currentRoom?.participants?.find((p) => p.id !== currentUserId)
+          ?.username ||
+        currentRoom?.name ||
+        "Phòng chat";
 
   /** Phòng nhóm: ưu tiên chi tiết nhóm (cập nhật ngay sau đổi avatar trong panel); không chỉ dựa vào rooms[]. */
   const roomAvatar =
-    isGroupRoom &&
-      currentGroupDetail?.id === roomId &&
-      currentGroupDetail.avatarUrl
-      ? currentGroupDetail.avatarUrl
-      : currentRoom?.avatarUrl ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(roomName)}&background=${isGroupRoom ? "0068FF" : "random"}&color=fff&bold=true`;
+    isCloudRoom
+      ? ""
+      : isGroupRoom &&
+          currentGroupDetail?.id === roomId &&
+          currentGroupDetail.avatarUrl
+        ? currentGroupDetail.avatarUrl
+        : currentRoom?.avatarUrl ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(roomName)}&background=${isGroupRoom ? "0068FF" : "random"}&color=fff&bold=true`;
 
   // Người bạn chat (với 1-1) - using case-insensitive comparison for safety
   const partner = !isGroupRoom
@@ -1082,6 +1111,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
   const handleCall = async (type: CallType) => {
     if (!roomId) return;
+    if (isCloudRoom) return;
     if (isGroupRoom) {
       setGroupCallType(type);
       setGroupCallInviteOpen(true);
@@ -1336,6 +1366,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
   // Toggle info panel chung cho cả 2 loại phòng
   const handleToggleInfo = () => {
+    if (isCloudRoom) return;
     if (isGroupRoom) {
       isGroupInfoOpen ? closeGroupInfo() : openGroupInfo();
     } else {
@@ -1349,7 +1380,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     setSearchOpen(true);
   };
 
-  const infoOpen = isGroupRoom ? isGroupInfoOpen : isInfoOpen;
+  const infoOpen = isCloudRoom ? false : isGroupRoom ? isGroupInfoOpen : isInfoOpen;
 
   return (
     <div
@@ -1373,7 +1404,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
           }}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <Avatar src={roomAvatar} key={roomAvatar} />
+            {isCloudRoom ? (
+              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                <span className="text-xl">☁️</span>
+              </div>
+            ) : (
+              <Avatar src={roomAvatar} key={roomAvatar} />
+            )}
             <div className="min-w-0 flex flex-col gap-0.5">
               <span
                 className="font-bold text-base block truncate"
@@ -1447,44 +1484,48 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             >
               <Sparkles className="w-5 h-5 fill-current" />
             </button>
-            <button
-              onClick={() => void handleCall("VOICE")}
-              title="Cuộc gọi thoại"
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={() => void handleCall("VIDEO")}
-              title="Cuộc gọi video"
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-            </button>
+            {isCloudRoom ? null : (
+              <>
+                <button
+                  onClick={() => void handleCall("VOICE")}
+                  title="Cuộc gọi thoại"
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                    />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => void handleCall("VIDEO")}
+                  title="Cuộc gọi video"
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                </button>
+              </>
+            )}
             <button
               onClick={handleOpenSearch}
               title="Tìm kiếm tin nhắn"
@@ -1495,17 +1536,29 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
             >
               <Ionicons name="search-outline" size={20} className="text-gray-500" />
             </button>
-            {/* Nút thông tin — hiện cho CẢ 2 loại phòng */}
-            <button
-              onClick={handleToggleInfo}
-              title="Thông tin hội thoại"
-              className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${infoOpen
-                ? "bg-blue-100 text-blue-600"
-                : "hover:bg-gray-100 text-gray-500"
-                }`}
-            >
-              <Ionicons name="information-circle-outline" size={20} />
-            </button>
+            {/* Cloud: mở Options theo UI My Documents */}
+            {isCloudRoom ? (
+              <button
+                onClick={() => setCloudOptionsOpen(true)}
+                title="Tùy chọn Cloud"
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+              >
+                <Ionicons name="settings-outline" size={20} />
+              </button>
+            ) : null}
+            {/* Nút thông tin — không hiện trong Cloud */}
+            {isCloudRoom ? null : (
+              <button
+                onClick={handleToggleInfo}
+                title="Thông tin hội thoại"
+                className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${infoOpen
+                  ? "bg-blue-100 text-blue-600"
+                  : "hover:bg-gray-100 text-gray-500"
+                  }`}
+              >
+                <Ionicons name="information-circle-outline" size={20} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1781,7 +1834,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
           {isGroupRoom && currentRoom && (
             <GroupInfoPanel roomId={roomId} onClose={closeGroupInfo} />
           )}
-          {!isGroupRoom && currentRoom && (
+          {!isGroupRoom && !isCloudRoom && currentRoom && (
             <DirectChatInfoPanel
               room={currentRoom}
               partner={partner}
@@ -1847,6 +1900,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
           }}
         />
       )}
+
+      <CloudOptionsModal
+        open={cloudOptionsOpen}
+        onClose={() => setCloudOptionsOpen(false)}
+        roomId={isCloudRoom ? roomId : null}
+      />
 
       {isAiSummaryOpen && (
         <AiSummaryModal

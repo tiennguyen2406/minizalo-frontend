@@ -6,7 +6,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as Clipboard from "expo-clipboard";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
-const { readAsStringAsync, EncodingType } = FileSystem;
+const { readAsStringAsync, EncodingType, getInfoAsync } = FileSystem;
 import { api } from "@/shared/services/apiClient";
 import { useThemeColors } from "@/shared/theme/colors";
 
@@ -381,7 +381,7 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
         }
     };
 
-    const sendRecording = async () => {
+    const sendRecording = async (): Promise<void> => {
         if (voiceState === 'dictating') {
             handleSend();
             closeVoicePanel();
@@ -405,11 +405,20 @@ const ChatFooter = forwardRef<ChatFooterHandle, ChatFooterProps>((
         }
         
         if (uriToSend && recordingDuration > 0) {
+            let voiceSize = 0;
+            try {
+                const info = await getInfoAsync(uriToSend);
+                if (info.exists && typeof (info as { size?: number }).size === "number") {
+                    voiceSize = (info as { size: number }).size;
+                }
+            } catch {
+                /* bỏ qua — vẫn gửi với size 0 */
+            }
             const asset: any = {
                 uri: uriToSend,
                 mimeType: "audio/m4a",
                 name: `voice_${Date.now()}.m4a`,
-                size: 0,
+                size: voiceSize,
             };
             onSendFile?.([asset]);
         }

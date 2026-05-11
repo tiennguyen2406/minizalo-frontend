@@ -125,6 +125,9 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                 break;
         }
 
+        // Cloud: không hiển thị tiền tố senderName (self chat)
+        if (room.type === 'CLOUD') return text;
+
         // Với nhóm chat: thêm tên người gửi làm tiền tố
         if (room.type === 'GROUP' && senderName) {
             // Rút gọn tên: lấy từ cuối cùng (tên)
@@ -135,6 +138,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
         return text;
     };
 
+    const isCloud = room.type === 'CLOUD';
+    const resolvedName = isCloud ? 'Cloud của tôi' : room.name;
     const hasUnread = (room.unreadCount ?? 0) > 0;
     const activeBg = isDark ? 'rgba(137,180,250,0.12)' : '#eff6ff';
     const hoverBg = isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb';
@@ -154,10 +159,16 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                 if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
             }}
         >
-            <Avatar
-                src={room.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(room.name)}&background=4A90D9&color=fff&size=64`}
-                className="mr-3"
-            />
+            {isCloud ? (
+                <div className="mr-3 w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                    <span className="text-xl">☁️</span>
+                </div>
+            ) : (
+                <Avatar
+                    src={room.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=4A90D9&color=fff&size=64`}
+                    className="mr-3"
+                />
+            )}
 
             <div className="flex-1 min-w-0 pr-2">
                 {/* Tên phòng / người dùng */}
@@ -168,7 +179,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                         color: 'var(--text-primary)',
                     }}
                 >
-                    {room.name}
+                    {resolvedName}
                 </div>
 
                 {/* Nội dung tin nhắn cuối */}

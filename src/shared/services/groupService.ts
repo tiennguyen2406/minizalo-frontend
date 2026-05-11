@@ -110,8 +110,17 @@ export const groupService = {
 
     /** Lấy cấu hình nhóm */
     async getGroupSettings(groupId: string): Promise<GroupSettings> {
-        const { data } = await api.get(`/group/${groupId}/settings`);
-        return data;
+        try {
+            const { data } = await api.get(`/group/${groupId}/settings`);
+            return data;
+        } catch (e: any) {
+            // Avoid noisy console errors on web when backend returns 500 temporarily
+            // (e.g. DB migration / stale group ids). Caller already handles fallback.
+            if ((e as any)?.response?.status === 500) {
+                return {} as any;
+            }
+            throw e;
+        }
     },
 
     /** Cập nhật cấu hình nhóm */

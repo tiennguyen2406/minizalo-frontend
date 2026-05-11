@@ -161,7 +161,7 @@ export interface ChatRoom {
     id: string;
     name: string;
     avatarUrl?: string; // Group avatar or friend avatar
-    type: 'GROUP' | 'PRIVATE';
+    type: 'GROUP' | 'PRIVATE' | 'CLOUD';
     lastMessage?: Message;
     unreadCount: number;
     participants: User[];
