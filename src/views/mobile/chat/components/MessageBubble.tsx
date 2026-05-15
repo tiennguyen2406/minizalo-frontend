@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useMemo } from "react";
-import { View, Text, TouchableOpacity, Image, Modal, Dimensions, Linking, FlatList, Animated, Alert, Share, Platform, StatusBar, Pressable, useColorScheme } from "react-native";
+import { View, Text, TouchableOpacity, Image, Modal, Dimensions, Linking, FlatList, Animated, Alert, Share, Platform, StatusBar, Pressable, useColorScheme, StyleSheet } from "react-native";
 import type { Attachment, MessageDynamo } from "@/shared/services/chatService";
 import { formatTime } from "@/shared/utils/dateUtils";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,6 +14,8 @@ import { useThemeStore } from "@/shared/store/themeStore";
 import { isImageAttachment, isVideoAttachment } from "@/shared/utils/messageAttachments";
 import PollBubbleMobile from "./PollBubbleMobile";
 import AudioMessageItem from "./AudioMessageItem";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
+
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -104,6 +106,7 @@ function StoryReplyBubble({ content, isMe, time, colors, theme, onLongPress }: {
     theme: string;
     onLongPress?: () => void;
 }) {
+    const [imgError, setImgError] = React.useState(false);
     let data: {
         type?: string;
         mediaUrl?: string | null;
@@ -113,11 +116,15 @@ function StoryReplyBubble({ content, isMe, time, colors, theme, onLongPress }: {
         storyId?: string;
         authorId?: string;
         replyText?: string;
+        imageUrl?: string | null;
+        image?: string | null;
     } = {};
     try { data = JSON.parse(content); } catch { return null; }
     if (data.type !== "STORY_QUOTE") return null;
 
-    const thumbSrc = data.thumbnailUri || data.mediaUrl;
+    // Try multiple possible fields for thumbnail/media
+    let thumbSrc = data.thumbnailUri || data.mediaUrl || data.imageUrl || (data as any).image;
+    if (thumbSrc === "null" || thumbSrc === "undefined") thumbSrc = null;
 
     const cardBg = isMe
         ? "rgba(255,255,255,0.14)"
@@ -159,31 +166,76 @@ function StoryReplyBubble({ content, isMe, time, colors, theme, onLongPress }: {
                 <View style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    borderLeftWidth: 3.5,
-                    borderLeftColor: isMe ? "rgba(255,255,255,0.8)" : "#0068FF",
                     backgroundColor: cardBg,
-                    margin: 10,
+                    margin: 8,
                     marginBottom: 0,
                     borderRadius: 10,
-                    minHeight: 68,
+                    minHeight: 72,
                     overflow: "hidden",
                 }}>
-                    {/* Thumbnail — kích thước cố định, không co giãn */}
-                    {thumbSrc ? (
-                        <Image
-                            source={{ uri: thumbSrc }}
-                            style={{ width: 64, height: 64, flexShrink: 0 }}
-                            resizeMode="cover"
-                        />
-                    ) : (
-                        <View style={{
-                            width: 64, height: 64, flexShrink: 0,
-                            backgroundColor: isMe ? "rgba(255,255,255,0.15)" : "#cde0ff",
-                            alignItems: "center", justifyContent: "center",
-                        }}>
-                            <Ionicons name="image-outline" size={26} color={isMe ? "white" : "#0068FF"} />
-                        </View>
-                    )}
+                    {/* Accent Line */}
+                    <View style={{
+                        width: 3.5,
+                        alignSelf: 'stretch',
+                        backgroundColor: isMe ? "rgba(255,255,255,0.8)" : "#0068FF",
+                        borderRadius: 2,
+                    }} />
+
+                    {/* Thumbnail Area — numeric height for React Native compatibility */}
+                    <View style={{ 
+                        width: 72, 
+                        height: 72, 
+                        flexShrink: 0,
+                        backgroundColor: isMe ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.03)",
+                        borderRightWidth: 1,
+                        borderRightColor: isMe ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)",
+                        position: 'relative',
+                        overflow: 'hidden' 
+                    }}>
+                        {(!!thumbSrc && !imgError) ? (
+                            <Image
+                                key={thumbSrc}
+                                source={{ uri: getImageUrl(thumbSrc) }}
+                                style={{ 
+                                    width: 72, 
+                                    height: 72, 
+                                }}
+                                resizeMode="cover"
+                                onError={() => setImgError(true)}
+                            />
+                        ) : (
+                            <View style={{
+                                flex: 1,
+                                alignItems: "center", justifyContent: "center",
+                                backgroundColor: isMe ? "rgba(255,255,255,0.15)" : "#cde0ff",
+                            }}>
+                                <Ionicons name="image-outline" size={26} color={isMe ? "white" : "#0068FF"} />
+                            </View>
+                        )}
+                        
+                        {/* Play icon overlay for Video stories */}
+                        {(data.mediaType === "VIDEO" || (thumbSrc && String(thumbSrc).toLowerCase().endsWith(".mp4"))) && (
+                            <View style={{
+                                ...StyleSheet.absoluteFillObject,
+                                backgroundColor: 'rgba(0,0,0,0.2)',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                            }}>
+                                <View style={{
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: 12,
+                                    backgroundColor: 'rgba(0,0,0,0.4)',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    borderWidth: 1,
+                                    borderColor: 'rgba(255,255,255,0.5)',
+                                }}>
+                                    <Ionicons name="play" size={14} color="#fff" style={{ marginLeft: 2 }} />
+                                </View>
+                            </View>
+                        )}
+                    </View>
                     {/* Text mô tả story — lấy toàn bộ diện tích còn lại */}
                     <View style={{ flexGrow: 1, flexShrink: 1, paddingHorizontal: 10, paddingVertical: 8 }}>
                         <Text style={{ fontWeight: "700", fontSize: 13, color: titleColor, lineHeight: 18 }} numberOfLines={2}>
@@ -472,73 +524,6 @@ export default function MessageBubble({
         }
     };
 
-    // Xử lý lỗi URL localhost/IP address từ MinIO trên thiết bị thật/emulator
-    const getImageUrl = (url: string) => {
-        if (!url) return url;
-        let finalUrl = url;
-
-        // --- Handle Relative Paths (e.g. minizalo-bucket/files/...) ---
-        if (!finalUrl.startsWith("http") && !finalUrl.startsWith("file://") && !finalUrl.startsWith("data:")) {
-            const apiFullUrl = process.env?.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:8080/api";
-            // Derive MinIO URL: replace port 8080 with 9000 if present, or just use host:9000
-            // Most local setups use 8080 for API and 9000 for MinIO
-            let minioBase = apiFullUrl.replace("/api", "").replace(":8080", ":9000");
-            if (!minioBase.includes(":9000") && !minioBase.includes(":443") && !minioBase.includes(":80")) {
-                // If no port specified, assume we might need :9000 for MinIO
-                // But let's be careful. If it's pure IP/domain, adding 9000 is common.
-                const urlObj = apiFullUrl.split("/");
-                if (urlObj.length >= 3) {
-                    const hostPart = urlObj[2].split(":")[0];
-                    minioBase = `${urlObj[0]}//${hostPart}:9000`;
-                }
-            }
-            finalUrl = `${minioBase}/${url}`;
-        }
-
-        // --- Handle absolute URLs (localhost/IP fixes) ---
-        if (finalUrl.startsWith("http")) {
-            // Xử lý localhost
-            if (finalUrl.includes("localhost") && process.env.EXPO_PUBLIC_API_URL) {
-                const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
-                if (match && match[1]) {
-                    finalUrl = finalUrl.replace("localhost", match[1]);
-                }
-            }
-
-            // Xử lý IP address local network (192.168.x.x, 10.x.x.x, 172.x.x.x)
-            if (process.env.EXPO_PUBLIC_API_URL) {
-                const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
-                if (apiMatch && apiMatch[1]) {
-                    const apiHost = apiMatch[1];
-                    if (finalUrl.match(/https?:\/\/(192\.168\.|10\.|172\.)/)) {
-                        const urlMatch = finalUrl.match(/https?:\/\/([^:\/]+)/);
-                        if (urlMatch && urlMatch[1] !== apiHost) {
-                            finalUrl = finalUrl.replace(urlMatch[1], apiHost);
-                        }
-                    }
-                    // Port 9000 logic
-                    if (finalUrl.includes(":9000") && !apiHost.includes(":9000")) {
-                        const urlMatch = finalUrl.match(/https?:\/\/([^:]+):/);
-                        if (urlMatch && urlMatch[1] !== apiHost.split(':')[0]) {
-                            finalUrl = finalUrl.replace(urlMatch[1], apiHost.split(':')[0]);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Ensure URL is encoded for spaces and special chars
-        try {
-            if (finalUrl.includes(" ") || finalUrl.includes("[") || finalUrl.includes("]")) {
-                return encodeURI(finalUrl);
-            }
-        } catch (e) {
-            console.error("Encoding error in getImageUrl:", e);
-        }
-
-        return finalUrl;
-    };
-
     const handleFileView = async (url: string | undefined, originalFileName?: string) => {
         if (!url) return;
         try {
@@ -706,7 +691,7 @@ export default function MessageBubble({
     // STORY_QUOTE — render bubble đặc biệt
     if (
         !isRecalled &&
-        message.type === "TEXT" &&
+        (message.type === "TEXT" || message.type === "STORY_REPLY") &&
         message.content &&
         message.content.trimStart().startsWith('{"type":"STORY_QUOTE"')
     ) {

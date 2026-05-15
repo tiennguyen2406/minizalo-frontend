@@ -26,7 +26,8 @@ export interface ChatMessageRequest {
         | "VOICE"
         | "LINK"
         | "CALL_VOICE"
-        | "CALL_VIDEO";
+        | "CALL_VIDEO"
+        | "STORY_REPLY";
     replyToId?: string;
     // Field backend thực sự sử dụng cho reply
     replyToMessageId?: string;
@@ -113,7 +114,8 @@ export interface Message {
         | "VOICE"
         | "LINK"
         | "CALL_VOICE"
-        | "CALL_VIDEO";
+        | "CALL_VIDEO"
+        | "STORY_REPLY";
     createdAt: string; // ISO string
     updatedAt?: string;
     isDeleted?: boolean;

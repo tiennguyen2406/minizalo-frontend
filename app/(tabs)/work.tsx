@@ -12,12 +12,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
-import * as FileSystem from "expo-file-system";
 import { useStoryStore } from "@/shared/store/storyStore";
 import { useUserStore } from "@/shared/store/userStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { showToast as toast } from "@/shared/utils/toast";
 import { chatService } from "@/shared/services/chatService";
+import * as VideoThumbnails from 'expo-video-thumbnails';
+import * as FileSystem from 'expo-file-system/legacy';
 import ViewShot from "react-native-view-shot";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -1866,16 +1867,28 @@ export default function WorkScreen() {
 
             // Gộp thành 1 tin nhắn duy nhất: story card + text của người dùng
             // thumbnailUri (base64) đã bị loại bỏ vì quá lớn → dùng mediaUrl (remote URL)
+            let thumbnailUri = null;
+            if (selectedStory.mediaType === 'VIDEO') {
+                try {
+                    const { uri } = await VideoThumbnails.getThumbnailAsync(selectedStory.mediaUrl, { time: 0 });
+                    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+                    thumbnailUri = `data:image/jpeg;base64,${base64}`;
+                } catch (e) {
+                    console.warn("Failed to generate video thumbnail:", e);
+                }
+            }
+
             const storyQuotePayload = JSON.stringify({
                 type: "STORY_QUOTE",
                 mediaUrl: selectedStory.mediaUrl || null,
+                thumbnailUri: thumbnailUri, // Base64 thumbnail for video or permanent fallback
                 mediaType: selectedStory.mediaType || "PHOTO",
                 postedAt: postedAt,
                 storyId: selectedStory.createdAt,
                 authorId: selectedStory.userId,
                 replyText: msgText,
             });
-            await chatService.sendMessage(roomId, storyQuotePayload, undefined, "TEXT");
+            await chatService.sendMessage(roomId, storyQuotePayload, undefined, "STORY_REPLY");
 
             showToastMsg("Đã gửi tin nhắn");
         } catch (e) {
