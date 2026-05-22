@@ -8,12 +8,12 @@ import {
     ScrollView,
     StyleSheet,
     Image,
-    Platform,
     Animated,
     Dimensions,
     Alert,
     Modal,
     Pressable,
+    Linking,
 } from "react-native";
 import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { StatusBar } from "expo-status-bar";
@@ -21,11 +21,20 @@ import { Ionicons } from "@expo/vector-icons";
 import CreateGroupScreen from "./CreateGroupScreen";
 import AddToGroupModal from "../components/AddToGroupModal";
 import MediaStorageScreen from "./MediaStorageScreen";
-import { chatService } from "@/shared/services/chatService";
+import { chatService, type MessageDynamo, type Attachment } from "@/shared/services/chatService";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { setChatWallpaperUri } from "@/shared/utils/chatWallpaper";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useRouter } from "expo-router";
+import {
+    aggregateCloudStorageFromMessages,
+    CLOUD_STORAGE_QUOTA_BYTES,
+    CLOUD_STORAGE_QUOTA_MB,
+    EMPTY_CLOUD_STORAGE,
+    fetchAllCloudRoomMessages,
+    formatMegabytesFromBytes,
+    type CloudStorageBreakdown,
+} from "@/shared/utils/cloudStorageAggregate";
 
 const getImageUrl = (url: string) => {
     if (!url) return url;
@@ -74,7 +83,7 @@ interface ChatOptionsScreenProps {
     name: string;
     avatarUrl?: string;
     partnerId?: string;
-    type?: "DIRECT" | "GROUP";
+    type?: "DIRECT" | "GROUP" | "CLOUD";
     onClose: () => void;
 }
 
@@ -93,6 +102,14 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     const [hidden, setHidden] = useState(false);
     const [notifyCall, setNotifyCall] = useState(true);
     const [recentMedia, setRecentMedia] = useState<{ type: 'image' | 'file' | 'link', url: string }[]>([]);
+    const isCloud = type === "CLOUD";
+
+    type CloudGridItem = { id: string; url: string; label?: string };
+    const [cloudPhotos, setCloudPhotos] = useState<CloudGridItem[]>([]);
+    const [cloudVideos, setCloudVideos] = useState<CloudGridItem[]>([]);
+    const [cloudLinks, setCloudLinks] = useState<CloudGridItem[]>([]);
+    const [cloudFiles, setCloudFiles] = useState<CloudGridItem[]>([]);
+    const [cloudStorageStats, setCloudStorageStats] = useState<CloudStorageBreakdown>(EMPTY_CLOUD_STORAGE);
 
     useFocusEffect(
         useCallback(() => {
@@ -167,6 +184,284 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
         };
         fetchRecentMedia();
     }, [roomId]);
+
+    // Cloud: mỗi lần vào màn / focus lại → gom history, tính dung lượng + lưới ảnh/video/link/file
+    useFocusEffect(
+        useCallback(() => {
+            if (!isCloud || !roomId || roomId === "new") {
+                setCloudPhotos([]);
+                setCloudVideos([]);
+                setCloudLinks([]);
+                setCloudFiles([]);
+                setCloudStorageStats(EMPTY_CLOUD_STORAGE);
+                return () => {};
+            }
+            let cancelled = false;
+            const run = async () => {
+                try {
+                    const allMessages = await fetchAllCloudRoomMessages(roomId);
+                    if (cancelled) return;
+
+                    setCloudStorageStats(aggregateCloudStorageFromMessages(allMessages));
+
+                    const photos: CloudGridItem[] = [];
+                    const videos: CloudGridItem[] = [];
+                    const links: CloudGridItem[] = [];
+                    const files: CloudGridItem[] = [];
+                    const seen = new Set<string>();
+
+                    const pushUnique = (arr: CloudGridItem[], item: CloudGridItem, cap: number) => {
+                        if (seen.has(item.id) || arr.length >= cap) return;
+                        seen.add(item.id);
+                        arr.push(item);
+                    };
+
+                    const classifyAtt = (att: Attachment): "image" | "video" | "file" => {
+                        const t = (att.type || "").toLowerCase();
+                        if (t.startsWith("image") || t === "image") return "image";
+                        if (t.startsWith("video") || t === "video" || t.includes("mp4") || t.includes("webm")) return "video";
+                        return "file";
+                    };
+
+                    for (const msg of allMessages) {
+                        const m = msg as MessageDynamo;
+                        const mt = String(m.type || "").toUpperCase();
+                        if (m.recalled) continue;
+
+                        const fileUrl = (m as any).fileUrl as string | undefined;
+                        if (fileUrl) {
+                            if (mt === "IMAGE") {
+                                pushUnique(photos, { id: `${m.messageId}-fu`, url: fileUrl }, 30);
+                            } else if (mt === "VIDEO") {
+                                pushUnique(videos, { id: `${m.messageId}-fv`, url: fileUrl }, 30);
+                            } else if (mt === "FILE" || mt === "DOCUMENT" || mt === "VOICE") {
+                                pushUnique(files, {
+                                    id: `${m.messageId}-ff`,
+                                    url: fileUrl,
+                                    label: (m as any).fileName || (m as any).filename,
+                                }, 30);
+                            }
+                        }
+
+                        if (m.attachments?.length) {
+                            m.attachments.forEach((att, idx) => {
+                                const kind = classifyAtt(att);
+                                const id = `${m.messageId}-a${idx}-${att.id || att.url}`;
+                                if (kind === "image") {
+                                    pushUnique(photos, { id, url: att.url }, 30);
+                                } else if (kind === "video") {
+                                    pushUnique(videos, { id, url: att.url }, 30);
+                                } else {
+                                    pushUnique(files, {
+                                        id,
+                                        url: att.url,
+                                        label: att.filename || att.name,
+                                    }, 30);
+                                }
+                            });
+                        }
+
+                        // Tin chỉ có URL media trong content (không có attachments)
+                        if (!m.attachments?.length && !fileUrl) {
+                            const c = (m.content || "").trim();
+                            const urlOnly = c.startsWith("http") ? c.split(/\s+/)[0] : null;
+                            if (urlOnly) {
+                                if (mt === "IMAGE") {
+                                    pushUnique(photos, { id: `${m.messageId}-cimg`, url: urlOnly }, 30);
+                                } else if (mt === "VIDEO") {
+                                    pushUnique(videos, { id: `${m.messageId}-cvd`, url: urlOnly }, 30);
+                                } else if (mt === "FILE" || mt === "DOCUMENT" || mt === "VOICE") {
+                                    pushUnique(files, {
+                                        id: `${m.messageId}-cf`,
+                                        url: urlOnly,
+                                        label: (m as any).fileName,
+                                    }, 30);
+                                }
+                            }
+                        }
+
+                        if (m.content && mt !== "IMAGE" && mt !== "VIDEO") {
+                            const re = /(https?:\/\/[^\s<]+)/g;
+                            let match: RegExpExecArray | null;
+                            while ((match = re.exec(m.content)) !== null) {
+                                const url = match[1];
+                                pushUnique(links, { id: `${m.messageId}-lnk-${match.index}`, url }, 24);
+                            }
+                        }
+                        if (mt === "LINK" && m.content?.trim()) {
+                            const u = m.content.trim();
+                            if (u.startsWith("http")) {
+                                pushUnique(links, { id: `${m.messageId}-lc`, url: u }, 24);
+                            }
+                        }
+                    }
+
+                    if (!cancelled) {
+                        setCloudPhotos(photos);
+                        setCloudVideos(videos);
+                        setCloudLinks(links);
+                        setCloudFiles(files);
+                    }
+                } catch {
+                    if (!cancelled) {
+                        setCloudPhotos([]);
+                        setCloudVideos([]);
+                        setCloudLinks([]);
+                        setCloudFiles([]);
+                        setCloudStorageStats(EMPTY_CLOUD_STORAGE);
+                    }
+                }
+            };
+            void run();
+            return () => {
+                cancelled = true;
+            };
+        }, [isCloud, roomId]),
+    );
+
+    // Cloud Options UI (My Documents style)
+    const CloudHeader = () => (
+        <View style={{ alignItems: "center", paddingTop: 10, paddingBottom: 16 }}>
+            <View
+                style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: 38,
+                    backgroundColor: "#eaf2ff",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 10,
+                }}
+            >
+                <Ionicons name="folder-open-outline" size={38} color="#2f7df6" />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>My Documents</Text>
+            <Text style={{ marginTop: 6, fontSize: 13.5, color: colors.textSecondary, textAlign: "center", paddingHorizontal: 22 }}>
+                Lưu trữ và truy cập nhanh những nội dung quan trọng của bạn ngay trên Zalo
+            </Text>
+        </View>
+    );
+
+    const CloudStorageCard = () => {
+        const usedBytes = cloudStorageStats.totalBytes;
+        const { photoBytes, videoBytes, fileBytes } = cloudStorageStats;
+        const usedMbStr = formatMegabytesFromBytes(usedBytes);
+        const pctFill = CLOUD_STORAGE_QUOTA_BYTES > 0 ? Math.min(1, usedBytes / CLOUD_STORAGE_QUOTA_BYTES) : 0;
+        const mediaSum = photoBytes + videoBytes + fileBytes;
+        return (
+            <View
+                style={{
+                    backgroundColor: colors.card,
+                    borderRadius: 16,
+                    padding: 16,
+                    marginHorizontal: 12,
+                    borderWidth: 0.5,
+                    borderColor: colors.border,
+                }}
+            >
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>Dung lượng</Text>
+                    <Text style={{ fontSize: 12.5, color: colors.textSecondary }}>
+                        {usedMbStr} MB / {CLOUD_STORAGE_QUOTA_MB.toLocaleString("vi-VN")} MB
+                    </Text>
+                </View>
+                <View
+                    style={{
+                        height: 10,
+                        borderRadius: 999,
+                        overflow: "hidden",
+                        backgroundColor: colors.separator,
+                        marginTop: 12,
+                    }}
+                >
+                    {mediaSum > 0 && pctFill > 0 ? (
+                        <View
+                            style={{
+                                width: `${pctFill * 100}%`,
+                                height: "100%",
+                                flexDirection: "row",
+                                borderRadius: 999,
+                                overflow: "hidden",
+                            }}
+                        >
+                            {photoBytes > 0 ? (
+                                <View style={{ flex: photoBytes, backgroundColor: "#60a5fa", minWidth: 2 }} />
+                            ) : null}
+                            {videoBytes > 0 ? (
+                                <View style={{ flex: videoBytes, backgroundColor: "#34d399", minWidth: 2 }} />
+                            ) : null}
+                            {fileBytes > 0 ? (
+                                <View style={{ flex: fileBytes, backgroundColor: "#f59e0b", minWidth: 2 }} />
+                            ) : null}
+                        </View>
+                    ) : null}
+                </View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 10, gap: 10 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#60a5fa", marginRight: 6 }} />
+                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                            Ảnh {formatMegabytesFromBytes(photoBytes)} MB
+                        </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#34d399", marginRight: 6 }} />
+                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                            Video {formatMegabytesFromBytes(videoBytes)} MB
+                        </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#f59e0b", marginRight: 6 }} />
+                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                            File {formatMegabytesFromBytes(fileBytes)} MB
+                        </Text>
+                    </View>
+                </View>
+            </View>
+        );
+    };
+
+    const CloudActionCard = ({
+        title,
+        desc,
+        primary,
+        onPress,
+    }: {
+        title: string;
+        desc: string;
+        primary: { label: string; variant: "primary" | "secondary" };
+        onPress?: () => void;
+    }) => (
+        <View
+            style={{
+                backgroundColor: colors.card,
+                borderRadius: 16,
+                padding: 16,
+                marginHorizontal: 12,
+                marginTop: 12,
+                borderWidth: 0.5,
+                borderColor: colors.border,
+            }}
+        >
+            <Text style={{ fontSize: 15.5, fontWeight: "800", color: colors.text }}>{title}</Text>
+            <Text style={{ marginTop: 6, fontSize: 13, color: colors.textSecondary, lineHeight: 18 }}>{desc}</Text>
+            <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={onPress}
+                style={{
+                    alignSelf: "flex-start",
+                    marginTop: 12,
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    borderRadius: 12,
+                    backgroundColor: primary.variant === "primary" ? "#e6f0ff" : colors.separator,
+                }}
+            >
+                <Text style={{ fontSize: 14, fontWeight: "800", color: primary.variant === "primary" ? "#0068ff" : colors.text }}>
+                    {primary.label}
+                </Text>
+            </TouchableOpacity>
+        </View>
+    );
 
     // ── Overlay: Tạo nhóm ──
     const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -263,6 +558,230 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
             {right ?? null}
         </TouchableOpacity>
     );
+
+    const cloudGutter = 12;
+    const cloudGap = 6;
+    const cloudCols = 3;
+    const cloudInner = SCREEN_WIDTH - cloudGutter * 2;
+    const cloudTile = (cloudInner - cloudGap * (cloudCols - 1)) / cloudCols;
+
+    const renderCloudCategoryGrid = (
+        sectionTitle: string,
+        sectionIcon: string,
+        items: CloudGridItem[],
+        mode: "photo" | "video" | "link" | "file",
+    ) => {
+        const maxShow = 6;
+        const list = items.slice(0, maxShow);
+        return (
+            <View style={{ marginTop: 18, marginHorizontal: cloudGutter }}>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10, gap: 8 }}>
+                    <Ionicons name={sectionIcon as any} size={18} color={colors.primary} />
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>{sectionTitle}</Text>
+                    {items.length > maxShow ? (
+                        <Text style={{ marginLeft: "auto", fontSize: 12, color: colors.textSecondary }}>+{items.length - maxShow}</Text>
+                    ) : null}
+                </View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                    {list.length === 0 ? (
+                        <Text style={{ color: colors.textSecondary, fontSize: 13, paddingVertical: 6 }}>Chưa có</Text>
+                    ) : (
+                        list.map((it, idx) => {
+                            const col = idx % cloudCols;
+                            const mr = col < cloudCols - 1 ? cloudGap : 0;
+                            const tileH = mode === "link" ? Math.max(cloudTile * 0.72, 56) : cloudTile;
+                            return (
+                                <TouchableOpacity
+                                    key={it.id}
+                                    activeOpacity={0.85}
+                                    onPress={() => {
+                                        const u = getImageUrl(it.url);
+                                        void Linking.openURL(u);
+                                    }}
+                                    style={{
+                                        width: cloudTile,
+                                        height: tileH,
+                                        borderRadius: 10,
+                                        overflow: "hidden",
+                                        backgroundColor: colors.searchBg,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        marginRight: mr,
+                                        marginBottom: cloudGap,
+                                    }}
+                                >
+                                    {mode === "photo" ? (
+                                        <Image
+                                            source={{ uri: getImageUrl(it.url) }}
+                                            style={{ width: "100%", height: "100%" }}
+                                            resizeMode="cover"
+                                        />
+                                    ) : mode === "video" ? (
+                                        <View
+                                            style={{
+                                                width: "100%",
+                                                height: "100%",
+                                                backgroundColor: "#1a1a1a",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                            }}
+                                        >
+                                            <Ionicons name="play-circle" size={40} color="#ffffffcc" />
+                                        </View>
+                                    ) : mode === "link" ? (
+                                        <Text
+                                            style={{
+                                                fontSize: 11,
+                                                color: colors.primary,
+                                                paddingHorizontal: 6,
+                                                textAlign: "center",
+                                            }}
+                                            numberOfLines={4}
+                                        >
+                                            {it.url.replace(/^https?:\/\//, "")}
+                                        </Text>
+                                    ) : (
+                                        <>
+                                            <Ionicons name="document-text-outline" size={28} color={colors.text} />
+                                            <Text
+                                                style={{
+                                                    fontSize: 10,
+                                                    color: colors.textSecondary,
+                                                    marginTop: 4,
+                                                    paddingHorizontal: 4,
+                                                    textAlign: "center",
+                                                }}
+                                                numberOfLines={2}
+                                            >
+                                                {it.label || "Tệp"}
+                                            </Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        })
+                    )}
+                </View>
+            </View>
+        );
+    };
+
+    if (isCloud) {
+        return (
+            <View style={{ flex: 1, backgroundColor: colors.background }}>
+                <StatusBar style={colors.statusBar} />
+                <View style={{ backgroundColor: colors.headerBg }}>
+                    <SafeAreaView edges={["top"]}>
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                paddingHorizontal: 12,
+                                height: 52,
+                                backgroundColor: colors.headerBg,
+                                borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                                borderBottomColor: colors.border,
+                            }}
+                        >
+                            <TouchableOpacity
+                                onPress={onClose}
+                                style={{ paddingVertical: 4, paddingRight: 6 }}
+                                activeOpacity={0.7}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                                <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                            </TouchableOpacity>
+                            <Text
+                                style={{
+                                    flex: 1,
+                                    color: colors.headerText,
+                                    fontSize: 17,
+                                    fontWeight: "600",
+                                }}
+                                numberOfLines={1}
+                            >
+                                My Documents
+                            </Text>
+                            <TouchableOpacity style={{ padding: 8 }} activeOpacity={0.7}>
+                                <Ionicons name="help-circle-outline" size={22} color={colors.headerText} />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={{ padding: 8 }} activeOpacity={0.7}>
+                                <Ionicons name="settings-outline" size={22} color={colors.headerText} />
+                            </TouchableOpacity>
+                        </View>
+                    </SafeAreaView>
+                </View>
+
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingBottom: 32 }}
+                    showsVerticalScrollIndicator
+                    nestedScrollEnabled
+                >
+                    <CloudHeader />
+                    <CloudStorageCard />
+                    <CloudActionCard
+                        title="Thêm dung lượng với zCloud"
+                        desc="100 GB dành cho My Documents để lưu thêm tài liệu, ảnh, video và ghi âm của riêng bạn"
+                        primary={{ label: "Thêm dung lượng", variant: "primary" }}
+                        onPress={() => Alert.alert("Thông báo", "Tính năng đang được phát triển.")}
+                    />
+                    <CloudActionCard
+                        title="Dọn dẹp dữ liệu My Documents"
+                        desc="Xóa bớt nội dung không cần thiết để có thêm dung lượng trống"
+                        primary={{ label: "Xem và dọn dẹp", variant: "secondary" }}
+                        onPress={openMediaStorage}
+                    />
+
+                    <View style={{ marginTop: 8, paddingBottom: 8 }}>
+                        <Text
+                            style={{
+                                marginHorizontal: cloudGutter,
+                                marginTop: 8,
+                                fontSize: 13,
+                                fontWeight: "700",
+                                color: colors.textSecondary,
+                                letterSpacing: 0.2,
+                            }}
+                        >
+                            Nội dung trong Cloud
+                        </Text>
+                        {renderCloudCategoryGrid("Ảnh", "images-outline", cloudPhotos, "photo")}
+                        {renderCloudCategoryGrid("Video", "videocam-outline", cloudVideos, "video")}
+                        {renderCloudCategoryGrid("Link", "link-outline", cloudLinks, "link")}
+                        {renderCloudCategoryGrid("Tệp tin", "document-attach-outline", cloudFiles, "file")}
+                        {cloudPhotos.length + cloudVideos.length + cloudLinks.length + cloudFiles.length > 0 ? (
+                            <TouchableOpacity
+                                onPress={openMediaStorage}
+                                style={{ marginTop: 8, alignItems: "center", paddingVertical: 10 }}
+                                activeOpacity={0.75}
+                            >
+                                <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "700" }}>
+                                    Xem tất cả ảnh, file, link
+                                </Text>
+                            </TouchableOpacity>
+                        ) : null}
+                    </View>
+                </ScrollView>
+
+                {showMediaStorage && (
+                    <Animated.View
+                        style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            zIndex: 200,
+                            transform: [{ translateX: mediaStorageSlide }],
+                        }}
+                    >
+                        <MediaStorageScreen roomId={roomId} onClose={closeMediaStorage} />
+                    </Animated.View>
+                )}
+            </View>
+        );
+    }
 
     const Arrow = () => (
         <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />

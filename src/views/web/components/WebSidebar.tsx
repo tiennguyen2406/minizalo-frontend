@@ -6,6 +6,7 @@ import { useChatStore } from "@/shared/store/useChatStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useThemeStore } from "@/shared/store/themeStore";
 import SettingsPanel from "./SettingsPanel";
+import { chatService, mapChatRoomResponseToFrontend } from "@/shared/services/chatService";
 
 const ICON_SIZE = 24;
 
@@ -112,6 +113,9 @@ export default function WebSidebar() {
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const hasToken = !!useAuthStore((s) => s.accessToken);
   const { profile, fetchProfile } = useUserStore();
+  const rooms = useChatStore((s) => s.rooms);
+  const mergeRooms = useChatStore((s) => s.mergeRooms);
+  const setPendingOpenRoomId = useChatStore((s) => s.setPendingOpenRoomId);
   const totalUnread = useChatStore((s) =>
     s.rooms.reduce((acc, r) => acc + (r.unreadCount || 0), 0),
   );
@@ -145,6 +149,30 @@ export default function WebSidebar() {
     if (href === "/(tabs)")
       return pathname === "/(tabs)" || pathname === "/(tabs)/";
     return pathname.startsWith(href);
+  };
+
+  const openCloudChat = async () => {
+    // 1) Try from store first
+    const cloud = rooms.find((r) => r.type === "CLOUD");
+    if (cloud?.id) {
+      // Stay in the main chat layout (keep left menu)
+      setPendingOpenRoomId(cloud.id);
+      router.push(`/(tabs)?openRoomId=${encodeURIComponent(cloud.id)}`);
+      return;
+    }
+    // 2) Fetch rooms, merge to store, then open
+    try {
+      const apiRooms = await chatService.getChatRooms();
+      const mapped = apiRooms.map(mapChatRoomResponseToFrontend);
+      mergeRooms(mapped as any);
+      const cloud2 = mapped.find((r) => (r as any).type === "CLOUD") as any;
+      if (cloud2?.id) {
+        setPendingOpenRoomId(cloud2.id);
+        router.push(`/(tabs)?openRoomId=${encodeURIComponent(cloud2.id)}`);
+      }
+    } catch {
+      // ignore
+    }
   };
 
   return (
@@ -234,16 +262,19 @@ export default function WebSidebar() {
         <div style={{ flex: 1, minHeight: 24 }} />
 
         {/* Zalo Cloud, Thư mục, Khám phá, Công việc */}
-        {navItems.slice(2).map((item) => (
-          <NavItem
-            key={item.href}
-            label={item.label}
-            icon={item.icon}
-            active={isActive(item.href)}
-            activeBg={ACTIVE_BG}
-            onClick={() => router.push(item.href as any)}
-          />
-        ))}
+        {navItems.slice(2).map((item) => {
+          const isCloud = item.href === "/(tabs)/zalo-cloud";
+          return (
+            <NavItem
+              key={item.href}
+              label={item.label}
+              icon={item.icon}
+              active={isCloud ? false : isActive(item.href)}
+              activeBg={ACTIVE_BG}
+              onClick={() => (isCloud ? void openCloudChat() : router.push(item.href as any))}
+            />
+          );
+        })}
 
         <NavItem
           label="Cài đặt"

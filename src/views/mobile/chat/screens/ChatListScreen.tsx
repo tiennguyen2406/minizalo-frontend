@@ -43,6 +43,8 @@ export default function ChatListScreen() {
             result = inboxTab === "strangers" ? strangerRooms : mainRooms;
         }
         return [...result]
+            // Cloud sẽ được hiển thị riêng ở item ghim trên đầu (PinnedCloudItem)
+            .filter((r) => r.type !== "CLOUD")
             .filter((r) => !!r.lastMessage) // Chỉ hiện phòng đã có tin nhắn
             .sort((a, b) => {
                 const aPinned = pinnedRooms.has(a.id);
@@ -107,20 +109,27 @@ export default function ChatListScreen() {
             const data = await chatService.getChatRooms();
             const existingRooms = useChatStore.getState().rooms;
 
+            // Deduplicate CLOUD rooms (keep first, ignore the rest)
+            const seenCloud = { value: false };
+
             // Map sang ChatRoom interface của store (giống Web)
-            const storeRooms = data.map((r) => {
+            const storeRooms = data.flatMap((r) => {
                 let resolvedName = r.name;
-                if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
+                if (r.type === 'CLOUD') {
+                    if (seenCloud.value) return [];
+                    seenCloud.value = true;
+                    resolvedName = 'Cloud của tôi';
+                } else if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
                     const partner = (r.members || []).find(
                         (m: any) => (m.user?.id || m.id) !== currentUserId
                     );
                     resolvedName = partner?.user?.displayName || partner?.user?.username || partner?.displayName || partner?.username || 'Người dùng';
                 }
-                return {
+                return [{
                     id: r.id,
-                    name: resolvedName || 'Người dùng',
+                    name: resolvedName || (r.type === 'CLOUD' ? 'Cloud của tôi' : 'Người dùng'),
                     avatarUrl: r.avatarUrl || undefined,
-                    type: r.type === 'DIRECT' ? 'PRIVATE' as const : 'GROUP' as const,
+                    type: r.type === 'GROUP' ? ('GROUP' as const) : r.type === 'CLOUD' ? ('CLOUD' as const) : ('PRIVATE' as const),
                     lastMessage: r.lastMessage
                         ? {
                             id: r.lastMessage.messageId,
@@ -145,7 +154,7 @@ export default function ChatListScreen() {
                     })),
                     updatedAt: r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
                     hasInteracted: r.hasInteracted,
-                };
+                }];
             });
 
             storeRooms.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -244,7 +253,17 @@ export default function ChatListScreen() {
                     isPinned={pinnedRooms.has(item.id)}
                     isMuted={mutedRooms.has(String(item.id))}
                     onLongPress={() => setActionRoom(item)}
-                    onPress={() => router.push(`/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${item.type || "DIRECT"}&isStranger=${isPartnerStranger ? "true" : "false"}${partner?.id ? `&targetUserId=${partner.id}` : ""}&receiverId=${receiverId}`)}
+                    onPress={() => {
+                        const t =
+                            item.type === "GROUP"
+                                ? "GROUP"
+                                : item.type === "CLOUD"
+                                  ? "CLOUD"
+                                  : "DIRECT";
+                        router.push(
+                            `/chat/${item.id}?name=${encodeURIComponent(item.name || "")}&type=${t}&isStranger=${isPartnerStranger ? "true" : "false"}${partner?.id ? `&targetUserId=${partner.id}` : ""}&receiverId=${receiverId}`,
+                        );
+                    }}
                 />
             </Animated.View>
         );

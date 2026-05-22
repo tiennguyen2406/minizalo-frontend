@@ -154,10 +154,24 @@ export default function ChatScreen() {
   const [selectedReceiptMsg, setSelectedReceiptMsg] = useState<MessageDynamo | null>(null);
   const roomId = activeRoomId || "";
   const displayName = typeof name === "string" ? name : "Người dùng";
-  const roomType = type === "GROUP" ? "GROUP" : "DIRECT";
+  const routeTypeStr = useMemo(() => {
+    const t = type as string | string[] | undefined;
+    if (Array.isArray(t)) return String(t[0] ?? "").toUpperCase();
+    return String(t ?? "").toUpperCase();
+  }, [type]);
 
   const currentUserId = useUserStore((s) => s.profile?.id);
   const rooms = useChatStore((s) => s.rooms);
+
+  /** Ưu tiên type từ store (CLOUD/GROUP) vì query `type` đôi khi không được truyền khi mở chat. */
+  const roomType = useMemo((): "DIRECT" | "GROUP" | "CLOUD" => {
+    const r = rooms.find((x) => x.id === roomId);
+    if (r?.type === "CLOUD") return "CLOUD";
+    if (r?.type === "GROUP") return "GROUP";
+    if (routeTypeStr === "CLOUD") return "CLOUD";
+    if (routeTypeStr === "GROUP") return "GROUP";
+    return "DIRECT";
+  }, [rooms, roomId, routeTypeStr]);
   const unblockUser = useFriendStore((s) => s.unblockUser);
   const blockedUsers = useFriendStore((s) => s.blockedUsers);
   const {
@@ -185,7 +199,7 @@ export default function ChatScreen() {
   // Tính toán isStranger dựa trên kiểm tra trong danh sách bạn bè (Source of truth)
   const isStranger = useMemo(() => {
     // Nếu là GROUP thì không là người lạ (theo logic App hiện tại)
-    if (roomType === "GROUP") return false;
+    if (roomType === "GROUP" || roomType === "CLOUD") return false;
 
     // Luôn kiểm tra trong store trước nếu có targetUserId (param hoặc suy luận từ participants)
     if (resolvedTargetUserId) {
@@ -427,6 +441,7 @@ export default function ChatScreen() {
   }).current;
 
   const openGroupInfo = () => {
+    if (roomType === "CLOUD") return;
     router.push({
       pathname: "/group-info",
       params: {
@@ -4690,14 +4705,20 @@ export default function ChatScreen() {
 
               {/* Danh sách cuộc trò chuyện – multi-select */}
               <FlatList
-                data={rooms.filter(
-                  (r) =>
-                    r.id !== roomId &&
-                    (forwardSearch.trim() === "" ||
-                      r.name
-                        ?.toLowerCase()
-                        .includes(forwardSearch.toLowerCase())),
-                )}
+                data={rooms
+                  .filter(
+                    (r) =>
+                      r.id !== roomId &&
+                      (forwardSearch.trim() === "" ||
+                        r.name
+                          ?.toLowerCase()
+                          .includes(forwardSearch.toLowerCase())),
+                  )
+                  .sort((a, b) => {
+                    if (a.type === "CLOUD" && b.type !== "CLOUD") return -1;
+                    if (b.type === "CLOUD" && a.type !== "CLOUD") return 1;
+                    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+                  })}
                 keyExtractor={(item) => item.id}
                 style={{ maxHeight: 340 }}
                 contentContainerStyle={{

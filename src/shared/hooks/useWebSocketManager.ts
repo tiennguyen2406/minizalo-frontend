@@ -10,7 +10,7 @@ import { AppState, Platform } from 'react-native';
 import type { IMessage } from '@stomp/stompjs';
 import { useAuthStore } from '@/shared/store/authStore';
 import { useChatStore } from '@/shared/store/useChatStore';
-import { chatService, ChatRoomResponse } from '@/shared/services/chatService';
+import { chatService, ChatRoomResponse, mapChatRoomResponseToFrontend } from '@/shared/services/chatService';
 import { webSocketService } from '@/shared/services/WebSocketService';
 import { ChatRoom } from '../types';
 import axios from 'axios';
@@ -29,57 +29,13 @@ function mapChatRoomResponsesToStore(
     existingRooms: ChatRoom[],
 ): ChatRoom[] {
     const allRooms: ChatRoom[] = data.map((r) => {
-        const existing = existingRooms.find((er) => er.id === r.id);
-        let resolvedName = r.name;
-        if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
-            const partner = (r.members || []).find(
-                (m: any) => (m.user?.id || m.id) !== currentUserId,
-            );
-            resolvedName =
-                partner?.user?.displayName ||
-                partner?.user?.username ||
-                partner?.displayName ||
-                partner?.username ||
-                'Người dùng';
-        }
-        return {
-            id: r.id,
-            name: resolvedName || 'Người dùng',
-            avatarUrl: r.avatarUrl || undefined,
-            type: r.type === 'DIRECT' ? 'PRIVATE' : 'GROUP',
-            lastMessage: r.lastMessage
-                ? {
-                      id: r.lastMessage.messageId,
-                      senderId: r.lastMessage.senderId,
-                      senderName: r.lastMessage.senderName || undefined,
-                      roomId: r.id,
-                      content: r.lastMessage.content,
-                      type: (r.lastMessage.type as any) || 'TEXT',
-                      createdAt: r.lastMessage.createdAt,
-                  }
-                : undefined,
-            unreadCount: (() => {
-                const ridStr = String(r.id);
-                const currentOpen = useChatStore.getState().currentRoomId;
-                if (currentOpen && String(currentOpen) === ridStr) return 0;
-                
-                // Tin tưởng vào server unreadCount khi sync danh sách phòng
-                return r.unreadCount || 0;
-            })(),
-            participants: (r.members || []).map((m: any) => ({
-                id: m.user?.id || m.id || '',
-                username: m.user?.username || m.username || '',
-                fullName:
-                    m.user?.displayName ||
-                    m.user?.fullName ||
-                    m.displayName ||
-                    m.fullName ||
-                    '',
-                avatarUrl: m.user?.avatarUrl || m.avatarUrl || undefined,
-            })),
-            updatedAt: r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
-            disbanded: !!r.disbanded,
-        };
+        const base = mapChatRoomResponseToFrontend(r);
+        // Ensure unreadCount=0 if currently open
+        const ridStr = String(r.id);
+        const currentOpen = useChatStore.getState().currentRoomId;
+        const unreadCount =
+            currentOpen && String(currentOpen) === ridStr ? 0 : (r.unreadCount || 0);
+        return { ...base, unreadCount };
     });
     allRooms.sort(
         (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
@@ -386,60 +342,17 @@ function _useWebSocketManagerWeb() {
             const data: ChatRoomResponse[] = await chatService.getChatRooms();
             const existingRooms = useChatStore.getState().rooms;
             const allRooms: ChatRoom[] = data.map((r) => {
-                const existing = existingRooms.find((er) => er.id === r.id);
-                let resolvedName = r.name;
-                if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
-                    const partner = (r.members || []).find(
-                        (m: any) => (m.user?.id || m.id) !== user?.id,
-                    );
-                    resolvedName =
-                        partner?.user?.displayName ||
-                        partner?.user?.username ||
-                        partner?.displayName ||
-                        partner?.username ||
-                        'Người dùng';
-                }
-                return {
-                    id: r.id,
-                    name: resolvedName || 'Người dùng',
-                    avatarUrl: r.avatarUrl || undefined,
-                    type: r.type === 'DIRECT' ? 'PRIVATE' : 'GROUP',
-                    lastMessage: r.lastMessage
-                        ? {
-                              id: r.lastMessage.messageId,
-                              senderId: r.lastMessage.senderId,
-                              senderName: r.lastMessage.senderName || undefined,
-                              roomId: r.id,
-                              content: r.lastMessage.content,
-                              type: (r.lastMessage.type as any) || 'TEXT',
-                              createdAt: r.lastMessage.createdAt,
-                          }
-                        : undefined,
-                    unreadCount: (() => {
-                        const ridStr = String(r.id);
-                        const currentOpen = useChatStore.getState().currentRoomId;
-                        if (currentOpen && String(currentOpen) === ridStr) return 0;
-                        
-                        return Math.max(
-                            existing ? (existing.unreadCount ?? 0) : 0,
-                            r.unreadCount || 0,
-                        );
-                    })(),
-                    participants: (r.members || []).map((m: any) => ({
-                        id: m.user?.id || m.id || '',
-                        username: m.user?.username || m.username || '',
-                        fullName:
-                            m.user?.displayName ||
-                            m.user?.fullName ||
-                            m.displayName ||
-                            m.fullName ||
-                            '',
-                        avatarUrl: m.user?.avatarUrl || m.avatarUrl || undefined,
-                    })),
-                    updatedAt:
-                        r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
-                    disbanded: !!r.disbanded,
-                };
+                const base = mapChatRoomResponseToFrontend(r);
+                const ridStr = String(r.id);
+                const currentOpen = useChatStore.getState().currentRoomId;
+                const unreadCount =
+                    currentOpen && String(currentOpen) === ridStr
+                        ? 0
+                        : Math.max(
+                              existingRooms.find((er) => er.id === r.id)?.unreadCount ?? 0,
+                              r.unreadCount || 0,
+                          );
+                return { ...base, unreadCount };
             });
             allRooms.sort(
                 (a, b) =>
