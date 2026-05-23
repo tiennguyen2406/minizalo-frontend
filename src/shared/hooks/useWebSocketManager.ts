@@ -10,6 +10,8 @@ import { AppState, Platform } from 'react-native';
 import type { IMessage } from '@stomp/stompjs';
 import { useAuthStore } from '@/shared/store/authStore';
 import { useChatStore } from '@/shared/store/useChatStore';
+import { usePostStore } from '@/shared/store/postStore';
+import { useStoryStore } from '@/shared/store/storyStore';
 import { chatService, ChatRoomResponse, mapChatRoomResponseToFrontend } from '@/shared/services/chatService';
 import { webSocketService } from '@/shared/services/WebSocketService';
 import { ChatRoom } from '../types';
@@ -281,10 +283,103 @@ function useGlobalChatTopicSubscriptions() {
     }, []);
 }
 
+type StoryRealtimeEvent = {
+    type?: string;
+    ownerId?: string;
+    createdAt?: string;
+    viewerId?: string;
+    reactionUserId?: string;
+    reactionType?: string;
+};
+
+type PostRealtimeEvent = {
+    type?: string;
+    postId?: string;
+    userId?: string;
+};
+
+function useSocialRealtimeSubscriptions() {
+    const accessToken = useAuthStore((s) => s.accessToken);
+    const currentUserId = useAuthStore((s) => s.user?.id);
+
+    useEffect(() => {
+        if (!accessToken) return;
+
+        webSocketService.activate(accessToken);
+
+        const storyDest = '/topic/social/stories';
+        const postDest = '/topic/social/posts';
+
+        const refreshStories = (ownerId?: string) => {
+            void useStoryStore.getState().fetchFeed();
+            if (ownerId && ownerId === useAuthStore.getState().user?.id) {
+                void useStoryStore.getState().fetchMyStories();
+            }
+        };
+
+        const storyHandler = (stompMsg: IMessage) => {
+            try {
+                const raw = String(stompMsg.body || '').trim();
+                if (!raw) return;
+                const payload = JSON.parse(raw) as StoryRealtimeEvent;
+                if (!payload.ownerId || !payload.createdAt) {
+                    refreshStories(payload.ownerId);
+                    return;
+                }
+
+                if (payload.type === 'STORY_VIEWED' && payload.viewerId) {
+                    useStoryStore
+                        .getState()
+                        .applyRealtimeStoryViewed(payload.ownerId, payload.createdAt, payload.viewerId);
+                    return;
+                }
+
+                if (payload.type === 'STORY_REACTED' && payload.reactionUserId && payload.reactionType) {
+                    useStoryStore
+                        .getState()
+                        .applyRealtimeStoryReaction(
+                            payload.ownerId,
+                            payload.createdAt,
+                            payload.reactionUserId,
+                            payload.reactionType,
+                        );
+                    return;
+                }
+
+                refreshStories(payload.ownerId);
+            } catch (err) {
+                console.error('[useWebSocketManager] social story event parse:', err);
+            }
+        };
+
+        const postHandler = (stompMsg: IMessage) => {
+            try {
+                const raw = String(stompMsg.body || '').trim();
+                const payload = raw ? JSON.parse(raw) as PostRealtimeEvent : {};
+                if (payload.userId && payload.userId === useAuthStore.getState().user?.id) {
+                    return;
+                }
+            } catch (err) {
+                console.error('[useWebSocketManager] social post event parse:', err);
+            }
+            void usePostStore.getState().fetchFeed({ silent: true });
+        };
+
+        webSocketService.subscribe(storyDest, storyHandler);
+        webSocketService.subscribe(postDest, postHandler);
+
+        return () => {
+            webSocketService.unsubscribe(storyDest, storyHandler);
+            webSocketService.unsubscribe(postDest, postHandler);
+        };
+    }, [accessToken, currentUserId]);
+}
+
 export function useWebSocketManager() {
     useChatErrorsSubscription();
     useRoomUpdatesSubscription();
     useGlobalChatTopicSubscriptions();
+    useSocialRealtimeSubscriptions();
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
     _useWebSocketManagerBoth();

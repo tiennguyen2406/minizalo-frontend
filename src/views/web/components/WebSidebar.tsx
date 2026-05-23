@@ -176,18 +176,18 @@ export default function WebSidebar() {
   };
 
   return (
-    <div style={{ display: "flex", flexShrink: 0, alignSelf: "stretch" }}>
+    <div style={{ display: "flex", flexShrink: 0, height: "100vh", alignSelf: "stretch" }}>
       <aside
         style={{
           width: 72,
           minWidth: 72,
+          height: "100vh",
           backgroundColor: SIDEBAR_BG,
           display: "flex",
           flexDirection: "column",
           flexShrink: 0,
           alignSelf: "stretch",
           alignItems: "center",
-          minHeight: "100vh",
           overflow: "hidden",
           paddingTop: 16,
           paddingBottom: 16,
