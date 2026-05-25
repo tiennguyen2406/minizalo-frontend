@@ -14,6 +14,7 @@ import {
     Modal,
     Pressable,
     Linking,
+    TextInput,
 } from "react-native";
 import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { StatusBar } from "expo-status-bar";
@@ -21,7 +22,10 @@ import { Ionicons } from "@expo/vector-icons";
 import CreateGroupScreen from "./CreateGroupScreen";
 import AddToGroupModal from "../components/AddToGroupModal";
 import MediaStorageScreen from "./MediaStorageScreen";
-import { chatService, type MessageDynamo, type Attachment } from "@/shared/services/chatService";
+import { chatService, mapChatRoomResponseToFrontend, type MessageDynamo, type Attachment } from "@/shared/services/chatService";
+import { MessageService } from "@/shared/services/MessageService";
+import { userService } from "@/shared/services/userService";
+import friendCategoryService from "@/shared/services/friendCategoryService";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { setChatWallpaperUri } from "@/shared/utils/chatWallpaper";
 import { useThemeColors } from "@/shared/theme/colors";
@@ -92,14 +96,29 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     const router = useRouter();
     const colors = useThemeColors();
     const mutedRooms = useChatStore((s) => s.mutedRooms);
+    const pinnedRooms = useChatStore((s) => s.pinnedRooms);
+    const hiddenRooms = useChatStore((s) => s.hiddenRooms);
     const toggleMuteRoom = useChatStore((s) => s.toggleMuteRoom);
+    const togglePinRoom = useChatStore((s) => s.togglePinRoom);
+    const toggleHiddenRoom = useChatStore((s) => s.toggleHiddenRoom);
+    const rooms = useChatStore((s) => s.rooms);
+    const currentRoom = rooms.find((r) => r.id === roomId);
+    const commonGroups = rooms.filter(
+        (r) => r.type === "GROUP" && !!partnerId && r.participants?.some((p: any) => p.id === partnerId),
+    );
     const [showMuteDuration, setShowMuteDuration] = useState(false);
     const [selectedMuteDuration, setSelectedMuteDuration] = useState<string>("1h");
-    const avatar = avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
+    const displayName = currentRoom?.name || name;
+    const avatar = avatarUrl || currentRoom?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random&color=fff`;
 
     const [bestFriend, setBestFriend] = useState(false);
-    const [pinned, setPinned] = useState(false);
-    const [hidden, setHidden] = useState(false);
+    const [closeFriendCategoryId, setCloseFriendCategoryId] = useState<string | null>(null);
+    const [partnerProfile, setPartnerProfile] = useState<any | null>(null);
+    const [showNicknameModal, setShowNicknameModal] = useState(false);
+    const [nicknameDraft, setNicknameDraft] = useState(displayName);
+    const [savingNickname, setSavingNickname] = useState(false);
+    const [savingWallpaper, setSavingWallpaper] = useState(false);
+    const [showCommonGroups, setShowCommonGroups] = useState(false);
     const [notifyCall, setNotifyCall] = useState(true);
     const [recentMedia, setRecentMedia] = useState<{ type: 'image' | 'file' | 'link', url: string }[]>([]);
     const isCloud = type === "CLOUD";
@@ -110,6 +129,46 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     const [cloudLinks, setCloudLinks] = useState<CloudGridItem[]>([]);
     const [cloudFiles, setCloudFiles] = useState<CloudGridItem[]>([]);
     const [cloudStorageStats, setCloudStorageStats] = useState<CloudStorageBreakdown>(EMPTY_CLOUD_STORAGE);
+
+    useEffect(() => {
+        setNicknameDraft(displayName);
+    }, [displayName]);
+
+    useEffect(() => {
+        if (!partnerId || type !== "DIRECT") {
+            setPartnerProfile(null);
+            setBestFriend(false);
+            setCloseFriendCategoryId(null);
+            return;
+        }
+        let cancelled = false;
+        const run = async () => {
+            try {
+                const [profile, categories, assignments] = await Promise.all([
+                    userService.getUserProfile(partnerId),
+                    friendCategoryService.listCategories(),
+                    friendCategoryService.listAssignments(),
+                ]);
+                if (cancelled) return;
+                setPartnerProfile(profile);
+                let closeCategory = categories.find((c) => c.name.trim().toLowerCase() === "bạn thân");
+                if (!closeCategory) {
+                    closeCategory = await friendCategoryService.createCategory({ name: "Bạn thân", color: "#f59e0b" });
+                    if (cancelled) return;
+                }
+                setCloseFriendCategoryId(closeCategory.id);
+                setBestFriend(assignments.some((a) => a.targetUserId === partnerId && a.categoryId === closeCategory!.id));
+            } catch {
+                if (!cancelled) {
+                    setPartnerProfile(null);
+                }
+            }
+        };
+        void run();
+        return () => {
+            cancelled = true;
+        };
+    }, [partnerId, type]);
 
     useFocusEffect(
         useCallback(() => {
@@ -137,9 +196,70 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
             quality: 0.85,
         });
         if (res.canceled || !res.assets?.[0]?.uri) return;
-        await setChatWallpaperUri(roomId, res.assets[0].uri);
-        Alert.alert("Đã lưu", "Hình nền chỉ hiển thị trên thiết bị của bạn.");
+        setSavingWallpaper(true);
+        try {
+            const asset = res.assets[0];
+            const upload = await MessageService.uploadFile({
+                uri: asset.uri,
+                name: asset.fileName || `chat_wallpaper_${Date.now()}.jpg`,
+                type: asset.mimeType || "image/jpeg",
+            } as any);
+            const updated = await chatService.updateRoomWallpaper(roomId, upload.fileUrl);
+            useChatStore.getState().upsertRoom(mapChatRoomResponseToFrontend(updated));
+            await setChatWallpaperUri(roomId, upload.fileUrl);
+            Alert.alert("Đã lưu", "Hình nền đã được đồng bộ cho cuộc trò chuyện.");
+        } catch (error) {
+            console.error("Update chat wallpaper error:", error);
+            Alert.alert("Lỗi", "Không thể đổi hình nền lúc này.");
+        } finally {
+            setSavingWallpaper(false);
+        }
     }, [roomId]);
+
+    const openFriendProfile = useCallback(() => {
+        if (!partnerId) return;
+        const profile = partnerProfile;
+        router.push({
+            pathname: "/(tabs)/friend-profile",
+            params: {
+                userId: partnerId,
+                displayName: profile?.displayName || displayName,
+                avatarUrl: profile?.avatarUrl || avatarUrl || "",
+                coverPhotoUrl: profile?.coverPhotoUrl || "",
+                businessDescription: profile?.businessDescription || "",
+                statusMessage: profile?.statusMessage || "",
+                phone: profile?.phone || "",
+            },
+        } as any);
+    }, [avatarUrl, displayName, partnerId, partnerProfile, router]);
+
+    const saveNickname = useCallback(async () => {
+        if (!roomId || roomId === "new") return;
+        setSavingNickname(true);
+        try {
+            const updated = await chatService.saveNickname(roomId, nicknameDraft.trim());
+            useChatStore.getState().upsertRoom(mapChatRoomResponseToFrontend(updated));
+            setShowNicknameModal(false);
+        } catch (error) {
+            console.error("Save nickname error:", error);
+            Alert.alert("Lỗi", "Không thể lưu tên gợi nhớ.");
+        } finally {
+            setSavingNickname(false);
+        }
+    }, [nicknameDraft, roomId]);
+
+    const toggleBestFriend = useCallback(async () => {
+        if (!partnerId || !closeFriendCategoryId) return;
+        const next = !bestFriend;
+        setBestFriend(next);
+        try {
+            await friendCategoryService.assignCategory(partnerId, next ? closeFriendCategoryId : null);
+        } catch (error) {
+            setBestFriend(!next);
+            console.error("Toggle best friend error:", error);
+            Alert.alert("Lỗi", "Không thể cập nhật bạn thân.");
+        }
+    }, [bestFriend, closeFriendCategoryId, partnerId]);
 
     useEffect(() => {
         if (!roomId || roomId === "new") {
@@ -844,7 +964,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                 {/* Profile */}
                 <View style={[s.profile, { backgroundColor: colors.card }]}>
                     <Image source={{ uri: avatar }} style={s.avatar} />
-                    <Text style={[s.nameText, { color: colors.text }]}>{name}</Text>
+                    <Text style={[s.nameText, { color: colors.text }]}>{displayName}</Text>
 
                     {/* 4 Action Buttons */}
                     <View style={s.actions}>
@@ -854,11 +974,11 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                                 text: "Tìm\ntin nhắn",
                                 onPress: () =>
                                     router.push(
-                                        `/search-messages?roomId=${roomId}&name=${encodeURIComponent(name)}&avatarUrl=${encodeURIComponent(avatarUrl || "")}&type=${encodeURIComponent(type)}`,
+                                        `/search-messages?roomId=${roomId}&name=${encodeURIComponent(displayName)}&avatarUrl=${encodeURIComponent(avatarUrl || "")}&type=${encodeURIComponent(type)}`,
                                     ),
                             },
-                            { icon: "person-outline", text: "Trang\ncá nhân", onPress: undefined },
-                            { icon: "color-palette-outline", text: "Đổi\nhình nền", onPress: pickChatWallpaper },
+                            { icon: "person-outline", text: "Trang\ncá nhân", onPress: type === "DIRECT" ? openFriendProfile : undefined },
+                            { icon: savingWallpaper ? "hourglass-outline" : "color-palette-outline", text: "Đổi\nhình nền", onPress: savingWallpaper ? undefined : pickChatWallpaper },
                             {
                                 icon: mutedRooms.has(String(roomId)) ? "notifications" : "notifications-off-outline",
                                 text: mutedRooms.has(String(roomId)) ? "Bật\nthông báo" : "Tắt\nthông báo",
@@ -885,13 +1005,12 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
 
                 {/* Group 1 */}
                 <Section>
-                    <OptionRow icon="pencil-outline" label="Đổi tên gợi nhớ" right={<Arrow />} first />
+                    <OptionRow icon="pencil-outline" label="Đổi tên gợi nhớ" right={<Arrow />} first onPress={() => setShowNicknameModal(true)} />
                     <OptionRow
                         icon="star-outline"
                         label="Đánh dấu bạn thân"
-                        right={<CustomSwitch value={bestFriend} onToggle={() => setBestFriend(v => !v)} />}
+                        right={<CustomSwitch value={bestFriend} onToggle={toggleBestFriend} />}
                     />
-                    <OptionRow icon="time-outline" label="Nhật ký chung" right={<Arrow />} />
                 </Section>
 
                 {/* Bình chọn (chỉ nhóm) — tương tự web: tạo khảo sát trong hội thoại nhóm */}
@@ -945,24 +1064,63 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                 <Section>
                     <OptionRow
                         icon="people-circle-outline"
-                        label={`Tạo nhóm với ${name}`}
+                        label={`Tạo nhóm với ${displayName}`}
                         right={<Arrow />}
                         onPress={partnerId ? openCreateGroup : undefined}
                         first
                     />
                     <OptionRow
                         icon="person-add-outline"
-                        label={`Thêm ${name} vào nhóm`}
+                        label={`Thêm ${displayName} vào nhóm`}
                         right={<Arrow />}
                         onPress={partnerId ? () => setShowAddToGroup(true) : undefined}
                     />
-                    <OptionRow icon="people-outline" label="Xem nhóm chung (0)" right={<Arrow />} />
+                    <OptionRow
+                        icon="people-outline"
+                        label={`Nhóm chung (${commonGroups.length})`}
+                        desc={commonGroups.length > 0 ? commonGroups.slice(0, 2).map((group) => group.name).join(", ") : "Chưa có nhóm chung"}
+                        right={<Arrow />}
+                        onPress={() => setShowCommonGroups(true)}
+                    />
                 </Section>
 
                 {/* Group 5: Settings */}
                 <Section>
-                    <OptionRow icon="pin-outline" label="Ghim trò chuyện" right={<CustomSwitch value={pinned} onToggle={() => setPinned(v => !v)} />} first />
-                    <OptionRow icon="eye-off-outline" label="Ẩn trò chuyện" right={<CustomSwitch value={hidden} onToggle={() => setHidden(v => !v)} />} />
+                    <OptionRow
+                        icon="pin-outline"
+                        label="Ghim trò chuyện"
+                        right={<CustomSwitch value={pinnedRooms.has(String(roomId))} onToggle={() => togglePinRoom(roomId)} />}
+                        first
+                    />
+                    <OptionRow
+                        icon="eye-off-outline"
+                        label="Ẩn trò chuyện"
+                        right={
+                            <CustomSwitch
+                                value={hiddenRooms.has(String(roomId))}
+                                onToggle={() => {
+                                    if (hiddenRooms.has(String(roomId))) {
+                                        toggleHiddenRoom(roomId);
+                                        return;
+                                    }
+                                    Alert.alert(
+                                        "Ẩn trò chuyện",
+                                        "Cuộc trò chuyện sẽ không hiển thị trong danh sách. Bạn vẫn có thể tìm lại bằng tên hoặc số điện thoại.",
+                                        [
+                                            { text: "Hủy", style: "cancel" },
+                                            {
+                                                text: "Ẩn",
+                                                onPress: () => {
+                                                    toggleHiddenRoom(roomId);
+                                                    onClose();
+                                                },
+                                            },
+                                        ],
+                                    );
+                                }}
+                            />
+                        }
+                    />
                     <OptionRow icon="call-outline" label="Báo cuộc gọi đến" right={<CustomSwitch value={notifyCall} onToggle={() => setNotifyCall(v => !v)} />} />
                     <OptionRow icon="settings-outline" label="Cài đặt cá nhân" right={<Arrow />} />
                     <OptionRow icon="timer-outline" label="Tin nhắn tự xoá" desc="Không tự xoá" />
@@ -970,8 +1128,6 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
 
                 {/* Group 5: Danger */}
                 <Section>
-                    <OptionRow icon="ban-outline" label="Quản lý chặn" right={<Arrow />} first />
-                    <OptionRow icon="pie-chart-outline" label="Dung lượng trò chuyện" />
                     <OptionRow
                         icon="trash-outline"
                         label="Xóa lịch sử trò chuyện"
@@ -1000,6 +1156,150 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
             </ScrollView>
 
             {/* Tắt thông báo — cùng logic danh sách chat */}
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showNicknameModal}
+                onRequestClose={() => setShowNicknameModal(false)}
+            >
+                <Pressable
+                    style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" }}
+                    onPress={() => setShowNicknameModal(false)}
+                >
+                    <Pressable
+                        style={{
+                            width: "84%",
+                            borderRadius: 18,
+                            backgroundColor: colors.card,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            padding: 18,
+                        }}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "700" }}>Đổi tên gợi nhớ</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 6 }}>
+                            Tên này chỉ hiển thị với bạn trong cuộc trò chuyện.
+                        </Text>
+                        <TextInput
+                            value={nicknameDraft}
+                            onChangeText={setNicknameDraft}
+                            placeholder="Nhập tên gợi nhớ"
+                            placeholderTextColor={colors.textSecondary}
+                            maxLength={50}
+                            autoFocus
+                            style={{
+                                marginTop: 14,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                borderRadius: 12,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                color: colors.text,
+                                fontSize: 15,
+                                backgroundColor: colors.searchBg,
+                            }}
+                        />
+                        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+                            <TouchableOpacity
+                                onPress={() => setShowNicknameModal(false)}
+                                style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.border }}
+                            >
+                                <Text style={{ color: colors.text, fontWeight: "600" }}>Hủy</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={saveNickname}
+                                disabled={savingNickname}
+                                style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary, opacity: savingNickname ? 0.6 : 1 }}
+                            >
+                                <Text style={{ color: "#fff", fontWeight: "700" }}>{savingNickname ? "Đang lưu..." : "Lưu"}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Pressable>
+                </Pressable>
+            </Modal>
+
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showCommonGroups}
+                onRequestClose={() => setShowCommonGroups(false)}
+            >
+                <Pressable
+                    style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
+                    onPress={() => setShowCommonGroups(false)}
+                >
+                    <Pressable
+                        style={{
+                            backgroundColor: colors.card,
+                            borderTopLeftRadius: 22,
+                            borderTopRightRadius: 22,
+                            paddingTop: 10,
+                            paddingBottom: 24,
+                            maxHeight: "70%",
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <View style={{ alignSelf: "center", width: 42, height: 4, borderRadius: 999, backgroundColor: colors.border, marginBottom: 14 }} />
+                        <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, marginBottom: 8 }}>
+                            <Text style={{ flex: 1, color: colors.text, fontSize: 17, fontWeight: "800" }}>
+                                Nhóm chung ({commonGroups.length})
+                            </Text>
+                            <TouchableOpacity onPress={() => setShowCommonGroups(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                <Ionicons name="close" size={24} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                        {commonGroups.length === 0 ? (
+                            <View style={{ alignItems: "center", paddingVertical: 30, paddingHorizontal: 28 }}>
+                                <Ionicons name="people-outline" size={42} color={colors.textSecondary} />
+                                <Text style={{ color: colors.textSecondary, marginTop: 10, textAlign: "center", fontSize: 14 }}>
+                                    Bạn và {displayName} chưa có nhóm chung.
+                                </Text>
+                            </View>
+                        ) : (
+                            <ScrollView showsVerticalScrollIndicator={false}>
+                                {commonGroups.map((group) => {
+                                    const groupAvatar = group.avatarUrl
+                                        ? getImageUrl(group.avatarUrl)
+                                        : `https://ui-avatars.com/api/?name=${encodeURIComponent(group.name || "Group")}&background=0d6efd&color=fff`;
+                                    return (
+                                        <TouchableOpacity
+                                            key={group.id}
+                                            activeOpacity={0.75}
+                                            onPress={() => {
+                                                setShowCommonGroups(false);
+                                                onClose();
+                                                router.push(`/chat/${group.id}?name=${encodeURIComponent(group.name || "")}&type=GROUP`);
+                                            }}
+                                            style={{
+                                                flexDirection: "row",
+                                                alignItems: "center",
+                                                paddingHorizontal: 18,
+                                                paddingVertical: 12,
+                                                gap: 12,
+                                            }}
+                                        >
+                                            <Image source={{ uri: groupAvatar }} style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: colors.searchBg }} />
+                                            <View style={{ flex: 1, minWidth: 0 }}>
+                                                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }} numberOfLines={1}>
+                                                    {group.name || "Nhóm"}
+                                                </Text>
+                                                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 3 }}>
+                                                    {group.participants?.length || 0} thành viên
+                                                </Text>
+                                            </View>
+                                            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
+                        )}
+                    </Pressable>
+                </Pressable>
+            </Modal>
+
             <Modal
                 transparent
                 animationType="fade"
@@ -1113,7 +1413,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                 <AddToGroupModal
                     visible={showAddToGroup}
                     memberId={partnerId}
-                    memberName={name}
+                    memberName={displayName}
                     onClose={() => setShowAddToGroup(false)}
                 />
             )}

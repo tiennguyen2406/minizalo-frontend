@@ -7,6 +7,8 @@ function mapGroupResponse(data: any): GroupDetail {
         id: data.id,
         groupName: data.groupName,
         avatarUrl: data.avatarUrl || undefined,
+        wallpaperUrl: data.wallpaperUrl || undefined,
+        description: data.description || undefined,
         ownerId: data.ownerId,
         createdAt: data.createdAt || new Date().toISOString(),
         members: (data.members || []).map((m: any) => ({
@@ -96,6 +98,16 @@ export const groupService = {
     /** Cập nhật avatar nhóm */
     async updateGroupAvatar(groupId: string, avatarUrl: string): Promise<GroupDetail> {
         const { data } = await api.put('/group', { groupId, avatarUrl });
+        return mapGroupResponse(data);
+    },
+
+    async updateGroupWallpaper(groupId: string, wallpaperUrl: string): Promise<GroupDetail> {
+        const { data } = await api.put('/group', { groupId, wallpaperUrl });
+        return mapGroupResponse(data);
+    },
+
+    async updateGroupDescription(groupId: string, description: string): Promise<GroupDetail> {
+        const { data } = await api.put('/group', { groupId, description });
         return mapGroupResponse(data);
     },
 

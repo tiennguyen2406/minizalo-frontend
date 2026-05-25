@@ -55,6 +55,10 @@ export function isStrangerPrivateRoom(
     return !isAcceptedFriendWith(partnerId, currentUserId, friends);
 }
 
+function hasExistingConversation(room: ChatRoom): boolean {
+    return !!room.lastMessage || !!room.hasInteracted;
+}
+
 export function splitRoomsMainAndStrangers(
     rooms: ChatRoom[],
     currentUserId: string,
@@ -63,7 +67,7 @@ export function splitRoomsMainAndStrangers(
     const mainRooms: ChatRoom[] = [];
     const strangerRooms: ChatRoom[] = [];
     for (const r of rooms) {
-        if (isStrangerPrivateRoom(r, currentUserId, friends)) {
+        if (isStrangerPrivateRoom(r, currentUserId, friends) && !hasExistingConversation(r)) {
             strangerRooms.push(r);
         } else {
             mainRooms.push(r);

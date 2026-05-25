@@ -14,15 +14,17 @@ import { useAuthStore } from "@/shared/store/authStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 import { getChatPreviewText } from "@/shared/utils/chatPreview";
+import friendCategoryService from "@/shared/services/friendCategoryService";
 export default function ChatListScreen() {
     const router = useRouter();
-    const { rooms, setRooms, mergeRooms, pinnedRooms, mutedRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
+    const { rooms, setRooms, mergeRooms, pinnedRooms, mutedRooms, hiddenRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
     const colors = useThemeColors();
     const currentUserId = useAuthStore((s) => s.user?.id);
     const friends = useFriendStore((s) => s.friends);
     const fetchFriends = useFriendStore((s) => s.fetchFriends);
     const [friendsListReady, setFriendsListReady] = useState(false);
-    const [inboxTab, setInboxTab] = useState<"main" | "strangers">("main");
+    const [inboxTab, setInboxTab] = useState<"main" | "bestFriends" | "strangers">("main");
+    const [bestFriendIds, setBestFriendIds] = useState<Set<string>>(new Set());
     const [refreshing, setRefreshing] = useState(false);
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const [actionRoom, setActionRoom] = useState<(typeof rooms)[number] | null>(null);
@@ -40,11 +42,22 @@ export default function ChatListScreen() {
                 currentUserId,
                 friends,
             );
-            result = inboxTab === "strangers" ? strangerRooms : mainRooms;
+            if (inboxTab === "strangers") {
+                result = strangerRooms;
+            } else if (inboxTab === "bestFriends") {
+                result = mainRooms.filter((room) => {
+                    if (room.type !== "PRIVATE") return false;
+                    const partner = room.participants?.find((p: any) => p.id !== currentUserId);
+                    return !!partner?.id && bestFriendIds.has(String(partner.id));
+                });
+            } else {
+                result = mainRooms;
+            }
         }
         return [...result]
             // Cloud sẽ được hiển thị riêng ở item ghim trên đầu (PinnedCloudItem)
             .filter((r) => r.type !== "CLOUD")
+            .filter((r) => !hiddenRooms.has(String(r.id)))
             .filter((r) => !!r.lastMessage) // Chỉ hiện phòng đã có tin nhắn
             .sort((a, b) => {
                 const aPinned = pinnedRooms.has(a.id);
@@ -54,7 +67,7 @@ export default function ChatListScreen() {
                 return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
             });
 
-    }, [rooms, currentUserId, friends, friendsListReady, inboxTab, pinnedRooms]);
+    }, [rooms, currentUserId, friends, friendsListReady, inboxTab, pinnedRooms, hiddenRooms, bestFriendIds]);
 
     const friendIdSet = useMemo(() => {
         const ids = new Set<string>();
@@ -177,11 +190,36 @@ export default function ChatListScreen() {
             setLoading(false);
         }
     };
+
+    const fetchBestFriendAssignments = useCallback(async () => {
+        try {
+            const [categories, assignments] = await Promise.all([
+                friendCategoryService.listCategories(),
+                friendCategoryService.listAssignments(),
+            ]);
+            const closeCategory = categories.find((c) => c.name.trim().toLowerCase() === "bạn thân");
+            if (!closeCategory) {
+                setBestFriendIds(new Set());
+                return;
+            }
+            setBestFriendIds(
+                new Set(
+                    assignments
+                        .filter((a) => a.categoryId === closeCategory.id)
+                        .map((a) => String(a.targetUserId)),
+                ),
+            );
+        } catch (err) {
+            console.log("Error fetching best friend assignments:", err);
+        }
+    }, []);
+
     // Fetch chats when screen is focused
     useFocusEffect(
         useCallback(() => {
             fetchChats(true);
             void fetchFriends().finally(() => setFriendsListReady(true));
+            void fetchBestFriendAssignments();
 
             // Xóa currentRoomId khi ở màn hình danh sách
             useChatStore.getState().setCurrentRoom(null);
@@ -191,7 +229,7 @@ export default function ChatListScreen() {
             }, 10000);
 
             return () => clearInterval(interval);
-        }, [fetchFriends])
+        }, [fetchFriends, fetchBestFriendAssignments])
     );
 
     // Xử lý khi quay lại app từ nền (để xóa trễ push noti)
@@ -200,10 +238,11 @@ export default function ChatListScreen() {
             if (nextAppState === "active") {
                 fetchChats(false);
                 fetchFriends();
+                fetchBestFriendAssignments();
             }
         });
         return () => subscription.remove();
-    }, []);
+    }, [fetchBestFriendAssignments]);
 
     const renderItem = ({ item }: { item: (typeof rooms)[number] }) => {
         const processedAvatar = item.avatarUrl ? getImageUrl(item.avatarUrl) : "";
@@ -303,6 +342,27 @@ export default function ChatListScreen() {
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                    onPress={() => setInboxTab("bestFriends")}
+                    style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 12,
+                        borderRadius: 20,
+                        backgroundColor:
+                            inboxTab === "bestFriends" ? colors.primary + "22" : "transparent",
+                    }}
+                >
+                    <Text
+                        style={{
+                            fontSize: 14,
+                            fontWeight: inboxTab === "bestFriends" ? "700" : "500",
+                            color:
+                                inboxTab === "bestFriends" ? colors.primary : colors.textSecondary,
+                        }}
+                    >
+                        Bạn thân
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                     onPress={() => setInboxTab("strangers")}
                     style={{
                         paddingVertical: 6,
@@ -329,6 +389,9 @@ export default function ChatListScreen() {
     const tabEmptyMessage = () => {
         if (!friendsListReady && inboxTab === "strangers") {
             return "Đang tải danh sách…";
+        }
+        if (inboxTab === "bestFriends") {
+            return "Chưa có cuộc trò chuyện bạn thân.";
         }
         if (inboxTab === "strangers") {
             return "Không có tin nhắn từ người lạ";

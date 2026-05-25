@@ -83,7 +83,7 @@ interface ActionButtonProps {
 export const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onClick, danger, active }) => (
     <button
         onClick={onClick}
-        className="flex flex-col items-center gap-1.5 group"
+        className="group flex w-full min-w-0 flex-col items-center gap-2"
     >
         <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
             danger
@@ -95,8 +95,8 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onClick
             {icon}
         </div>
         <span
-            className={`text-xs text-center leading-tight ${danger ? 'text-red-500' : 'text-gray-600'}`}
-            style={{ maxWidth: 64 }}
+            className={`min-h-[32px] w-full text-center text-xs leading-tight ${danger ? 'text-red-500' : 'text-gray-600'}`}
+            style={{ maxWidth: 58 }}
         >
             {label}
         </span>
@@ -105,7 +105,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onClick
 
 /** Hàng action button — dùng trong 2 panel */
 export const ActionButtonRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <div className="flex items-start justify-around px-4 py-4 border-b border-gray-100">
+    <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(44px,1fr))] items-start gap-2 px-4 py-4 border-b border-gray-100">
         {children}
     </div>
 );

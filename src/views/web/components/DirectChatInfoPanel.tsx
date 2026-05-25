@@ -1,13 +1,20 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { CollapsibleSection, ActionButton, ActionButtonRow, ToggleSwitch } from './ChatInfoHelpers';
 import { useGroupStore } from '@/shared/store/useGroupStore';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { useFriendStore } from '@/shared/store/friendStore';
 import { ChatRoom } from '@/shared/types';
 import ConfirmModal from './ConfirmModal';
-import { chatService } from '@/shared/services/chatService';
+import { chatService, mapChatRoomResponseToFrontend } from '@/shared/services/chatService';
+import { MessageService } from '@/shared/services/MessageService';
+import friendCategoryService from '@/shared/services/friendCategoryService';
+import userService from '@/shared/services/userService';
+import type { UserProfile } from '@/shared/services/types';
 import ForwardMessageModal from './ForwardMessageModal';
 import { Message } from '@/shared/types';
+import MediaGalleryViewer, { type MediaGalleryItem } from './MediaGalleryViewer';
+import { getImageUrl } from '@/shared/utils/mediaUtils';
+import { isImageAttachment, isVideoAttachment } from '@/shared/utils/messageAttachments';
 
 // ── Mute Duration Modal ─────────────────────────────────────────────────────
 const MUTE_OPTIONS = [
@@ -100,6 +107,9 @@ const Icon = {
     Bell: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
     Pin: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>,
     GroupAdd: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>,
+    Image: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5V7.5A2.5 2.5 0 015.5 5h13A2.5 2.5 0 0121 7.5v9A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 10.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM21 15l-4.2-4.2a1.6 1.6 0 00-2.26 0L6 19" /></svg>,
+    Person: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a7.5 7.5 0 0115 0" /></svg>,
+    Star: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.5a.6.6 0 011.04 0l2.32 4.7 5.18.75a.6.6 0 01.33 1.02l-3.75 3.66.89 5.16a.6.6 0 01-.87.63L12 17l-4.63 2.43a.6.6 0 01-.87-.63l.89-5.16-3.75-3.66a.6.6 0 01.33-1.02l5.18-.75 2.32-4.7z" /></svg>,
     Clock: () => <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
     File: () => <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>,
     Link: () => <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>,
@@ -121,6 +131,53 @@ function extractUrls(text: string): string[] {
     return [...(text.match(URL_REGEX) || [])];
 }
 
+function formatProfileDate(value?: string | null): string {
+    if (!value) return '••/••/••••';
+    try {
+        return new Date(value).toLocaleDateString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+        });
+    } catch {
+        return value;
+    }
+}
+
+function formatProfileGender(value?: string | null): string {
+    if (value === 'MALE') return 'Nam';
+    if (value === 'FEMALE') return 'Nữ';
+    return value || 'Chưa cập nhật';
+}
+
+type PanelMediaItem = MediaGalleryItem & { message: Message };
+type DirectProfileModalData = Partial<UserProfile> & {
+    id: string;
+    username?: string | null;
+    displayName?: string | null;
+};
+
+function getPanelMediaItem(message: Message): PanelMediaItem | null {
+    if (message.isRecall) return null;
+    const attachment = message.attachments?.[0];
+    const rawUrl = (message.fileUrl || attachment?.url || '').trim();
+    if (!rawUrl) return null;
+
+    const type = String(message.type || '').toUpperCase();
+    const name = `${message.fileName || ''} ${(attachment as any)?.name || ''} ${(attachment as any)?.filename || ''} ${rawUrl}`.toLowerCase();
+    const isVideo =
+        type === 'VIDEO' ||
+        (attachment ? isVideoAttachment(attachment) : false) ||
+        /\.(mp4|mov|m4v|webm|3gp|avi|mkv)(\?|#|$)/i.test(name);
+    const isImage =
+        type === 'IMAGE' ||
+        (attachment ? isImageAttachment(attachment) : false) ||
+        /\.(png|jpe?g|gif|webp|bmp|heic|heif)(\?|#|$)/i.test(name);
+
+    if (!isImage && !isVideo) return null;
+    return { url: getImageUrl(rawUrl) || rawUrl, kind: isVideo ? 'video' : 'image', message };
+}
+
 interface DirectChatInfoPanelProps {
     room: ChatRoom;
     onClose: () => void;
@@ -137,7 +194,7 @@ interface DirectChatInfoPanelProps {
 
 const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose, partner }) => {
     const { openCreateGroup } = useGroupStore();
-    const { blockUser } = useFriendStore();
+    const { blockUser, removeFriend } = useFriendStore();
     const { pinnedRooms, togglePinRoom, mutedRooms, toggleMuteRoom, upsertRoom } = useChatStore();
 
     const [autoDeleteMsg] = useState('Không bao giờ');
@@ -145,9 +202,16 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
     const [muteLabel, setMuteLabel] = useState<string | null>(null);
     const [nickname, setNickname] = useState<string | null>(null);
     const [toast, setToast] = useState<string | null>(null);
-    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+    const [mediaPreviewIndex, setMediaPreviewIndex] = useState<number | null>(null);
     const [mediaMenu, setMediaMenu] = useState<{ open: boolean; message?: Message; top?: number; left?: number } | null>(null);
     const [forwardingMessages, setForwardingMessages] = useState<Message[] | null>(null);
+    const [isUploadingWallpaper, setIsUploadingWallpaper] = useState(false);
+    const [closeFriendCategoryId, setCloseFriendCategoryId] = useState<string | null>(null);
+    const [isBestFriend, setIsBestFriend] = useState(false);
+    const [profileModal, setProfileModal] = useState<DirectProfileModalData | null>(null);
+    const [isProfileLoading, setIsProfileLoading] = useState(false);
+    const [profileError, setProfileError] = useState<string | null>(null);
+    const wallpaperInputRef = useRef<HTMLInputElement>(null);
 
     // Modal states
     const [showMuteModal, setShowMuteModal] = useState(false);
@@ -174,6 +238,32 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
         setToast(msg);
         setTimeout(() => setToast(null), 2200);
     }, []);
+
+    useEffect(() => {
+        if (!partner?.id) return;
+        let cancelled = false;
+        const run = async () => {
+            try {
+                const [categories, assignments] = await Promise.all([
+                    friendCategoryService.listCategories(),
+                    friendCategoryService.listAssignments(),
+                ]);
+                let closeCategory = categories.find((c) => c.name.trim().toLowerCase() === 'bạn thân');
+                if (!closeCategory) {
+                    closeCategory = await friendCategoryService.createCategory({ name: 'Bạn thân', color: '#f59e0b' });
+                }
+                if (cancelled) return;
+                setCloseFriendCategoryId(closeCategory.id);
+                setIsBestFriend(assignments.some((a) => a.targetUserId === partner.id && a.categoryId === closeCategory!.id));
+            } catch {
+                if (!cancelled) setCloseFriendCategoryId(null);
+            }
+        };
+        void run();
+        return () => {
+            cancelled = true;
+        };
+    }, [partner?.id]);
 
     const handleMuteConfirm = useCallback((optionId: string) => {
         const labels: Record<string, string> = {
@@ -209,9 +299,91 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
         }
     }, [room, partner, upsertRoom, showToast]);
 
-    const imageMessages = useMemo(() =>
-        allMessages.filter((m) => m.type === 'IMAGE' && m.fileUrl).slice(-9),
-        [allMessages]);
+    const handleChangeWallpaper = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            showToast('Vui lòng chọn file ảnh');
+            return;
+        }
+        setIsUploadingWallpaper(true);
+        try {
+            const upload = await MessageService.uploadFile(file);
+            const updated = await chatService.updateRoomWallpaper(room.id, upload.fileUrl);
+            upsertRoom(mapChatRoomResponseToFrontend(updated));
+            showToast('Đã cập nhật hình nền đoạn chat');
+        } catch {
+            showToast('Cập nhật hình nền thất bại');
+        } finally {
+            setIsUploadingWallpaper(false);
+            if (wallpaperInputRef.current) wallpaperInputRef.current.value = '';
+        }
+    }, [room.id, showToast, upsertRoom]);
+
+    const handleToggleBestFriend = useCallback(async () => {
+        if (!partner?.id || !closeFriendCategoryId) return;
+        const next = !isBestFriend;
+        setIsBestFriend(next);
+        try {
+            await friendCategoryService.assignCategory(partner.id, next ? closeFriendCategoryId : null);
+            showToast(next ? 'Đã đánh dấu bạn thân' : 'Đã bỏ bạn thân');
+        } catch {
+            setIsBestFriend(!next);
+            showToast('Không thể cập nhật bạn thân');
+        }
+    }, [closeFriendCategoryId, isBestFriend, partner?.id, showToast]);
+
+    const handleOpenProfileModal = useCallback(async () => {
+        if (!partner?.id) return;
+        setProfileModal({
+            id: partner.id,
+            username: partner.username,
+            displayName: realName,
+            avatarUrl: partner.avatarUrl || null,
+            businessDescription: partner.businessDescription || null,
+        });
+        setProfileError(null);
+        setIsProfileLoading(true);
+        try {
+            const profile = await userService.getUserProfile(partner.id);
+            setProfileModal(profile);
+        } catch {
+            setProfileError('Không thể tải đầy đủ thông tin tài khoản.');
+        } finally {
+            setIsProfileLoading(false);
+        }
+    }, [partner, realName]);
+
+    const handleBlockProfile = useCallback(async () => {
+        if (!profileModal?.id) return;
+        const label = profileModal.displayName || profileModal.username || 'người này';
+        if (!window.confirm(`Chặn liên hệ ${label}?`)) return;
+        try {
+            await blockUser(profileModal.id);
+            setProfileModal(null);
+            showToast('Đã chặn liên hệ này');
+        } catch {
+            showToast('Không thể chặn liên hệ này');
+        }
+    }, [blockUser, profileModal, showToast]);
+
+    const handleRemoveProfileFriend = useCallback(async () => {
+        if (!profileModal?.id) return;
+        const label = profileModal.displayName || profileModal.username || 'người này';
+        if (!window.confirm(`Xóa ${label} khỏi danh sách bạn bè?`)) return;
+        try {
+            await removeFriend(profileModal.id);
+            setProfileModal(null);
+            showToast('Đã xóa khỏi danh sách bạn bè');
+        } catch {
+            showToast('Không thể xóa bạn bè lúc này');
+        }
+    }, [profileModal, removeFriend, showToast]);
+
+    const mediaItems = useMemo(
+        () => allMessages.map(getPanelMediaItem).filter(Boolean).slice(-9).reverse() as PanelMediaItem[],
+        [allMessages],
+    );
 
     // File: any message with fileUrl that is NOT image or video
     const fileMessages = useMemo(() =>
@@ -340,6 +512,11 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
             {/* Action Buttons */}
             <ActionButtonRow>
                 <ActionButton
+                    icon={<Icon.Person />}
+                    label={<span>Trang<br />cá nhân</span>}
+                    onClick={handleOpenProfileModal}
+                />
+                <ActionButton
                     icon={<Icon.Bell />}
                     label={muteLabel ? 'Bật thông báo' : 'Tắt thông báo'}
                     active={!!muteLabel}
@@ -359,20 +536,76 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                         openCreateGroup(partner?.id ? [partner.id] : undefined);
                     }}
                 />
+                <input
+                    ref={wallpaperInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleChangeWallpaper}
+                    disabled={isUploadingWallpaper}
+                />
+                <ActionButton
+                    icon={isUploadingWallpaper ? <span className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /> : <Icon.Image />}
+                    label={<span>Đổi<br />nền</span>}
+                    onClick={() => wallpaperInputRef.current?.click()}
+                />
             </ActionButtonRow>
 
+            <div className="border-b border-gray-100">
+                <button
+                    type="button"
+                    onClick={() => setShowNicknameModal(true)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                >
+                    <Icon.Person />
+                    <span className="flex-1 text-sm text-gray-700">Đổi tên gợi nhớ</span>
+                    <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+                <button
+                    type="button"
+                    onClick={handleToggleBestFriend}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                >
+                    <Icon.Star />
+                    <span className="flex-1 text-sm text-gray-700">Đánh dấu bạn thân</span>
+                    <span onClick={(e) => e.stopPropagation()}>
+                        <ToggleSwitch checked={isBestFriend} onChange={handleToggleBestFriend} disabled={!closeFriendCategoryId} />
+                    </span>
+                </button>
+            </div>
+
             {/* Ảnh/Video */}
-            <CollapsibleSection title="Ảnh/Video" badge={imageMessages.length || undefined}>
-                {imageMessages.length > 0 ? (
+            <CollapsibleSection title="Ảnh/Video" badge={mediaItems.length || undefined}>
+                {mediaItems.length > 0 ? (
                     <div className="px-3">
                         <div className="grid grid-cols-3 gap-1 mb-2">
-                            {imageMessages.map((m) => (
-                                <button
-                                    key={m.id}
-                                    onClick={() => setLightboxUrl(m.fileUrl!)}
+                            {mediaItems.map((item, index) => (
+                                <div
+                                    key={item.message.id}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => setMediaPreviewIndex(index)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') setMediaPreviewIndex(index);
+                                    }}
                                     className="relative aspect-square w-full overflow-hidden rounded hover:opacity-90 transition-opacity group"
                                 >
-                                    <img src={m.fileUrl} alt="" className="w-full h-full object-cover" />
+                                    {item.kind === 'video' ? (
+                                        <>
+                                            <video src={item.url} preload="metadata" muted playsInline className="w-full h-full object-cover bg-black" />
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                                                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white">
+                                                    <svg className="h-5 w-5 translate-x-0.5" viewBox="0 0 24 24" fill="currentColor">
+                                                        <path d="M8 5v14l11-7z" />
+                                                    </svg>
+                                                </span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <img src={item.url} alt="" className="w-full h-full object-cover" />
+                                    )}
                                     <button
                                         className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/40 hover:bg-black/55 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                         title="Tùy chọn"
@@ -380,7 +613,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                             e.stopPropagation();
                                             e.preventDefault();
                                             const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                                            setMediaMenu({ open: true, message: m, top: rect.bottom + 6, left: Math.max(8, rect.left - 120) });
+                                            setMediaMenu({ open: true, message: item.message, top: rect.bottom + 6, left: Math.max(8, rect.left - 120) });
                                         }}
                                     >
                                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -389,7 +622,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                             <circle cx="19" cy="12" r="2" />
                                         </svg>
                                     </button>
-                                </button>
+                                </div>
                             ))}
                         </div>
                         <button className="w-full text-sm text-center py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500 font-medium transition-colors">
@@ -572,6 +805,149 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 />
             )}
 
+            {profileModal && (
+                <div
+                    className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 px-4"
+                    onClick={() => setProfileModal(null)}
+                >
+                    <div
+                        className="flex max-h-[88vh] w-full max-w-[500px] flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                            <h2 className="text-lg font-semibold text-gray-800">Thông tin tài khoản</h2>
+                            <button
+                                type="button"
+                                onClick={() => setProfileModal(null)}
+                                className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100"
+                                aria-label="Đóng"
+                            >
+                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto">
+                            <div
+                                className="h-28 bg-[#dff5ff] bg-cover bg-center"
+                                style={profileModal.coverPhotoUrl ? { backgroundImage: `url(${profileModal.coverPhotoUrl})` } : undefined}
+                            />
+
+                            <div className="relative flex items-end gap-4 px-5 pb-4">
+                                <div className="-mt-10 flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-gray-200 text-2xl font-bold text-gray-600">
+                                    {profileModal.avatarUrl ? (
+                                        <img
+                                            src={profileModal.avatarUrl}
+                                            alt={profileModal.displayName || profileModal.username || displayName}
+                                            className="h-full w-full object-cover"
+                                        />
+                                    ) : (
+                                        (profileModal.displayName || profileModal.username || displayName || '?').charAt(0).toUpperCase()
+                                    )}
+                                </div>
+                                <div className="mb-3 flex min-w-0 items-center gap-2">
+                                    <div className="truncate text-xl font-semibold text-gray-900">
+                                        {profileModal.displayName || profileModal.username || displayName}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setProfileModal(null);
+                                            setShowNicknameModal(true);
+                                        }}
+                                        className="text-gray-600 hover:text-blue-600"
+                                        title="Đổi tên gợi nhớ"
+                                    >
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L9 17.652 4.5 19.5 6.348 15 16.862 4.487z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {isProfileLoading && (
+                                <div className="px-5 pb-3 text-sm text-gray-500">Đang tải thêm thông tin...</div>
+                            )}
+                            {profileError && (
+                                <div className="px-5 pb-3 text-sm text-red-500">{profileError}</div>
+                            )}
+
+                            <div className="flex gap-4 px-5 pb-5">
+                                <button
+                                    type="button"
+                                    onClick={() => showToast('Tính năng gọi đang được phát triển')}
+                                    className="h-11 flex-1 rounded-md bg-gray-100 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-200"
+                                >
+                                    Gọi điện
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setProfileModal(null)}
+                                    className="h-11 flex-1 rounded-md bg-blue-50 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-100"
+                                >
+                                    Nhắn tin
+                                </button>
+                            </div>
+
+                            <div className="h-2 bg-gray-100" />
+
+                            <section className="px-5 py-5">
+                                <h3 className="mb-4 text-base font-semibold text-gray-800">Thông tin cá nhân</h3>
+                                <div className="space-y-4 text-sm">
+                                    <div className="grid grid-cols-[110px_1fr] gap-4">
+                                        <span className="text-gray-500">Giới tính</span>
+                                        <span className="text-gray-800">{formatProfileGender(profileModal.gender)}</span>
+                                    </div>
+                                    <div className="grid grid-cols-[110px_1fr] gap-4">
+                                        <span className="text-gray-500">Ngày sinh</span>
+                                        <span className="text-gray-800">{formatProfileDate(profileModal.dateOfBirth)}</span>
+                                    </div>
+                                    <div className="grid grid-cols-[110px_1fr] gap-4">
+                                        <span className="text-gray-500">Điện thoại</span>
+                                        <span className="text-gray-800">{profileModal.phone || profileModal.username || 'Chưa cập nhật'}</span>
+                                    </div>
+                                    {profileModal.businessDescription && (
+                                        <div className="grid grid-cols-[110px_1fr] gap-4">
+                                            <span className="text-gray-500">Mô tả</span>
+                                            <span className="whitespace-pre-wrap text-gray-800">{profileModal.businessDescription}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+
+                            <div className="h-2 bg-gray-100" />
+
+                            <section className="px-5 py-5">
+                                <h3 className="mb-4 text-base font-semibold text-gray-800">Hình ảnh</h3>
+                                <div className="py-8 text-center text-sm text-gray-500">Chưa có ảnh nào được chia sẻ</div>
+                            </section>
+
+                            <div className="h-2 bg-gray-100" />
+
+                            <div className="py-2">
+                                <button
+                                    type="button"
+                                    onClick={handleBlockProfile}
+                                    className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-gray-800 transition-colors hover:bg-gray-50"
+                                >
+                                    <Icon.Block />
+                                    <span>Chặn liên hệ này</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveProfileFriend}
+                                    className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-gray-800 transition-colors hover:bg-gray-50"
+                                >
+                                    <Icon.Trash />
+                                    <span>Xóa khỏi danh sách bạn bè</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <ConfirmModal
                 isOpen={isBlockModalOpen}
                 onClose={() => setIsBlockModalOpen(false)}
@@ -595,28 +971,13 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 isDanger={true}
             />
 
-            {/* Lightbox */}
-            {lightboxUrl && (
-                <div
-                    className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center"
-                    onClick={() => setLightboxUrl(null)}
-                >
-                    <img
-                        src={lightboxUrl}
-                        alt=""
-                        className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                    <button
-                        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
-                        onClick={() => setLightboxUrl(null)}
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-            )}
+            <MediaGalleryViewer
+                items={mediaItems}
+                index={mediaPreviewIndex}
+                onIndexChange={setMediaPreviewIndex}
+                onClose={() => setMediaPreviewIndex(null)}
+                zIndexClassName="z-[70]"
+            />
 
             {/* Media menu (ellipsis) */}
             {mediaMenu?.open && mediaMenu.message && (

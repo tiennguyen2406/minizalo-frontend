@@ -131,7 +131,7 @@ export default function TabsLayout() {
                 <Tabs.Screen name="create-group" options={{ href: null }} />
                 <Tabs.Screen name="personal-profile" options={{ href: null }} />
                 <Tabs.Screen name="profile-settings" options={{ href: null }} />
-                <Tabs.Screen name="friend-profile" options={{ href: null }} />
+                <Tabs.Screen name="friend-profile" options={{ href: null, tabBarStyle: { display: "none" } }} />
                 <Tabs.Screen name="appearance" options={{ href: null }} />
                 <Tabs.Screen name="search-sources" options={{ href: null }} />
             </Tabs>

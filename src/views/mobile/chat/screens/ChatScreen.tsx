@@ -2795,12 +2795,17 @@ export default function ChatScreen() {
     );
   };
 
+  const syncedWallpaperUri =
+    roomType === "GROUP"
+      ? groupDetail?.wallpaperUrl || currentChatRoomMeta?.wallpaperUrl || wallpaperUri
+      : currentChatRoomMeta?.wallpaperUrl || wallpaperUri;
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {wallpaperUri ? (
+      {syncedWallpaperUri ? (
         <>
           <Image
-            source={{ uri: wallpaperUri }}
+            source={{ uri: getImageUrl(syncedWallpaperUri) }}
             style={[StyleSheet.absoluteFillObject, { zIndex: 0 }]}
             resizeMode="cover"
           />
@@ -4365,7 +4370,7 @@ export default function ChatScreen() {
                         }}
                         resizeMode={ResizeMode.CONTAIN}
                         useNativeControls
-                        shouldPlay={isActive}
+                        shouldPlay={false}
                         isLooping={false}
                         isMuted
                       />

@@ -440,14 +440,21 @@ function _useWebSocketManagerWeb() {
                 const base = mapChatRoomResponseToFrontend(r);
                 const ridStr = String(r.id);
                 const currentOpen = useChatStore.getState().currentRoomId;
+                const existing = existingRooms.find((er) => String(er.id) === ridStr);
                 const unreadCount =
                     currentOpen && String(currentOpen) === ridStr
                         ? 0
                         : Math.max(
-                              existingRooms.find((er) => er.id === r.id)?.unreadCount ?? 0,
+                              existing?.unreadCount ?? 0,
                               r.unreadCount || 0,
                           );
-                return { ...base, unreadCount };
+                return {
+                    ...base,
+                    avatarUrl: base.avatarUrl || existing?.avatarUrl,
+                    wallpaperUrl: base.wallpaperUrl || existing?.wallpaperUrl,
+                    description: base.description || existing?.description,
+                    unreadCount,
+                };
             });
             allRooms.sort(
                 (a, b) =>

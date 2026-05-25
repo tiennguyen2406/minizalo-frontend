@@ -3,12 +3,34 @@ import { useGroupStore } from '@/shared/store/useGroupStore';
 import { groupService } from '@/shared/services/groupService';
 import type { Message } from '@/shared/types';
 
+type MessageReaction = { userId: string; emoji: string };
+type RawAttachment = {
+    url?: unknown;
+    type?: unknown;
+    name?: unknown;
+    filename?: unknown;
+    size?: unknown;
+};
+
+function normalizeReactions(value: unknown): MessageReaction[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+        .map((r) => ({
+            userId: String(r.userId || ''),
+            emoji: String(r.emoji || ''),
+        }))
+        .filter((r) => r.userId.length > 0 && r.emoji.length > 0);
+}
+
 /** Parse payload STOMP `/topic/chat/:roomId` và đưa vào store (dùng chung web manager + ChatWindow). */
 export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string): void {
     try {
         const dynamo = JSON.parse(rawBody) as Record<string, unknown> & {
             roomListEvent?: string;
             roomId?: string;
+            groupId?: string;
+            chatRoomId?: string;
             senderId?: string;
             senderName?: string;
             senderUsername?: string;
@@ -24,6 +46,11 @@ export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string)
             messageId?: string;
             messageUpdate?: boolean;
         };
+        const resolvedRoomId =
+            (typeof dynamo.roomId === 'string' && dynamo.roomId.length > 0 && dynamo.roomId) ||
+            (typeof dynamo.groupId === 'string' && dynamo.groupId.length > 0 && dynamo.groupId) ||
+            (typeof dynamo.chatRoomId === 'string' && dynamo.chatRoomId.length > 0 && dynamo.chatRoomId) ||
+            roomId;
 
         /**
          * BE phát `messageUpdate=true` khi cập nhật in-place 1 tin hiện có (vd: group call
@@ -36,9 +63,9 @@ export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string)
                 type: (dynamo.type as Message['type']) || 'TEXT',
                 isRecall: !!dynamo.recalled,
                 pinned: !!dynamo.pinned,
-                reactions: Array.isArray(dynamo.reactions) ? dynamo.reactions : [],
+                reactions: normalizeReactions(dynamo.reactions),
             };
-            useChatStore.getState().updateMessage(roomId, dynamo.messageId, updates);
+            useChatStore.getState().updateMessage(resolvedRoomId, dynamo.messageId, updates);
             return;
         }
         if (dynamo.roomListEvent === 'DISBANDED') {
@@ -71,7 +98,9 @@ export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string)
         if (dynamo.roomListEvent === 'ADDED' || dynamo.roomListEvent === 'REMOVED') {
             return;
         }
-        const attachments = Array.isArray(dynamo.attachments) ? dynamo.attachments : [];
+        const attachments: RawAttachment[] = Array.isArray(dynamo.attachments)
+            ? dynamo.attachments.filter((a): a is RawAttachment => !!a && typeof a === 'object')
+            : [];
         const firstAttachment = attachments[0];
 
         const rawId = dynamo.messageId;
@@ -82,21 +111,26 @@ export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string)
 
         const incoming: Message = {
             id: messageId,
-            senderId: dynamo.senderId,
+            senderId: dynamo.senderId || '',
             senderName: (dynamo.senderName || dynamo.senderUsername) as string | undefined,
-            roomId,
+            roomId: resolvedRoomId,
             content: dynamo.recalled ? '[Tin nhắn đã thu hồi]' : dynamo.content || '',
             type: (dynamo.type as Message['type']) || 'TEXT',
             createdAt: dynamo.createdAt || dynamo.timestamp || new Date().toISOString(),
             readBy: dynamo.readBy,
             isRecall: !!dynamo.recalled,
             pinned: !!dynamo.pinned,
-            reactions: Array.isArray(dynamo.reactions) ? dynamo.reactions : [],
+            reactions: normalizeReactions(dynamo.reactions),
             replyToId: dynamo.replyToMessageId || undefined,
-            fileUrl: firstAttachment?.url || undefined,
-            fileName: firstAttachment?.name || firstAttachment?.filename || undefined,
-            fileSize: firstAttachment?.size || undefined,
-            attachments: attachments.map((a: Record<string, unknown>) => ({
+            fileUrl: typeof firstAttachment?.url === 'string' ? firstAttachment.url : undefined,
+            fileName:
+                typeof firstAttachment?.name === 'string'
+                    ? firstAttachment.name
+                    : typeof firstAttachment?.filename === 'string'
+                        ? firstAttachment.filename
+                        : undefined,
+            fileSize: typeof firstAttachment?.size === 'number' ? firstAttachment.size : undefined,
+            attachments: attachments.map((a) => ({
                 url: (a.url as string) || '',
                 type: (a.type as string) || 'DOCUMENT',
                 name: (a.name as string) || (a.filename as string) || '',
@@ -105,7 +139,7 @@ export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string)
             })),
         };
 
-        useChatStore.getState().addMessage(roomId, incoming);
+        useChatStore.getState().addMessage(resolvedRoomId, incoming);
 
         // Realtime refresh group members list on key system events (left/join/added/removed)
         if (
@@ -120,9 +154,9 @@ export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string)
                 incoming.content.includes('nhường quyền trưởng nhóm'))
         ) {
             const gs = useGroupStore.getState();
-            if (gs.currentGroupDetail?.id === roomId) {
+            if (gs.currentGroupDetail?.id === resolvedRoomId) {
                 void groupService
-                    .getGroupDetails(roomId)
+                    .getGroupDetails(resolvedRoomId)
                     .then((d) => gs.setCurrentGroupDetail(d))
                     .catch(() => {
                         // Người dùng có thể vừa rời/ bị kick khỏi nhóm → backend trả 400/403.

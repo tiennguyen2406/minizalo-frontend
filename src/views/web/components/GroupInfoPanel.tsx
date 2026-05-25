@@ -10,6 +10,9 @@ import ConfirmModal from './ConfirmModal';
 import ForwardMessageModal from './ForwardMessageModal';
 import GroupManagementPanel from './GroupManagementPanel';
 import { Message } from '@/shared/types';
+import MediaGalleryViewer, { type MediaGalleryItem } from './MediaGalleryViewer';
+import { getImageUrl } from '@/shared/utils/mediaUtils';
+import { isImageAttachment, isVideoAttachment } from '@/shared/utils/messageAttachments';
 
 // ── Mute Duration Modal ─────────────────────────────────────────────────
 const MUTE_OPTIONS = [
@@ -191,6 +194,7 @@ const Icon = {
     Bell: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
     Pin: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>,
     AddMember: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>,
+    Image: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5V7.5A2.5 2.5 0 015.5 5h13A2.5 2.5 0 0121 7.5v9A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 10.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM21 15l-4.2-4.2a1.6 1.6 0 00-2.26 0L6 19" /></svg>,
     Settings: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
     Users: () => <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>,
     Clock: () => <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
@@ -217,6 +221,29 @@ function extractUrls(text: string): string[] {
     return [...(text.match(URL_REGEX) || [])];
 }
 
+type PanelMediaItem = MediaGalleryItem & { message: Message };
+
+function getPanelMediaItem(message: Message): PanelMediaItem | null {
+    if (message.isRecall) return null;
+    const attachment = message.attachments?.[0];
+    const rawUrl = (message.fileUrl || attachment?.url || '').trim();
+    if (!rawUrl) return null;
+
+    const type = String(message.type || '').toUpperCase();
+    const name = `${message.fileName || ''} ${(attachment as any)?.name || ''} ${(attachment as any)?.filename || ''} ${rawUrl}`.toLowerCase();
+    const isVideo =
+        type === 'VIDEO' ||
+        (attachment ? isVideoAttachment(attachment) : false) ||
+        /\.(mp4|mov|m4v|webm|3gp|avi|mkv)(\?|#|$)/i.test(name);
+    const isImage =
+        type === 'IMAGE' ||
+        (attachment ? isImageAttachment(attachment) : false) ||
+        /\.(png|jpe?g|gif|webp|bmp|heic|heif)(\?|#|$)/i.test(name);
+
+    if (!isImage && !isVideo) return null;
+    return { url: getImageUrl(rawUrl) || rawUrl, kind: isVideo ? 'video' : 'image', message };
+}
+
 const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
     const { currentGroupDetail, setCurrentGroupDetail, openAddMembers, openGroupManagement, isGroupManagementOpen } = useGroupStore();
     const { user } = useAuthStore();
@@ -228,7 +255,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
     const [autoDeleteMsg] = useState('Không bao giờ');
     const [showMembersModal, setShowMembersModal] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
-    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+    const [mediaPreviewIndex, setMediaPreviewIndex] = useState<number | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [mediaMenu, setMediaMenu] = useState<{ open: boolean; message?: Message; top?: number; left?: number } | null>(null);
     const [forwardingMessages, setForwardingMessages] = useState<Message[] | null>(null);
@@ -241,7 +268,11 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
     const [pickSuccessorLeaveOpen, setPickSuccessorLeaveOpen] = useState(false);
     const [leaveSuccessorUserId, setLeaveSuccessorUserId] = useState<string | null>(null);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [isUploadingWallpaper, setIsUploadingWallpaper] = useState(false);
+    const [descriptionDraft, setDescriptionDraft] = useState('');
+    const [isSavingDescription, setIsSavingDescription] = useState(false);
     const avatarInputRef = useRef<HTMLInputElement>(null);
+    const wallpaperInputRef = useRef<HTMLInputElement>(null);
 
     const isPinned = pinnedRooms.has(roomId);
 
@@ -339,21 +370,17 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             .catch(console.error);
     }, [roomId]);
 
+    useEffect(() => {
+        setDescriptionDraft(currentGroupDetail?.description || '');
+    }, [currentGroupDetail?.id, currentGroupDetail?.description]);
+
     // Subscribe to messages for live media/file/link data
     const allMessages = useChatStore((s) => s.messages[roomId] || []);
 
-    const imageMessages = useMemo(() =>
-        allMessages.filter((m) => {
-            const url = m.fileUrl || m.attachments?.[0]?.url;
-            if (!url || m.isRecall) return false;
-            let type = m.type;
-            if ((type === 'TEXT' || !type) && url && m.attachments?.[0]) {
-                const mime = (m.attachments[0].type || '').toLowerCase();
-                if (mime.startsWith('image')) type = 'IMAGE';
-            }
-            return type === 'IMAGE';
-        }).slice(-9).reverse(),
-        [allMessages]);
+    const mediaItems = useMemo(
+        () => allMessages.map(getPanelMediaItem).filter(Boolean).slice(-9).reverse() as PanelMediaItem[],
+        [allMessages],
+    );
 
     // File: any message with fileUrl that is NOT image or video
     const fileMessages = useMemo(() =>
@@ -410,6 +437,45 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             if (avatarInputRef.current) avatarInputRef.current.value = '';
         }
     }, [roomId, currentGroupDetail, setCurrentGroupDetail, showToast]);
+
+    const handleChangeWallpaper = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !roomId || !currentGroupDetail) return;
+        if (!file.type.startsWith('image/')) {
+            showToast('Vui lòng chọn file ảnh');
+            return;
+        }
+        setIsUploadingWallpaper(true);
+        try {
+            const uploadResult = await MessageService.uploadFile(file);
+            const updated = await groupService.updateGroupWallpaper(roomId, uploadResult.fileUrl);
+            setCurrentGroupDetail(updated);
+            const room = useChatStore.getState().rooms.find((r) => r.id === roomId);
+            if (room) useChatStore.getState().upsertRoom({ ...room, wallpaperUrl: updated.wallpaperUrl });
+            showToast('Đã cập nhật hình nền đoạn chat');
+        } catch {
+            showToast('Cập nhật hình nền thất bại');
+        } finally {
+            setIsUploadingWallpaper(false);
+            if (wallpaperInputRef.current) wallpaperInputRef.current.value = '';
+        }
+    }, [roomId, currentGroupDetail, setCurrentGroupDetail, showToast]);
+
+    const handleSaveDescription = useCallback(async () => {
+        if (!roomId || !currentGroupDetail) return;
+        setIsSavingDescription(true);
+        try {
+            const updated = await groupService.updateGroupDescription(roomId, descriptionDraft.trim());
+            setCurrentGroupDetail(updated);
+            const room = useChatStore.getState().rooms.find((r) => r.id === roomId);
+            if (room) useChatStore.getState().upsertRoom({ ...room, description: updated.description });
+            showToast('Đã lưu mô tả nhóm');
+        } catch {
+            showToast('Lưu mô tả nhóm thất bại');
+        } finally {
+            setIsSavingDescription(false);
+        }
+    }, [roomId, currentGroupDetail, descriptionDraft, setCurrentGroupDetail, showToast]);
 
     const joinLink = `${window.location.origin}/join/${roomId}`;
 
@@ -620,6 +686,23 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     onClick={openAddMembers}
                 />
                 {isOwnerOrAdmin && (
+                    <>
+                        <input
+                            ref={wallpaperInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleChangeWallpaper}
+                            disabled={isUploadingWallpaper}
+                        />
+                        <ActionButton
+                            icon={isUploadingWallpaper ? <span className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /> : <Icon.Image />}
+                            label={<span>Đổi<br />nền</span>}
+                            onClick={() => wallpaperInputRef.current?.click()}
+                        />
+                    </>
+                )}
+                {isOwnerOrAdmin && (
                     <ActionButton
                         icon={<Icon.Settings />}
                         label={<span>Quản lý<br />nhóm</span>}
@@ -629,6 +712,27 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             </ActionButtonRow>
 
             {/* Thành viên nhóm */}
+            <div className="border-t border-gray-100 px-4 py-3">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="text-sm font-semibold text-gray-800">Mô tả nhóm</span>
+                    <button
+                        type="button"
+                        onClick={handleSaveDescription}
+                        disabled={isSavingDescription || descriptionDraft.trim() === (group.description || '').trim()}
+                        className="text-xs font-semibold text-blue-600 disabled:text-gray-300"
+                    >
+                        {isSavingDescription ? 'Đang Lưu...' : 'Lưu'}
+                    </button>
+                </div>
+                <textarea
+                    value={descriptionDraft}
+                    onChange={(e) => setDescriptionDraft(e.target.value.slice(0, 1000))}
+                    placeholder="Thêm mô tả để mọi người hiểu thêm về đoạn chat"
+                    className="w-full min-h-[76px] resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-300 focus:bg-white"
+                />
+                <div className="mt-1 text-right text-[11px] text-gray-400">{descriptionDraft.length}/1000</div>
+            </div>
+
             <div className="border-t border-gray-100">
                 {/* Group join link */}
                 <div className="mx-3 mb-1 mt-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 flex items-center gap-2">
@@ -678,24 +782,37 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             </div>
 
             {/* Ảnh/Video */}
-            <CollapsibleSection title="Ảnh/Video" badge={imageMessages.length || undefined}>
-                {imageMessages.length > 0 ? (
+            <CollapsibleSection title="Ảnh/Video" badge={mediaItems.length || undefined}>
+                {mediaItems.length > 0 ? (
                     <div className="px-3">
                         <div className="grid grid-cols-3 gap-1 mb-2">
-                            {imageMessages.map((m) => {
-                                const imgUrl = m.fileUrl || m.attachments?.[0]?.url;
+                            {mediaItems.map((item, index) => {
+                                const m = item.message;
                                 return (
                                     <div
                                         key={m.id}
-                                        onClick={() => setLightboxUrl(imgUrl!)}
+                                        onClick={() => setMediaPreviewIndex(index)}
                                         role="button"
                                         tabIndex={0}
                                         onKeyDown={(e) => {
-                                            if (e.key === 'Enter' || e.key === ' ') setLightboxUrl(imgUrl!);
+                                            if (e.key === 'Enter' || e.key === ' ') setMediaPreviewIndex(index);
                                         }}
                                         className="relative aspect-square w-full overflow-hidden rounded hover:opacity-90 transition-opacity group"
                                     >
-                                        <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                                        {item.kind === 'video' ? (
+                                            <>
+                                                <video src={item.url} preload="metadata" muted playsInline className="w-full h-full object-cover bg-black" />
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                                                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white">
+                                                        <svg className="h-5 w-5 translate-x-0.5" viewBox="0 0 24 24" fill="currentColor">
+                                                            <path d="M8 5v14l11-7z" />
+                                                        </svg>
+                                                    </span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <img src={item.url} alt="" className="w-full h-full object-cover" />
+                                        )}
                                         <button
                                             type="button"
                                             className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/40 hover:bg-black/55 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -918,28 +1035,13 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                 />
             )}
 
-            {/* Lightbox */}
-            {lightboxUrl && (
-                <div
-                    className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center"
-                    onClick={() => setLightboxUrl(null)}
-                >
-                    <img
-                        src={lightboxUrl}
-                        alt=""
-                        className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                    <button
-                        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
-                        onClick={() => setLightboxUrl(null)}
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-            )}
+            <MediaGalleryViewer
+                items={mediaItems}
+                index={mediaPreviewIndex}
+                onIndexChange={setMediaPreviewIndex}
+                onClose={() => setMediaPreviewIndex(null)}
+                zIndexClassName="z-[70]"
+            />
 
             {/* Media menu (ellipsis) */}
             {mediaMenu?.open && mediaMenu.message && (

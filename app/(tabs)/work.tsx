@@ -6,6 +6,7 @@ import {
     BackHandler, StyleSheet, Alert, RefreshControl,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { useLocalSearchParams } from "expo-router";
 import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -1345,6 +1346,12 @@ export default function WorkScreen() {
     const isWeb = Platform.OS === "web";
     const colors = useThemeColors();
     const insets = useSafeAreaInsets();
+    const routeParams = useLocalSearchParams();
+    const targetPostId = Array.isArray(routeParams.postId)
+        ? routeParams.postId[0]
+        : routeParams.postId
+            ? String(routeParams.postId)
+            : null;
     const { feed, fetchFeed, uploadStory, viewStory, addReaction, updateStoryPrivacy } = useStoryStore();
     const { profile } = useUserStore();
     const { friends } = useFriendStore();
@@ -1369,6 +1376,9 @@ export default function WorkScreen() {
     const [activePostReactionPicker, setActivePostReactionPicker] = useState<string | null>(null);
     const [reactionListPostId, setReactionListPostId] = useState<string | null>(null);
     const [postPrivacyTargetId, setPostPrivacyTargetId] = useState<string | null>(null);
+    const wallScrollRef = useRef<ScrollView | null>(null);
+    const postOffsetMapRef = useRef<Record<string, number>>({});
+    const [highlightPostId, setHighlightPostId] = useState<string | null>(null);
 
     // ── Overlay items ──
     const [overlayItems, setOverlayItems] = useState<OverlayItem[]>([]);
@@ -1421,6 +1431,39 @@ export default function WorkScreen() {
 
     // Theo dõi thay đổi nhạc để phát audio
     const lastPlayedUrl = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!targetPostId || posts.length === 0) return;
+
+        let cancelled = false;
+        const scrollToTargetPost = () => {
+            const y = postOffsetMapRef.current[targetPostId];
+            if (typeof y !== "number") return false;
+
+            wallScrollRef.current?.scrollTo({ y: Math.max(0, y - 88), animated: true });
+            setHighlightPostId(targetPostId);
+            setTimeout(() => {
+                if (!cancelled) {
+                    setHighlightPostId((current) => current === targetPostId ? null : current);
+                }
+            }, 2200);
+            return true;
+        };
+
+        if (scrollToTargetPost()) {
+            return () => { cancelled = true; };
+        }
+
+        const timers: Array<ReturnType<typeof setTimeout>> = [
+            setTimeout(scrollToTargetPost, 350),
+            setTimeout(scrollToTargetPost, 900),
+            setTimeout(scrollToTargetPost, 1500),
+        ];
+        return () => {
+            cancelled = true;
+            timers.forEach(clearTimeout);
+        };
+    }, [targetPostId, posts.length]);
 
     useEffect(() => {
         if (creationStep === "EDIT" || creationStep === "TEXT") {
@@ -2275,7 +2318,7 @@ export default function WorkScreen() {
                         style={{ width: "100%", height: "100%" }}
                         resizeMode={ResizeMode.CONTAIN}
                         useNativeControls
-                        shouldPlay
+                        shouldPlay={false}
                         isLooping={false}
                         onReadyForDisplay={(event: any) => {
                             const natural = event?.naturalSize;
@@ -2314,7 +2357,7 @@ export default function WorkScreen() {
                     return (
                         <View key={item.id || `${post.id}_${index}`} style={{ width: basis as any, height: itemHeight, borderRadius: 10, overflow: "hidden", backgroundColor: "#000" }}>
                             {isVideo ? (
-                                <Video source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode={ResizeMode.CONTAIN} useNativeControls />
+                                <Video source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode={ResizeMode.CONTAIN} useNativeControls shouldPlay={false} />
                             ) : (
                                 <Image source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                             )}
@@ -2736,6 +2779,7 @@ export default function WorkScreen() {
         return (
             <View style={{ height: "100vh" as any, flex: 1, backgroundColor: colors.background, alignItems: "center", overflow: "hidden" as any }}>
                 <ScrollView
+                    ref={wallScrollRef}
                     style={{ width: "100%", flex: 1 }}
                     contentContainerStyle={{ width: "100%", maxWidth: 720, alignSelf: "center", padding: 24, paddingBottom: 40, gap: 14 }}
                     refreshControl={<RefreshControl refreshing={isRefreshingWall} onRefresh={refreshWall} tintColor="#0068FF" />}
@@ -2768,7 +2812,21 @@ export default function WorkScreen() {
                         </View>
                     </View>
                     {postsLoading ? <ActivityIndicator color="#0068FF" /> : posts.map((post) => (
-                        <View key={post.id} style={[styles.timelinePostCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <View
+                            key={post.id}
+                            onLayout={(event) => { postOffsetMapRef.current[post.id] = event.nativeEvent.layout.y; }}
+                            style={[
+                                styles.timelinePostCard,
+                                { backgroundColor: colors.card, borderColor: colors.border },
+                                highlightPostId === post.id && {
+                                    borderColor: colors.primary,
+                                    shadowColor: colors.primary,
+                                    shadowOpacity: 0.16,
+                                    shadowRadius: 12,
+                                    shadowOffset: { width: 0, height: 6 },
+                                },
+                            ]}
+                        >
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                                 <Image source={{ uri: buildAvatarUrl(post.displayName || post.username, post.avatarUrl) }} style={styles.timelinePostAvatar} />
                                 <View>
@@ -2844,6 +2902,7 @@ export default function WorkScreen() {
             </SafeAreaView>
 
             <ScrollView
+                ref={wallScrollRef}
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={isRefreshingWall} onRefresh={refreshWall} tintColor="#0068FF" />}
             >
@@ -2924,7 +2983,23 @@ export default function WorkScreen() {
 
                 <View style={{ paddingHorizontal: 12, gap: 10 }}>
                     {posts.map((post) => (
-                        <View key={post.id} style={[styles.mobileTimelinePost, { backgroundColor: colors.card }]}>
+                        <View
+                            key={post.id}
+                            onLayout={(event) => { postOffsetMapRef.current[post.id] = event.nativeEvent.layout.y; }}
+                            style={[
+                                styles.mobileTimelinePost,
+                                { backgroundColor: colors.card },
+                                highlightPostId === post.id && {
+                                    borderWidth: 1.5,
+                                    borderColor: colors.primary,
+                                    shadowColor: colors.primary,
+                                    shadowOpacity: 0.16,
+                                    shadowRadius: 10,
+                                    shadowOffset: { width: 0, height: 5 },
+                                    elevation: 3,
+                                },
+                            ]}
+                        >
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                                 <AvatarImage name={post.displayName || post.username} uri={post.avatarUrl} size={40} style={styles.mobilePostAvatar} />
                                 <View>
@@ -2962,7 +3037,7 @@ export default function WorkScreen() {
                                 <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }}>
                                     {selectedAssets[0] && (
                                         isVideoAsset(selectedAssets[0]) ? (
-                                            <Video source={{ uri: selectedAssets[0].uri }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} resizeMode={ResizeMode.CONTAIN} shouldPlay isLooping useNativeControls />
+                                            <Video source={{ uri: selectedAssets[0].uri }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} resizeMode={ResizeMode.CONTAIN} shouldPlay={false} isLooping={false} useNativeControls />
                                         ) : (
                                             <Image source={{ uri: selectedAssets[0].uri }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} resizeMode="contain" />
                                         )
