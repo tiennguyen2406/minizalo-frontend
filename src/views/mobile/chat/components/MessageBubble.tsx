@@ -24,8 +24,37 @@ function isGroupActionSystemText(text?: string | null): boolean {
     return (
         /đã phong .* làm phó nhóm/i.test(t) ||
         /đã xóa quyền phó nhóm/i.test(t) ||
-        /đã chặn .* khỏi nhóm/i.test(t)
+        /đã chặn .* khỏi nhóm/i.test(t) ||
+        /đã thay đổi .* thành (bật|tắt)/i.test(t) ||
+        /đã cập nhật: quyền .* (được bật|đã tắt)/i.test(t)
     );
+}
+
+function isPhoneLikeName(value?: string | null): boolean {
+    const text = String(value || "").trim();
+    return !!text && /^[+\d\s().-]{8,}$/.test(text);
+}
+
+function getSystemDisplayContent(message: MessageDynamo): string {
+    const content = String(message.content || "").trim();
+    const actorName = !isPhoneLikeName(message.senderName) ? String(message.senderName || "").trim() : "";
+
+    if (!content || !actorName) return content;
+
+    const legacyUpdate = content.match(/^(.+?)\s+đã cập nhật:\s*(.+)$/i);
+    if (legacyUpdate && isPhoneLikeName(legacyUpdate[1])) {
+        const detail = legacyUpdate[2]
+            .replace(/\s+được bật\.?$/i, " thành bật.")
+            .replace(/\s+đã tắt\.?$/i, " thành tắt.");
+        return `${actorName} đã thay đổi ${detail}`;
+    }
+
+    const changedByPhone = content.match(/^(.+?)\s+(đã thay đổi\s+.+)$/i);
+    if (changedByPhone && isPhoneLikeName(changedByPhone[1])) {
+        return `${actorName} ${changedByPhone[2]}`;
+    }
+
+    return content;
 }
 
 function isPollSystemMessageText(text?: string | null): boolean {
@@ -685,7 +714,7 @@ export default function MessageBubble({
         ? "SYSTEM"
         : message.type;
 
-    const hl = !!isSearchHighlight || !!isAdminHighlight;
+    const hl = !!isSearchHighlight;
 
     if (effectiveType === "POLL") {
         const pid = String(message.content || "").trim();
@@ -741,7 +770,7 @@ export default function MessageBubble({
         >
             {effectiveType === "SYSTEM" ? (
                 (() => {
-                    const raw = String(message.content || "").trim();
+                    const raw = getSystemDisplayContent(message);
                     const canView =
                         !!message.replyToMessageId &&
                         isPollSystemMessageText(raw) &&
@@ -857,18 +886,22 @@ export default function MessageBubble({
 
                         {/* Tên người gửi trong group */}
                         {showSenderName && !isMe && senderName && (
-                            <Text
-                                style={{
-                                    fontSize: 12,
-                                    color: getNameColor(senderName),
-                                    fontWeight: "700",
-                                    marginBottom: 2,
-                                    paddingHorizontal: 12,
-                                    paddingTop: hasImages ? 8 : 0,
-                                }}
-                            >
-                                {senderName}
-                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2, paddingHorizontal: 12, paddingTop: hasImages ? 8 : 0 }}>
+                                <Text
+                                    style={{
+                                        fontSize: 12,
+                                        color: getNameColor(senderName),
+                                        fontWeight: "700",
+                                    }}
+                                >
+                                    {senderName}
+                                </Text>
+                                {isAdminHighlight ? (
+                                    <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 8, backgroundColor: "rgba(250, 204, 21, 0.18)" }}>
+                                        <Ionicons name="sparkles" size={10} color="#f59e0b" />
+                                    </View>
+                                ) : null}
+                            </View>
                         )}
 
                         {/* Image attachments */}
@@ -1039,9 +1072,9 @@ export default function MessageBubble({
                                                                 borderRadius: borderRadius,
                                                             }}
                                                             resizeMode={ResizeMode.COVER}
-                                                            shouldPlay={!isRecalled}
+                                                            shouldPlay={false}
                                                             isMuted={true}
-                                                            isLooping={true}
+                                                            isLooping={false}
                                                         />
                                                         {/* Central Play Icon */}
                                                         <View style={{
@@ -1886,8 +1919,8 @@ export default function MessageBubble({
                                     }}
                                     resizeMode={ResizeMode.CONTAIN}
                                     useNativeControls
-                                    shouldPlay={index === currentVideoIndex}
-                                    isLooping
+                                    shouldPlay={false}
+                                    isLooping={false}
                                 />
                             </TouchableOpacity>
                         )}

@@ -35,6 +35,7 @@ import * as VideoThumbnails from "expo-video-thumbnails";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { setChatWallpaperUri } from "@/shared/utils/chatWallpaper";
+import useImagePicker from "@/shared/hooks/useImagePicker";
 import MediaStorageScreen from "../screens/MediaStorageScreen";
 import GroupSettingsScreen from "../screens/GroupSettingsScreen";
 import GroupMembersScreen from "../screens/GroupMembersScreen";
@@ -412,6 +413,12 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     const [membersPanelSlide] = useState(() => new Animated.Value(SCREEN_WIDTH));
     const [recentMedia, setRecentMedia] = useState<{ type: "image" | "video"; url: string }[]>([]);
     const [videoThumbByResolvedUrl, setVideoThumbByResolvedUrl] = useState<Record<string, string>>({});
+    const [savingVisual, setSavingVisual] = useState<"avatar" | "wallpaper" | null>(null);
+    const [showDescriptionModal, setShowDescriptionModal] = useState(false);
+    const [descriptionDraft, setDescriptionDraft] = useState("");
+    const [savingDescription, setSavingDescription] = useState(false);
+    const avatarPicker = useImagePicker({ folder: "groups/avatars/", aspect: [1, 1], allowsEditing: true });
+    const wallpaperPicker = useImagePicker({ folder: "groups/wallpapers/", aspect: [9, 16], allowsEditing: true });
 
     const currentUserId = useAuthStore.getState().user?.id;
 
@@ -495,6 +502,47 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
         await setChatWallpaperUri(roomId, res.assets[0].uri);
         Alert.alert("Đã lưu", "Hình nền chỉ hiển thị trên thiết bị của bạn.");
     }, [roomId]);
+
+    const pickGroupAvatar = useCallback(async () => {
+        if (!roomId || savingVisual) return;
+        const asset = await avatarPicker.pickImage();
+        if (!asset) return;
+        setSavingVisual("avatar");
+        try {
+            const uploadedUrl = await avatarPicker.upload(asset);
+            if (!uploadedUrl) throw new Error("Upload failed");
+            const updated = await groupService.updateGroupAvatar(roomId, uploadedUrl);
+            setGroup(updated);
+            const r = useChatStore.getState().rooms.find((x) => String(x.id) === String(roomId));
+            if (r) upsertRoom({ ...r, avatarUrl: updated.avatarUrl || uploadedUrl });
+            Alert.alert("Ảnh nhóm đã được cập nhật.");
+        } catch (err: any) {
+            Alert.alert("Loi", err?.response?.data?.message || "Khong the cap nhat anh nhom.");
+        } finally {
+            setSavingVisual(null);
+        }
+    }, [roomId, savingVisual, avatarPicker, upsertRoom]);
+
+    const pickSyncedChatWallpaper = useCallback(async () => {
+        if (!roomId || savingVisual) return;
+        const asset = await wallpaperPicker.pickImage();
+        if (!asset) return;
+        setSavingVisual("wallpaper");
+        try {
+            const uploadedUrl = await wallpaperPicker.upload(asset);
+            if (!uploadedUrl) throw new Error("Upload failed");
+            const updated = await groupService.updateGroupWallpaper(roomId, uploadedUrl);
+            setGroup(updated);
+            await setChatWallpaperUri(roomId, uploadedUrl);
+            const r = useChatStore.getState().rooms.find((x) => String(x.id) === String(roomId));
+            if (r) upsertRoom({ ...r, wallpaperUrl: updated.wallpaperUrl || uploadedUrl });
+            Alert.alert("Hình nền đoạn chat đã được cập nhật.");
+        } catch (err: any) {
+            Alert.alert("Loi", err?.response?.data?.message || "Khong the cap nhat hinh nen.");
+        } finally {
+            setSavingVisual(null);
+        }
+    }, [roomId, savingVisual, wallpaperPicker, upsertRoom]);
 
     useEffect(() => {
         if (!roomId) return;
@@ -680,9 +728,10 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
         );
     }
 
-    const avatarUri = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+    const fallbackAvatarUri = `https://ui-avatars.com/api/?name=${encodeURIComponent(
         group.groupName
     )}&background=0068FF&color=fff&bold=true&size=120`;
+    const avatarUri = group.avatarUrl ? getImageUrl(group.avatarUrl) : fallbackAvatarUri;
 
     const existingMemberIds = group.members.map((m) => m.userId);
     const joinInviteUrl = buildJoinConversationUrl(roomId);
@@ -710,6 +759,28 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
             Alert.alert("Lỗi", err?.response?.data?.message || "Đổi tên thất bại.");
         } finally {
             setRenaming(false);
+        }
+    };
+
+    const openDescriptionEditor = () => {
+        setDescriptionDraft(group.description || "");
+        setShowDescriptionModal(true);
+    };
+
+    const handleSaveDescription = async () => {
+        if (!roomId || savingDescription) return;
+        setSavingDescription(true);
+        try {
+            const updated = await groupService.updateGroupDescription(roomId, descriptionDraft.trim());
+            setGroup(updated);
+            const r = useChatStore.getState().rooms.find((x) => String(x.id) === String(roomId));
+            if (r) upsertRoom({ ...r, description: updated.description });
+            setShowDescriptionModal(false);
+            Alert.alert("Da luu", "Mo ta nhom da duoc cap nhat.");
+        } catch (err: any) {
+            Alert.alert("Loi", err?.response?.data?.message || "Khong the luu mo ta nhom.");
+        } finally {
+            setSavingDescription(false);
         }
     };
 
@@ -766,7 +837,12 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
             >
                 {/* ── Avatar + Group Name ── */}
                 <View style={{ alignItems: "center", paddingVertical: 28, backgroundColor: colors.card }}>
-                    <View style={{ position: "relative", marginBottom: 12 }}>
+                    <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => void pickGroupAvatar()}
+                        disabled={savingVisual !== null}
+                        style={{ position: "relative", marginBottom: 12 }}
+                    >
                         <Image
                             source={{ uri: avatarUri }}
                             style={{ width: 80, height: 80, borderRadius: 40 }}
@@ -786,9 +862,13 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                 borderColor: colors.card,
                             }}
                         >
-                            <Ionicons name="camera" size={13} color={colors.textSecondary} />
+                            {savingVisual === "avatar" ? (
+                                <ActivityIndicator size="small" color={colors.primary} />
+                            ) : (
+                                <Ionicons name="camera" size={13} color={colors.textSecondary} />
+                            )}
                         </View>
-                    </View>
+                    </TouchableOpacity>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
                             {group.groupName}
@@ -840,7 +920,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         {
                             icon: "color-palette-outline",
                             label: "Đổi\nhình nền",
-                            onPress: () => void pickChatWallpaper(),
+                            onPress: () => void pickSyncedChatWallpaper(),
                         },
                         {
                             icon: mutedRooms.has(String(roomId)) ? "notifications" : "notifications-outline",
@@ -892,6 +972,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                 <View style={{ marginTop: 4 }}>
                     <SectionRow
                         icon="information-circle-outline"
+                        onPress={openDescriptionEditor}
+                        subtitle={group.description || undefined}
                         label="Thêm mô tả nhóm"
                     />
                 </View>
@@ -903,7 +985,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                 <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    style={{ backgroundColor: colors.card, paddingBottom: 14, paddingLeft: 16, paddingRight: 16 }}
+                    style={{ backgroundColor: colors.card }}
+                    contentContainerStyle={{ paddingBottom: 16, paddingLeft: 16, paddingRight: 16, gap: 10 }}
                 >
                     {recentMedia.length > 0 ? (
                         <>
@@ -917,14 +1000,15 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                         activeOpacity={0.85}
                                         onPress={openMediaStorage}
                                         style={{
-                                            width: 70,
-                                            height: 70,
-                                            marginRight: 8,
-                                            borderRadius: 8,
+                                            width: 82,
+                                            height: 82,
+                                            borderRadius: 12,
                                             overflow: "hidden",
                                             backgroundColor: colors.searchBg,
                                             justifyContent: "center",
                                             alignItems: "center",
+                                            borderWidth: 1,
+                                            borderColor: colors.border,
                                         }}
                                     >
                                         {m.type === "video" ? (
@@ -932,7 +1016,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                                 <>
                                                     <Image
                                                         source={{ uri: videoThumb }}
-                                                        style={{ width: 70, height: 70 }}
+                                                        style={{ width: 82, height: 82 }}
                                                         resizeMode="cover"
                                                     />
                                                     <View
@@ -949,8 +1033,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                             ) : (
                                                 <View
                                                     style={{
-                                                        width: 70,
-                                                        height: 70,
+                                                        width: 82,
+                                                        height: 82,
                                                         justifyContent: "center",
                                                         alignItems: "center",
                                                     }}
@@ -961,7 +1045,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                         ) : (
                                             <Image
                                                 source={{ uri: resolved }}
-                                                style={{ width: 70, height: 70, borderRadius: 8 }}
+                                                style={{ width: 82, height: 82, borderRadius: 12 }}
                                                 resizeMode="cover"
                                             />
                                         )}
@@ -972,13 +1056,14 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                 <TouchableOpacity
                                     onPress={openMediaStorage}
                                     style={{
-                                        width: 70,
-                                        height: 70,
-                                        marginRight: 8,
-                                        borderRadius: 8,
+                                        width: 82,
+                                        height: 82,
+                                        borderRadius: 12,
                                         backgroundColor: colors.searchBg,
                                         justifyContent: "center",
                                         alignItems: "center",
+                                        borderWidth: 1,
+                                        borderColor: colors.border,
                                     }}
                                 >
                                     <Ionicons name="arrow-forward" size={24} color={colors.text} />
@@ -988,9 +1073,9 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     ) : (
                         <View
                             style={{
-                                width: 70,
-                                height: 70,
-                                borderRadius: 8,
+                                width: 82,
+                                height: 82,
+                                borderRadius: 12,
                                 backgroundColor: colors.searchBg,
                                 justifyContent: "center",
                                 alignItems: "center",
@@ -1349,6 +1434,74 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
             </Modal>
 
             {/* Overlay: Ảnh, file, link (giống tuỳ chọn chat 1-1) */}
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showDescriptionModal}
+                onRequestClose={() => !savingDescription && setShowDescriptionModal(false)}
+            >
+                <Pressable
+                    style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" }}
+                    onPress={() => !savingDescription && setShowDescriptionModal(false)}
+                >
+                    <Pressable
+                        style={{
+                            backgroundColor: colors.card,
+                            borderRadius: 16,
+                            paddingTop: 18,
+                            paddingBottom: 14,
+                            width: "88%",
+                            maxWidth: 380,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                        }}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "700", paddingHorizontal: 18, marginBottom: 12 }}>
+                            Mô tả nhóm
+                        </Text>
+                        <TextInput
+                            value={descriptionDraft}
+                            onChangeText={setDescriptionDraft}
+                            placeholder="Nhập mô tả cho nhóm"
+                            placeholderTextColor={colors.textSecondary}
+                            editable={!savingDescription}
+                            multiline
+                            maxLength={1000}
+                            style={{
+                                marginHorizontal: 16,
+                                minHeight: 110,
+                                maxHeight: 180,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                borderRadius: 12,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                fontSize: 15,
+                                color: colors.text,
+                                backgroundColor: colors.searchBg,
+                                textAlignVertical: "top",
+                            }}
+                        />
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: "right", paddingHorizontal: 18, marginTop: 6 }}>
+                            {descriptionDraft.length}/1000
+                        </Text>
+                        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12, paddingHorizontal: 16, paddingTop: 12 }}>
+                            <TouchableOpacity onPress={() => !savingDescription && setShowDescriptionModal(false)} style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+                                <Text style={{ color: colors.textSecondary, fontSize: 16, fontWeight: "600" }}>Hủy</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => void handleSaveDescription()} disabled={savingDescription} style={{ paddingHorizontal: 16, paddingVertical: 10, opacity: savingDescription ? 0.5 : 1 }}>
+                                {savingDescription ? (
+                                    <ActivityIndicator size="small" color={colors.primary} />
+                                ) : (
+                                    <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "700" }}>Lưu</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </Pressable>
+                </Pressable>
+            </Modal>
+
             {showMediaStorage && (
                 <Animated.View
                     style={{

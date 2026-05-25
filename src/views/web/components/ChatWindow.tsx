@@ -233,6 +233,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
         : currentRoom?.avatarUrl ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(roomName)}&background=${isGroupRoom ? "0068FF" : "random"}&color=fff&bold=true`;
 
+  const roomWallpaper =
+    isGroupRoom && currentGroupDetail?.id === roomId
+      ? currentGroupDetail.wallpaperUrl || currentRoom?.wallpaperUrl
+      : currentRoom?.wallpaperUrl;
+
   // Người bạn chat (với 1-1) - using case-insensitive comparison for safety
   const partner = !isGroupRoom
     ? currentRoom?.participants?.find((p) => String(p.id).toLowerCase() !== String(currentUserId).toLowerCase())
@@ -1579,6 +1584,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
           className="flex-1 overflow-hidden flex flex-col relative"
           style={{
             backgroundColor: "var(--bg-chat-messages)",
+            backgroundImage: roomWallpaper ? `linear-gradient(rgba(255,255,255,0.82), rgba(255,255,255,0.82)), url("${roomWallpaper}")` : undefined,
+            backgroundSize: roomWallpaper ? "cover" : undefined,
+            backgroundPosition: roomWallpaper ? "center" : undefined,
             transition: "background-color 0.3s ease",
           }}
         >

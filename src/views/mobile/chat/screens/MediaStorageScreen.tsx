@@ -16,6 +16,7 @@ import {
 import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { ResizeMode, Video } from "expo-av";
 import { chatService } from "@/shared/services/chatService";
 import type { MessageDynamo, Attachment } from "@/shared/services/chatService";
 import { useThemeColors } from "@/shared/theme/colors";
@@ -80,12 +81,26 @@ function formatBytes(bytes: number, decimals = 2) {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+function isVideoAttachment(att: Attachment | null | undefined): boolean {
+    if (!att) return false;
+    const type = String(att.type || "").toLowerCase();
+    const name = String(att.filename || att.name || "").toLowerCase();
+    const url = String(att.url || "").toLowerCase();
+    return (
+        type.startsWith("video") ||
+        type === "video" ||
+        /\.(mp4|mov|m4v|webm|3gp|avi|mkv)(\?[^#]*)?(#|$)/i.test(url) ||
+        /\.(mp4|mov|m4v|webm|3gp|avi|mkv)$/i.test(name)
+    );
+}
+
 export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScreenProps) {
     const colors = useThemeColors();
     const [tab, setTab] = useState<"IMAGE" | "FILE" | "LINK">("IMAGE");
     const [messages, setMessages] = useState<MessageDynamo[]>([]);
     const [loading, setLoading] = useState(true);
-    const [previewImage, setPreviewImage] = useState<string | null>(null);
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
     const fetchAllMessages = useCallback(async () => {
         setLoading(true);
@@ -134,7 +149,7 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             if (msg.attachments && Array.isArray(msg.attachments)) {
                 msg.attachments.forEach((att) => {
                     const type = (att.type || "").toLowerCase();
-                    if (type.startsWith("image") || type === "image") {
+                    if (type.startsWith("image") || type === "image" || isVideoAttachment(att)) {
                         imgs.push({ att, msg });
                     } else {
                         fls.push({ att, msg });
@@ -153,6 +168,27 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             links: lnks.sort(sortByTime),
         };
     }, [messages]);
+
+    const mediaPreviewItems = useMemo(
+        () =>
+            images.map((item) => ({
+                key: `${item.msg.messageId}-${item.att.url}`,
+                url: getImageUrl(item.att.url),
+                kind: isVideoAttachment(item.att) ? "video" as const : "image" as const,
+                name: item.att.filename || item.att.name || "",
+            })),
+        [images],
+    );
+
+    const openPreview = useCallback((index: number) => {
+        setPreviewIndex(index);
+        setPreviewOpen(true);
+    }, []);
+
+    const closePreview = useCallback(() => {
+        setPreviewOpen(false);
+        setPreviewIndex(null);
+    }, []);
 
     const renderTabHeader = () => (
         <View style={[s.tabContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
@@ -175,17 +211,38 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             data={images}
             keyExtractor={(item, index) => `${item.msg.messageId}-${index}`}
             numColumns={COLUMN_COUNT}
-            contentContainerStyle={{ padding: 2 }}
-            renderItem={({ item }) => (
+            contentContainerStyle={{ padding: 8 }}
+            renderItem={({ item, index }) => (
                 <TouchableOpacity
-                    onPress={() => setPreviewImage(getImageUrl(item.att.url))}
-                    style={{ margin: 1 }}
+                    onPress={() => openPreview(index)}
+                    style={{ margin: 4, borderRadius: 12, overflow: "hidden", backgroundColor: colors.searchBg }}
                 >
-                    <Image
-                        source={{ uri: getImageUrl(item.att.url) }}
-                        style={{ width: IMAGE_SIZE - 2, height: IMAGE_SIZE - 2 }}
-                        resizeMode="cover"
-                    />
+                    {isVideoAttachment(item.att) ? (
+                        <View style={{ width: IMAGE_SIZE - 8, height: IMAGE_SIZE - 8, backgroundColor: "#000" }}>
+                            <Video
+                                source={{ uri: getImageUrl(item.att.url) }}
+                                style={StyleSheet.absoluteFillObject}
+                                resizeMode={ResizeMode.COVER}
+                                shouldPlay={false}
+                                isMuted
+                                useNativeControls={false}
+                            />
+                            <View style={[StyleSheet.absoluteFillObject, s.videoOverlay]}>
+                                <View style={s.playBadge}>
+                                    <Ionicons name="play" size={18} color="#fff" style={{ marginLeft: 2 }} />
+                                </View>
+                                <View style={s.videoTypeBadge}>
+                                    <Text style={s.videoTypeText}>MP4</Text>
+                                </View>
+                            </View>
+                        </View>
+                    ) : (
+                        <Image
+                            source={{ uri: getImageUrl(item.att.url) }}
+                            style={{ width: IMAGE_SIZE - 8, height: IMAGE_SIZE - 8 }}
+                            resizeMode="cover"
+                        />
+                    )}
                 </TouchableOpacity>
             )}
             ListEmptyComponent={
@@ -202,9 +259,13 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             keyExtractor={(item, index) => `${item.msg.messageId}-${index}`}
             contentContainerStyle={{ padding: 16 }}
             renderItem={({ item }) => (
-                <TouchableOpacity style={s.fileRow} onPress={() => Linking.openURL(getImageUrl(item.att.url))}>
+                <TouchableOpacity
+                    style={[s.fileRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => Linking.openURL(getImageUrl(item.att.url))}
+                    activeOpacity={0.82}
+                >
                     <View style={[s.fileIcon, { backgroundColor: colors.searchBg }]}>
-                        <Ionicons name="document-text-outline" size={32} color={colors.text} />
+                        <Ionicons name="document-text-outline" size={28} color={colors.primary} />
                     </View>
                     <View style={s.fileInfo}>
                         <Text style={[s.fileName, { color: colors.text }]} numberOfLines={2}>
@@ -212,7 +273,9 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                         </Text>
                         <Text style={[s.fileSize, { color: colors.textSecondary }]}>{formatBytes(item.att.size)}</Text>
                     </View>
-                    <Ionicons name="download-outline" size={24} color={colors.textSecondary} />
+                    <View style={[s.rowAction, { backgroundColor: colors.searchBg }]}>
+                        <Ionicons name="download-outline" size={20} color={colors.textSecondary} />
+                    </View>
                 </TouchableOpacity>
             )}
             ListEmptyComponent={
@@ -229,9 +292,13 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             keyExtractor={(item, index) => `${item.msg.messageId}-${index}`}
             contentContainerStyle={{ padding: 16 }}
             renderItem={({ item }) => (
-                <TouchableOpacity style={s.linkRow} onPress={() => Linking.openURL(item.url)}>
+                <TouchableOpacity
+                    style={[s.linkRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => Linking.openURL(item.url)}
+                    activeOpacity={0.82}
+                >
                     <View style={[s.linkIcon, { backgroundColor: colors.searchBg }]}>
-                        <Ionicons name="link-outline" size={24} color={colors.text} />
+                        <Ionicons name="link-outline" size={22} color={colors.primary} />
                     </View>
                     <View style={s.linkInfo}>
                         <Text style={[s.linkText, { color: colors.primary }]} numberOfLines={2}>
@@ -294,21 +361,68 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                 </View>
             )}
 
-            <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
-                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center" }}>
+            <Modal visible={previewOpen} transparent animationType="fade" onRequestClose={closePreview}>
+                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.96)", justifyContent: "center", alignItems: "center" }}>
                     <TouchableOpacity
-                        onPress={() => setPreviewImage(null)}
+                        onPress={closePreview}
                         style={{ position: "absolute", top: 50, right: 20, zIndex: 10, padding: 8 }}
                     >
                         <Ionicons name="close" size={28} color="#fff" />
                     </TouchableOpacity>
-                    {previewImage && (
-                        <Image
-                            source={{ uri: previewImage }}
-                            style={{ width: SCREEN_WIDTH, height: SCREEN_WIDTH }}
-                            resizeMode="contain"
-                        />
-                    )}
+                    <FlatList
+                        data={mediaPreviewItems}
+                        horizontal
+                        pagingEnabled
+                        initialScrollIndex={previewIndex ?? 0}
+                        getItemLayout={(_, index) => ({
+                            length: SCREEN_WIDTH,
+                            offset: SCREEN_WIDTH * index,
+                            index,
+                        })}
+                        keyExtractor={(item) => item.key}
+                        showsHorizontalScrollIndicator={false}
+                        onMomentumScrollEnd={(event) => {
+                            if (!previewOpen) return;
+                            const next = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                            setPreviewIndex(next);
+                        }}
+                        onScrollToIndexFailed={(info) => {
+                            setTimeout(() => {
+                                if (previewOpen) setPreviewIndex(info.index);
+                            }, 80);
+                        }}
+                        renderItem={({ item, index }) => {
+                            const isActive = previewIndex === index;
+                            return (
+                                <View style={s.previewPage}>
+                                    {item.kind === "video" ? (
+                                        <Video
+                                            source={{ uri: item.url }}
+                                            style={s.previewVideo}
+                                            resizeMode={ResizeMode.CONTAIN}
+                                            useNativeControls
+                                            shouldPlay={false}
+                                            isLooping={false}
+                                            isMuted={!isActive}
+                                        />
+                                    ) : (
+                                        <Image
+                                            source={{ uri: item.url }}
+                                            style={s.previewImage}
+                                            resizeMode="contain"
+                                        />
+                                    )}
+                                </View>
+                            );
+                        }}
+                    />
+                    {mediaPreviewItems.length > 1 ? (
+                        <View style={s.previewCounter}>
+                            <Text style={s.previewCounterText}>
+                                {(previewIndex ?? 0) + 1} / {mediaPreviewItems.length}
+                            </Text>
+                        </View>
+                    ) : null}
                 </View>
             </Modal>
         </View>
@@ -346,11 +460,15 @@ const s = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+        marginBottom: 10,
     },
     fileIcon: {
-        width: 50,
-        height: 50,
-        borderRadius: 8,
+        width: 48,
+        height: 48,
+        borderRadius: 14,
         alignItems: "center",
         justifyContent: "center",
         marginRight: 12,
@@ -370,6 +488,10 @@ const s = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+        marginBottom: 10,
     },
     linkIcon: {
         width: 40,
@@ -384,6 +506,72 @@ const s = StyleSheet.create({
     },
     linkText: {
         fontSize: 15,
-        textDecorationLine: "underline",
+        fontWeight: "600",
+    },
+    rowAction: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    videoOverlay: {
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "rgba(0,0,0,0.16)",
+    },
+    playBadge: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "rgba(0,0,0,0.48)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.35)",
+    },
+    videoTypeBadge: {
+        position: "absolute",
+        left: 8,
+        bottom: 8,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        borderRadius: 8,
+        backgroundColor: "rgba(0,0,0,0.58)",
+    },
+    videoTypeText: {
+        color: "#fff",
+        fontSize: 10,
+        fontWeight: "800",
+    },
+    previewPage: {
+        width: SCREEN_WIDTH,
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 70,
+    },
+    previewImage: {
+        width: SCREEN_WIDTH,
+        height: "100%",
+    },
+    previewVideo: {
+        width: SCREEN_WIDTH,
+        height: "100%",
+        backgroundColor: "#000",
+    },
+    previewCounter: {
+        position: "absolute",
+        bottom: 38,
+        alignSelf: "center",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        backgroundColor: "rgba(0,0,0,0.55)",
+    },
+    previewCounterText: {
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: "700",
     },
 });

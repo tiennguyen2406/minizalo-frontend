@@ -161,6 +161,8 @@ export interface ChatRoom {
     id: string;
     name: string;
     avatarUrl?: string; // Group avatar or friend avatar
+    wallpaperUrl?: string;
+    description?: string;
     type: 'GROUP' | 'PRIVATE' | 'CLOUD';
     lastMessage?: Message;
     unreadCount: number;
@@ -196,6 +198,8 @@ export interface GroupDetail {
     id: string;
     groupName: string;
     avatarUrl?: string;
+    wallpaperUrl?: string;
+    description?: string;
     ownerId: string;
     createdAt: string;
     members: GroupMember[];

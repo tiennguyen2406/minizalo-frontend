@@ -48,6 +48,8 @@ export interface ChatRoomResponse {
     type: "DIRECT" | "GROUP" | "CLOUD";
     name: string;
     avatarUrl: string;
+    wallpaperUrl?: string | null;
+    description?: string | null;
     createdBy: UserResponse;
     createdAt: string;
     lastMessage?: MessageDynamo;
@@ -103,6 +105,8 @@ export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom 
         type,
         name: resolvedName || room.name,
         avatarUrl: room.avatarUrl,
+        wallpaperUrl: room.wallpaperUrl || undefined,
+        description: room.description || undefined,
         unreadCount: room.unreadCount ?? 0,
         updatedAt,
         participants,
@@ -217,6 +221,11 @@ export const chatService = {
     /** Lưu tên gợi nhớ cho phòng chat (1-1). Trả về phòng chat đã cập nhật. */
     saveNickname: async (roomId: string, nickname: string): Promise<ChatRoomResponse> => {
         const { data } = await api.put<ChatRoomResponse>(`/chat/rooms/${roomId}/nickname`, { nickname });
+        return data;
+    },
+
+    updateRoomWallpaper: async (roomId: string, wallpaperUrl: string): Promise<ChatRoomResponse> => {
+        const { data } = await api.put<ChatRoomResponse>(`/chat/rooms/${roomId}/wallpaper`, { wallpaperUrl });
         return data;
     },
 

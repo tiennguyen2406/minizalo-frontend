@@ -127,7 +127,7 @@ const WebChatLayout: React.FC<WebChatLayoutProps> = ({
           </span>
 
           <button
-            onClick={openCreateGroup}
+            onClick={() => openCreateGroup()}
             title="Tạo nhóm mới"
             className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
             style={{ color: "var(--text-tertiary)" }}

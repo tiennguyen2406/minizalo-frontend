@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import {
-    View, Text, Platform, TextInput, TouchableOpacity, ScrollView,
+    View, Text, Platform, TextInput, TouchableOpacity, Pressable, ScrollView,
     Image, ActivityIndicator, Modal, Dimensions, Animated, PanResponder,
     KeyboardAvoidingView, Keyboard, TouchableWithoutFeedback, Easing,
-    BackHandler, StyleSheet, Alert,
+    BackHandler, StyleSheet, Alert, RefreshControl,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { useLocalSearchParams } from "expo-router";
 import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,11 +14,15 @@ import { useThemeColors } from "@/shared/theme/colors";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
 import * as FileSystem from "expo-file-system";
+import { ResizeMode, Video } from "expo-av";
 import { useStoryStore } from "@/shared/store/storyStore";
 import { useUserStore } from "@/shared/store/userStore";
 import { useFriendStore } from "@/shared/store/friendStore";
+import { usePostStore } from "@/shared/store/postStore";
 import { showToast as toast } from "@/shared/utils/toast";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
 import { chatService } from "@/shared/services/chatService";
+import StoryFeedWeb from "@/views/web/components/StoryFeed";
 import ViewShot from "react-native-view-shot";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -40,7 +45,14 @@ const REACTION_TYPE_MAP: Record<string, string> = {
     heart: "heart", like: "like", haha: "haha", wow: "wow",
     sad: "sad", angry: "angry", party: "party", love: "love"
 };
-
+const POST_REACTIONS = [
+    { type: "like", emoji: "👍" },
+    { type: "heart", emoji: "❤️" },
+    { type: "haha", emoji: "😂" },
+    { type: "wow", emoji: "😮" },
+    { type: "sad", emoji: "😢" },
+    { type: "angry", emoji: "😡" },
+];
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
@@ -116,6 +128,53 @@ function FlyingEmoji({ emoji, onComplete }: { emoji: string; onComplete: () => v
 // ─────────────────────────────────────────────
 // Helper: PrivacySheet
 // ─────────────────────────────────────────────
+function AvatarImage({
+    name,
+    uri,
+    size,
+    style,
+    textStyle,
+}: {
+    name?: string | null;
+    uri?: string | null;
+    size: number;
+    style?: any;
+    textStyle?: any;
+}) {
+    const [failed, setFailed] = useState(false);
+    const resolvedUri = uri ? getImageUrl(uri) : "";
+    const initial = (name || "U").trim().charAt(0).toUpperCase() || "U";
+
+    return (
+        <View
+            style={[
+                {
+                    width: size,
+                    height: size,
+                    borderRadius: size / 2,
+                    backgroundColor: "#D9E8FF",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                },
+                style,
+            ]}
+        >
+            <Text style={[{ color: "#0068FF", fontWeight: "800", fontSize: Math.max(13, size * 0.42) }, textStyle]}>
+                {initial}
+            </Text>
+            {!!resolvedUri && !failed ? (
+                <Image
+                    source={{ uri: resolvedUri }}
+                    style={StyleSheet.absoluteFillObject}
+                    resizeMode="cover"
+                    onError={() => setFailed(true)}
+                />
+            ) : null}
+        </View>
+    );
+}
+
 type PrivacyMode = "public" | "only" | "except";
 
 interface PrivacySheetProps {
@@ -125,9 +184,11 @@ interface PrivacySheetProps {
     onClose: () => void;
     bottomInset: number;
     colors: any;
+    title?: string;
+    subtitle?: string;
 }
 
-function PrivacySheet({ visible, privacyMode, onSelect, onClose, bottomInset, colors }: PrivacySheetProps) {
+function PrivacySheet({ visible, privacyMode, onSelect, onClose, bottomInset, colors, title, subtitle }: PrivacySheetProps) {
     const translateY = useRef(new Animated.Value(500)).current;
     const sheetHeight = useRef(0);
 
@@ -184,10 +245,10 @@ function PrivacySheet({ visible, privacyMode, onSelect, onClose, bottomInset, co
                 </View>
 
                 <Text style={[styles.sheetTitle, { color: colors.text }]}>
-                    Ai được xem khoảnh khắc này?
+                    {title || "Ai được xem khoảnh khắc này?"}
                 </Text>
                 <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
-                    Khoảnh khắc chỉ xem được trong 24 giờ
+                    {subtitle || "Khoảnh khắc chỉ xem được trong 24 giờ"}
                 </Text>
 
                 {options.map((opt, idx) => (
@@ -1285,9 +1346,16 @@ export default function WorkScreen() {
     const isWeb = Platform.OS === "web";
     const colors = useThemeColors();
     const insets = useSafeAreaInsets();
+    const routeParams = useLocalSearchParams();
+    const targetPostId = Array.isArray(routeParams.postId)
+        ? routeParams.postId[0]
+        : routeParams.postId
+            ? String(routeParams.postId)
+            : null;
     const { feed, fetchFeed, uploadStory, viewStory, addReaction, updateStoryPrivacy } = useStoryStore();
     const { profile } = useUserStore();
     const { friends } = useFriendStore();
+    const { posts, loading: postsLoading, fetchFeed: fetchPostFeed, createPost, reactPost, removePostReaction, commentPost, deletePostComment, updatePostPrivacy } = usePostStore();
 
     // ── Creation state ──
     const [creationStep, setCreationStep] = useState<"NONE" | "TYPE" | "TEXT" | "EDIT">("NONE");
@@ -1298,6 +1366,19 @@ export default function WorkScreen() {
     const [showPrivacySheet, setShowPrivacySheet] = useState(false);
     const [privacyMode, setPrivacyMode] = useState<PrivacyMode>("public");
     const [privacyUsers, setPrivacyUsers] = useState<string[]>([]);
+    const [postText, setPostText] = useState("");
+    const [postAssets, setPostAssets] = useState<any[]>([]);
+    const [isPostSubmitting, setIsPostSubmitting] = useState(false);
+    const [isRefreshingWall, setIsRefreshingWall] = useState(false);
+    const [postVideoRatios, setPostVideoRatios] = useState<Record<string, number>>({});
+    const [postCommentDrafts, setPostCommentDrafts] = useState<Record<string, string>>({});
+    const [expandedPostComments, setExpandedPostComments] = useState<Record<string, boolean>>({});
+    const [activePostReactionPicker, setActivePostReactionPicker] = useState<string | null>(null);
+    const [reactionListPostId, setReactionListPostId] = useState<string | null>(null);
+    const [postPrivacyTargetId, setPostPrivacyTargetId] = useState<string | null>(null);
+    const wallScrollRef = useRef<ScrollView | null>(null);
+    const postOffsetMapRef = useRef<Record<string, number>>({});
+    const [highlightPostId, setHighlightPostId] = useState<string | null>(null);
 
     // ── Overlay items ──
     const [overlayItems, setOverlayItems] = useState<OverlayItem[]>([]);
@@ -1350,6 +1431,39 @@ export default function WorkScreen() {
 
     // Theo dõi thay đổi nhạc để phát audio
     const lastPlayedUrl = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!targetPostId || posts.length === 0) return;
+
+        let cancelled = false;
+        const scrollToTargetPost = () => {
+            const y = postOffsetMapRef.current[targetPostId];
+            if (typeof y !== "number") return false;
+
+            wallScrollRef.current?.scrollTo({ y: Math.max(0, y - 88), animated: true });
+            setHighlightPostId(targetPostId);
+            setTimeout(() => {
+                if (!cancelled) {
+                    setHighlightPostId((current) => current === targetPostId ? null : current);
+                }
+            }, 2200);
+            return true;
+        };
+
+        if (scrollToTargetPost()) {
+            return () => { cancelled = true; };
+        }
+
+        const timers: Array<ReturnType<typeof setTimeout>> = [
+            setTimeout(scrollToTargetPost, 350),
+            setTimeout(scrollToTargetPost, 900),
+            setTimeout(scrollToTargetPost, 1500),
+        ];
+        return () => {
+            cancelled = true;
+            timers.forEach(clearTimeout);
+        };
+    }, [targetPostId, posts.length]);
 
     useEffect(() => {
         if (creationStep === "EDIT" || creationStep === "TEXT") {
@@ -1438,13 +1552,20 @@ export default function WorkScreen() {
     // ── Animated values ──
     const creationPanY = useRef(new Animated.Value(0)).current;
     const viewerPanY = useRef(new Animated.Value(0)).current;
+    const storySlideX = useRef(new Animated.Value(0)).current;
+    const storyFade = useRef(new Animated.Value(1)).current;
+    const storyNavDirection = useRef(1);
     const storyProgress = useRef(new Animated.Value(0)).current;
     const replyScrollX = useRef(new Animated.Value(0)).current;
     const progressAnim = useRef<Animated.CompositeAnimation | null>(null);
     const unpauseTimer = useRef<NodeJS.Timeout | null>(null);
     const elapsedProgress = useRef(0);
     const currentUserIndexRef = useRef(0);
+    const longPressedPostReactionRef = useRef<string | null>(null);
+    const postReactionPickerCloseTimer = useRef<NodeJS.Timeout | null>(null);
     const myUserId = profile?.id;
+    const storyFrameWidth = SCREEN_WIDTH;
+    const storyFrameHeight = Math.min(SCREEN_HEIGHT - insets.top - insets.bottom - 168, Math.min(SCREEN_WIDTH - 32, 420) * 16 / 9);
 
     // ── Toast ──
     const [mobileToast, setMobileToast] = useState({ visible: false, message: "" });
@@ -1470,7 +1591,7 @@ export default function WorkScreen() {
 
     const formatDate = (isoString: string) => {
         if (!isoString) return "";
-        const diffMs = Date.now() - new Date(isoString).getTime();
+        const diffMs = Math.max(0, Date.now() - new Date(isoString).getTime());
         const diffMin = Math.floor(diffMs / 60000);
         const diffHr = Math.floor(diffMin / 60);
         if (diffMin < 1) return "Vừa xong";
@@ -1480,7 +1601,26 @@ export default function WorkScreen() {
     };
 
     // ── Data ──
-    useEffect(() => { if (!isWeb) fetchFeed(); }, []);
+    const buildAvatarUrl = useCallback((name?: string | null, avatarUrl?: string | null) => (
+        getImageUrl(avatarUrl) || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "U")}&background=0068FF&color=fff&bold=true`
+    ), []);
+
+    const refreshWall = useCallback(async () => {
+        setIsRefreshingWall(true);
+        try {
+            await Promise.all([
+                fetchPostFeed(),
+                !isWeb ? fetchFeed() : Promise.resolve(),
+            ]);
+        } finally {
+            setIsRefreshingWall(false);
+        }
+    }, [fetchFeed, fetchPostFeed, isWeb]);
+
+    useEffect(() => {
+        fetchPostFeed();
+        if (!isWeb) fetchFeed();
+    }, [fetchFeed, fetchPostFeed, isWeb]);
 
     const groupedStories = useMemo(() => {
         const acc: Record<string, any[]> = {};
@@ -1516,6 +1656,7 @@ export default function WorkScreen() {
     // ── Navigation ──
     const handleNextItem = useCallback(() => {
         if (!selectedStory) return;
+        storyNavDirection.current = 1;
         const userStories = groupedStories[selectedStory.userId] || [];
         storyProgress.setValue(0);
         elapsedProgress.current = 0;
@@ -1548,6 +1689,7 @@ export default function WorkScreen() {
 
     const handlePrevItem = useCallback(() => {
         if (!selectedStory) return;
+        storyNavDirection.current = -1;
         storyProgress.setValue(0);
         elapsedProgress.current = 0;
 
@@ -1637,6 +1779,24 @@ export default function WorkScreen() {
             progressAnim.current?.stop();
             storyProgress.setValue(0);
             elapsedProgress.current = 0;
+            storySlideX.stopAnimation();
+            storyFade.stopAnimation();
+            storySlideX.setValue(storyNavDirection.current * 28);
+            storyFade.setValue(0.82);
+            Animated.parallel([
+                Animated.spring(storySlideX, {
+                    toValue: 0,
+                    speed: 18,
+                    bounciness: 4,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(storyFade, {
+                    toValue: 1,
+                    duration: 180,
+                    easing: Easing.out(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+            ]).start();
             if (!isPaused && !isTyping) {
                 const duration = getStoryDuration(selectedStory);
                 startProgress(0, duration);
@@ -1665,22 +1825,23 @@ export default function WorkScreen() {
         if (!selectedStory) return;
 
         const userStories = groupedStories[selectedStory.userId] || [];
-        let nextMediaUrl = null;
+        let nextStory: any = null;
 
         if (currentItemIndex < userStories.length - 1) {
-            nextMediaUrl = userStories[currentItemIndex + 1].mediaUrl;
+            nextStory = userStories[currentItemIndex + 1];
         } else {
             const nextUserIndex = currentUserIndexRef.current + 1;
             if (nextUserIndex < userIds.length) {
                 const nextUserId = userIds[nextUserIndex];
                 const nextUserStories = groupedStories[nextUserId] || [];
                 if (nextUserStories.length > 0) {
-                    nextMediaUrl = nextUserStories[0].mediaUrl;
+                    nextStory = nextUserStories[0];
                 }
             }
         }
 
-        if (nextMediaUrl && nextMediaUrl.startsWith("http")) {
+        const nextMediaUrl = nextStory?.mediaUrl;
+        if (nextMediaUrl && nextMediaUrl.startsWith("http") && !isVideoStory(nextStory)) {
             Image.prefetch(nextMediaUrl);
         }
     }, [selectedStory, currentItemIndex, groupedStories, userIds]);
@@ -1977,6 +2138,490 @@ export default function WorkScreen() {
         }
     };
 
+    const handlePickPostMedia = async (kind: "image" | "video" | "all" = "all") => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: kind === "image" ? ["images"] : kind === "video" ? ["videos"] : ["images", "videos"],
+            allowsMultipleSelection: true,
+            quality: 0.85,
+            videoMaxDuration: 60,
+        });
+        if (!result.canceled && result.assets[0]) {
+            setPostAssets((prev) => [...prev, ...result.assets].slice(0, 10));
+        }
+    };
+
+    const handleSubmitTimelinePost = async () => {
+        if (isPostSubmitting) return;
+        if (!postText.trim() && postAssets.length === 0) {
+            showToastMsg("Nhập nội dung hoặc chọn ảnh/video");
+            return;
+        }
+        try {
+            setIsPostSubmitting(true);
+            await createPost(postText, postAssets.map((asset) => asset?.file ?? asset));
+            setPostText("");
+            setPostAssets([]);
+            showToastMsg("Đã đăng bài viết");
+        } catch (error) {
+            console.error("Create post error:", error);
+            showToastMsg("Không thể đăng bài viết");
+        } finally {
+            setIsPostSubmitting(false);
+        }
+    };
+
+    const removePostAsset = (index: number) => {
+        setPostAssets((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const handleReactTimelinePost = async (postId: string, type: string) => {
+        try {
+            await reactPost(postId, type);
+        } catch (error) {
+            console.error("React post error:", error);
+            showToastMsg("KhÃ´ng thá»ƒ tháº£ cáº£m xÃºc");
+        }
+    };
+
+    const handleRemoveTimelinePostReaction = async (postId: string) => {
+        try {
+            setActivePostReactionPicker(null);
+            await removePostReaction(postId);
+        } catch (error) {
+            console.error("Remove post reaction error:", error);
+            showToastMsg("Không thể hủy cảm xúc");
+        }
+    };
+
+    const handleSubmitPostComment = async (postId: string) => {
+        const content = postCommentDrafts[postId] || "";
+        if (!content.trim()) return;
+        try {
+            await commentPost(postId, content);
+            setPostCommentDrafts((prev) => ({ ...prev, [postId]: "" }));
+            setExpandedPostComments((prev) => ({ ...prev, [postId]: true }));
+        } catch (error) {
+            console.error("Comment post error:", error);
+            showToastMsg("KhÃ´ng thá»ƒ bÃ¬nh luáº­n");
+        }
+    };
+
+    const handleDeletePostComment = async (postId: string, commentId: string) => {
+        try {
+            await deletePostComment(postId, commentId);
+        } catch (error) {
+            console.error("Delete post comment error:", error);
+            showToastMsg("Không thể xóa bình luận");
+        }
+    };
+
+    const getPostReactionEmoji = useCallback((type?: string | null) => {
+        return POST_REACTIONS.find((reaction) => reaction.type === type)?.emoji || "👍";
+    }, []);
+
+    const postPrivacyToMode = useCallback((privacy?: string | null): PrivacyMode => {
+        if (privacy === "SPECIFIC") return "only";
+        if (privacy === "EXCLUDE") return "except";
+        return "public";
+    }, []);
+
+    const modeToPostPrivacy = useCallback((mode: PrivacyMode) => (
+        mode === "only" ? "SPECIFIC" : mode === "except" ? "EXCLUDE" : "ALL_FRIENDS"
+    ), []);
+
+    const getPrivacyLabel = useCallback((privacy?: string | null) => {
+        if (privacy === "SPECIFIC") return "Một số bạn bè";
+        if (privacy === "EXCLUDE") return "Ngoại trừ...";
+        return "Bạn bè Zalo";
+    }, []);
+
+    const openPostPrivacySheet = useCallback((post: any) => {
+        setPostPrivacyTargetId(post.id);
+        setPrivacyMode(postPrivacyToMode(post.privacy));
+        setPrivacyUsers(Array.isArray(post.permittedUserIds) ? post.permittedUserIds : []);
+        setShowPrivacySheet(true);
+    }, [postPrivacyToMode]);
+
+    const handleSelectPostPrivacy = useCallback(async (mode: PrivacyMode) => {
+        const postId = postPrivacyTargetId;
+        setPrivacyMode(mode);
+        if (!postId) return;
+        try {
+            await updatePostPrivacy(postId, modeToPostPrivacy(mode), privacyUsers);
+            setPostPrivacyTargetId(null);
+            setShowPrivacySheet(false);
+        } catch (error) {
+            console.error("Update post privacy error:", error);
+            showToastMsg("Không thể cập nhật đối tượng xem");
+        }
+    }, [modeToPostPrivacy, postPrivacyTargetId, privacyUsers, showToastMsg, updatePostPrivacy]);
+
+    const openPostReactionPicker = useCallback((postId: string) => {
+        if (postReactionPickerCloseTimer.current) {
+            clearTimeout(postReactionPickerCloseTimer.current);
+            postReactionPickerCloseTimer.current = null;
+        }
+        setActivePostReactionPicker(postId);
+    }, []);
+
+    const scheduleClosePostReactionPicker = useCallback((postId: string) => {
+        if (postReactionPickerCloseTimer.current) clearTimeout(postReactionPickerCloseTimer.current);
+        postReactionPickerCloseTimer.current = setTimeout(() => {
+            setActivePostReactionPicker((current) => current === postId ? null : current);
+            postReactionPickerCloseTimer.current = null;
+        }, 220);
+    }, []);
+
+    const renderPostMedia = (mediaUrl?: string | null, mediaType?: string | null, size: "mobile" | "web" = "mobile") => {
+        if (!mediaUrl) return null;
+        const uri = getImageUrl(mediaUrl);
+        if (mediaType === "VIDEO") {
+            const ratio = postVideoRatios[uri] || 9 / 16;
+            const maxHeight = size === "web" ? 620 : 460;
+            const minHeight = size === "web" ? 320 : 260;
+            const frameHeight = Math.max(minHeight, Math.min(maxHeight, (size === "web" ? 720 : SCREEN_WIDTH - 24) / ratio));
+            if (isWeb) {
+                return (
+                    <div
+                        style={{
+                            width: "100%",
+                            height: frameHeight,
+                            borderRadius: 10,
+                            background: "#000",
+                            marginTop: 12,
+                            overflow: "hidden",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <video
+                            src={uri}
+                            controls
+                            playsInline
+                            style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                            onLoadedMetadata={(event) => {
+                                const video = event.currentTarget;
+                                if (video.videoWidth > 0 && video.videoHeight > 0) {
+                                    const nextRatio = video.videoWidth / video.videoHeight;
+                                    setPostVideoRatios((prev) => prev[uri] === nextRatio ? prev : { ...prev, [uri]: nextRatio });
+                                }
+                            }}
+                        />
+                    </div>
+                );
+            }
+            return (
+                <View style={{ width: "100%", height: frameHeight, borderRadius: 10, backgroundColor: "#000", marginTop: 12, overflow: "hidden" }}>
+                    <Video
+                        source={{ uri }}
+                        style={{ width: "100%", height: "100%" }}
+                        resizeMode={ResizeMode.CONTAIN}
+                        useNativeControls
+                        shouldPlay={false}
+                        isLooping={false}
+                        onReadyForDisplay={(event: any) => {
+                            const natural = event?.naturalSize;
+                            if (natural?.width > 0 && natural?.height > 0) {
+                                const nextRatio = natural.width / natural.height;
+                                setPostVideoRatios((prev) => prev[uri] === nextRatio ? prev : { ...prev, [uri]: nextRatio });
+                            }
+                        }}
+                    />
+                </View>
+            );
+        }
+        const height = size === "web" ? 360 : 260;
+        return <Image source={{ uri }} style={{ width: "100%", height, borderRadius: 10, marginTop: 12, backgroundColor: colors.border }} resizeMode="cover" />;
+    };
+
+    const renderPostMediaItems = (post: any, size: "mobile" | "web" = "mobile") => {
+        const mediaItems = Array.isArray(post.mediaItems) && post.mediaItems.length > 0
+            ? post.mediaItems
+            : post.mediaUrl
+                ? [{ id: post.id, mediaUrl: post.mediaUrl, mediaType: post.mediaType, sortOrder: 0 }]
+                : [];
+        if (mediaItems.length === 0) return null;
+        if (mediaItems.length === 1) {
+            return renderPostMedia(mediaItems[0].mediaUrl, mediaItems[0].mediaType, size);
+        }
+
+        const gap = 6;
+        const itemHeight = size === "web" ? 220 : 170;
+        return (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap, marginTop: 12 }}>
+                {mediaItems.slice(0, 6).map((item: any, index: number) => {
+                    const uri = getImageUrl(item.mediaUrl);
+                    const isVideo = item.mediaType === "VIDEO" || /\.(mp4|mov|m4v|webm|3gp)(\?|$)/i.test(String(item.mediaUrl || ""));
+                    const basis = mediaItems.length === 2 ? "48.8%" : "32%";
+                    return (
+                        <View key={item.id || `${post.id}_${index}`} style={{ width: basis as any, height: itemHeight, borderRadius: 10, overflow: "hidden", backgroundColor: "#000" }}>
+                            {isVideo ? (
+                                <Video source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode={ResizeMode.CONTAIN} useNativeControls shouldPlay={false} />
+                            ) : (
+                                <Image source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                            )}
+                            {index === 5 && mediaItems.length > 6 ? (
+                                <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" }]}>
+                                    <Text style={{ color: "#fff", fontSize: 20, fontWeight: "800" }}>+{mediaItems.length - 6}</Text>
+                                </View>
+                            ) : null}
+                        </View>
+                    );
+                })}
+            </View>
+        );
+    };
+
+    const renderPostInteractions = (post: any, size: "mobile" | "web" = "mobile") => {
+        const reactions = Array.isArray(post.reactions) ? post.reactions : [];
+        const comments = Array.isArray(post.comments) ? post.comments : [];
+        const myReaction = reactions.find((reaction: any) => reaction.userId === profile?.id);
+        const isCommentsOpen = !!expandedPostComments[post.id];
+        const isWeb = size === "web";
+        const isReactionPickerOpen = activePostReactionPicker === post.id;
+        return (
+            <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <TouchableOpacity
+                        disabled={reactions.length === 0}
+                        onPress={() => reactions.length > 0 && setReactionListPostId(post.id)}
+                    >
+                        <Text style={{ color: reactions.length > 0 ? colors.primary : colors.textSecondary, fontSize: 12, fontWeight: reactions.length > 0 ? "700" : "500" }}>
+                            {reactions.length} cảm xúc
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setExpandedPostComments((prev) => ({ ...prev, [post.id]: !prev[post.id] }))}>
+                        <Text style={{ color: isCommentsOpen ? colors.primary : colors.textSecondary, fontSize: 12, fontWeight: isCommentsOpen ? "700" : "500" }}>
+                            {comments.length} bình luận
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: isCommentsOpen ? 12 : 0 }}>
+                    <Pressable
+                        onHoverIn={() => {
+                            if (isWeb) openPostReactionPicker(post.id);
+                        }}
+                        onHoverOut={() => {
+                            if (isWeb) scheduleClosePostReactionPicker(post.id);
+                        }}
+                        onLongPress={() => {
+                            if (!isWeb) {
+                                longPressedPostReactionRef.current = post.id;
+                                openPostReactionPicker(post.id);
+                            }
+                        }}
+                        onPress={() => {
+                            if (longPressedPostReactionRef.current === post.id) {
+                                longPressedPostReactionRef.current = null;
+                                return;
+                            }
+                            if (myReaction) {
+                                handleRemoveTimelinePostReaction(post.id);
+                                return;
+                            }
+                            handleReactTimelinePost(post.id, "like");
+                        }}
+                        style={{
+                            flex: 1,
+                            position: "relative",
+                            height: isWeb ? 38 : 36,
+                            borderRadius: 8,
+                            backgroundColor: myReaction ? "#E8F2FF" : "transparent",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            zIndex: isReactionPickerOpen ? 10 : 1,
+                        }}
+                    >
+                        {isReactionPickerOpen ? (
+                            <Pressable
+                                onHoverIn={() => {
+                                    if (isWeb) openPostReactionPicker(post.id);
+                                }}
+                                onHoverOut={() => {
+                                    if (isWeb) scheduleClosePostReactionPicker(post.id);
+                                }}
+                                style={{
+                                    position: "absolute",
+                                    bottom: isWeb ? 36 : 36,
+                                    left: 0,
+                                    alignItems: "flex-start",
+                                    paddingTop: 12,
+                                    paddingBottom: 8,
+                                    zIndex: 20,
+                                }}
+                            >
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        gap: 6,
+                                        paddingHorizontal: 8,
+                                        paddingVertical: 7,
+                                        borderRadius: 24,
+                                        backgroundColor: colors.card,
+                                        borderWidth: 1,
+                                        borderColor: colors.border,
+                                        shadowColor: "#000",
+                                        shadowOpacity: 0.16,
+                                        shadowRadius: 12,
+                                        shadowOffset: { width: 0, height: 6 },
+                                        elevation: 8,
+                                    }}
+                                >
+                                    {POST_REACTIONS.map((reaction) => (
+                                        <TouchableOpacity
+                                            key={reaction.type}
+                                            onPress={() => {
+                                                setActivePostReactionPicker(null);
+                                                handleReactTimelinePost(post.id, reaction.type);
+                                            }}
+                                            style={{
+                                                width: isWeb ? 34 : 38,
+                                                height: isWeb ? 34 : 38,
+                                                borderRadius: 19,
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                backgroundColor: myReaction?.type === reaction.type ? "#E8F2FF" : "transparent",
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: isWeb ? 20 : 22 }}>{reaction.emoji}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </Pressable>
+                        ) : null}
+                        <Text style={{ color: myReaction ? colors.primary : colors.text, fontWeight: "700", fontSize: myReaction ? 20 : 14 }}>
+                            {myReaction ? getPostReactionEmoji(myReaction.type) : "Thả cảm xúc"}
+                        </Text>
+                    </Pressable>
+                    <TouchableOpacity
+                        onPress={() => setExpandedPostComments((prev) => ({ ...prev, [post.id]: !prev[post.id] }))}
+                        style={{
+                            flex: 1,
+                            height: isWeb ? 38 : 36,
+                            borderRadius: 8,
+                            backgroundColor: isCommentsOpen ? "#E8F2FF" : "transparent",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <Text style={{ color: isCommentsOpen ? colors.primary : colors.text, fontWeight: "700" }}>
+                            Bình luận
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+                {isCommentsOpen ? (
+                    <View style={{ gap: 10 }}>
+                        {comments.length === 0 ? (
+                            <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: "center", paddingVertical: 4 }}>
+                                Chưa có bình luận nào.
+                            </Text>
+                        ) : comments.map((comment: any) => {
+                            const isMyComment = comment.userId === profile?.id;
+                            const commentName = isMyComment ? "Tôi" : (comment.displayName || comment.username);
+                            return (
+                            <View key={comment.id} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+                                <AvatarImage name={commentName} uri={comment.avatarUrl} size={30} />
+                                <View style={{ flex: 1 }}>
+                                    <View style={{ alignSelf: "flex-start", maxWidth: "100%", minWidth: 116, backgroundColor: colors.searchBg, borderRadius: 14, paddingLeft: 12, paddingRight: 58, paddingVertical: 8, position: "relative" }}>
+                                        <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13, maxWidth: "100%" }}>
+                                            {commentName}
+                                        </Text>
+                                        {!!comment.createdAt && (
+                                            <Text numberOfLines={1} style={{ position: "absolute", top: 9, right: 10, color: colors.textSecondary, fontSize: 11 }}>
+                                                {formatDate(comment.createdAt)}
+                                            </Text>
+                                        )}
+                                        <Text style={{ color: colors.text, marginTop: 2, lineHeight: 19 }}>{comment.content}</Text>
+                                    </View>
+                                </View>
+                                {isMyComment ? (
+                                    <TouchableOpacity onPress={() => handleDeletePostComment(post.id, comment.id)} style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.searchBg }}>
+                                        <Ionicons name="trash-outline" size={14} color={colors.textSecondary} />
+                                    </TouchableOpacity>
+                                ) : null}
+                            </View>
+                        );
+                        })}
+                        <View style={{ flexDirection: "row", gap: 8, alignItems: "center", paddingTop: 2 }}>
+                            <AvatarImage name={profile?.displayName || profile?.username} uri={profile?.avatarUrl} size={30} />
+                            <TextInput
+                                value={postCommentDrafts[post.id] || ""}
+                                onChangeText={(text) => setPostCommentDrafts((prev) => ({ ...prev, [post.id]: text }))}
+                                placeholder="Viết bình luận..."
+                                placeholderTextColor={colors.textSecondary}
+                                style={{ flex: 1, minHeight: 38, borderRadius: 19, paddingHorizontal: 14, backgroundColor: colors.searchBg, color: colors.text }}
+                            />
+                            <TouchableOpacity onPress={() => handleSubmitPostComment(post.id)} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" }}>
+                                <Ionicons name="send" size={16} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                ) : null}
+            </View>
+        );
+    };
+
+    const renderPostReactionsModal = () => {
+        const post = reactionListPostId ? posts.find((item) => item.id === reactionListPostId) : null;
+        const reactions = Array.isArray(post?.reactions) ? post!.reactions : [];
+        return (
+            <Modal visible={!!reactionListPostId} transparent animationType="fade" onRequestClose={() => setReactionListPostId(null)}>
+                <TouchableWithoutFeedback onPress={() => setReactionListPostId(null)}>
+                    <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", alignItems: "center", padding: 18 }}>
+                        <TouchableWithoutFeedback>
+                            <View style={{ width: "100%", maxWidth: 420, maxHeight: "70%" as any, backgroundColor: colors.card, borderRadius: 16, padding: 16 }}>
+                                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                                    <View>
+                                        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Cảm xúc</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>{reactions.length} người đã thả cảm xúc</Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => setReactionListPostId(null)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.searchBg, alignItems: "center", justifyContent: "center" }}>
+                                        <Ionicons name="close" size={18} color={colors.text} />
+                                    </TouchableOpacity>
+                                </View>
+                                <ScrollView showsVerticalScrollIndicator={false}>
+                                    {reactions.length === 0 ? (
+                                        <Text style={{ color: colors.textSecondary, textAlign: "center", paddingVertical: 24 }}>Chưa có cảm xúc nào.</Text>
+                                    ) : reactions.map((reaction: any) => {
+                                        const displayName = reaction.displayName || "Người dùng";
+                                        const isMe = reaction.userId === profile?.id;
+                                        return (
+                                            <View key={`${reaction.userId}_${reaction.type}`} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9 }}>
+                                                <AvatarImage name={displayName} uri={reaction.avatarUrl} size={38} />
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={{ color: colors.text, fontWeight: "700" }}>{isMe ? "Tôi" : displayName}</Text>
+                                                </View>
+                                                <Text style={{ fontSize: 24 }}>{getPostReactionEmoji(reaction.type)}</Text>
+                                            </View>
+                                        );
+                                    })}
+                                </ScrollView>
+                            </View>
+                        </TouchableWithoutFeedback>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
+        );
+    };
+
+    const isVideoStory = (story?: any) => {
+        if (!story) return false;
+        const mediaUrl = String(story.mediaUrl || "").toLowerCase();
+        return story.mediaType === "VIDEO"
+            || story.storyType === "VIDEO"
+            || /\.(mp4|mov|m4v|webm|3gp)(\?|$)/i.test(mediaUrl);
+    };
+
+    const isVideoAsset = (asset?: any) => {
+        if (!asset) return false;
+        const uri = String(asset.uri || "");
+        const mimeType = String(asset.mimeType || "");
+        return asset.type === "video"
+            || mimeType.startsWith("video/")
+            || /\.(mp4|mov|m4v|webm|3gp)(\?|$)/i.test(uri);
+    };
+
     const handlePost = async () => {
         if (isPosting) return;
         const privacyParam = privacyMode === "public" ? "ALL_FRIENDS"
@@ -1984,7 +2629,7 @@ export default function WorkScreen() {
 
         if (creationStep === "EDIT" && selectedAssets[0]) {
             const asset = selectedAssets[0];
-            const isVideo = asset.type === "video" || asset.uri?.includes(".mp4");
+            const isVideo = isVideoAsset(asset);
             if (isVideo && asset.duration && asset.duration > VIDEO_MAX_DURATION_S * 1000) {
                 showToastMsg(`Video tối đa ${VIDEO_MAX_DURATION_S} giây theo quy định`);
                 return;
@@ -2024,8 +2669,8 @@ export default function WorkScreen() {
                 });
             } else {
                 for (const asset of selectedAssets) {
-                    const isVideo = asset.type === "video" || asset.uri?.includes(".mp4");
-                    await uploadStory(asset.uri, textContent, {
+                    const isVideo = isVideoAsset(asset);
+                    await uploadStory(asset, textContent, {
                         storyType: isVideo ? "VIDEO" : "PHOTO",
                         privacy: privacyParam,
                         permittedUserIds: privacyUsers,
@@ -2132,6 +2777,96 @@ export default function WorkScreen() {
 
     if (isWeb) {
         return (
+            <View style={{ height: "100vh" as any, flex: 1, backgroundColor: colors.background, alignItems: "center", overflow: "hidden" as any }}>
+                <ScrollView
+                    ref={wallScrollRef}
+                    style={{ width: "100%", flex: 1 }}
+                    contentContainerStyle={{ width: "100%", maxWidth: 720, alignSelf: "center", padding: 24, paddingBottom: 40, gap: 14 }}
+                    refreshControl={<RefreshControl refreshing={isRefreshingWall} onRefresh={refreshWall} tintColor="#0068FF" />}
+                >
+                    <Text style={{ fontSize: 26, fontWeight: "800", color: colors.text }}>Tường nhà</Text>
+                    <StoryFeedWeb />
+                    <View style={[styles.timelineComposer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                            <Image source={{ uri: buildAvatarUrl(profile?.displayName || profile?.username, profile?.avatarUrl) }} style={styles.timelineComposerAvatar} />
+                            <TextInput value={postText} onChangeText={setPostText} placeholder="Hôm nay bạn thế nào?" placeholderTextColor={colors.textSecondary} style={[styles.timelineComposerInput, { color: colors.text, backgroundColor: colors.searchBg }]} />
+                            <TouchableOpacity onPress={handleSubmitTimelinePost} disabled={isPostSubmitting} style={[styles.timelinePostButton, { opacity: isPostSubmitting ? 0.6 : 1 }]}>
+                                <Text style={{ color: "#fff", fontWeight: "700" }}>{isPostSubmitting ? "Đang đăng" : "Đăng"}</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {postAssets.length > 0 ? (
+                            <View style={{ marginTop: 12 }}>
+                                {isVideoAsset(postAssets[0]) ? (
+                                    <Video source={{ uri: postAssets[0].uri }} style={styles.timelinePreviewMedia} resizeMode={ResizeMode.CONTAIN} useNativeControls />
+                                ) : (
+                                    <Image source={{ uri: postAssets[0].uri }} style={styles.timelinePreviewMedia} resizeMode="cover" />
+                                )}
+                                <TouchableOpacity onPress={() => setPostAssets([])} style={{ marginTop: 8 }}>
+                                    <Text style={{ color: "#ef4444", fontWeight: "600" }}>Bỏ media</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : null}
+                        <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                            <TouchableOpacity onPress={() => handlePickPostMedia("image")} style={styles.postComposerPill}><Ionicons name="image" size={16} color="#22C55E" /><Text style={styles.postComposerPillText}>Ảnh</Text></TouchableOpacity>
+                            <TouchableOpacity onPress={() => handlePickPostMedia("video")} style={styles.postComposerPill}><Ionicons name="videocam" size={16} color="#D946EF" /><Text style={styles.postComposerPillText}>Video</Text></TouchableOpacity>
+                        </View>
+                    </View>
+                    {postsLoading ? <ActivityIndicator color="#0068FF" /> : posts.map((post) => (
+                        <View
+                            key={post.id}
+                            onLayout={(event) => { postOffsetMapRef.current[post.id] = event.nativeEvent.layout.y; }}
+                            style={[
+                                styles.timelinePostCard,
+                                { backgroundColor: colors.card, borderColor: colors.border },
+                                highlightPostId === post.id && {
+                                    borderColor: colors.primary,
+                                    shadowColor: colors.primary,
+                                    shadowOpacity: 0.16,
+                                    shadowRadius: 12,
+                                    shadowOffset: { width: 0, height: 6 },
+                                },
+                            ]}
+                        >
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                <Image source={{ uri: buildAvatarUrl(post.displayName || post.username, post.avatarUrl) }} style={styles.timelinePostAvatar} />
+                                <View>
+                                    <Text style={{ color: colors.text, fontWeight: "700" }}>{post.displayName || post.username}</Text>
+                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{formatDate(post.createdAt)}</Text>
+                                        {post.userId === profile?.id ? (
+                                            <TouchableOpacity onPress={() => openPostPrivacySheet(post)} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                                                <Ionicons name="people-outline" size={12} color={colors.textSecondary} />
+                                                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{getPrivacyLabel(post.privacy)}</Text>
+                                            </TouchableOpacity>
+                                        ) : null}
+                                    </View>
+                                </View>
+                            </View>
+                            {!!post.content && <Text style={{ color: colors.text, marginTop: 12, fontSize: 15, lineHeight: 21 }}>{post.content}</Text>}
+                            {renderPostMediaItems(post, "web")}
+                            {renderPostInteractions(post, "web")}
+                        </View>
+                    ))}
+                </ScrollView>
+                {renderPostReactionsModal()}
+                {postPrivacyTargetId && showPrivacySheet ? (
+                    <PrivacySheet
+                        visible={showPrivacySheet}
+                        privacyMode={privacyMode}
+                        onSelect={handleSelectPostPrivacy}
+                        onClose={() => { setShowPrivacySheet(false); setPostPrivacyTargetId(null); }}
+                        bottomInset={insets.bottom}
+                        colors={colors}
+                        title="Ai được xem bài viết này?"
+                        subtitle="Bạn có thể đổi đối tượng xem bài viết bất cứ lúc nào"
+                    />
+                ) : null}
+            </View>
+        );
+    }
+
+    if (false && isWeb) {
+        return (
             <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name="home-outline" size={80} color={colors.textSecondary} style={{ opacity: 0.3 }} />
                 <Text style={{ fontSize: 24, fontWeight: "bold", color: colors.text, marginTop: 16 }}>Tường nhà</Text>
@@ -2142,6 +2877,19 @@ export default function WorkScreen() {
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
             <StatusBar style={colors.statusBar} />
+            {renderPostReactionsModal()}
+            {postPrivacyTargetId && showPrivacySheet ? (
+                <PrivacySheet
+                    visible={showPrivacySheet}
+                    privacyMode={privacyMode}
+                    onSelect={handleSelectPostPrivacy}
+                    onClose={() => { setShowPrivacySheet(false); setPostPrivacyTargetId(null); }}
+                    bottomInset={insets.bottom}
+                    colors={colors}
+                    title="Ai được xem bài viết này?"
+                    subtitle="Bạn có thể đổi đối tượng xem bài viết bất cứ lúc nào"
+                />
+            ) : null}
 
             <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
                 <View style={styles.header}>
@@ -2153,10 +2901,16 @@ export default function WorkScreen() {
                 </View>
             </SafeAreaView>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+                ref={wallScrollRef}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={isRefreshingWall} onRefresh={refreshWall} tintColor="#0068FF" />}
+            >
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }} style={{ backgroundColor: colors.card, marginBottom: 8 }}>
                     <TouchableOpacity onPress={() => { creationPanY.setValue(SCREEN_HEIGHT); setCreationStep("TYPE"); }} style={styles.storyCard}>
-                        <Image source={{ uri: profile?.avatarUrl || "" }} style={StyleSheet.absoluteFillObject} />
+                        <View style={[StyleSheet.absoluteFillObject, { alignItems: "center", justifyContent: "center", backgroundColor: "#D9E8FF" }]}>
+                            <AvatarImage name={profile?.displayName || profile?.username} uri={profile?.avatarUrl} size={70} />
+                        </View>
                         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "flex-end", alignItems: "center", paddingBottom: 12 }]}>
                             <View style={styles.createBtn}><Ionicons name="add" size={24} color="white" /></View>
                             <Text style={styles.storyLabel}>Tạo mới</Text>
@@ -2174,18 +2928,99 @@ export default function WorkScreen() {
                                     <View style={[StyleSheet.absoluteFillObject, { backgroundColor: s.backgroundConfig || "#0068FF", justifyContent: "center", alignItems: "center", padding: 8 }]}>
                                         <Text style={{ color: "white", fontSize: 11, textAlign: "center" }} numberOfLines={4}>{s.caption}</Text>
                                     </View>
+                                ) : isVideoStory(s) ? (
+                                    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#111827", justifyContent: "center", alignItems: "center", padding: 8 }]}>
+                                        <Ionicons name="play-circle" size={34} color="rgba(255,255,255,0.92)" />
+                                        {!!s.caption && (
+                                            <Text style={{ color: "rgba(255,255,255,0.86)", fontSize: 10, marginTop: 4, textAlign: "center" }} numberOfLines={2}>
+                                                {s.caption}
+                                            </Text>
+                                        )}
+                                    </View>
                                 ) : (
-                                    <Image source={{ uri: s.mediaUrl || s.avatarUrl }} style={[StyleSheet.absoluteFillObject, { resizeMode: "cover" }]} />
+                                    <Image source={{ uri: getImageUrl(s.mediaUrl) || getImageUrl(s.avatarUrl) }} style={[StyleSheet.absoluteFillObject, { resizeMode: "cover" }]} />
                                 )}
                                 <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.15)", justifyContent: "flex-end", alignItems: "center", paddingBottom: 10 }]}>
-                                    <View style={[styles.avatarBorder, { borderColor: allViewed ? "#C0C0C0" : colors.primary }]}><Image source={{ uri: s.avatarUrl || "" }} style={{ width: "100%", height: "100%", borderRadius: 16 }} /></View>
+                                    <View style={[styles.avatarBorder, { borderColor: allViewed ? "#C0C0C0" : colors.primary }]}>
+                                        <AvatarImage name={s.displayName} uri={s.avatarUrl} size={30} />
+                                    </View>
                                     <Text numberOfLines={1} style={[styles.storyLabel, allViewed && { color: "rgba(255,255,255,0.6)" }]}>{isMe ? "Tôi" : s.displayName}</Text>
                                 </View>
                             </TouchableOpacity>
                         );
                     })}
                 </ScrollView>
-                <View style={{ padding: 40, alignItems: "center" }}><Ionicons name="home-outline" size={80} color={colors.textSecondary} style={{ opacity: 0.08 }} /></View>
+                <View style={[styles.mobilePostComposer, { backgroundColor: colors.card }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <AvatarImage name={profile?.displayName || profile?.username} uri={profile?.avatarUrl} size={40} style={styles.mobilePostAvatar} />
+                        <TextInput
+                            value={postText}
+                            onChangeText={setPostText}
+                            placeholder="Hôm nay bạn thế nào?"
+                            placeholderTextColor={colors.textSecondary}
+                            style={[styles.mobilePostInput, { backgroundColor: colors.searchBg, color: colors.text }]}
+                        />
+                    </View>
+                    {postAssets.length > 0 ? (
+                        <View style={{ marginTop: 12 }}>
+                            {isVideoAsset(postAssets[0]) ? (
+                                <Video source={{ uri: postAssets[0].uri }} style={styles.mobilePostPreview} resizeMode={ResizeMode.CONTAIN} useNativeControls />
+                            ) : (
+                                <Image source={{ uri: postAssets[0].uri }} style={styles.mobilePostPreview} resizeMode="cover" />
+                            )}
+                            <TouchableOpacity onPress={() => setPostAssets([])} style={{ marginTop: 8 }}>
+                                <Text style={{ color: "#FF3B30", fontWeight: "600" }}>Bỏ media</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : null}
+                    <View style={styles.mobilePostActionRow}>
+                        <TouchableOpacity onPress={() => handlePickPostMedia("image")} style={styles.mobilePostAction}><Ionicons name="image" size={16} color="#22C55E" /><Text style={styles.mobilePostActionText}>Ảnh</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={() => handlePickPostMedia("video")} style={styles.mobilePostAction}><Ionicons name="videocam" size={16} color="#D946EF" /><Text style={styles.mobilePostActionText}>Video</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={() => handlePickPostMedia("all")} style={styles.mobilePostAction}><Ionicons name="albums" size={16} color="#3B82F6" /><Text style={styles.mobilePostActionText}>Album</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={handleSubmitTimelinePost} disabled={isPostSubmitting} style={[styles.mobileSubmitPostBtn, { opacity: isPostSubmitting ? 0.6 : 1 }]}><Text style={styles.mobileSubmitPostText}>Đăng</Text></TouchableOpacity>
+                    </View>
+                </View>
+
+                <View style={{ paddingHorizontal: 12, gap: 10 }}>
+                    {posts.map((post) => (
+                        <View
+                            key={post.id}
+                            onLayout={(event) => { postOffsetMapRef.current[post.id] = event.nativeEvent.layout.y; }}
+                            style={[
+                                styles.mobileTimelinePost,
+                                { backgroundColor: colors.card },
+                                highlightPostId === post.id && {
+                                    borderWidth: 1.5,
+                                    borderColor: colors.primary,
+                                    shadowColor: colors.primary,
+                                    shadowOpacity: 0.16,
+                                    shadowRadius: 10,
+                                    shadowOffset: { width: 0, height: 5 },
+                                    elevation: 3,
+                                },
+                            ]}
+                        >
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                <AvatarImage name={post.displayName || post.username} uri={post.avatarUrl} size={40} style={styles.mobilePostAvatar} />
+                                <View>
+                                    <Text style={{ color: colors.text, fontWeight: "700" }}>{post.displayName || post.username}</Text>
+                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{formatDate(post.createdAt)}</Text>
+                                        {post.userId === profile?.id ? (
+                                            <TouchableOpacity onPress={() => openPostPrivacySheet(post)} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                                                <Ionicons name="people-outline" size={12} color={colors.textSecondary} />
+                                                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{getPrivacyLabel(post.privacy)}</Text>
+                                            </TouchableOpacity>
+                                        ) : null}
+                                    </View>
+                                </View>
+                            </View>
+                            {!!post.content && <Text style={{ color: colors.text, marginTop: 12, lineHeight: 20 }}>{post.content}</Text>}
+                            {renderPostMediaItems(post, "mobile")}
+                            {renderPostInteractions(post, "mobile")}
+                        </View>
+                    ))}
+                </View>
             </ScrollView>
 
             <Modal visible={creationStep !== "NONE"} transparent animationType="none" statusBarTranslucent onRequestClose={closeEditor}>
@@ -2200,7 +3035,13 @@ export default function WorkScreen() {
                                 </TouchableWithoutFeedback>
                             ) : (
                                 <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }}>
-                                    {selectedAssets[0] && <Image source={{ uri: selectedAssets[0].uri }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} resizeMode="contain" />}
+                                    {selectedAssets[0] && (
+                                        isVideoAsset(selectedAssets[0]) ? (
+                                            <Video source={{ uri: selectedAssets[0].uri }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} resizeMode={ResizeMode.CONTAIN} shouldPlay={false} isLooping={false} useNativeControls />
+                                        ) : (
+                                            <Image source={{ uri: selectedAssets[0].uri }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} resizeMode="contain" />
+                                        )
+                                    )}
                                 </View>
                             )}
 
@@ -2363,37 +3204,44 @@ export default function WorkScreen() {
             </Modal>
 
             <Modal visible={!!selectedStory} transparent animationType="fade" statusBarTranslucent>
-                <View style={{ flex: 1, backgroundColor: "black" }}>
-                    <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }} onPress={(e) => { const { locationX } = e.nativeEvent; if (locationX < SCREEN_WIDTH / 2) handlePrevItem(); else handleNextItem(); }} onLongPress={() => setIsPaused(true)} onPressOut={() => { if (isPaused && !isTyping) setIsPaused(false); }}>
+                <View style={{ flex: 1, backgroundColor: "black", alignItems: "center", justifyContent: "center" }}>
+                    <Animated.View style={{ transform: [{ translateX: storySlideX }], opacity: storyFade }}>
+                    <TouchableOpacity activeOpacity={1} style={{ width: storyFrameWidth, height: storyFrameHeight, borderRadius: 18, overflow: "hidden", backgroundColor: "#000", justifyContent: "center", alignItems: "center" }} onPress={(e) => { const { locationX } = e.nativeEvent; if (locationX < storyFrameWidth / 2) handlePrevItem(); else handleNextItem(); }} onLongPress={() => setIsPaused(true)} onPressOut={() => { if (isPaused && !isTyping) setIsPaused(false); }}>
                         {selectedStory?.mediaType === "TEXT" ? (
                             <View
                                 key={`text_${selectedStory?.userId}_${selectedStory?.createdAt}`}
-                                style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, backgroundColor: parseBgColor(selectedStory?.backgroundConfig), justifyContent: "center", alignItems: "center", padding: 40 }}
+                                style={{ width: storyFrameWidth, height: storyFrameHeight, backgroundColor: parseBgColor(selectedStory?.backgroundConfig), justifyContent: "center", alignItems: "center", padding: 40 }}
                             >
                                 <Text style={{ color: "white", fontSize: 28, fontWeight: "bold", textAlign: "center" }}>{selectedStory?.caption}</Text>
                             </View>
                         ) : (
-                            <Image
-                                key={`img_${selectedStory?.userId}_${selectedStory?.createdAt}`}
-                                source={{ uri: selectedStory?.mediaUrl }}
-                                style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
-                                resizeMode="contain"
-                            />
+                            isVideoStory(selectedStory) ? (
+                                <Video key={`video_${selectedStory?.userId}_${selectedStory?.createdAt}`} source={{ uri: getImageUrl(selectedStory?.mediaUrl) }} style={{ width: storyFrameWidth, height: storyFrameHeight }} resizeMode={ResizeMode.CONTAIN} shouldPlay useNativeControls />
+                            ) : (
+                                <Image
+                                    key={`img_${selectedStory?.userId}_${selectedStory?.createdAt}`}
+                                    source={{ uri: getImageUrl(selectedStory?.mediaUrl) }}
+                                    style={{ width: storyFrameWidth, height: storyFrameHeight }}
+                                    resizeMode="contain"
+                                />
+                            )
                         )}
-                        <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 130, backgroundColor: "rgba(0,0,0,0.35)" }} />
                     </TouchableOpacity>
+                    </Animated.View>
 
                     {/* ViewShot bao ngoài toàn bộ story (media + overlays) để chụp composite */}
                     {/* View ngoài nhận pointerEvents vì ViewShot không có prop này */}
-                    <View style={{ position: "absolute", top: 0, left: 0, width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} pointerEvents="none">
+                    <View style={{ position: "absolute", top: 0, left: 0, width: SCREEN_WIDTH, height: SCREEN_HEIGHT, opacity: 0 }} pointerEvents="none">
                     <ViewShot ref={viewShotRef} options={{ format: "jpg", quality: 0.75 }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}>
                         {/* Media nền */}
                         {selectedStory?.mediaType === "TEXT" ? (
                             <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, backgroundColor: parseBgColor(selectedStory?.backgroundConfig), justifyContent: "center", alignItems: "center", padding: 40 }}>
                                 <Text style={{ color: "white", fontSize: 28, fontWeight: "bold", textAlign: "center" }}>{selectedStory?.caption}</Text>
                             </View>
+                        ) : isVideoStory(selectedStory) ? (
+                            <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, backgroundColor: "#000" }} />
                         ) : (
-                            <Image source={{ uri: selectedStory?.mediaUrl }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} resizeMode="contain" />
+                            <Image source={{ uri: getImageUrl(selectedStory?.mediaUrl) }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} resizeMode="contain" />
                         )}
                         {/* Overlay pills bên trên */}
                         {storyOverlayItems.map(overlayItem => {
@@ -2428,7 +3276,13 @@ export default function WorkScreen() {
                     />
 
                     <View style={[styles.viewerHeader, { top: insets.top + 26 }]}>
-                        <Image source={{ uri: selectedStory?.avatarUrl || undefined }} style={styles.viewerAvatar} />
+                        <AvatarImage
+                            name={selectedStory?.displayName || resolveUser(selectedStory?.userId || "").displayName}
+                            uri={selectedStory?.avatarUrl || resolveUser(selectedStory?.userId || "").avatarUrl}
+                            size={42}
+                            style={styles.viewerAvatar}
+                            textStyle={{ color: "#fff" }}
+                        />
                         <View style={{ flex: 1, marginLeft: 10 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                 <Text style={styles.viewerName}>{selectedStory?.displayName}</Text>
@@ -2633,10 +3487,10 @@ export default function WorkScreen() {
                                     {activeTab === "VIEWERS"
                                         ? (selectedStory?.viewers || []).length === 0
                                             ? <Text style={{ color: colors.textSecondary, textAlign: "center", padding: 32 }}>Chưa có ai xem</Text>
-                                            : (selectedStory?.viewers || []).map((vId: string, i: number) => { const u = resolveUser(vId); return (<View key={i} style={styles.userRow}><Image source={{ uri: u.avatarUrl || undefined }} style={styles.userAvatar} /><Text style={{ color: colors.text, flex: 1 }}>{u.displayName}</Text></View>); })
+                                            : (selectedStory?.viewers || []).map((vId: string, i: number) => { const u = resolveUser(vId); return (<View key={i} style={styles.userRow}><AvatarImage name={u.displayName} uri={u.avatarUrl} size={36} style={styles.userAvatar} /><Text style={{ color: colors.text, flex: 1 }}>{u.displayName}</Text></View>); })
                                         : (selectedStory?.reactions || []).length === 0
                                             ? <Text style={{ color: colors.textSecondary, textAlign: "center", padding: 32 }}>Chưa có cảm xúc</Text>
-                                            : (selectedStory?.reactions || []).map((r: string, i: number) => { const [uid, type] = r.split(":"); const u = resolveUser(uid); const emojiMap: Record<string, string> = { heart: "❤️", like: "👍", haha: "😂", wow: "😮", sad: "😢", angry: "😡", party: "🎉", love: "😍" }; return (<View key={i} style={styles.userRow}><Image source={{ uri: u.avatarUrl || undefined }} style={styles.userAvatar} /><Text style={{ color: colors.text, flex: 1 }}>{u.displayName}</Text><Text style={{ fontSize: 22 }}>{emojiMap[type] || "❤️"}</Text></View>); })
+                                            : (selectedStory?.reactions || []).map((r: string, i: number) => { const [uid, type] = r.split(":"); const u = resolveUser(uid); const emojiMap: Record<string, string> = { heart: "❤️", like: "👍", haha: "😂", wow: "😮", sad: "😢", angry: "😡", party: "🎉", love: "😍" }; return (<View key={i} style={styles.userRow}><AvatarImage name={u.displayName} uri={u.avatarUrl} size={36} style={styles.userAvatar} /><Text style={{ color: colors.text, flex: 1 }}>{u.displayName}</Text><Text style={{ fontSize: 22 }}>{emojiMap[type] || "❤️"}</Text></View>); })
                                     }
                                 </ScrollView>
                             </Animated.View>
@@ -2684,6 +3538,25 @@ const styles = StyleSheet.create({
     createBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#0068FF", alignItems: "center", justifyContent: "center" },
     storyLabel: { color: "white", fontSize: 11, fontWeight: "700", marginTop: 6, paddingHorizontal: 4, textAlign: "center" },
     avatarBorder: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, backgroundColor: "white", overflow: "hidden" },
+    mobilePostComposer: { marginBottom: 8, padding: 12 },
+    mobilePostAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#DCEAFE" },
+    mobilePostInput: { flex: 1, minHeight: 38, borderRadius: 19, paddingHorizontal: 14, fontSize: 14 },
+    mobilePostActionRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" },
+    mobilePostAction: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#F1F3F5", borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8 },
+    mobilePostActionText: { fontSize: 13, fontWeight: "700", color: "#374151" },
+    mobileSubmitPostBtn: { marginLeft: "auto", backgroundColor: "#0068FF", borderRadius: 18, paddingHorizontal: 16, paddingVertical: 8 },
+    mobileSubmitPostText: { color: "#fff", fontWeight: "700" },
+    mobilePostPreview: { width: "100%", height: 220, borderRadius: 10, backgroundColor: "#000" },
+    mobileTimelinePost: { borderRadius: 12, padding: 12, marginBottom: 10 },
+    timelineComposer: { borderRadius: 8, padding: 16, borderWidth: 1 },
+    timelineComposerAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#DCEAFE" },
+    timelineComposerInput: { flex: 1, minHeight: 42, borderRadius: 21, paddingHorizontal: 16, fontSize: 15 },
+    timelinePostButton: { backgroundColor: "#0068FF", paddingHorizontal: 16, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+    timelinePreviewMedia: { width: "100%", height: 280, borderRadius: 8, backgroundColor: "#000" },
+    timelinePostCard: { borderRadius: 8, padding: 16, borderWidth: 1 },
+    timelinePostAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: "#DCEAFE" },
+    postComposerPill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F1F3F5", borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8 },
+    postComposerPillText: { fontSize: 13, fontWeight: "700", color: "#374151" },
     editorHeader: { position: "absolute", left: 16, right: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", zIndex: 30 },
     iconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
     addMusicBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20 },

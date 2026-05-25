@@ -359,6 +359,32 @@ const MessageList: React.FC<MessageListProps> = ({
             ? chatGalleryItems[chatGalleryIndex]
             : null;
 
+    const handleGalleryPrev = useCallback(() => {
+        setChatGalleryIndex((idx) => (idx !== null && idx > 0 ? idx - 1 : idx));
+    }, []);
+
+    const handleGalleryNext = useCallback(() => {
+        setChatGalleryIndex((idx) => (idx !== null && idx < chatGalleryItems.length - 1 ? idx + 1 : idx));
+    }, [chatGalleryItems.length]);
+
+    useEffect(() => {
+        if (chatGalleryIndex === null) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setChatGalleryIndex(null);
+            } else if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                handleGalleryPrev();
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                handleGalleryNext();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [chatGalleryIndex, handleGalleryNext, handleGalleryPrev]);
+
     // Only use scrollTop — NEVER scrollIntoView, which can scroll parent containers
     const doScroll = useCallback(() => {
         const el = scrollRef.current;
@@ -590,7 +616,7 @@ const MessageList: React.FC<MessageListProps> = ({
     return (
         <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto bg-[var(--bg-chat-messages)]"
+            className="flex-1 overflow-y-auto"
             onScroll={handleScroll}
             style={{ scrollBehavior: 'auto', minHeight: 0, position: 'relative', overflowAnchor: 'none' }}
         >
@@ -739,6 +765,9 @@ const MessageList: React.FC<MessageListProps> = ({
                     onClick={() => setChatGalleryIndex(null)}
                     role="presentation"
                 >
+                    <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-sm font-medium text-white">
+                        {chatGalleryIndex + 1} / {chatGalleryItems.length}
+                    </div>
                     <button
                         type="button"
                         className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
@@ -778,6 +807,36 @@ const MessageList: React.FC<MessageListProps> = ({
                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
                     </button>
+                    {chatGalleryIndex > 0 && (
+                        <button
+                            type="button"
+                            className="absolute left-5 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
+                            title="Truoc"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleGalleryPrev();
+                            }}
+                        >
+                            <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                    )}
+                    {chatGalleryIndex < chatGalleryItems.length - 1 && (
+                        <button
+                            type="button"
+                            className="absolute right-5 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
+                            title="Sau"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleGalleryNext();
+                            }}
+                        >
+                            <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    )}
                     <div className="mx-auto max-h-[90vh] max-w-[92vw]" onClick={(e) => e.stopPropagation()}>
                         {activeGalleryItem.kind === 'video' ? (
                             <video src={activeGalleryItem.url} controls playsInline preload="metadata" className="max-h-[88vh] max-w-[92vw] rounded-lg" />
