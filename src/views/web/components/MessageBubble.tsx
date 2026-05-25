@@ -119,6 +119,98 @@ const VoicePlayer: React.FC<{ url: string }> = ({ url }) => {
     );
 };
 
+const StoryReplyCard: React.FC<{
+    content: string;
+    isMine: boolean;
+    time: string;
+}> = ({ content, isMine, time }) => {
+    let data: {
+        type?: string;
+        mediaUrl?: string | null;
+        thumbnailUri?: string | null;
+        mediaType?: string;
+        postedAt?: string;
+        storyId?: string;
+        authorId?: string;
+        replyText?: string;
+        imageUrl?: string | null;
+        image?: string | null;
+    } = {};
+    try { data = JSON.parse(content); } catch { return null; }
+    if (data.type !== "STORY_QUOTE") return null;
+
+    const thumbSrcRaw = data.thumbnailUri || data.mediaUrl || data.imageUrl || (data as any).image;
+    const thumbSrc = getImageUrl(thumbSrcRaw || '');
+    const isVideo = data.mediaType === "VIDEO" || (thumbSrcRaw && String(thumbSrcRaw).toLowerCase().endsWith(".mp4"));
+    const cardTitle = isMine
+        ? "Bạn đã gửi tin nhắn qua Khoảnh khắc"
+        : "Tin nhắn gửi từ Khoảnh khắc của bạn";
+
+    return (
+        <div className={clsx(
+            "flex flex-col w-[300px] max-w-full overflow-hidden rounded-xl border shadow-sm select-none",
+            isMine ? "bg-[#0068ff] border-blue-400" : "bg-white border-gray-200"
+        )}>
+            {/* Story Card Header */}
+            <div className={clsx(
+                "flex items-center gap-3 m-2 mb-0 rounded-lg overflow-hidden relative",
+                isMine ? "bg-white/10" : "bg-blue-50"
+            )}>
+                {/* Accent Line */}
+                <div className={clsx("w-[3.5px] self-stretch shrink-0 rounded-full", isMine ? "bg-white/80" : "bg-[#0068ff]")} />
+                
+                <div className="flex items-center gap-3 p-2 pl-0 flex-1 min-w-0">
+                    <div className="w-16 h-16 shrink-0 overflow-hidden rounded bg-gray-200 relative">
+                        {thumbSrcRaw ? (
+                            <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+                               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                               </svg>
+                            </div>
+                        )}
+                        {isVideo && (
+                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                                <div className="w-7 h-7 rounded-full bg-black/40 flex items-center justify-center border border-white/50">
+                                    <svg className="w-4 h-4 text-white fill-current ml-0.5" viewBox="0 0 24 24">
+                                        <path d="M8 5v14l11-7z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className={clsx("text-[13px] font-bold leading-tight line-clamp-2", isMine ? "text-white" : "text-gray-900")}>
+                            {cardTitle}
+                        </p>
+                        <p className={clsx("text-[11px] mt-1 line-clamp-1", isMine ? "text-white/70" : "text-gray-500")}>
+                            Khoảnh khắc đăng lúc {data.postedAt}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Divider & User Reply Text */}
+            {data.replyText && (
+                <div className="px-3 pt-2 pb-1">
+                    <div className={clsx("h-[1px] mb-2", isMine ? "bg-white/10" : "bg-gray-100")} />
+                    <p className={clsx("text-sm leading-relaxed break-words", isMine ? "text-white" : "text-gray-800")}>
+                        {data.replyText}
+                    </p>
+                </div>
+            )}
+
+            {/* Time */}
+            <div className="px-3 pb-2 pt-1 flex justify-end">
+                <span className={clsx("text-[10px]", isMine ? "text-white/60" : "text-gray-400")}>
+                    {time}
+                </span>
+            </div>
+        </div>
+    );
+};
+
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
 
 function effectiveTypeForMessage(msg: Message): string {
@@ -143,8 +235,9 @@ function effectiveTypeForMessage(msg: Message): string {
         else t = 'FILE';
     }
     
-    // Explicit check for VOICE type
+    // Explicit check for VOICE and STORY_REPLY type
     if (msg.type === 'VOICE') return 'VOICE';
+    if (msg.type === 'STORY_REPLY') return 'STORY_REPLY';
     
     return t;
 }
@@ -723,6 +816,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         setDownloadsHelpOpen(false);
         setDownloadsHelpJustFetched(false);
     };
+
+    const isStoryReply = useMemo(() => {
+        return !message.isRecall && 
+               (message.type === 'TEXT' || message.type === 'STORY_REPLY') && 
+               message.content?.trim().startsWith('{"type":"STORY_QUOTE"');
+    }, [message]);
 
     const openInChatGallery = (rawUrl: string) => {
         if (!onOpenChatGallery || !rawUrl) return false;
@@ -1441,6 +1540,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     )
                                 )}
                             </div>
+                        ) : isStoryReply ? (
+                            <StoryReplyCard
+                                content={message.content!}
+                                isMine={isMine}
+                                time={new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                })}
+                            />
                         ) : effectiveType === 'TEXT' || effectiveType === 'REPLY' || effectiveType === 'FORWARD' ? (
                             <span className="text-[15px] leading-relaxed pr-8 whitespace-pre-wrap">
                                 {linkifyText(message.content || '')}
@@ -1455,8 +1563,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             <span className="text-[15px] italic opacity-80 pr-8">{message.content || '[Loại tin nhắn không hỗ trợ]'}</span>
                         )}
 
-                        {/* Thời gian (tin file đã có giờ trong thẻ file) */}
-                        {!filePresentation && (
+                        {/* Thời gian (tin file/story đã có giờ trong thẻ) */}
+                        {!filePresentation && !isStoryReply && (
                             <span className="text-[11px] text-gray-400 mt-1.5 self-start leading-none">
                                 {new Date(message.createdAt).toLocaleTimeString('vi-VN', {
                                     hour: '2-digit',

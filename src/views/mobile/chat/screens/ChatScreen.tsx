@@ -39,6 +39,7 @@ import { MessageService } from "@/shared/services/MessageService";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import { useUserStore } from "@/shared/store/userStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
 import { formatTime } from "@/shared/utils/dateUtils";
 import {
   buildMobileChatRows,
@@ -2037,7 +2038,7 @@ export default function ChatScreen() {
     if (!firstUnreadMessage?.messageId || !activeRoomId) return;
 
     // Luôn đặt Highlight ID để Effect tự động nạp lịch sử nếu cần
-    setHighlightedMessageId(firstUnreadMessage.messageId);
+    useChatStore.getState().setHighlightedMessageId(firstUnreadMessage.messageId);
 
     // Tìm index của tin chưa đọc cũ nhất trong danh sách hiện tại
     const targetIdx = messages.findIndex((m) => m.messageId === firstUnreadMessage.messageId);
@@ -2274,57 +2275,7 @@ export default function ChatScreen() {
     return map;
   }, [messages, currentUserId]);
 
-  // Xử lý URL ảnh cho cả localhost và IP address
-  const getImageUrl = (url: string) => {
-    if (!url) return "";
-
-    const apiFullUrl =
-      process.env?.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "") ||
-      "http://10.0.2.2:8080";
-    const apiMatch = apiFullUrl.match(/^(https?:\/\/)([^:\/]+)(?::(\d+))?/);
-
-    if (!apiMatch) return url;
-    const apiProtocol = apiMatch[1];
-    const apiHost = apiMatch[2];
-
-    // --- Handle Relative Paths (MinIO) ---
-    if (
-      !url.startsWith("http") &&
-      !url.startsWith("file://") &&
-      !url.startsWith("data:")
-    ) {
-      // Derive MinIO URL similarly to MessageBubble
-      let minioBase = apiFullUrl.replace("/api", "").replace(":8080", ":9000");
-      if (
-        !minioBase.includes(":9000") &&
-        !minioBase.includes(":443") &&
-        !minioBase.includes(":80")
-      ) {
-        minioBase = `${apiProtocol}${apiHost}:9000`;
-      }
-      return `${minioBase}/${url}`;
-    }
-
-    // --- Handle Absolute URLs ---
-    const urlMatch = url.match(/^(https?:\/\/)([^:\/]+)(?::(\d+))?(.*)$/);
-    if (urlMatch) {
-      const originalHost = urlMatch[2];
-      const originalPath = urlMatch[4];
-
-      // Regex to check for local IPs or localhost
-      const isLocal = /^(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.)/.test(
-        originalHost,
-      );
-
-      if (isLocal) {
-        const originalPort = urlMatch[3];
-        const targetPort = originalPort ? `:${originalPort}` : "";
-        return `${apiProtocol}${apiHost}${targetPort}${originalPath}`;
-      }
-    }
-
-    return url;
-  };
+  // getImageUrl đã chuyển sang shared/utils/mediaUtils.ts
 
   const decodeAttachmentName = (raw?: string | null) => {
     if (!raw) return "";
@@ -2362,7 +2313,7 @@ export default function ChatScreen() {
       const fileName = decodeAttachmentName(rawName) || "Tệp đính kèm";
       return `[File] ${fileName}`;
     }
-    if (m.type === "TEXT" && m.content && m.content.startsWith('{"type":"STORY_QUOTE"')) {
+    if ((m.type === "TEXT" || m.type === "STORY_REPLY") && m.content && m.content.startsWith('{"type":"STORY_QUOTE"')) {
       return "[Khoảnh khắc]";
     }
     return m.content || "Tin nhắn đã ghim";

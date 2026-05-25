@@ -22,6 +22,7 @@ import { usePostStore } from "@/shared/store/postStore";
 import { showToast as toast } from "@/shared/utils/toast";
 import { getImageUrl } from "@/shared/utils/mediaUtils";
 import { chatService } from "@/shared/services/chatService";
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import StoryFeedWeb from "@/views/web/components/StoryFeed";
 import ViewShot from "react-native-view-shot";
 
@@ -1227,7 +1228,7 @@ function MarqueeText({ text, style, maxWidth }: { text: string; style: any, maxW
 
     useEffect(() => {
         if (textWidth > maxWidth) {
-            const distance = textWidth - maxWidth + 30; 
+            const distance = textWidth - maxWidth + 30;
             const anim = Animated.loop(
                 Animated.sequence([
                     Animated.delay(1500),
@@ -1265,7 +1266,7 @@ function MarqueeText({ text, style, maxWidth }: { text: string; style: any, maxW
                     {text}
                 </Text>
             </ScrollView>
-            
+
             <Animated.View style={{ width: textWidth > maxWidth ? textWidth + 50 : undefined, transform: [{ translateX }] }}>
                 <Text style={[style]} numberOfLines={1}>
                     {text}
@@ -1499,7 +1500,7 @@ export default function WorkScreen() {
     // Dừng hoặc tiếp tục phát nhạc nền editor
     useEffect(() => {
         if (editorAudioRef.current && typeof editorAudioRef.current.setStatusAsync === "function") {
-            editorAudioRef.current.setStatusAsync({ shouldPlay: !isEditorPaused }).catch(() => {});
+            editorAudioRef.current.setStatusAsync({ shouldPlay: !isEditorPaused }).catch(() => { });
         } else if (editorAudioRef.current && typeof editorAudioRef.current.pause === "function") {
             if (isEditorPaused) editorAudioRef.current.pause();
             else editorAudioRef.current.play();
@@ -2027,16 +2028,28 @@ export default function WorkScreen() {
 
             // Gộp thành 1 tin nhắn duy nhất: story card + text của người dùng
             // thumbnailUri (base64) đã bị loại bỏ vì quá lớn → dùng mediaUrl (remote URL)
+            let thumbnailUri = null;
+            if (selectedStory.mediaType === 'VIDEO') {
+                try {
+                    const { uri } = await VideoThumbnails.getThumbnailAsync(selectedStory.mediaUrl, { time: 0 });
+                    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+                    thumbnailUri = `data:image/jpeg;base64,${base64}`;
+                } catch (e) {
+                    console.warn("Failed to generate video thumbnail:", e);
+                }
+            }
+
             const storyQuotePayload = JSON.stringify({
                 type: "STORY_QUOTE",
                 mediaUrl: selectedStory.mediaUrl || null,
+                thumbnailUri: thumbnailUri, // Base64 thumbnail for video or permanent fallback
                 mediaType: selectedStory.mediaType || "PHOTO",
                 postedAt: postedAt,
                 storyId: selectedStory.createdAt,
                 authorId: selectedStory.userId,
                 replyText: msgText,
             });
-            await chatService.sendMessage(roomId, storyQuotePayload, undefined, "TEXT");
+            await chatService.sendMessage(roomId, storyQuotePayload, undefined, "STORY_REPLY");
 
             showToastMsg("Đã gửi tin nhắn");
         } catch (e) {
@@ -2520,28 +2533,28 @@ export default function WorkScreen() {
                             const isMyComment = comment.userId === profile?.id;
                             const commentName = isMyComment ? "Tôi" : (comment.displayName || comment.username);
                             return (
-                            <View key={comment.id} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-                                <AvatarImage name={commentName} uri={comment.avatarUrl} size={30} />
-                                <View style={{ flex: 1 }}>
-                                    <View style={{ alignSelf: "flex-start", maxWidth: "100%", minWidth: 116, backgroundColor: colors.searchBg, borderRadius: 14, paddingLeft: 12, paddingRight: 58, paddingVertical: 8, position: "relative" }}>
-                                        <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13, maxWidth: "100%" }}>
-                                            {commentName}
-                                        </Text>
-                                        {!!comment.createdAt && (
-                                            <Text numberOfLines={1} style={{ position: "absolute", top: 9, right: 10, color: colors.textSecondary, fontSize: 11 }}>
-                                                {formatDate(comment.createdAt)}
+                                <View key={comment.id} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+                                    <AvatarImage name={commentName} uri={comment.avatarUrl} size={30} />
+                                    <View style={{ flex: 1 }}>
+                                        <View style={{ alignSelf: "flex-start", maxWidth: "100%", minWidth: 116, backgroundColor: colors.searchBg, borderRadius: 14, paddingLeft: 12, paddingRight: 58, paddingVertical: 8, position: "relative" }}>
+                                            <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13, maxWidth: "100%" }}>
+                                                {commentName}
                                             </Text>
-                                        )}
-                                        <Text style={{ color: colors.text, marginTop: 2, lineHeight: 19 }}>{comment.content}</Text>
+                                            {!!comment.createdAt && (
+                                                <Text numberOfLines={1} style={{ position: "absolute", top: 9, right: 10, color: colors.textSecondary, fontSize: 11 }}>
+                                                    {formatDate(comment.createdAt)}
+                                                </Text>
+                                            )}
+                                            <Text style={{ color: colors.text, marginTop: 2, lineHeight: 19 }}>{comment.content}</Text>
+                                        </View>
                                     </View>
+                                    {isMyComment ? (
+                                        <TouchableOpacity onPress={() => handleDeletePostComment(post.id, comment.id)} style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.searchBg }}>
+                                            <Ionicons name="trash-outline" size={14} color={colors.textSecondary} />
+                                        </TouchableOpacity>
+                                    ) : null}
                                 </View>
-                                {isMyComment ? (
-                                    <TouchableOpacity onPress={() => handleDeletePostComment(post.id, comment.id)} style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.searchBg }}>
-                                        <Ionicons name="trash-outline" size={14} color={colors.textSecondary} />
-                                    </TouchableOpacity>
-                                ) : null}
-                            </View>
-                        );
+                            );
                         })}
                         <View style={{ flexDirection: "row", gap: 8, alignItems: "center", paddingTop: 2 }}>
                             <AvatarImage name={profile?.displayName || profile?.username} uri={profile?.avatarUrl} size={30} />
@@ -3099,10 +3112,10 @@ export default function WorkScreen() {
                                     <>
                                         <TouchableOpacity onPress={() => setShowMusicSheet(true)} style={[styles.addMusicBtn, { maxWidth: SCREEN_WIDTH - 120 }]} activeOpacity={0.8}>
                                             <Ionicons name="musical-notes" size={14} color="white" />
-                                            <MarqueeText 
+                                            <MarqueeText
                                                 text={activeMusicItem ? `${activeMusicItem.musicTitle?.toUpperCase()} -` : "Thêm nhạc"}
                                                 style={styles.addMusicText}
-                                                maxWidth={SCREEN_WIDTH - 180} 
+                                                maxWidth={SCREEN_WIDTH - 180}
                                             />
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={() => setShowTextInput(true)} style={styles.iconCircle}>
@@ -3182,14 +3195,14 @@ export default function WorkScreen() {
                                     Chưa lưu ảnh đang chỉnh sửa.{"\n"}Thoát khỏi trang này ?
                                 </Text>
                                 <View style={{ flexDirection: "row", width: "100%", gap: 12 }}>
-                                    <TouchableOpacity 
+                                    <TouchableOpacity
                                         style={{ flex: 1, paddingVertical: 12, backgroundColor: colors.border, borderRadius: 24, alignItems: "center" }}
                                         onPress={() => setShowExitConfirm(false)}
                                         activeOpacity={0.7}
                                     >
                                         <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>Ở lại</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity 
+                                    <TouchableOpacity
                                         style={{ flex: 1, paddingVertical: 12, backgroundColor: "#FF3B30", borderRadius: 24, alignItems: "center" }}
                                         onPress={forceCloseEditor}
                                         activeOpacity={0.7}
@@ -3206,66 +3219,66 @@ export default function WorkScreen() {
             <Modal visible={!!selectedStory} transparent animationType="fade" statusBarTranslucent>
                 <View style={{ flex: 1, backgroundColor: "black", alignItems: "center", justifyContent: "center" }}>
                     <Animated.View style={{ transform: [{ translateX: storySlideX }], opacity: storyFade }}>
-                    <TouchableOpacity activeOpacity={1} style={{ width: storyFrameWidth, height: storyFrameHeight, borderRadius: 18, overflow: "hidden", backgroundColor: "#000", justifyContent: "center", alignItems: "center" }} onPress={(e) => { const { locationX } = e.nativeEvent; if (locationX < storyFrameWidth / 2) handlePrevItem(); else handleNextItem(); }} onLongPress={() => setIsPaused(true)} onPressOut={() => { if (isPaused && !isTyping) setIsPaused(false); }}>
-                        {selectedStory?.mediaType === "TEXT" ? (
-                            <View
-                                key={`text_${selectedStory?.userId}_${selectedStory?.createdAt}`}
-                                style={{ width: storyFrameWidth, height: storyFrameHeight, backgroundColor: parseBgColor(selectedStory?.backgroundConfig), justifyContent: "center", alignItems: "center", padding: 40 }}
-                            >
-                                <Text style={{ color: "white", fontSize: 28, fontWeight: "bold", textAlign: "center" }}>{selectedStory?.caption}</Text>
-                            </View>
-                        ) : (
-                            isVideoStory(selectedStory) ? (
-                                <Video key={`video_${selectedStory?.userId}_${selectedStory?.createdAt}`} source={{ uri: getImageUrl(selectedStory?.mediaUrl) }} style={{ width: storyFrameWidth, height: storyFrameHeight }} resizeMode={ResizeMode.CONTAIN} shouldPlay useNativeControls />
+                        <TouchableOpacity activeOpacity={1} style={{ width: storyFrameWidth, height: storyFrameHeight, borderRadius: 18, overflow: "hidden", backgroundColor: "#000", justifyContent: "center", alignItems: "center" }} onPress={(e) => { const { locationX } = e.nativeEvent; if (locationX < storyFrameWidth / 2) handlePrevItem(); else handleNextItem(); }} onLongPress={() => setIsPaused(true)} onPressOut={() => { if (isPaused && !isTyping) setIsPaused(false); }}>
+                            {selectedStory?.mediaType === "TEXT" ? (
+                                <View
+                                    key={`text_${selectedStory?.userId}_${selectedStory?.createdAt}`}
+                                    style={{ width: storyFrameWidth, height: storyFrameHeight, backgroundColor: parseBgColor(selectedStory?.backgroundConfig), justifyContent: "center", alignItems: "center", padding: 40 }}
+                                >
+                                    <Text style={{ color: "white", fontSize: 28, fontWeight: "bold", textAlign: "center" }}>{selectedStory?.caption}</Text>
+                                </View>
                             ) : (
-                                <Image
-                                    key={`img_${selectedStory?.userId}_${selectedStory?.createdAt}`}
-                                    source={{ uri: getImageUrl(selectedStory?.mediaUrl) }}
-                                    style={{ width: storyFrameWidth, height: storyFrameHeight }}
-                                    resizeMode="contain"
-                                />
-                            )
-                        )}
-                    </TouchableOpacity>
+                                isVideoStory(selectedStory) ? (
+                                    <Video key={`video_${selectedStory?.userId}_${selectedStory?.createdAt}`} source={{ uri: getImageUrl(selectedStory?.mediaUrl) }} style={{ width: storyFrameWidth, height: storyFrameHeight }} resizeMode={ResizeMode.CONTAIN} shouldPlay useNativeControls />
+                                ) : (
+                                    <Image
+                                        key={`img_${selectedStory?.userId}_${selectedStory?.createdAt}`}
+                                        source={{ uri: getImageUrl(selectedStory?.mediaUrl) }}
+                                        style={{ width: storyFrameWidth, height: storyFrameHeight }}
+                                        resizeMode="contain"
+                                    />
+                                )
+                            )}
+                        </TouchableOpacity>
                     </Animated.View>
 
                     {/* ViewShot bao ngoài toàn bộ story (media + overlays) để chụp composite */}
                     {/* View ngoài nhận pointerEvents vì ViewShot không có prop này */}
                     <View style={{ position: "absolute", top: 0, left: 0, width: SCREEN_WIDTH, height: SCREEN_HEIGHT, opacity: 0 }} pointerEvents="none">
-                    <ViewShot ref={viewShotRef} options={{ format: "jpg", quality: 0.75 }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}>
-                        {/* Media nền */}
-                        {selectedStory?.mediaType === "TEXT" ? (
-                            <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, backgroundColor: parseBgColor(selectedStory?.backgroundConfig), justifyContent: "center", alignItems: "center", padding: 40 }}>
-                                <Text style={{ color: "white", fontSize: 28, fontWeight: "bold", textAlign: "center" }}>{selectedStory?.caption}</Text>
-                            </View>
-                        ) : isVideoStory(selectedStory) ? (
-                            <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, backgroundColor: "#000" }} />
-                        ) : (
-                            <Image source={{ uri: getImageUrl(selectedStory?.mediaUrl) }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} resizeMode="contain" />
-                        )}
-                        {/* Overlay pills bên trên */}
-                        {storyOverlayItems.map(overlayItem => {
-                            if (overlayItem.type === "music") {
-                                return (
-                                    <View key={overlayItem.id} style={{ position: "absolute", left: overlayItem.x, top: overlayItem.y, transform: [{ rotate: `${overlayItem.rotation}deg` }, { scale: overlayItem.scale }] }}>
-                                        <View style={itemStyles.musicPill}>
-                                            {overlayItem.musicThumb ? (<Image source={{ uri: overlayItem.musicThumb }} style={itemStyles.musicThumb} />) : null}
-                                            <View style={{ flexShrink: 1, justifyContent: "center", marginLeft: 10, marginRight: 4 }}>
-                                                <Text style={itemStyles.musicTitle} numberOfLines={1}>{overlayItem.musicTitle}</Text>
-                                                <Text style={itemStyles.musicArtist} numberOfLines={1}>{overlayItem.musicArtist}</Text>
+                        <ViewShot ref={viewShotRef} options={{ format: "jpg", quality: 0.75 }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}>
+                            {/* Media nền */}
+                            {selectedStory?.mediaType === "TEXT" ? (
+                                <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, backgroundColor: parseBgColor(selectedStory?.backgroundConfig), justifyContent: "center", alignItems: "center", padding: 40 }}>
+                                    <Text style={{ color: "white", fontSize: 28, fontWeight: "bold", textAlign: "center" }}>{selectedStory?.caption}</Text>
+                                </View>
+                            ) : isVideoStory(selectedStory) ? (
+                                <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, backgroundColor: "#000" }} />
+                            ) : (
+                                <Image source={{ uri: getImageUrl(selectedStory?.mediaUrl) }} style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }} resizeMode="contain" />
+                            )}
+                            {/* Overlay pills bên trên */}
+                            {storyOverlayItems.map(overlayItem => {
+                                if (overlayItem.type === "music") {
+                                    return (
+                                        <View key={overlayItem.id} style={{ position: "absolute", left: overlayItem.x, top: overlayItem.y, transform: [{ rotate: `${overlayItem.rotation}deg` }, { scale: overlayItem.scale }] }}>
+                                            <View style={itemStyles.musicPill}>
+                                                {overlayItem.musicThumb ? (<Image source={{ uri: overlayItem.musicThumb }} style={itemStyles.musicThumb} />) : null}
+                                                <View style={{ flexShrink: 1, justifyContent: "center", marginLeft: 10, marginRight: 4 }}>
+                                                    <Text style={itemStyles.musicTitle} numberOfLines={1}>{overlayItem.musicTitle}</Text>
+                                                    <Text style={itemStyles.musicArtist} numberOfLines={1}>{overlayItem.musicArtist}</Text>
+                                                </View>
                                             </View>
                                         </View>
+                                    );
+                                }
+                                const fontStyle = overlayItem.textStyle === "italic" ? { fontStyle: "italic" as const } : overlayItem.textStyle === "bold" ? { fontWeight: "bold" as const } : {};
+                                return (
+                                    <View key={overlayItem.id} style={{ position: "absolute", left: overlayItem.x, top: overlayItem.y, transform: [{ rotate: `${overlayItem.rotation}deg` }, { scale: overlayItem.scale }] }}>
+                                        <View style={itemStyles.textPill}><Text style={[itemStyles.textContent, fontStyle]}>{overlayItem.textContent}</Text></View>
                                     </View>
                                 );
-                            }
-                            const fontStyle = overlayItem.textStyle === "italic" ? { fontStyle: "italic" as const } : overlayItem.textStyle === "bold" ? { fontWeight: "bold" as const } : {};
-                            return (
-                                <View key={overlayItem.id} style={{ position: "absolute", left: overlayItem.x, top: overlayItem.y, transform: [{ rotate: `${overlayItem.rotation}deg` }, { scale: overlayItem.scale }] }}>
-                                    <View style={itemStyles.textPill}><Text style={[itemStyles.textContent, fontStyle]}>{overlayItem.textContent}</Text></View>
-                                </View>
-                            );
-                        })}
-                    </ViewShot>
+                            })}
+                        </ViewShot>
                     </View>{/* end pointerEvents wrapper */}
 
                     <StoryProgressBars
@@ -3504,21 +3517,21 @@ export default function WorkScreen() {
                             <TouchableWithoutFeedback onPress={() => { setShowPrivacySheet(false); setIsPaused(false); }}>
                                 <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.55)" }]} />
                             </TouchableWithoutFeedback>
-                            <PrivacySheet 
-                                visible={showPrivacySheet} 
-                                privacyMode={privacyMode} 
+                            <PrivacySheet
+                                visible={showPrivacySheet}
+                                privacyMode={privacyMode}
                                 onSelect={async (mode) => {
                                     setPrivacyMode(mode);
                                     if (selectedStory) {
                                         try {
                                             const pVal = mode === "public" ? "ALL_FRIENDS" : mode === "only" ? "SPECIFIC" : "EXCLUDE";
                                             await updateStoryPrivacy(selectedStory.createdAt, pVal, privacyUsers);
-                                        } catch (e) {}
+                                        } catch (e) { }
                                     }
-                                }} 
-                                onClose={() => { setShowPrivacySheet(false); setIsPaused(false); }} 
-                                bottomInset={insets.bottom} 
-                                colors={colors} 
+                                }}
+                                onClose={() => { setShowPrivacySheet(false); setIsPaused(false); }}
+                                bottomInset={insets.bottom}
+                                colors={colors}
                             />
                         </View>
                     )}
