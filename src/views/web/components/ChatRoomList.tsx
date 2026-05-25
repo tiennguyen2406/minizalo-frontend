@@ -24,8 +24,10 @@ const ChatRoomList: React.FC<ChatRoomListProps> = React.memo(({ rooms, selectedR
                 ? 'Không có tin nhắn từ người lạ'
                 : 'Chưa có cuộc trò chuyện nào';
 
-    // Sort: pinned rooms first (preserve relative order), then rest by updatedAt
+    // Sort: Cloud luôn ở trên cùng, sau đó pinned rooms
     const sorted = [...rooms].sort((a, b) => {
+        if (a.type === 'CLOUD' && b.type !== 'CLOUD') return -1;
+        if (b.type === 'CLOUD' && a.type !== 'CLOUD') return 1;
         const aPinned = pinnedRooms.has(a.id);
         const bPinned = pinnedRooms.has(b.id);
         if (aPinned !== bPinned) return aPinned ? -1 : 1;

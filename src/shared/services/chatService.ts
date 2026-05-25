@@ -45,9 +45,11 @@ export interface MessageDynamo {
 
 export interface ChatRoomResponse {
     id: string;
-    type: "DIRECT" | "GROUP";
+    type: "DIRECT" | "GROUP" | "CLOUD";
     name: string;
     avatarUrl: string;
+    wallpaperUrl?: string | null;
+    description?: string | null;
     createdBy: UserResponse;
     createdAt: string;
     lastMessage?: MessageDynamo;
@@ -79,7 +81,8 @@ export interface PaginatedMessageResult {
 /** Map phòng từ API (sau accept kết bạn / tạo phòng) → model ChatRoom của store. */
 export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom {
     const id = String(room.id);
-    const type: ChatRoom["type"] = room.type === "GROUP" ? "GROUP" : "PRIVATE";
+    const type: ChatRoom["type"] =
+        room.type === "GROUP" ? "GROUP" : room.type === "CLOUD" ? "CLOUD" : "PRIVATE";
     const participants: ChatRoom["participants"] = (room.members || []).map((m: any) => ({
         id: m.user?.id != null ? String(m.user.id) : "",
         username: m.user?.username ?? "",
@@ -91,7 +94,9 @@ export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom 
         room.lastMessage?.createdAt ||
         (room.createdAt ? new Date(room.createdAt).toISOString() : new Date().toISOString());
     let resolvedName = room.name;
-    if (type === "PRIVATE" && (!resolvedName || !resolvedName.trim())) {
+    if (type === "CLOUD") {
+        resolvedName = "Cloud của tôi";
+    } else if (type === "PRIVATE" && (!resolvedName || !resolvedName.trim())) {
         const partnerParticipant = participants.find((p) => p.fullName && p.fullName.trim());
         resolvedName = partnerParticipant?.fullName || partnerParticipant?.username || "Người dùng";
     }
@@ -100,6 +105,8 @@ export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom 
         type,
         name: resolvedName || room.name,
         avatarUrl: room.avatarUrl,
+        wallpaperUrl: room.wallpaperUrl || undefined,
+        description: room.description || undefined,
         unreadCount: room.unreadCount ?? 0,
         updatedAt,
         participants,
@@ -214,6 +221,11 @@ export const chatService = {
     /** Lưu tên gợi nhớ cho phòng chat (1-1). Trả về phòng chat đã cập nhật. */
     saveNickname: async (roomId: string, nickname: string): Promise<ChatRoomResponse> => {
         const { data } = await api.put<ChatRoomResponse>(`/chat/rooms/${roomId}/nickname`, { nickname });
+        return data;
+    },
+
+    updateRoomWallpaper: async (roomId: string, wallpaperUrl: string): Promise<ChatRoomResponse> => {
+        const { data } = await api.put<ChatRoomResponse>(`/chat/rooms/${roomId}/wallpaper`, { wallpaperUrl });
         return data;
     },
 

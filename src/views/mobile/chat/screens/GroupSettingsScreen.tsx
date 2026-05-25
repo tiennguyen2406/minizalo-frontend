@@ -43,10 +43,10 @@ interface GroupSettingsScreenProps {
     members: GroupMember[];
     ownerId: string;
     onClose: () => void;
-    /** Mở danh sách thành viên (đóng overlay cài đặt trước khi gọi) */
+    /** Open members list after closing the settings overlay. */
     onOpenMembers?: () => void;
     onDisband: () => void;
-    /** Sau khi chuyển quyền / cập nhật settings */
+    /** After ownership/settings changes. */
     onRefreshGroup?: () => void;
 }
 
@@ -140,7 +140,7 @@ export default function GroupSettingsScreen({
     );
 
     const patchSettings = async (partial: Partial<GroupSettings>) => {
-        // Optimistic update để tránh Switch khác bị nhấp nháy khi server trả thiếu field.
+        // Optimistic update to keep switches stable while the server returns partial fields.
         setSettings((prev) => ({ ...(prev || {}), ...partial }));
         setSaving(true);
         try {
@@ -150,52 +150,6 @@ export default function GroupSettingsScreen({
             });
             setSettings((prev) => ({ ...(prev || {}), ...(next || {}) }));
             onRefreshGroup?.();
-
-            // Gửi 1 SYSTEM message vào chat để giống web (pill thông báo).
-            try {
-                const u = useAuthStore.getState().user;
-                const me =
-                    u?.fullName?.trim() ||
-                    (u as any)?.displayName?.trim?.() ||
-                    u?.username?.trim() ||
-                    "Ai đó";
-                const changed: string[] = [];
-                if (partial.allowMemberSendMessage != null) {
-                    changed.push(
-                        `quyền gửi tin nhắn ${partial.allowMemberSendMessage ? "đã bật" : "đã tắt"}`,
-                    );
-                }
-                if (partial.allowMemberCreatePoll != null) {
-                    changed.push(
-                        `quyền tạo bình chọn ${partial.allowMemberCreatePoll ? "đã bật" : "đã tắt"}`,
-                    );
-                }
-                if (partial.allowMemberPin != null) {
-                    changed.push(
-                        `quyền ghim tin nhắn ${partial.allowMemberPin ? "đã bật" : "đã tắt"}`,
-                    );
-                }
-                if (partial.requireApproval != null) {
-                    changed.push(
-                        `duyệt thành viên ${partial.requireApproval ? "đã bật" : "đã tắt"}`,
-                    );
-                }
-                if (partial.allowNewMemberReadHistory != null) {
-                    changed.push(
-                        `thành viên mới xem lịch sử ${partial.allowNewMemberReadHistory ? "đã bật" : "đã tắt"}`,
-                    );
-                }
-                if (changed.length > 0) {
-                    webSocketService.activate();
-                    webSocketService.sendChatMessage(
-                        groupId,
-                        `${me} đã cập nhật: ${changed.join(", ")}.`,
-                        "SYSTEM",
-                    );
-                }
-            } catch {
-                /* ignore */
-            }
         } catch (e: any) {
             Alert.alert("Lỗi", e?.response?.data?.message || "Cập nhật thất bại.");
             // rollback best-effort: refetch settings từ server
@@ -270,7 +224,7 @@ export default function GroupSettingsScreen({
             } catch {
                 /* ignore */
             }
-            // Refresh lại từ server để đảm bảo đồng bộ role/owner trong mọi trường hợp.
+            // Refetch from server to keep role/owner state in sync.
             try {
                 const fresh = await groupService.getGroupDetails(groupId);
                 setMembersState(fresh.members);
@@ -387,7 +341,7 @@ export default function GroupSettingsScreen({
             [
                 { text: "Hủy", style: "cancel" },
                 {
-                    text: "Chuyển",
+                    text: "Chuy?n",
                     onPress: async () => {
                         setSaving(true);
                         try {
@@ -414,6 +368,85 @@ export default function GroupSettingsScreen({
             </View>
         );
     }
+
+    const MemberSettingsRow = ({
+        icon,
+        label,
+        subtitle,
+        right,
+        onPress,
+        disabled,
+        first,
+        last,
+    }: {
+        icon: keyof typeof Ionicons.glyphMap;
+        label: string;
+        subtitle?: string;
+        right?: React.ReactNode;
+        onPress?: () => void;
+        disabled?: boolean;
+        first?: boolean;
+        last?: boolean;
+    }) => (
+        <TouchableOpacity
+            activeOpacity={0.72}
+            onPress={onPress}
+            disabled={disabled || !onPress}
+            style={{
+                minHeight: 62,
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                backgroundColor: colors.card,
+                opacity: disabled ? 0.55 : 1,
+                borderTopLeftRadius: first ? 14 : 0,
+                borderTopRightRadius: first ? 14 : 0,
+                borderBottomLeftRadius: last ? 14 : 0,
+                borderBottomRightRadius: last ? 14 : 0,
+            }}
+        >
+            <View
+                style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.primary + "14",
+                    marginRight: 12,
+                }}
+            >
+                <Ionicons name={icon} size={19} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0, justifyContent: "center" }}>
+                <Text style={{ color: colors.text, fontSize: 15.5, fontWeight: "700", lineHeight: 20 }} numberOfLines={1}>
+                    {label}
+                </Text>
+                {subtitle ? (
+                    <Text style={{ color: colors.textSecondary, fontSize: 12.5, marginTop: 3 }} numberOfLines={1}>
+                        {subtitle}
+                    </Text>
+                ) : null}
+            </View>
+            <View style={{ minWidth: 34, alignItems: "flex-end", justifyContent: "center", marginLeft: 10 }}>
+                {right || <ChevronRight />}
+            </View>
+            {!last ? (
+                <View
+                    pointerEvents="none"
+                    style={{
+                        position: "absolute",
+                        left: 62,
+                        right: 0,
+                        bottom: 0,
+                        height: 0.5,
+                        backgroundColor: colors.border,
+                    }}
+                />
+            ) : null}
+        </TouchableOpacity>
+    );
 
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -491,52 +524,49 @@ export default function GroupSettingsScreen({
                         borderColor: colors.border,
                     }}
                 >
-                    <GroupSettingsRow
+                    <MemberSettingsRow
+                        icon="people-outline"
                         label="Quản lý thành viên"
-                        right={<ChevronRight />}
-                        variant="menu"
                         onPress={() => {
                             onClose();
                             setTimeout(() => onOpenMembers?.(), 220);
                         }}
                         first
                     />
-                    <GroupSettingsRow
+                    <MemberSettingsRow
+                        icon="person-add-outline"
                         label="Duyệt thành viên"
                         right={
-                            <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: "600", lineHeight: 18 }}>
+                            <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: "700", lineHeight: 18 }}>
                                 {settings?.requireApproval ? "Đang bật" : "Đã tắt"}
                             </Text>
                         }
                         subtitle={!isOwner ? "Chỉ trưởng nhóm" : undefined}
-                        variant="menu"
                         onPress={() => {
                             if (!isOwner) return;
                             void patchSettings({ requireApproval: !settings?.requireApproval });
                         }}
                         disabled={!isOwner}
                     />
-                    <GroupSettingsRow
+                    <MemberSettingsRow
+                        icon="shield-checkmark-outline"
                         label="Trưởng và phó nhóm"
-                        right={<ChevronRight />}
                         subtitle={!isOwner ? "Chỉ trưởng nhóm" : undefined}
-                        variant="menu"
                         onPress={() => setRolesVisible(true)}
                         disabled={!isOwner}
                     />
-                    <GroupSettingsRow
+                    <MemberSettingsRow
+                        icon="ban-outline"
                         label="Chặn khỏi nhóm"
-                        right={<ChevronRight />}
                         subtitle={!isOwnerOrAdmin ? "Chỉ trưởng/phó nhóm" : undefined}
-                        variant="menu"
                         onPress={() => setBlockedVisible(true)}
                         disabled={!isOwnerOrAdmin}
+                        last={!isOwner}
                     />
                     {isOwner ? (
-                        <GroupSettingsRow
+                        <MemberSettingsRow
+                            icon="key-outline"
                             label="Chuyển quyền trưởng nhóm"
-                            right={<ChevronRight />}
-                            variant="menu"
                             onPress={() => setTransferVisible(true)}
                             last
                         />
@@ -661,66 +691,77 @@ export default function GroupSettingsScreen({
 
             <Modal visible={transferVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTransferVisible(false)}>
                 <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            paddingHorizontal: 16,
-                            paddingVertical: 12,
-                            borderBottomWidth: 0.5,
-                            borderBottomColor: colors.border,
-                            backgroundColor: colors.card,
-                        }}
-                    >
-                        <TouchableOpacity onPress={() => setTransferVisible(false)}>
-                            <Text style={{ color: colors.primary, fontSize: 16 }}>Hủy</Text>
-                        </TouchableOpacity>
-                        <Text style={{ fontSize: 17, fontWeight: "600", color: colors.text }}>Chọn trưởng nhóm mới</Text>
-                        <View style={{ width: 48 }} />
+                    <View style={{ backgroundColor: colors.headerBg }}>
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                paddingHorizontal: 16,
+                                minHeight: 58,
+                                borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                                borderBottomColor: colors.border,
+                            }}
+                        >
+                            <TouchableOpacity onPress={() => setTransferVisible(false)} style={{ paddingVertical: 8, minWidth: 64 }}>
+                                <Text style={{ color: colors.headerText, fontSize: 16, fontWeight: "700" }}>Hủy</Text>
+                            </TouchableOpacity>
+                            <Text style={{ fontSize: 17, fontWeight: "800", color: colors.headerText }} numberOfLines={1}>Chọn trưởng nhóm mới</Text>
+                            <View style={{ width: 64 }} />
+                        </View>
                     </View>
                     <FlatList
                         data={transferCandidates}
                         keyExtractor={(item) => item.userId}
-                        contentContainerStyle={{ paddingVertical: 8 }}
+                        contentContainerStyle={{ paddingVertical: 12, paddingBottom: 28, flexGrow: 1 }}
                         renderItem={({ item }) => {
-                            const avatar =
-                                item.avatarUrl ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(item.username)}&background=0068FF&color=fff`;
+                            const avatar = item.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.fullName || item.username)}&background=0068FF&color=fff`;
                             const isSelf = item.userId === currentUserId;
                             return (
                                 <TouchableOpacity
+                                    activeOpacity={0.75}
                                     style={{
                                         flexDirection: "row",
                                         alignItems: "center",
-                                        paddingHorizontal: 16,
-                                        paddingVertical: 12,
+                                        marginHorizontal: 12,
+                                        marginBottom: 8,
+                                        paddingHorizontal: 14,
+                                        paddingVertical: 13,
                                         backgroundColor: colors.card,
-                                        borderBottomWidth: 0.5,
-                                        borderBottomColor: colors.border,
+                                        borderRadius: 14,
+                                        borderWidth: 0.5,
+                                        borderColor: colors.border,
+                                        opacity: isSelf ? 0.55 : 1,
                                     }}
                                     onPress={() => !isSelf && handleTransfer(item.userId)}
                                     disabled={isSelf}
                                 >
-                                    <Image source={{ uri: avatar }} style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }} />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ fontSize: 16, color: colors.text }}>
+                                    <Image source={{ uri: avatar }} style={{ width: 48, height: 48, borderRadius: 24, marginRight: 12 }} />
+                                    <View style={{ flex: 1, minWidth: 0 }}>
+                                        <Text style={{ fontSize: 16, color: colors.text, fontWeight: "800" }} numberOfLines={1}>
                                             {item.fullName || item.username}
                                         </Text>
-                                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>{item.role}</Text>
+                                        <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 3 }}>{item.role}</Text>
                                     </View>
                                     {isSelf ? (
-                                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>Bạn</Text>
+                                        <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: "700" }}>Bạn</Text>
                                     ) : (
-                                        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                                        <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: colors.searchBg }}>
+                                            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                                        </View>
                                     )}
                                 </TouchableOpacity>
                             );
                         }}
                         ListEmptyComponent={
-                            <Text style={{ textAlign: "center", color: colors.textSecondary, marginTop: 24 }}>
-                                Không có thành viên khác để chuyển quyền.
-                            </Text>
+                            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28 }}>
+                                <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: colors.searchBg, alignItems: "center", justifyContent: "center" }}>
+                                    <Ionicons name="key-outline" size={30} color={colors.textSecondary} />
+                                </View>
+                                <Text style={{ textAlign: "center", color: colors.textSecondary, marginTop: 14, fontSize: 15, fontWeight: "600" }}>
+                                    Không có thành viên khác để chuyển quyền.
+                                </Text>
+                            </View>
                         }
                     />
                 </SafeAreaView>
@@ -734,7 +775,7 @@ export default function GroupSettingsScreen({
                 busy={saving || pickerBusy}
                 onClose={() => setRolesVisible(false)}
                 onAddAdmin={() => {
-                    // Tránh mở 2 Modal chồng nhau (iOS pageSheet) khiến picker bị "không hiện".
+                    // Avoid stacking two iOS pageSheet modals before opening the picker.
                     setRolesVisible(false);
                     setTimeout(() => openPicker("ADD_ADMIN"), 220);
                 }}
@@ -749,7 +790,7 @@ export default function GroupSettingsScreen({
                 canManage={isOwnerOrAdmin}
                 onClose={() => setBlockedVisible(false)}
                 onOpenBlockPicker={() => {
-                    // Tránh mở 2 Modal chồng nhau (iOS pageSheet) khiến picker bị "không hiện".
+                    // Avoid stacking two iOS pageSheet modals before opening the picker.
                     setBlockedVisible(false);
                     setTimeout(() => openPicker("BLOCK"), 220);
                 }}

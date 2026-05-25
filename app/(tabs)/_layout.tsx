@@ -37,9 +37,9 @@ export default function TabsLayout() {
     if (isWeb) {
         return (
             <AuthGuard mode="requireAuth">
-                <div style={{ display: "flex", minHeight: "100vh", width: "100%" }}>
+                <div style={{ display: "flex", height: "100vh", width: "100%", overflow: "hidden" }}>
                     <WebSidebar />
-                    <main style={{ flex: 1, minWidth: 0 }}>
+                    <main style={{ flex: 1, minWidth: 0, height: "100vh", overflow: "hidden" }}>
                         <Slot />
                     </main>
                 </div>
@@ -131,7 +131,7 @@ export default function TabsLayout() {
                 <Tabs.Screen name="create-group" options={{ href: null }} />
                 <Tabs.Screen name="personal-profile" options={{ href: null }} />
                 <Tabs.Screen name="profile-settings" options={{ href: null }} />
-                <Tabs.Screen name="friend-profile" options={{ href: null }} />
+                <Tabs.Screen name="friend-profile" options={{ href: null, tabBarStyle: { display: "none" } }} />
                 <Tabs.Screen name="appearance" options={{ href: null }} />
                 <Tabs.Screen name="search-sources" options={{ href: null }} />
             </Tabs>

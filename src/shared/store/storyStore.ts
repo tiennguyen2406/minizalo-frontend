@@ -37,7 +37,27 @@ interface StoryState {
     viewStory: (userId: string, createdAt: string) => Promise<void>;
     addReaction: (userId: string, createdAt: string, type: string) => Promise<void>;
     updateStoryPrivacy: (createdAt: string, privacy: string, permittedUserIds?: string[]) => Promise<void>;
+    applyRealtimeStoryViewed: (userId: string, createdAt: string, viewerId: string) => void;
+    applyRealtimeStoryReaction: (userId: string, createdAt: string, reactionUserId: string, type: string) => void;
 }
+
+const updateStory = (
+    stories: Story[],
+    userId: string,
+    createdAt: string,
+    updater: (story: Story) => Story,
+) => stories.map(story => story.userId === userId && story.createdAt === createdAt ? updater(story) : story);
+
+const inferMimeFromUri = (uri: string) => {
+    const ext = (uri.split('.').pop() || '').split('?')[0].toLowerCase();
+    if (['mp4', 'mov', 'm4v', 'webm', '3gp'].includes(ext)) {
+        return `video/${ext === 'mov' ? 'quicktime' : ext}`;
+    }
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(ext)) {
+        return `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+    }
+    return 'application/octet-stream';
+};
 
 export const useStoryStore = create<StoryState>((set, get) => ({
     feed: [],
@@ -73,12 +93,16 @@ export const useStoryStore = create<StoryState>((set, get) => ({
         const formData = new FormData();
         // Handle React Native vs Web file object
         if (file) {
-            if (typeof file === 'string') {
+            if (typeof file === 'string' || file?.uri) {
                 // Assume URI for mobile
-                const filename = file.split('/').pop() || 'upload.jpg';
-                const match = /\.(\w+)$/.exec(filename);
-                const type = match ? `image/${match[1]}` : `image`;
-                formData.append('file', { uri: file, name: filename, type } as any);
+                const uri = typeof file === 'string' ? file : file.uri;
+                const filename = file?.fileName || file?.name || uri.split('/').pop() || 'upload';
+                const inferredType = inferMimeFromUri(filename) || inferMimeFromUri(uri);
+                const type = file?.mimeType
+                    || (file?.type === 'video' && inferredType === 'application/octet-stream' ? 'video/mp4' : null)
+                    || (file?.type === 'image' && inferredType === 'application/octet-stream' ? 'image/jpeg' : null)
+                    || inferredType;
+                formData.append('file', { uri, name: filename, type } as any);
             } else {
                 formData.append('file', file);
             }
@@ -186,6 +210,37 @@ export const useStoryStore = create<StoryState>((set, get) => ({
         } catch (error) {
             console.error('Add reaction error:', error);
         }
+    },
+
+    applyRealtimeStoryViewed: (userId: string, createdAt: string, viewerId: string) => {
+        if (!viewerId) return;
+        set(state => ({
+            feed: updateStory(state.feed, userId, createdAt, story => ({
+                ...story,
+                viewers: story.viewers ? [...new Set([...story.viewers, viewerId])] : [viewerId],
+            })),
+            myStories: updateStory(state.myStories, userId, createdAt, story => ({
+                ...story,
+                viewers: story.viewers ? [...new Set([...story.viewers, viewerId])] : [viewerId],
+            })),
+        }));
+    },
+
+    applyRealtimeStoryReaction: (userId: string, createdAt: string, reactionUserId: string, type: string) => {
+        if (!reactionUserId || !type) return;
+        set(state => ({
+            feed: updateStory(state.feed, userId, createdAt, story => ({
+                ...story,
+                reactions: story.reactions
+                    ? [...story.reactions.filter(r => !r.startsWith(reactionUserId + ":")), `${reactionUserId}:${type}`]
+                    : [`${reactionUserId}:${type}`],
+            })),
+            myStories: updateStory(state.myStories, userId, createdAt, story => ({
+                ...story,
+                reactions: story.reactions
+                    ? [...story.reactions.filter(r => !r.startsWith(reactionUserId + ":")), `${reactionUserId}:${type}`]
+                    : [`${reactionUserId}:${type}`],
+            })),
+        }));
     }
 }));
-

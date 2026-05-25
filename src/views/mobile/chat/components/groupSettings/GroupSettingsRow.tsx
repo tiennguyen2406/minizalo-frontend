@@ -51,12 +51,12 @@ export function GroupSettingsRow({
   const colors = useThemeColors();
   const pressedBg = colors.searchBg || colors.separator;
   const isMenu = variant === "menu";
-  const rowMinHeight = centerLabel ? 60 : isMenu ? 60 : 52;
-  const rowPaddingV = centerLabel ? 18 : isMenu ? 18 : 14;
-  const labelFontSize = centerLabel ? 17 : isMenu ? 16.5 : 16;
+  const rowMinHeight = centerLabel ? 60 : isMenu ? 56 : 52;
+  const rowPaddingV = centerLabel ? 18 : isMenu ? 16 : 14;
+  const labelFontSize = centerLabel ? 17 : isMenu ? 16 : 16;
   const labelLineHeight = centerLabel ? 24 : isMenu ? 22 : 22;
   const labelFontWeight = centerLabel ? "700" : danger ? "700" : "400";
-  const rowPaddingH = isMenu ? 18 : 16;
+  const rowPaddingH = 16;
   const baseStyle = {
     flexDirection: "row" as const,
     alignItems: "center" as const,
@@ -118,9 +118,9 @@ export function GroupSettingsRow({
             flexShrink: 0,
             alignItems: "flex-end",
             justifyContent: "center",
-            minWidth: isMenu ? 44 : 28,
-            paddingLeft: isMenu ? 12 : 8,
-            paddingRight: isMenu ? 2 : 0,
+            minWidth: isMenu ? 36 : 28,
+            paddingLeft: isMenu ? 10 : 8,
+            paddingRight: 0,
           }}
         >
           {right}

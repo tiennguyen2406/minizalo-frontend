@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useGroupStore } from '@/shared/store/useGroupStore';
 import { groupService } from '@/shared/services/groupService';
 import { ToggleSwitch } from './ChatInfoHelpers';
-import { BlockedMember } from '@/shared/types';
+import { BlockedMember, GroupSettings } from '@/shared/types';
 import { useAuthStore } from '@/shared/store/authStore';
 import ConfirmModal from './ConfirmModal';
 import { useChatStore } from '@/shared/store/useChatStore';
@@ -13,10 +13,19 @@ interface GroupManagementPanelProps {
     onClosePanel?: () => void;
 }
 
+type GroupSettingToggleKey =
+    | 'allowMemberChangeName'
+    | 'allowMemberPin'
+    | 'allowMemberCreatePoll'
+    | 'allowMemberSendMessage'
+    | 'requireApproval'
+    | 'allowNewMemberReadHistory'
+    | 'allowJoinByLink';
+
 const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePanel }) => {
     const { currentGroupDetail, closeGroupManagement, updateCurrentGroupDetail } = useGroupStore();
     const { user } = useAuthStore();
-    const [settings, setSettings] = useState(currentGroupDetail?.settings ?? null);
+    const [settings, setSettings] = useState<GroupSettings | null>(currentGroupDetail?.settings ?? null);
     const [loading, setLoading] = useState(false);
     const [settingsError, setSettingsError] = useState<string | null>(null);
 
@@ -79,28 +88,81 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
         window.setTimeout(() => setToast(null), 2200);
     };
 
+    const isPhoneLikeName = (value?: string | null) => {
+        const text = String(value || '').trim();
+        return !!text && /^[+\d\s().-]{8,}$/.test(text);
+    };
+
+    const getActorName = () => {
+        const me = currentGroupDetail.members.find((m) => m.userId === user?.id);
+        const candidates = [
+            me?.fullName,
+            (user as any)?.displayName,
+            user?.fullName,
+        ];
+        return candidates.find((name) => {
+            const text = String(name || '').trim();
+            return text && !isPhoneLikeName(text);
+        })?.trim() || 'Một quản trị viên';
+    };
+
+    const settingLabels: Record<GroupSettingToggleKey, string> = {
+        allowMemberChangeName: 'quyền sửa thông tin nhóm',
+        allowMemberPin: 'quyền ghim tin nhắn',
+        allowMemberCreatePoll: 'quyền tạo bình chọn',
+        allowMemberSendMessage: 'quyền gửi tin nhắn',
+        requireApproval: 'chế độ phê duyệt thành viên mới',
+        allowNewMemberReadHistory: 'quyền xem lịch sử trò chuyện',
+        allowJoinByLink: 'chế độ tham gia bằng link',
+    };
+
+    const addLocalSettingsNotice = (key: GroupSettingToggleKey, value: boolean) => {
+        const roomId = currentGroupDetail.id;
+        const tempId = `temp-settings-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        useChatStore.getState().addMessage(roomId, {
+            id: tempId,
+            senderId: user?.id || 'system',
+            senderName: getActorName(),
+            roomId,
+            content: `${getActorName()} đã thay đổi ${settingLabels[key]} ${value ? 'thành bật' : 'thành tắt'}.`,
+            type: 'SYSTEM',
+            createdAt: new Date().toISOString(),
+        });
+        return tempId;
+    };
+
+    const removeLocalNotice = (tempId: string) => {
+        const roomId = currentGroupDetail.id;
+        const current = useChatStore.getState().messages[roomId] || [];
+        useChatStore.getState().setMessages(
+            roomId,
+            current.filter((m) => m.id !== tempId),
+        );
+    };
+
     const pushSystemMessage = (text: string) => {
         const roomId = currentGroupDetail.id;
-        // Backend hiện tại thường lưu SYSTEM thành TEXT (sender = người thao tác).
-        // Ta gửi như TEXT để đảm bảo lưu/broadcast, còn UI sẽ render dạng SYSTEM theo heuristic.
+        const senderName = getActorName();
         const myId = user?.id || 'system';
         useChatStore.getState().addMessage(roomId, {
             id: `temp-sys-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
             senderId: myId,
+            senderName,
             roomId,
             content: text,
             type: 'SYSTEM',
             createdAt: new Date().toISOString(),
         });
-        const sent = webSocketService.sendChatMessage(roomId, text, 'TEXT');
+        const sent = webSocketService.sendChatMessage(roomId, text, 'SYSTEM');
         if (!sent) {
             showToast('Chưa thể gửi thông báo (mất kết nối).');
         }
     };
 
-    const handleToggle = async (key: keyof typeof settings, value: boolean) => {
+    const handleToggle = async (key: GroupSettingToggleKey, value: boolean) => {
         if (!settings) return;
         if (key === 'requireApproval' && !isOwner) return;
+        const tempNoticeId = addLocalSettingsNotice(key, value);
         setLoading(true);
         try {
             const newSettings = await groupService.updateGroupSettings({
@@ -111,16 +173,18 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
             updateCurrentGroupDetail({ ...currentGroupDetail, settings: newSettings });
         } catch (error) {
             console.error('Failed to update group settings:', error);
+            removeLocalNotice(tempNoticeId);
         } finally {
             setLoading(false);
         }
     };
 
     const handleRefreshLink = async () => {
+        if (!settings) return;
         setLoading(true);
         try {
             const newLink = await groupService.refreshJoinLink(currentGroupDetail.id);
-            const updatedSettings = { ...settings, joinLink: newLink };
+            const updatedSettings: GroupSettings = { ...settings, joinLink: newLink };
             setSettings(updatedSettings);
             updateCurrentGroupDetail({ ...currentGroupDetail, settings: updatedSettings });
             showToast('Đã tạo link mới');

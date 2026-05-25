@@ -86,6 +86,7 @@ interface ChatState {
     currentRoomId: string | null;
     pinnedRooms: Set<string>; // roomIds that are pinned to top
     mutedRooms: Set<string>; // roomIds that are muted
+    hiddenRooms: Set<string>; // roomIds hidden from main chat list
     roomPagination: Record<string, { lastKey: string | null, hasMore: boolean, loading: boolean }>; 
 
     highlightedMessageId: string | null;
@@ -119,6 +120,8 @@ interface ChatState {
     markRoomAsUnread: (roomId: string, count?: number) => void;
     togglePinRoom: (roomId: string) => void;
     toggleMuteRoom: (roomId: string) => void;
+    toggleHiddenRoom: (roomId: string) => void;
+    isRoomHidden: (roomId: string | null | undefined) => boolean;
     /** Phòng có đang tắt thông báo (so khớp id đã chuẩn hóa string). */
     isRoomMuted: (roomId: string | null | undefined) => boolean;
     clearConversation: (roomId: string) => Promise<void>;
@@ -149,6 +152,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     currentRoomId: null,
     pinnedRooms: safeLoadSet(getScopedKey('pinnedRooms')),
     mutedRooms: safeLoadSet(getScopedKey('mutedRooms')),
+    hiddenRooms: safeLoadSet(getScopedKey('hiddenRooms')),
     roomPagination: {},
     highlightedMessageId: null,
     pendingOpenRoomId: null,
@@ -431,9 +435,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return { mutedRooms: next };
     }),
 
+    toggleHiddenRoom: (roomId) => set((state) => {
+        lastChatPrefsMutationAt = Date.now();
+        const id = String(roomId);
+        const next = new Set<string>();
+        for (const x of state.hiddenRooms) next.add(String(x));
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        safeSaveSet(getScopedKey('hiddenRooms'), next);
+        return { hiddenRooms: next };
+    }),
+
     isRoomMuted: (roomId) => {
         if (roomId == null || roomId === '') return false;
         return get().mutedRooms.has(String(roomId));
+    },
+
+    isRoomHidden: (roomId) => {
+        if (roomId == null || roomId === '') return false;
+        return get().hiddenRooms.has(String(roomId));
     },
 
     clearConversation: async (roomId) => {
@@ -667,6 +687,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentRoomId: null,
         pinnedRooms: safeLoadSet(getScopedKey('pinnedRooms')),
         mutedRooms: safeLoadSet(getScopedKey('mutedRooms')),
+        hiddenRooms: safeLoadSet(getScopedKey('hiddenRooms')),
         roomPagination: {},
         highlightedMessageId: null,
         pendingOpenRoomId: null,
@@ -687,16 +708,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (isWeb) {
             const pinnedRooms = safeLoadSet(getScopedKey('pinnedRooms'));
             const mutedRooms = safeLoadSet(getScopedKey('mutedRooms'));
-            useChatStore.setState({ pinnedRooms, mutedRooms });
+            const hiddenRooms = safeLoadSet(getScopedKey('hiddenRooms'));
+            useChatStore.setState({ pinnedRooms, mutedRooms, hiddenRooms });
         } else {
             const fetchStarted = Date.now();
             Promise.all([
                 mobileRehydrateSet(getScopedKey('pinnedRooms')),
                 mobileRehydrateSet(getScopedKey('mutedRooms')),
-            ]).then(([pinnedRooms, mutedRooms]) => {
+                mobileRehydrateSet(getScopedKey('hiddenRooms')),
+            ]).then(([pinnedRooms, mutedRooms, hiddenRooms]) => {
                 if (lastChatPrefsMutationAt > fetchStarted) return;
                 const mutedNorm = new Set([...mutedRooms].map((x) => String(x)));
-                useChatStore.setState({ pinnedRooms, mutedRooms: mutedNorm });
+                const hiddenNorm = new Set([...hiddenRooms].map((x) => String(x)));
+                useChatStore.setState({ pinnedRooms, mutedRooms: mutedNorm, hiddenRooms: hiddenNorm });
             });
         }
     });
@@ -708,9 +732,11 @@ if (!isWeb) {
     Promise.all([
         mobileRehydrateSet(getScopedKey('pinnedRooms')),
         mobileRehydrateSet(getScopedKey('mutedRooms')),
-    ]).then(([pinnedRooms, mutedRooms]) => {
+        mobileRehydrateSet(getScopedKey('hiddenRooms')),
+    ]).then(([pinnedRooms, mutedRooms, hiddenRooms]) => {
         if (lastChatPrefsMutationAt > initialRehydrateStarted) return;
         const mutedNorm = new Set([...mutedRooms].map((x) => String(x)));
-        useChatStore.setState({ pinnedRooms, mutedRooms: mutedNorm });
+        const hiddenNorm = new Set([...hiddenRooms].map((x) => String(x)));
+        useChatStore.setState({ pinnedRooms, mutedRooms: mutedNorm, hiddenRooms: hiddenNorm });
     });
 }

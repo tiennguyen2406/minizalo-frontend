@@ -10,7 +10,9 @@ import { AppState, Platform } from 'react-native';
 import type { IMessage } from '@stomp/stompjs';
 import { useAuthStore } from '@/shared/store/authStore';
 import { useChatStore } from '@/shared/store/useChatStore';
-import { chatService, ChatRoomResponse } from '@/shared/services/chatService';
+import { usePostStore } from '@/shared/store/postStore';
+import { useStoryStore } from '@/shared/store/storyStore';
+import { chatService, ChatRoomResponse, mapChatRoomResponseToFrontend } from '@/shared/services/chatService';
 import { webSocketService } from '@/shared/services/WebSocketService';
 import { ChatRoom } from '../types';
 import axios from 'axios';
@@ -29,57 +31,13 @@ function mapChatRoomResponsesToStore(
     existingRooms: ChatRoom[],
 ): ChatRoom[] {
     const allRooms: ChatRoom[] = data.map((r) => {
-        const existing = existingRooms.find((er) => er.id === r.id);
-        let resolvedName = r.name;
-        if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
-            const partner = (r.members || []).find(
-                (m: any) => (m.user?.id || m.id) !== currentUserId,
-            );
-            resolvedName =
-                partner?.user?.displayName ||
-                partner?.user?.username ||
-                partner?.displayName ||
-                partner?.username ||
-                'Người dùng';
-        }
-        return {
-            id: r.id,
-            name: resolvedName || 'Người dùng',
-            avatarUrl: r.avatarUrl || undefined,
-            type: r.type === 'DIRECT' ? 'PRIVATE' : 'GROUP',
-            lastMessage: r.lastMessage
-                ? {
-                      id: r.lastMessage.messageId,
-                      senderId: r.lastMessage.senderId,
-                      senderName: r.lastMessage.senderName || undefined,
-                      roomId: r.id,
-                      content: r.lastMessage.content,
-                      type: (r.lastMessage.type as any) || 'TEXT',
-                      createdAt: r.lastMessage.createdAt,
-                  }
-                : undefined,
-            unreadCount: (() => {
-                const ridStr = String(r.id);
-                const currentOpen = useChatStore.getState().currentRoomId;
-                if (currentOpen && String(currentOpen) === ridStr) return 0;
-                
-                // Tin tưởng vào server unreadCount khi sync danh sách phòng
-                return r.unreadCount || 0;
-            })(),
-            participants: (r.members || []).map((m: any) => ({
-                id: m.user?.id || m.id || '',
-                username: m.user?.username || m.username || '',
-                fullName:
-                    m.user?.displayName ||
-                    m.user?.fullName ||
-                    m.displayName ||
-                    m.fullName ||
-                    '',
-                avatarUrl: m.user?.avatarUrl || m.avatarUrl || undefined,
-            })),
-            updatedAt: r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
-            disbanded: !!r.disbanded,
-        };
+        const base = mapChatRoomResponseToFrontend(r);
+        // Ensure unreadCount=0 if currently open
+        const ridStr = String(r.id);
+        const currentOpen = useChatStore.getState().currentRoomId;
+        const unreadCount =
+            currentOpen && String(currentOpen) === ridStr ? 0 : (r.unreadCount || 0);
+        return { ...base, unreadCount };
     });
     allRooms.sort(
         (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
@@ -325,10 +283,103 @@ function useGlobalChatTopicSubscriptions() {
     }, []);
 }
 
+type StoryRealtimeEvent = {
+    type?: string;
+    ownerId?: string;
+    createdAt?: string;
+    viewerId?: string;
+    reactionUserId?: string;
+    reactionType?: string;
+};
+
+type PostRealtimeEvent = {
+    type?: string;
+    postId?: string;
+    userId?: string;
+};
+
+function useSocialRealtimeSubscriptions() {
+    const accessToken = useAuthStore((s) => s.accessToken);
+    const currentUserId = useAuthStore((s) => s.user?.id);
+
+    useEffect(() => {
+        if (!accessToken) return;
+
+        webSocketService.activate(accessToken);
+
+        const storyDest = '/topic/social/stories';
+        const postDest = '/topic/social/posts';
+
+        const refreshStories = (ownerId?: string) => {
+            void useStoryStore.getState().fetchFeed();
+            if (ownerId && ownerId === useAuthStore.getState().user?.id) {
+                void useStoryStore.getState().fetchMyStories();
+            }
+        };
+
+        const storyHandler = (stompMsg: IMessage) => {
+            try {
+                const raw = String(stompMsg.body || '').trim();
+                if (!raw) return;
+                const payload = JSON.parse(raw) as StoryRealtimeEvent;
+                if (!payload.ownerId || !payload.createdAt) {
+                    refreshStories(payload.ownerId);
+                    return;
+                }
+
+                if (payload.type === 'STORY_VIEWED' && payload.viewerId) {
+                    useStoryStore
+                        .getState()
+                        .applyRealtimeStoryViewed(payload.ownerId, payload.createdAt, payload.viewerId);
+                    return;
+                }
+
+                if (payload.type === 'STORY_REACTED' && payload.reactionUserId && payload.reactionType) {
+                    useStoryStore
+                        .getState()
+                        .applyRealtimeStoryReaction(
+                            payload.ownerId,
+                            payload.createdAt,
+                            payload.reactionUserId,
+                            payload.reactionType,
+                        );
+                    return;
+                }
+
+                refreshStories(payload.ownerId);
+            } catch (err) {
+                console.error('[useWebSocketManager] social story event parse:', err);
+            }
+        };
+
+        const postHandler = (stompMsg: IMessage) => {
+            try {
+                const raw = String(stompMsg.body || '').trim();
+                const payload = raw ? JSON.parse(raw) as PostRealtimeEvent : {};
+                if (payload.userId && payload.userId === useAuthStore.getState().user?.id) {
+                    return;
+                }
+            } catch (err) {
+                console.error('[useWebSocketManager] social post event parse:', err);
+            }
+            void usePostStore.getState().fetchFeed({ silent: true });
+        };
+
+        webSocketService.subscribe(storyDest, storyHandler);
+        webSocketService.subscribe(postDest, postHandler);
+
+        return () => {
+            webSocketService.unsubscribe(storyDest, storyHandler);
+            webSocketService.unsubscribe(postDest, postHandler);
+        };
+    }, [accessToken, currentUserId]);
+}
+
 export function useWebSocketManager() {
     useChatErrorsSubscription();
     useRoomUpdatesSubscription();
     useGlobalChatTopicSubscriptions();
+    useSocialRealtimeSubscriptions();
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
     _useWebSocketManagerBoth();
@@ -386,59 +437,23 @@ function _useWebSocketManagerWeb() {
             const data: ChatRoomResponse[] = await chatService.getChatRooms();
             const existingRooms = useChatStore.getState().rooms;
             const allRooms: ChatRoom[] = data.map((r) => {
-                const existing = existingRooms.find((er) => er.id === r.id);
-                let resolvedName = r.name;
-                if (r.type === 'DIRECT' && (!resolvedName || resolvedName.trim() === '')) {
-                    const partner = (r.members || []).find(
-                        (m: any) => (m.user?.id || m.id) !== user?.id,
-                    );
-                    resolvedName =
-                        partner?.user?.displayName ||
-                        partner?.user?.username ||
-                        partner?.displayName ||
-                        partner?.username ||
-                        'Người dùng';
-                }
+                const base = mapChatRoomResponseToFrontend(r);
+                const ridStr = String(r.id);
+                const currentOpen = useChatStore.getState().currentRoomId;
+                const existing = existingRooms.find((er) => String(er.id) === ridStr);
+                const unreadCount =
+                    currentOpen && String(currentOpen) === ridStr
+                        ? 0
+                        : Math.max(
+                              existing?.unreadCount ?? 0,
+                              r.unreadCount || 0,
+                          );
                 return {
-                    id: r.id,
-                    name: resolvedName || 'Người dùng',
-                    avatarUrl: r.avatarUrl || undefined,
-                    type: r.type === 'DIRECT' ? 'PRIVATE' : 'GROUP',
-                    lastMessage: r.lastMessage
-                        ? {
-                              id: r.lastMessage.messageId,
-                              senderId: r.lastMessage.senderId,
-                              senderName: r.lastMessage.senderName || undefined,
-                              roomId: r.id,
-                              content: r.lastMessage.content,
-                              type: (r.lastMessage.type as any) || 'TEXT',
-                              createdAt: r.lastMessage.createdAt,
-                          }
-                        : undefined,
-                    unreadCount: (() => {
-                        const ridStr = String(r.id);
-                        const currentOpen = useChatStore.getState().currentRoomId;
-                        if (currentOpen && String(currentOpen) === ridStr) return 0;
-                        
-                        return Math.max(
-                            existing ? (existing.unreadCount ?? 0) : 0,
-                            r.unreadCount || 0,
-                        );
-                    })(),
-                    participants: (r.members || []).map((m: any) => ({
-                        id: m.user?.id || m.id || '',
-                        username: m.user?.username || m.username || '',
-                        fullName:
-                            m.user?.displayName ||
-                            m.user?.fullName ||
-                            m.displayName ||
-                            m.fullName ||
-                            '',
-                        avatarUrl: m.user?.avatarUrl || m.avatarUrl || undefined,
-                    })),
-                    updatedAt:
-                        r.lastMessage?.createdAt || r.createdAt || new Date().toISOString(),
-                    disbanded: !!r.disbanded,
+                    ...base,
+                    avatarUrl: base.avatarUrl || existing?.avatarUrl,
+                    wallpaperUrl: base.wallpaperUrl || existing?.wallpaperUrl,
+                    description: base.description || existing?.description,
+                    unreadCount,
                 };
             });
             allRooms.sort(

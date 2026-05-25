@@ -7,6 +7,8 @@ function mapGroupResponse(data: any): GroupDetail {
         id: data.id,
         groupName: data.groupName,
         avatarUrl: data.avatarUrl || undefined,
+        wallpaperUrl: data.wallpaperUrl || undefined,
+        description: data.description || undefined,
         ownerId: data.ownerId,
         createdAt: data.createdAt || new Date().toISOString(),
         members: (data.members || []).map((m: any) => ({
@@ -99,6 +101,16 @@ export const groupService = {
         return mapGroupResponse(data);
     },
 
+    async updateGroupWallpaper(groupId: string, wallpaperUrl: string): Promise<GroupDetail> {
+        const { data } = await api.put('/group', { groupId, wallpaperUrl });
+        return mapGroupResponse(data);
+    },
+
+    async updateGroupDescription(groupId: string, description: string): Promise<GroupDetail> {
+        const { data } = await api.put('/group', { groupId, description });
+        return mapGroupResponse(data);
+    },
+
     /** Giải tán nhóm */
     async disbandGroup(groupId: string): Promise<void> {
         await api.delete(`/group/${groupId}`);
@@ -110,8 +122,17 @@ export const groupService = {
 
     /** Lấy cấu hình nhóm */
     async getGroupSettings(groupId: string): Promise<GroupSettings> {
-        const { data } = await api.get(`/group/${groupId}/settings`);
-        return data;
+        try {
+            const { data } = await api.get(`/group/${groupId}/settings`);
+            return data;
+        } catch (e: any) {
+            // Avoid noisy console errors on web when backend returns 500 temporarily
+            // (e.g. DB migration / stale group ids). Caller already handles fallback.
+            if ((e as any)?.response?.status === 500) {
+                return {} as any;
+            }
+            throw e;
+        }
     },
 
     /** Cập nhật cấu hình nhóm */

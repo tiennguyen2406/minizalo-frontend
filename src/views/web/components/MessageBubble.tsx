@@ -249,8 +249,37 @@ function isGroupActionSystemText(text?: string | null): boolean {
     return (
         /đã phong .* làm phó nhóm/i.test(t) ||
         /đã xóa quyền phó nhóm/i.test(t) ||
-        /đã chặn .* khỏi nhóm/i.test(t)
+        /đã chặn .* khỏi nhóm/i.test(t) ||
+        /đã thay đổi .* thành (bật|tắt)/i.test(t) ||
+        /đã cập nhật: quyền .* (được bật|đã tắt)/i.test(t)
     );
+}
+
+function isPhoneLikeName(value?: string | null): boolean {
+    const text = String(value || '').trim();
+    return !!text && /^[+\d\s().-]{8,}$/.test(text);
+}
+
+function getSystemDisplayContent(message: Message): string {
+    const content = String(message.content || '').trim();
+    const actorName = !isPhoneLikeName(message.senderName) ? String(message.senderName || '').trim() : '';
+
+    if (!content || !actorName) return content;
+
+    const legacyUpdate = content.match(/^(.+?)\s+đã cập nhật:\s*(.+)$/i);
+    if (legacyUpdate && isPhoneLikeName(legacyUpdate[1])) {
+        const detail = legacyUpdate[2]
+            .replace(/\s+được bật\.?$/i, ' thành bật.')
+            .replace(/\s+đã tắt\.?$/i, ' thành tắt.');
+        return `${actorName} đã thay đổi ${detail}`;
+    }
+
+    const changedByPhone = content.match(/^(.+?)\s+(đã thay đổi\s+.+)$/i);
+    if (changedByPhone && isPhoneLikeName(changedByPhone[1])) {
+        return `${actorName} ${changedByPhone[2]}`;
+    }
+
+    return content;
 }
 
 const MULTI_IMG_MAX = 4;
@@ -918,7 +947,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         )}
                     </span>
                     <span className="truncate">
-                        {message.content}
+                        {getSystemDisplayContent(message)}
                         {!message.isRecall && message.replyToId && (
                             <span
                                 className="text-blue-500 font-medium ml-1 cursor-pointer hover:underline"
