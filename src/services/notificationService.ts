@@ -4,6 +4,7 @@ import { Platform, LogBox } from 'react-native';
 import axios from 'axios';
 import { useAuthStore } from '@/shared/store/authStore';
 import { api, API_BASE_URL } from '@/shared/services/apiClient';
+import { useNotificationSettingsStore } from '@/shared/store/notificationSettingsStore';
 
 // ─── LỖI EXPO GO SDK 53+ ───
 // Thư viện expo-notifications đã loại bỏ hỗ trợ Push Notification trên Expo Go.
@@ -11,6 +12,18 @@ import { api, API_BASE_URL } from '@/shared/services/apiClient';
 // Chúng ta sẽ kiểm tra xem có đang chạy trong Expo Go hay không trước khi nạp.
 
 const isExpoGo = Constants.appOwnership === 'expo';
+
+async function waitForNotificationSettingsHydration(): Promise<void> {
+    const persistedStore = useNotificationSettingsStore.persist;
+    if (persistedStore.hasHydrated()) return;
+
+    await new Promise<void>((resolve) => {
+        const unsubscribe = persistedStore.onFinishHydration(() => {
+            unsubscribe();
+            resolve();
+        });
+    });
+}
 
 const getNotifications = () => {
     // Chỉ chặn cứng trên Android Expo Go vì gây crash đỏ màn hình ngay lập tức trên SDK 53+.
@@ -41,11 +54,11 @@ export function initNotificationHandler() {
     try {
         Notifications.setNotificationHandler({
             handleNotification: async () => ({
-                shouldShowAlert: true,
-                shouldPlaySound: true,
+                shouldShowAlert: useNotificationSettingsStore.getState().enabled,
+                shouldPlaySound: useNotificationSettingsStore.getState().enabled,
                 shouldSetBadge: false,
-                shouldShowBanner: true,
-                shouldShowList: true,
+                shouldShowBanner: useNotificationSettingsStore.getState().enabled,
+                shouldShowList: useNotificationSettingsStore.getState().enabled,
             }),
         });
     } catch (err) {
@@ -60,7 +73,7 @@ async function sendTokenToBackend(pushToken: string): Promise<void> {
     const token = useAuthStore.getState().accessToken;
     if (!token) return;
     try {
-        await api.put('/users/fcm-token', pushToken, {
+        await api.put('/users/fcm-token', pushToken || ' ', {
             headers: { 'Content-Type': 'text/plain' },
         });
         console.log('[notificationService] FCM token sent to backend');
@@ -72,10 +85,30 @@ async function sendTokenToBackend(pushToken: string): Promise<void> {
     }
 }
 
+export async function unregisterForPushNotificationsAsync(): Promise<void> {
+    const Notifications = getNotifications();
+
+    try {
+        await sendTokenToBackend('');
+    } catch {
+        // sendTokenToBackend already logs non-401 failures.
+    }
+
+    try {
+        await Notifications?.dismissAllNotificationsAsync?.();
+        await Notifications?.cancelAllScheduledNotificationsAsync?.();
+    } catch (err: any) {
+        console.log('[notificationService] Lỗi dọn thông báo:', err?.message);
+    }
+}
+
 /**
  * Request permission, get Expo Push Token, send to backend.
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
+    await waitForNotificationSettingsHydration();
+    if (!useNotificationSettingsStore.getState().enabled) return null;
+
     const Notifications = getNotifications();
     if (!Notifications) return null;
 
@@ -147,6 +180,8 @@ export async function setupCallNotificationChannel() {
 const callNotificationIds = new Set<string>();
 
 export async function showCallNotification(callerName: string, callType: string): Promise<string | null> {
+    if (!useNotificationSettingsStore.getState().enabled) return null;
+
     const Notifications = getNotifications();
     if (!Notifications) return null;
 
@@ -189,6 +224,8 @@ export async function dismissCallNotifications() {
  * Hiển thị thông báo cục bộ (Local Notification)
  */
 export async function showLocalNotification(title: string, body: string, data?: any) {
+    if (!useNotificationSettingsStore.getState().enabled) return;
+
     const Notifications = getNotifications();
     if (!Notifications) return;
 

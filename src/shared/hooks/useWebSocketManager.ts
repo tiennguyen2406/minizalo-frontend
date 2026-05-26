@@ -24,6 +24,7 @@ import { addIncomingChatMessageFromStomp } from '@/shared/utils/chatWebSocketInb
 import { getDirectChatPartnerDisplayName } from '@/shared/utils/strangerChatRooms';
 import { useInAppNotifStore } from '@/views/mobile/chat/components/InAppNotification';
 import { showLocalNotification } from '@/services/notificationService';
+import { useNotificationSettingsStore } from '@/shared/store/notificationSettingsStore';
 
 function mapChatRoomResponsesToStore(
     currentUserId: string | undefined,
@@ -222,7 +223,8 @@ function useGlobalChatTopicSubscriptions() {
                     const senderId =
                         typeof dynamo.senderId === 'string' ? dynamo.senderId : '';
                     const myId = useAuthStore.getState().user?.id;
-                    if (senderId && myId && senderId !== myId && !isCurrentlyViewing) {
+                    const notificationsEnabled = useNotificationSettingsStore.getState().enabled;
+                    if (notificationsEnabled && senderId && myId && senderId !== myId && !isCurrentlyViewing) {
                         if (!useChatStore.getState().isRoomMuted(roomId)) {
                             const roomData = useChatStore
                                 .getState()

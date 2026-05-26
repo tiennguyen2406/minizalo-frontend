@@ -25,7 +25,7 @@ import { useThemeColors, ThemeColors } from "@/shared/theme/colors";
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#f5f5f5",
+        backgroundColor: colors.background,
     },
     header: {
         height: 52,
@@ -33,7 +33,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         paddingHorizontal: 16,
-        backgroundColor: "#0068FF",
+        backgroundColor: colors.headerBg,
     },
     backButton: {
         position: "absolute",
@@ -44,45 +44,45 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: "600",
-        color: "#ffffff",
+        color: colors.headerText,
     },
     avatarSection: {
         alignItems: "center",
         paddingVertical: 24,
-        backgroundColor: "#ffffff",
+        backgroundColor: colors.card,
     },
     avatarLarge: {
         width: 96,
         height: 96,
         borderRadius: 48,
-        backgroundColor: "#e0e0e0",
+        backgroundColor: colors.avatarBg,
     },
     infoCard: {
-        backgroundColor: "#ffffff",
+        backgroundColor: colors.card,
         marginTop: 8,
         paddingHorizontal: 20,
     },
     infoRow: {
         paddingVertical: 16,
         borderBottomWidth: 0.5,
-        borderBottomColor: "#e5e7eb",
+        borderBottomColor: colors.border,
     },
     infoRowLast: {
         borderBottomWidth: 0,
     },
     infoLabel: {
         fontSize: 13,
-        color: "#8e8e93",
+        color: colors.textSecondary,
         marginBottom: 4,
     },
     infoValue: {
         fontSize: 16,
-        color: "#1c1c1e",
+        color: colors.text,
         fontWeight: "400",
     },
     infoValuePlaceholder: {
         fontSize: 16,
-        color: "#c7c7cc",
+        color: colors.textSecondary,
         fontStyle: "italic",
     },
     editButtonContainer: {
@@ -90,7 +90,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
         paddingVertical: 24,
     },
     editButton: {
-        backgroundColor: "#0068FF",
+        backgroundColor: colors.primary,
         borderRadius: 12,
         paddingVertical: 14,
         alignItems: "center",
@@ -109,7 +109,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
         width: 40,
         height: 4,
         borderRadius: 2,
-        backgroundColor: "#d1d5db",
+        backgroundColor: colors.border,
         alignSelf: "center",
         marginBottom: 16,
     },
@@ -123,13 +123,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     modalTitle: {
         fontSize: 18,
         fontWeight: "700",
-        color: "#1c1c1e",
+        color: colors.text,
     },
     modalCloseButton: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: "#f3f4f6",
+        backgroundColor: colors.separator,
         alignItems: "center",
         justifyContent: "center",
     },
@@ -138,23 +138,23 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     },
     modalLabel: {
         fontSize: 13,
-        color: "#8e8e93",
+        color: colors.textSecondary,
         marginBottom: 8,
         fontWeight: "500",
     },
     modalInput: {
-        backgroundColor: "#f9fafb",
+        backgroundColor: colors.background,
         borderRadius: 12,
         paddingHorizontal: 16,
         paddingVertical: 14,
         fontSize: 16,
-        color: "#1c1c1e",
+        color: colors.text,
         borderWidth: 1,
-        borderColor: "#e5e7eb",
+        borderColor: colors.border,
     },
     modalInputFocused: {
-        borderColor: "#0068FF",
-        backgroundColor: "#f0f7ff",
+        borderColor: colors.primary,
+        backgroundColor: colors.separator,
     },
     genderRow: {
         flexDirection: "row",
@@ -165,26 +165,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
         paddingVertical: 14,
         borderRadius: 12,
         borderWidth: 1.5,
-        borderColor: "#e5e7eb",
-        backgroundColor: "#f9fafb",
+        borderColor: colors.border,
+        backgroundColor: colors.background,
         alignItems: "center",
         justifyContent: "center",
     },
     genderOptionActive: {
-        borderColor: "#0068FF",
+        borderColor: colors.primary,
         backgroundColor: "#eef4ff",
     },
     genderText: {
         fontSize: 15,
-        color: "#8e8e93",
+        color: colors.textSecondary,
         fontWeight: "500",
     },
     genderTextActive: {
-        color: "#0068FF",
+        color: colors.primary,
         fontWeight: "600",
     },
     dobDisplay: {
-        backgroundColor: "#f9fafb",
+        backgroundColor: colors.background,
         borderRadius: 12,
         paddingHorizontal: 16,
         paddingVertical: 14,
@@ -192,14 +192,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
         alignItems: "center",
         justifyContent: "space-between",
         borderWidth: 1,
-        borderColor: "#e5e7eb",
+        borderColor: colors.border,
     },
     dobText: {
         fontSize: 16,
-        color: "#1c1c1e",
+        color: colors.text,
     },
     modalSaveButton: {
-        backgroundColor: "#0068FF",
+        backgroundColor: colors.primary,
         borderRadius: 12,
         paddingVertical: 14,
         alignItems: "center",
@@ -225,11 +225,13 @@ function CalendarPickerModal({
     initialDate,
     onConfirm,
     onCancel,
+    colors,
 }: {
     visible: boolean;
     initialDate: Date;
     onConfirm: (date: Date) => void;
     onCancel: () => void;
+    colors: ThemeColors;
 }) {
     const [viewYear, setViewYear] = useState(initialDate.getFullYear());
     const [viewMonth, setViewMonth] = useState(initialDate.getMonth());
@@ -296,11 +298,11 @@ function CalendarPickerModal({
         <Modal transparent visible animationType="fade" onRequestClose={onCancel}>
             <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" }} onPress={onCancel}>
                 <Pressable
-                    style={{ backgroundColor: "#fff", borderRadius: 16, width: Dimensions.get("window").width - 40, maxHeight: "80%", overflow: "hidden" }}
+                    style={{ backgroundColor: colors.card, borderRadius: 16, width: Dimensions.get("window").width - 40, maxHeight: "80%", overflow: "hidden" }}
                     onPress={() => {}}
                 >
                     {/* Header */}
-                    <View style={{ backgroundColor: "#0068FF", paddingVertical: 16, paddingHorizontal: 20, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+                    <View style={{ backgroundColor: colors.primary, paddingVertical: 16, paddingHorizontal: 20, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
                         <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>Chọn ngày sinh</Text>
                         <Text style={{ color: "#fff", fontSize: 22, fontWeight: "700", marginTop: 4 }}>
                             {selectedDay.toString().padStart(2, "0")}/{(viewMonth + 1).toString().padStart(2, "0")}/{viewYear}
@@ -312,16 +314,16 @@ function CalendarPickerModal({
                             {/* Month/Year nav */}
                             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                                 <Pressable onPress={goPrevMonth} style={{ padding: 8 }}>
-                                    <Ionicons name="chevron-back" size={22} color="#1c1c1e" />
+                                    <Ionicons name="chevron-back" size={22} color={colors.text} />
                                 </Pressable>
                                 <Pressable onPress={() => setShowYearPicker(true)} style={{ flexDirection: "row", alignItems: "center" }}>
-                                    <Text style={{ fontSize: 16, fontWeight: "600", color: "#1c1c1e" }}>
+                                    <Text style={{ fontSize: 16, fontWeight: "600", color: colors.text }}>
                                         {MONTHS_VI[viewMonth]} {viewYear}
                                     </Text>
-                                    <Ionicons name="caret-down" size={14} color="#8e8e93" style={{ marginLeft: 4 }} />
+                                    <Ionicons name="caret-down" size={14} color={colors.textSecondary} style={{ marginLeft: 4 }} />
                                 </Pressable>
                                 <Pressable onPress={goNextMonth} style={{ padding: 8 }}>
-                                    <Ionicons name="chevron-forward" size={22} color="#1c1c1e" />
+                                    <Ionicons name="chevron-forward" size={22} color={colors.text} />
                                 </Pressable>
                             </View>
 
@@ -329,7 +331,7 @@ function CalendarPickerModal({
                             <View style={{ flexDirection: "row" }}>
                                 {DAYS_VI.map((d) => (
                                     <View key={d} style={{ width: cellSize, alignItems: "center", paddingVertical: 4 }}>
-                                        <Text style={{ fontSize: 12, color: "#8e8e93", fontWeight: "600" }}>{d}</Text>
+                                        <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: "600" }}>{d}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -357,14 +359,14 @@ function CalendarPickerModal({
                                                 borderRadius: 18,
                                                 alignItems: "center",
                                                 justifyContent: "center",
-                                                backgroundColor: isSelected ? "#0068FF" : "transparent",
+                                                backgroundColor: isSelected ? colors.primary : "transparent",
                                                 borderWidth: isToday && !isSelected ? 1.5 : 0,
-                                                borderColor: "#0068FF",
+                                                borderColor: colors.primary,
                                             }}>
                                                 <Text style={{
                                                     fontSize: 15,
                                                     fontWeight: isSelected || isToday ? "700" : "400",
-                                                    color: isSelected ? "#fff" : cell.inMonth ? (cell.disabled ? "#d1d5db" : "#1c1c1e") : "#d1d5db",
+                                                    color: isSelected ? "#fff" : cell.inMonth ? (cell.disabled ? colors.textSecondary : colors.text) : colors.textSecondary,
                                                 }}>
                                                     {cell.day}
                                                 </Text>
@@ -387,13 +389,13 @@ function CalendarPickerModal({
                                             paddingHorizontal: 16,
                                             margin: 4,
                                             borderRadius: 999,
-                                            backgroundColor: y === viewYear ? "#0068FF" : "transparent",
+                                            backgroundColor: y === viewYear ? colors.primary : "transparent",
                                         }}
                                     >
                                         <Text style={{
                                             fontSize: 15,
                                             fontWeight: y === viewYear ? "700" : "400",
-                                            color: y === viewYear ? "#fff" : "#1c1c1e",
+                                            color: y === viewYear ? "#fff" : colors.text,
                                         }}>
                                             {y}
                                         </Text>
@@ -406,11 +408,11 @@ function CalendarPickerModal({
                     {/* Actions */}
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 12 }}>
                         <Pressable onPress={onCancel} style={{ paddingVertical: 10, paddingHorizontal: 20 }}>
-                            <Text style={{ color: "#8e8e93", fontSize: 15, fontWeight: "600" }}>Hủy</Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 15, fontWeight: "600" }}>Hủy</Text>
                         </Pressable>
                         <Pressable
                             onPress={() => onConfirm(new Date(viewYear, viewMonth, selectedDay))}
-                            style={{ backgroundColor: "#0068FF", borderRadius: 999, paddingVertical: 10, paddingHorizontal: 24 }}
+                            style={{ backgroundColor: colors.primary, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 24 }}
                         >
                             <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>Xác nhận</Text>
                         </Pressable>
@@ -512,8 +514,8 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
 
     return (
         <View style={s.container}>
-            <StatusBar style="light" />
-            <SafeAreaView style={{ backgroundColor: "#0068FF" }} edges={["top"]}>
+            <StatusBar style={colors.statusBar} />
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
                 <View style={s.header}>
                     <TouchableOpacity
                         style={s.backButton}
@@ -521,7 +523,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                         activeOpacity={0.7}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                        <Ionicons name="chevron-back" size={26} color="#ffffff" />
+                        <Ionicons name="chevron-back" size={26} color={colors.headerText} />
                     </TouchableOpacity>
                     <Text style={s.headerTitle}>Thông tin cá nhân</Text>
                 </View>
@@ -546,7 +548,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                 {
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    backgroundColor: "#0068FF",
+                                    backgroundColor: colors.primary,
                                 },
                             ]}
                         >
@@ -626,7 +628,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                 />
                 <KeyboardAvoidingView
                     style={{
-                        backgroundColor: "#ffffff",
+                        backgroundColor: colors.card,
                         borderTopLeftRadius: 20,
                         borderTopRightRadius: 20,
                         paddingBottom: Platform.OS === "ios" ? 34 : 24,
@@ -635,7 +637,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                 >
                     {/* Handle bar */}
                     <View style={{ alignItems: "center", paddingTop: 10, paddingBottom: 4 }}>
-                        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#d1d5db" }} />
+                        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
                     </View>
 
                     <View style={[s.modalHeader, { paddingTop: 8 }]}>
@@ -644,7 +646,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                             style={s.modalCloseButton}
                             onPress={() => { Keyboard.dismiss(); setEditModalVisible(false); }}
                         >
-                            <Ionicons name="close" size={18} color="#8e8e93" />
+                            <Ionicons name="close" size={18} color={colors.textSecondary} />
                         </Pressable>
                     </View>
 
@@ -703,7 +705,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                 <Text style={s.dobText}>
                                     {editDob ? formatDob(editDob) : "Chọn ngày sinh"}
                                 </Text>
-                                <Ionicons name="calendar-outline" size={18} color="#0068FF" />
+                                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
                             </Pressable>
                         </View>
 
@@ -725,6 +727,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
             <CalendarPickerModal
                 visible={showDatePicker}
                 initialDate={pickerDate}
+                colors={colors}
                 onConfirm={(date) => {
                     setPickerDate(date);
                     const yyyy = date.getFullYear();

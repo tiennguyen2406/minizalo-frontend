@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, Alert, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, Alert, StyleSheet, Switch } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
@@ -11,6 +11,12 @@ import { useChatStore } from "@/shared/store/useChatStore";
 import { useGroupStore } from "@/shared/store/useGroupStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useThemeColors, ThemeColors } from "@/shared/theme/colors";
+import { useNotificationSettingsStore } from "@/shared/store/notificationSettingsStore";
+import {
+    registerForPushNotificationsAsync,
+    unregisterForPushNotificationsAsync,
+} from "@/services/notificationService";
+import { useInAppNotifStore } from "@/views/mobile/chat/components/InAppNotification";
 
 const createHeaderStyles = (colors: ThemeColors) => StyleSheet.create({
     header: {
@@ -48,6 +54,15 @@ const createHeaderStyles = (colors: ThemeColors) => StyleSheet.create({
         fontWeight: "500",
         color: colors.text,
     },
+    rowContent: {
+        flex: 1,
+    },
+    rowSubtitle: {
+        marginTop: 3,
+        fontSize: 13,
+        lineHeight: 18,
+        color: colors.textSecondary,
+    },
 });
 
 export default function SettingsScreen() {
@@ -55,6 +70,18 @@ export default function SettingsScreen() {
     const logout = useAuthStore((s) => s.logout);
     const colors = useThemeColors();
     const headerStyles = createHeaderStyles(colors);
+    const notificationsEnabled = useNotificationSettingsStore((s) => s.enabled);
+    const setNotificationsEnabled = useNotificationSettingsStore((s) => s.setEnabled);
+
+    const handleNotificationToggle = (enabled: boolean) => {
+        setNotificationsEnabled(enabled);
+        if (enabled) {
+            void registerForPushNotificationsAsync();
+        } else {
+            useInAppNotifStore.getState().dismiss();
+            void unregisterForPushNotificationsAsync();
+        }
+    };
 
     const handleLogout = () => {
         Alert.alert(
@@ -142,6 +169,29 @@ export default function SettingsScreen() {
             </TouchableOpacity>
 
             {/* Đăng xuất */}
+            <View style={[headerStyles.row, { marginTop: 16 }]}>
+                <Ionicons
+                    name={notificationsEnabled ? "notifications-outline" : "notifications-off-outline"}
+                    size={24}
+                    color={colors.textSecondary}
+                />
+                <View style={headerStyles.rowContent}>
+                    <Text style={headerStyles.rowText}>Quản lý thông báo</Text>
+                    <Text style={headerStyles.rowSubtitle}>
+                        {notificationsEnabled
+                            ? "App được phép hiển thị thông báo pop up."
+                            : "App sẽ không hiển thị thông báo pop up ra ngoài."}
+                    </Text>
+                </View>
+                <Switch
+                    value={notificationsEnabled}
+                    onValueChange={handleNotificationToggle}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor="#fff"
+                    ios_backgroundColor={colors.border}
+                />
+            </View>
+
             <TouchableOpacity
                 style={[headerStyles.row, { marginTop: 16 }]}
                 onPress={handleLogout}

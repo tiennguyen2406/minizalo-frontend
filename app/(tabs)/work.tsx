@@ -182,6 +182,7 @@ interface PrivacySheetProps {
     visible: boolean;
     privacyMode: PrivacyMode;
     onSelect: (mode: PrivacyMode) => void;
+    onPickUsers?: (mode: PrivacyMode) => void;
     onClose: () => void;
     bottomInset: number;
     colors: any;
@@ -189,7 +190,7 @@ interface PrivacySheetProps {
     subtitle?: string;
 }
 
-function PrivacySheet({ visible, privacyMode, onSelect, onClose, bottomInset, colors, title, subtitle }: PrivacySheetProps) {
+function PrivacySheet({ visible, privacyMode, onSelect, onPickUsers, onClose, bottomInset, colors, title, subtitle }: PrivacySheetProps) {
     const translateY = useRef(new Animated.Value(500)).current;
     const sheetHeight = useRef(0);
 
@@ -218,6 +219,7 @@ function PrivacySheet({ visible, privacyMode, onSelect, onClose, bottomInset, co
     }, [visible, handleClose]);
 
     if (!visible) return null;
+    const isWideModal = SCREEN_WIDTH >= 768;
 
     const options: { mode: PrivacyMode; icon: string; title: string; subtitle: string }[] = [
         { mode: "public", icon: "people-outline", title: "Bạn bè Zalo", subtitle: "Trừ bạn bè đã bị chặn xem" },
@@ -226,10 +228,23 @@ function PrivacySheet({ visible, privacyMode, onSelect, onClose, bottomInset, co
     ];
 
     return (
-        <>
+        <Modal
+            visible={visible}
+            transparent
+            animationType="none"
+            statusBarTranslucent
+            onRequestClose={handleClose}
+        >
+            <View
+                style={[
+                    StyleSheet.absoluteFillObject,
+                    isWideModal && { justifyContent: "center", alignItems: "center", padding: 24 },
+                ]}
+                pointerEvents="box-none"
+            >
             {/* Dim overlay — nhấn ra ngoài để đóng sheet, KHÔNG đóng editor */}
             <TouchableWithoutFeedback onPress={handleClose}>
-                <View style={StyleSheet.absoluteFillObject} />
+                <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.55)" }]} />
             </TouchableWithoutFeedback>
 
             <Animated.View
@@ -237,6 +252,16 @@ function PrivacySheet({ visible, privacyMode, onSelect, onClose, bottomInset, co
                 style={[styles.privacySheet, {
                     backgroundColor: colors.background,
                     paddingBottom: bottomInset + 16,
+                    ...(isWideModal
+                        ? {
+                            position: "relative",
+                            width: "100%",
+                            maxWidth: 430,
+                            borderRadius: 20,
+                            paddingBottom: 16,
+                            overflow: "hidden",
+                        }
+                        : null),
                     transform: [{ translateY }],
                 }]}
             >
@@ -256,8 +281,14 @@ function PrivacySheet({ visible, privacyMode, onSelect, onClose, bottomInset, co
                     <View key={opt.mode}>
                         <TouchableOpacity
                             onPress={() => {
-                                onSelect(opt.mode);
-                                if (opt.mode === "public") handleClose();
+                                if (opt.mode === "public") {
+                                    onSelect(opt.mode);
+                                    handleClose();
+                                } else if (onPickUsers) {
+                                    onPickUsers(opt.mode);
+                                } else {
+                                    onSelect(opt.mode);
+                                }
                             }}
                             style={styles.privacyOption}
                             activeOpacity={0.7}
@@ -286,7 +317,118 @@ function PrivacySheet({ visible, privacyMode, onSelect, onClose, bottomInset, co
                     </View>
                 ))}
             </Animated.View>
-        </>
+            </View>
+        </Modal>
+    );
+}
+
+type AudiencePickerFriend = {
+    id: string;
+    displayName?: string | null;
+    username?: string | null;
+    avatarUrl?: string | null;
+};
+
+interface AudienceFriendPickerProps {
+    visible: boolean;
+    mode: PrivacyMode;
+    friends: AudiencePickerFriend[];
+    selectedIds: string[];
+    colors: any;
+    bottomInset: number;
+    onToggle: (id: string) => void;
+    onCancel: () => void;
+    onDone: () => void;
+}
+
+function AudienceFriendPicker({
+    visible,
+    mode,
+    friends,
+    selectedIds,
+    colors,
+    bottomInset,
+    onToggle,
+    onCancel,
+    onDone,
+}: AudienceFriendPickerProps) {
+    if (!visible) return null;
+    const isWideModal = SCREEN_WIDTH >= 768;
+    const selected = new Set(selectedIds);
+    const title = mode === "only" ? "Chọn bạn bè được xem" : "Chọn bạn bè ngoại trừ";
+    const subtitle = mode === "only"
+        ? "Chỉ những người bạn chọn mới xem được nội dung này"
+        : "Những người bạn chọn sẽ không xem được nội dung này";
+
+    return (
+        <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onCancel}>
+            <View style={[
+                StyleSheet.absoluteFillObject,
+                {
+                    backgroundColor: "rgba(0,0,0,0.55)",
+                    justifyContent: isWideModal ? "center" : "flex-end",
+                    alignItems: isWideModal ? "center" : "stretch",
+                    padding: isWideModal ? 24 : 0,
+                },
+            ]}>
+                <TouchableWithoutFeedback onPress={onCancel}>
+                    <View style={StyleSheet.absoluteFillObject} />
+                </TouchableWithoutFeedback>
+                <View style={{
+                    width: isWideModal ? "100%" : undefined,
+                    maxWidth: isWideModal ? 460 : undefined,
+                    maxHeight: isWideModal ? Math.min(620, SCREEN_HEIGHT * 0.82) : SCREEN_HEIGHT * 0.72,
+                    backgroundColor: colors.background,
+                    borderTopLeftRadius: 22,
+                    borderTopRightRadius: 22,
+                    borderBottomLeftRadius: isWideModal ? 22 : 0,
+                    borderBottomRightRadius: isWideModal ? 22 : 0,
+                    paddingBottom: isWideModal ? 16 : bottomInset + 14,
+                    overflow: "hidden",
+                }}>
+                    <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 8 }}>
+                        <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
+                    </View>
+                    <Text style={[styles.sheetTitle, { color: colors.text }]}>{title}</Text>
+                    <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+                    <ScrollView style={{ maxHeight: isWideModal ? 380 : SCREEN_HEIGHT * 0.48 }} contentContainerStyle={{ paddingHorizontal: 16 }}>
+                        {friends.length === 0 ? (
+                            <View style={{ alignItems: "center", paddingVertical: 28 }}>
+                                <Ionicons name="people-outline" size={34} color={colors.textSecondary} />
+                                <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Chưa có bạn bè để chọn</Text>
+                            </View>
+                        ) : friends.map((friend) => {
+                            const checked = selected.has(friend.id);
+                            const name = friend.displayName || friend.username || "Bạn bè";
+                            return (
+                                <TouchableOpacity
+                                    key={friend.id}
+                                    onPress={() => onToggle(friend.id)}
+                                    activeOpacity={0.78}
+                                    style={{ flexDirection: "row", alignItems: "center", paddingVertical: 11 }}
+                                >
+                                    <AvatarImage name={name} uri={friend.avatarUrl} size={40} style={{ marginRight: 12 }} />
+                                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600", flex: 1 }}>{name}</Text>
+                                    <Ionicons
+                                        name={checked ? "checkmark-circle" : "ellipse-outline"}
+                                        size={23}
+                                        color={checked ? colors.primary : colors.textSecondary}
+                                    />
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                    <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 12 }}>
+                        <TouchableOpacity onPress={onCancel} style={[styles.audiencePickerButton, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+                            <Text style={{ color: colors.text, fontWeight: "700" }}>Hủy</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={onDone} style={[styles.audiencePickerButton, { backgroundColor: colors.primary }]}>
+                            <Text style={{ color: "#fff", fontWeight: "800" }}>Xong ({selectedIds.length})</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
     );
 }
 
@@ -1355,8 +1497,8 @@ export default function WorkScreen() {
             : null;
     const { feed, fetchFeed, uploadStory, viewStory, addReaction, updateStoryPrivacy } = useStoryStore();
     const { profile } = useUserStore();
-    const { friends } = useFriendStore();
-    const { posts, loading: postsLoading, fetchFeed: fetchPostFeed, createPost, reactPost, removePostReaction, commentPost, deletePostComment, updatePostPrivacy } = usePostStore();
+    const { friends, fetchFriends } = useFriendStore();
+    const { posts, loading: postsLoading, fetchFeed: fetchPostFeed, createPost, reactPost, removePostReaction, commentPost, deletePostComment, updatePostPrivacy, deletePost } = usePostStore();
 
     // ── Creation state ──
     const [creationStep, setCreationStep] = useState<"NONE" | "TYPE" | "TEXT" | "EDIT">("NONE");
@@ -1367,6 +1509,8 @@ export default function WorkScreen() {
     const [showPrivacySheet, setShowPrivacySheet] = useState(false);
     const [privacyMode, setPrivacyMode] = useState<PrivacyMode>("public");
     const [privacyUsers, setPrivacyUsers] = useState<string[]>([]);
+    const [showAudiencePicker, setShowAudiencePicker] = useState(false);
+    const [audiencePickerMode, setAudiencePickerMode] = useState<PrivacyMode>("only");
     const [postText, setPostText] = useState("");
     const [postAssets, setPostAssets] = useState<any[]>([]);
     const [isPostSubmitting, setIsPostSubmitting] = useState(false);
@@ -1377,6 +1521,7 @@ export default function WorkScreen() {
     const [activePostReactionPicker, setActivePostReactionPicker] = useState<string | null>(null);
     const [reactionListPostId, setReactionListPostId] = useState<string | null>(null);
     const [postPrivacyTargetId, setPostPrivacyTargetId] = useState<string | null>(null);
+    const [postActionMenuId, setPostActionMenuId] = useState<string | null>(null);
     const wallScrollRef = useRef<ScrollView | null>(null);
     const postOffsetMapRef = useRef<Record<string, number>>({});
     const [highlightPostId, setHighlightPostId] = useState<string | null>(null);
@@ -1399,6 +1544,31 @@ export default function WorkScreen() {
     // ── Editor Audio ──
     const editorAudioRef = useRef<any>(null);
     const activeMusicItem = useMemo(() => overlayItems.find(i => i.type === "music"), [overlayItems]);
+
+    const friendProfiles = useMemo<AudiencePickerFriend[]>(() => {
+        const currentUserId = profile?.id ? String(profile.id) : "";
+        const map = new Map<string, AudiencePickerFriend>();
+        friends.forEach((item: any) => {
+            const candidate = String(item.user?.id) === currentUserId ? item.friend : item.user;
+            if (candidate?.id && String(candidate.id) !== currentUserId) {
+                map.set(String(candidate.id), {
+                    id: String(candidate.id),
+                    displayName: candidate.displayName,
+                    username: candidate.username,
+                    avatarUrl: candidate.avatarUrl,
+                });
+            }
+        });
+        return [...map.values()].sort((a, b) =>
+            (a.displayName || a.username || "").localeCompare(b.displayName || b.username || "", "vi"),
+        );
+    }, [friends, profile?.id]);
+
+    useEffect(() => {
+        if (friends.length === 0) {
+            void fetchFriends();
+        }
+    }, [fetchFriends, friends.length]);
 
     const stopEditorAudio = async () => {
         try {
@@ -2255,19 +2425,110 @@ export default function WorkScreen() {
         setShowPrivacySheet(true);
     }, [postPrivacyToMode]);
 
+    const openAudiencePicker = useCallback((mode: PrivacyMode) => {
+        setPrivacyMode(mode);
+        setAudiencePickerMode(mode);
+        setShowPrivacySheet(false);
+        setShowAudiencePicker(false);
+        setTimeout(() => {
+            setShowAudiencePicker(true);
+        }, Platform.OS === "web" ? 0 : 180);
+    }, []);
+
+    const togglePrivacyUser = useCallback((userId: string) => {
+        setPrivacyUsers((current) =>
+            current.includes(userId)
+                ? current.filter((id) => id !== userId)
+                : [...current, userId],
+        );
+    }, []);
+
     const handleSelectPostPrivacy = useCallback(async (mode: PrivacyMode) => {
         const postId = postPrivacyTargetId;
         setPrivacyMode(mode);
+        if (mode !== "public") {
+            openAudiencePicker(mode);
+            return;
+        }
         if (!postId) return;
         try {
-            await updatePostPrivacy(postId, modeToPostPrivacy(mode), privacyUsers);
+            await updatePostPrivacy(postId, modeToPostPrivacy(mode), []);
+            setPrivacyUsers([]);
             setPostPrivacyTargetId(null);
             setShowPrivacySheet(false);
         } catch (error) {
             console.error("Update post privacy error:", error);
             showToastMsg("Không thể cập nhật đối tượng xem");
         }
-    }, [modeToPostPrivacy, postPrivacyTargetId, privacyUsers, showToastMsg, updatePostPrivacy]);
+    }, [modeToPostPrivacy, openAudiencePicker, postPrivacyTargetId, showToastMsg, updatePostPrivacy]);
+
+    const handleDoneAudiencePicker = useCallback(async () => {
+        const mode = audiencePickerMode;
+        if (postPrivacyTargetId) {
+            try {
+                await updatePostPrivacy(postPrivacyTargetId, modeToPostPrivacy(mode), privacyUsers);
+                setPostPrivacyTargetId(null);
+                setShowAudiencePicker(false);
+                showToastMsg("Đã cập nhật đối tượng xem");
+            } catch (error) {
+                console.error("Update post privacy audience error:", error);
+                showToastMsg("Không thể cập nhật đối tượng xem");
+            }
+            return;
+        }
+
+        if (selectedStory) {
+            try {
+                const nextPrivacy = modeToPostPrivacy(mode);
+                await updateStoryPrivacy(selectedStory.createdAt, nextPrivacy, privacyUsers);
+                setSelectedStory({ ...selectedStory, privacy: nextPrivacy, permittedUserIds: privacyUsers });
+            } catch (error) {
+                console.error("Update story privacy audience error:", error);
+                showToastMsg("Không thể cập nhật đối tượng xem");
+            }
+        }
+        setShowAudiencePicker(false);
+    }, [audiencePickerMode, modeToPostPrivacy, postPrivacyTargetId, privacyUsers, selectedStory, showToastMsg, updatePostPrivacy, updateStoryPrivacy]);
+
+    const handleDeleteTimelinePost = useCallback((postId: string) => {
+        Alert.alert("Xóa bài viết", "Bạn có chắc muốn xóa bài viết này?", [
+            { text: "Hủy", style: "cancel" },
+            {
+                text: "Xóa",
+                style: "destructive",
+                onPress: async () => {
+                    try {
+                        await deletePost(postId);
+                        showToastMsg("Đã xóa bài viết");
+                    } catch (error) {
+                        console.error("Delete post error:", error);
+                        showToastMsg("Không thể xóa bài viết");
+                    }
+                },
+            },
+        ]);
+    }, [deletePost, showToastMsg]);
+
+    const handleConfirmDeletePost = useCallback((postId: string) => {
+        const runDelete = async () => {
+            try {
+                await deletePost(postId);
+                setPostActionMenuId(null);
+                showToastMsg("Đã xóa bài viết");
+            } catch (error) {
+                console.error("Delete post error:", error);
+                showToastMsg("Không thể xóa bài viết");
+            }
+        };
+        if (Platform.OS === "web") {
+            if (window.confirm("Xóa bài viết này?")) void runDelete();
+            return;
+        }
+        Alert.alert("Xóa bài viết", "Bạn có chắc muốn xóa bài viết này?", [
+            { text: "Hủy", style: "cancel" },
+            { text: "Xóa", style: "destructive", onPress: () => void runDelete() },
+        ]);
+    }, [deletePost, showToastMsg]);
 
     const openPostReactionPicker = useCallback((postId: string) => {
         if (postReactionPickerCloseTimer.current) {
@@ -2618,6 +2879,40 @@ export default function WorkScreen() {
         );
     };
 
+    const renderPostActionMenu = () => {
+        const post = postActionMenuId ? posts.find((item) => item.id === postActionMenuId) : null;
+        if (!post || post.userId !== profile?.id) return null;
+        return (
+            <Modal visible={!!postActionMenuId} transparent animationType="fade" onRequestClose={() => setPostActionMenuId(null)}>
+                <TouchableWithoutFeedback onPress={() => setPostActionMenuId(null)}>
+                    <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", alignItems: "center", padding: 18 }}>
+                        <TouchableWithoutFeedback>
+                            <View style={{ width: "100%", maxWidth: 360, backgroundColor: colors.card, borderRadius: 16, paddingVertical: 8 }}>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setPostActionMenuId(null);
+                                        openPostPrivacySheet(post);
+                                    }}
+                                    style={styles.postActionMenuItem}
+                                >
+                                    <Ionicons name="people-outline" size={20} color={colors.text} />
+                                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Chỉnh đối tượng xem</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => handleConfirmDeletePost(post.id)}
+                                    style={styles.postActionMenuItem}
+                                >
+                                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                                    <Text style={{ color: "#EF4444", fontSize: 15, fontWeight: "800" }}>Xóa bài viết</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableWithoutFeedback>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
+        );
+    };
+
     const isVideoStory = (story?: any) => {
         if (!story) return false;
         const mediaUrl = String(story.mediaUrl || "").toLowerCase();
@@ -2842,7 +3137,7 @@ export default function WorkScreen() {
                         >
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                                 <Image source={{ uri: buildAvatarUrl(post.displayName || post.username, post.avatarUrl) }} style={styles.timelinePostAvatar} />
-                                <View>
+                                <View style={{ flex: 1 }}>
                                     <Text style={{ color: colors.text, fontWeight: "700" }}>{post.displayName || post.username}</Text>
                                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                         <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{formatDate(post.createdAt)}</Text>
@@ -2854,6 +3149,11 @@ export default function WorkScreen() {
                                         ) : null}
                                     </View>
                                 </View>
+                                {post.userId === profile?.id ? (
+                                    <TouchableOpacity onPress={() => setPostActionMenuId(post.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ padding: 6 }}>
+                                        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+                                    </TouchableOpacity>
+                                ) : null}
                             </View>
                             {!!post.content && <Text style={{ color: colors.text, marginTop: 12, fontSize: 15, lineHeight: 21 }}>{post.content}</Text>}
                             {renderPostMediaItems(post, "web")}
@@ -2862,11 +3162,27 @@ export default function WorkScreen() {
                     ))}
                 </ScrollView>
                 {renderPostReactionsModal()}
+                {renderPostActionMenu()}
+                <AudienceFriendPicker
+                    visible={showAudiencePicker}
+                    mode={audiencePickerMode}
+                    friends={friendProfiles}
+                    selectedIds={privacyUsers}
+                    colors={colors}
+                    bottomInset={insets.bottom}
+                    onToggle={togglePrivacyUser}
+                    onCancel={() => {
+                        setShowAudiencePicker(false);
+                        if (postPrivacyTargetId) setPostPrivacyTargetId(null);
+                    }}
+                    onDone={handleDoneAudiencePicker}
+                />
                 {postPrivacyTargetId && showPrivacySheet ? (
                     <PrivacySheet
                         visible={showPrivacySheet}
                         privacyMode={privacyMode}
                         onSelect={handleSelectPostPrivacy}
+                        onPickUsers={openAudiencePicker}
                         onClose={() => { setShowPrivacySheet(false); setPostPrivacyTargetId(null); }}
                         bottomInset={insets.bottom}
                         colors={colors}
@@ -2891,11 +3207,27 @@ export default function WorkScreen() {
         <View style={{ flex: 1, backgroundColor: colors.background }}>
             <StatusBar style={colors.statusBar} />
             {renderPostReactionsModal()}
+            {renderPostActionMenu()}
+            <AudienceFriendPicker
+                visible={showAudiencePicker}
+                mode={audiencePickerMode}
+                friends={friendProfiles}
+                selectedIds={privacyUsers}
+                colors={colors}
+                bottomInset={insets.bottom}
+                onToggle={togglePrivacyUser}
+                onCancel={() => {
+                    setShowAudiencePicker(false);
+                    if (postPrivacyTargetId) setPostPrivacyTargetId(null);
+                }}
+                onDone={handleDoneAudiencePicker}
+            />
             {postPrivacyTargetId && showPrivacySheet ? (
                 <PrivacySheet
                     visible={showPrivacySheet}
                     privacyMode={privacyMode}
                     onSelect={handleSelectPostPrivacy}
+                    onPickUsers={openAudiencePicker}
                     onClose={() => { setShowPrivacySheet(false); setPostPrivacyTargetId(null); }}
                     bottomInset={insets.bottom}
                     colors={colors}
@@ -3015,7 +3347,7 @@ export default function WorkScreen() {
                         >
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                                 <AvatarImage name={post.displayName || post.username} uri={post.avatarUrl} size={40} style={styles.mobilePostAvatar} />
-                                <View>
+                                <View style={{ flex: 1 }}>
                                     <Text style={{ color: colors.text, fontWeight: "700" }}>{post.displayName || post.username}</Text>
                                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                         <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{formatDate(post.createdAt)}</Text>
@@ -3027,6 +3359,11 @@ export default function WorkScreen() {
                                         ) : null}
                                     </View>
                                 </View>
+                                {post.userId === profile?.id ? (
+                                    <TouchableOpacity onPress={() => setPostActionMenuId(post.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ padding: 6 }}>
+                                        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+                                    </TouchableOpacity>
+                                ) : null}
                             </View>
                             {!!post.content && <Text style={{ color: colors.text, marginTop: 12, lineHeight: 20 }}>{post.content}</Text>}
                             {renderPostMediaItems(post, "mobile")}
@@ -3143,7 +3480,7 @@ export default function WorkScreen() {
                             {showPrivacySheet && (
                                 <View style={[StyleSheet.absoluteFillObject, { zIndex: 50 }]} pointerEvents="box-none">
                                     <TouchableWithoutFeedback onPress={() => setShowPrivacySheet(false)}><Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.55)" }]} /></TouchableWithoutFeedback>
-                                    <PrivacySheet visible={showPrivacySheet} privacyMode={privacyMode} onSelect={(mode) => setPrivacyMode(mode)} onClose={() => setShowPrivacySheet(false)} bottomInset={insets.bottom} colors={colors} />
+                                    <PrivacySheet visible={showPrivacySheet} privacyMode={privacyMode} onSelect={(mode) => setPrivacyMode(mode)} onPickUsers={openAudiencePicker} onClose={() => setShowPrivacySheet(false)} bottomInset={insets.bottom} colors={colors} />
                                 </View>
                             )}
 
@@ -3522,6 +3859,10 @@ export default function WorkScreen() {
                                 privacyMode={privacyMode}
                                 onSelect={async (mode) => {
                                     setPrivacyMode(mode);
+                                    if (mode !== "public") {
+                                        openAudiencePicker(mode);
+                                        return;
+                                    }
                                     if (selectedStory) {
                                         try {
                                             const pVal = mode === "public" ? "ALL_FRIENDS" : mode === "only" ? "SPECIFIC" : "EXCLUDE";
@@ -3529,6 +3870,7 @@ export default function WorkScreen() {
                                         } catch (e) { }
                                     }
                                 }}
+                                onPickUsers={openAudiencePicker}
                                 onClose={() => { setShowPrivacySheet(false); setIsPaused(false); }}
                                 bottomInset={insets.bottom}
                                 colors={colors}
@@ -3600,6 +3942,8 @@ const styles = StyleSheet.create({
     optionTitle: { fontSize: 15, fontWeight: "500" },
     optionSub: { fontSize: 12, marginTop: 2 },
     divider: { height: StyleSheet.hairlineWidth, marginHorizontal: 20, opacity: 0.4 },
+    audiencePickerButton: { flex: 1, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+    postActionMenuItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, paddingVertical: 14 },
     typeSheet: { position: "absolute", bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
     typeRow: { flexDirection: "row", justifyContent: "space-around", paddingHorizontal: 20, marginBottom: 12 },
     typeBtn: { alignItems: "center", gap: 10 },
