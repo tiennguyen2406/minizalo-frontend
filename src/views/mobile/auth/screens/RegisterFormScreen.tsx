@@ -184,7 +184,7 @@ export default function RegisterFormScreen() {
 
     return (
         <View style={authStyles.container}>
-            <StatusBar style={colors.background === "#000000" ? "light" : "dark"} />
+            <StatusBar style={colors.isDark ? "light" : "dark"} />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}

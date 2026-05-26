@@ -6,7 +6,6 @@ import { useChatStore } from "@/shared/store/useChatStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useThemeStore } from "@/shared/store/themeStore";
 import SettingsPanel from "./SettingsPanel";
-import { chatService, mapChatRoomResponseToFrontend } from "@/shared/services/chatService";
 
 const ICON_SIZE = 24;
 
@@ -40,7 +39,7 @@ const iconContacts = (
     <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
   </svg>
 );
-const iconCloudZ = (
+const iconHome = (
   <svg
     width={ICON_SIZE}
     height={ICON_SIZE}
@@ -51,36 +50,8 @@ const iconCloudZ = (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
-  </svg>
-);
-const iconFolder = (
-  <svg
-    width={ICON_SIZE}
-    height={ICON_SIZE}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-  </svg>
-);
-const iconBriefcase = (
-  <svg
-    width={ICON_SIZE}
-    height={ICON_SIZE}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <polyline points="9 22 9 12 15 12 15 22" />
   </svg>
 );
 const iconSettings = (
@@ -102,9 +73,7 @@ const iconSettings = (
 const navItems: { href: string; label: string; icon: React.ReactNode }[] = [
   { href: "/(tabs)", label: "Tin nhắn", icon: iconMessage },
   { href: "/(tabs)/contacts", label: "Danh bạ", icon: iconContacts },
-  { href: "/(tabs)/zalo-cloud", label: "Zalo Cloud", icon: iconCloudZ },
-  { href: "/(tabs)/files", label: "Thư mục", icon: iconFolder },
-  { href: "/(tabs)/work", label: "Công việc", icon: iconBriefcase },
+  { href: "/(tabs)/work", label: "Tường nhà", icon: iconHome },
 ];
 
 export default function WebSidebar() {
@@ -113,9 +82,6 @@ export default function WebSidebar() {
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const hasToken = !!useAuthStore((s) => s.accessToken);
   const { profile, fetchProfile } = useUserStore();
-  const rooms = useChatStore((s) => s.rooms);
-  const mergeRooms = useChatStore((s) => s.mergeRooms);
-  const setPendingOpenRoomId = useChatStore((s) => s.setPendingOpenRoomId);
   const totalUnread = useChatStore((s) =>
     s.rooms.reduce((acc, r) => acc + (r.unreadCount || 0), 0),
   );
@@ -149,30 +115,6 @@ export default function WebSidebar() {
     if (href === "/(tabs)")
       return pathname === "/(tabs)" || pathname === "/(tabs)/";
     return pathname.startsWith(href);
-  };
-
-  const openCloudChat = async () => {
-    // 1) Try from store first
-    const cloud = rooms.find((r) => r.type === "CLOUD");
-    if (cloud?.id) {
-      // Stay in the main chat layout (keep left menu)
-      setPendingOpenRoomId(cloud.id);
-      router.push(`/(tabs)?openRoomId=${encodeURIComponent(cloud.id)}`);
-      return;
-    }
-    // 2) Fetch rooms, merge to store, then open
-    try {
-      const apiRooms = await chatService.getChatRooms();
-      const mapped = apiRooms.map(mapChatRoomResponseToFrontend);
-      mergeRooms(mapped as any);
-      const cloud2 = mapped.find((r) => (r as any).type === "CLOUD") as any;
-      if (cloud2?.id) {
-        setPendingOpenRoomId(cloud2.id);
-        router.push(`/(tabs)?openRoomId=${encodeURIComponent(cloud2.id)}`);
-      }
-    } catch {
-      // ignore
-    }
   };
 
   return (
@@ -261,20 +203,17 @@ export default function WebSidebar() {
         {/* Khoảng trống giữa */}
         <div style={{ flex: 1, minHeight: 24 }} />
 
-        {/* Zalo Cloud, Thư mục, Khám phá, Công việc */}
-        {navItems.slice(2).map((item) => {
-          const isCloud = item.href === "/(tabs)/zalo-cloud";
-          return (
-            <NavItem
-              key={item.href}
-              label={item.label}
-              icon={item.icon}
-              active={isCloud ? false : isActive(item.href)}
-              activeBg={ACTIVE_BG}
-              onClick={() => (isCloud ? void openCloudChat() : router.push(item.href as any))}
-            />
-          );
-        })}
+        {/* Các mục khác */}
+        {navItems.slice(2).map((item) => (
+          <NavItem
+            key={item.href}
+            label={item.label}
+            icon={item.icon}
+            active={isActive(item.href)}
+            activeBg={ACTIVE_BG}
+            onClick={() => router.push(item.href as any)}
+          />
+        ))}
 
         <NavItem
           label="Cài đặt"

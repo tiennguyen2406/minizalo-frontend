@@ -227,6 +227,9 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
 
                 <View style={{ height: 8, backgroundColor: colors.separator }} />
 
+
+
+
                 <MenuItem
                     icon="shield-checkmark"
                     title="Tài khoản và bảo mật"

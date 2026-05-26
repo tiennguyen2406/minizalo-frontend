@@ -175,7 +175,7 @@ export default function PollBubbleMobile({ pollId, roomId }: PollBubbleMobilePro
         key={opt.id}
         onPress={() => interactive && toggleOption(opt.id)}
         style={{
-          backgroundColor: "#f1f5f9",
+          backgroundColor: colors.searchBg,
           borderRadius: 8,
           paddingVertical: 12,
           paddingHorizontal: 12,
@@ -212,13 +212,13 @@ export default function PollBubbleMobile({ pollId, roomId }: PollBubbleMobilePro
           borderRadius: 12,
           borderWidth: 1,
           borderColor: "rgba(0,0,0,0.08)",
-          backgroundColor: "#fff",
+          backgroundColor: colors.card,
           paddingHorizontal: 14,
           paddingTop: 12,
           paddingBottom: 14,
         }}
       >
-        <Text style={{ color: "#111827", fontSize: 16.5, fontWeight: "800", marginBottom: 10 }}>
+        <Text style={{ color: colors.text, fontSize: 16.5, fontWeight: "800", marginBottom: 10 }}>
           {poll.question}
         </Text>
 
@@ -231,12 +231,12 @@ export default function PollBubbleMobile({ pollId, roomId }: PollBubbleMobilePro
             marginTop: 2,
             borderRadius: 10,
             paddingVertical: 12,
-            backgroundColor: "#e5efff",
+            backgroundColor: "rgba(0, 104, 255, 0.1)",
             alignItems: "center",
             opacity: poll.closed || selectedOptionIds.length === 0 ? 0.55 : 1,
           }}
         >
-          <Text style={{ color: "#2563eb", fontSize: 15.5, fontWeight: "800" }}>
+          <Text style={{ color: colors.primary, fontSize: 15.5, fontWeight: "800" }}>
             {poll.closed
               ? "Đã đóng"
               : hasVoted
@@ -372,8 +372,8 @@ export default function PollBubbleMobile({ pollId, roomId }: PollBubbleMobilePro
                     disabled={isSubmitting}
                     style={{
                       borderWidth: 1,
-                      borderColor: "#fecaca",
-                      backgroundColor: "#fef2f2",
+                      borderColor: "rgba(220, 38, 38, 0.3)",
+                      backgroundColor: "rgba(220, 38, 38, 0.1)",
                       paddingVertical: 12,
                       borderRadius: 12,
                       alignItems: "center",

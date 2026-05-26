@@ -109,7 +109,7 @@ export default function UnreadAiSummaryModal({ visible, onClose, onSummarize, un
                     {/* Header */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
                         <View style={{ 
-                            backgroundColor: '#FFEBEE', 
+                            backgroundColor: 'rgba(255, 82, 82, 0.1)', 
                             padding: 10, 
                             borderRadius: 16,
                             marginRight: 12 

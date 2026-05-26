@@ -345,7 +345,7 @@ export default function ContactsMobileScreen() {
                                 paddingHorizontal: 12,
                                 paddingVertical: 10,
                                 borderRadius: 12,
-                                backgroundColor: "#1d4ed8",
+                                backgroundColor: colors.primary,
                                 flexDirection: "row",
                                 alignItems: "center",
                             }}

@@ -5,6 +5,7 @@ import {
     Text,
     TouchableOpacity,
 } from "react-native";
+import { useThemeColors } from "@/shared/theme/colors";
 
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
 
@@ -19,6 +20,7 @@ export default function ReactionPickerBottomSheet({
     onSelect,
     onClose,
 }: ReactionPickerBottomSheetProps) {
+    const colors = useThemeColors();
     return (
         <Modal
             transparent
@@ -37,7 +39,7 @@ export default function ReactionPickerBottomSheet({
             >
                 <View
                     style={{
-                        backgroundColor: "#111827",
+                        backgroundColor: colors.card,
                         paddingHorizontal: 24,
                         paddingTop: 16,
                         paddingBottom: 28,
@@ -47,7 +49,7 @@ export default function ReactionPickerBottomSheet({
                 >
                     <Text
                         style={{
-                            color: "#e5e7eb",
+                            color: colors.text,
                             fontSize: 16,
                             fontWeight: "600",
                             marginBottom: 12,
@@ -72,7 +74,7 @@ export default function ReactionPickerBottomSheet({
                                     width: 44,
                                     height: 44,
                                     borderRadius: 22,
-                                    backgroundColor: "#1f2937",
+                                    backgroundColor: colors.searchBg,
                                     alignItems: "center",
                                     justifyContent: "center",
                                 }}

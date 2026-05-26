@@ -55,7 +55,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
         width: 96,
         height: 96,
         borderRadius: 48,
-        backgroundColor: colors.avatarBg,
+        backgroundColor: colors.searchBg,
     },
     infoCard: {
         backgroundColor: colors.card,
@@ -82,7 +82,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     },
     infoValuePlaceholder: {
         fontSize: 16,
-        color: colors.textSecondary,
+        color: colors.iconColor,
         fontStyle: "italic",
     },
     editButtonContainer: {
@@ -129,7 +129,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: colors.separator,
+        backgroundColor: colors.searchBg,
         alignItems: "center",
         justifyContent: "center",
     },
@@ -143,7 +143,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
         fontWeight: "500",
     },
     modalInput: {
-        backgroundColor: colors.background,
+        backgroundColor: colors.searchBg,
         borderRadius: 12,
         paddingHorizontal: 16,
         paddingVertical: 14,
@@ -154,7 +154,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     },
     modalInputFocused: {
         borderColor: colors.primary,
-        backgroundColor: colors.separator,
     },
     genderRow: {
         flexDirection: "row",
@@ -166,13 +165,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1.5,
         borderColor: colors.border,
-        backgroundColor: colors.background,
+        backgroundColor: colors.searchBg,
         alignItems: "center",
         justifyContent: "center",
     },
     genderOptionActive: {
         borderColor: colors.primary,
-        backgroundColor: "#eef4ff",
     },
     genderText: {
         fontSize: 15,
@@ -184,7 +182,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
         fontWeight: "600",
     },
     dobDisplay: {
-        backgroundColor: colors.background,
+        backgroundColor: colors.searchBg,
         borderRadius: 12,
         paddingHorizontal: 16,
         paddingVertical: 14,
@@ -220,19 +218,16 @@ const MONTHS_VI = [
     "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
 ];
 
-function CalendarPickerModal({
-    visible,
-    initialDate,
-    onConfirm,
-    onCancel,
-    colors,
-}: {
+interface CalendarPickerModalProps {
     visible: boolean;
     initialDate: Date;
     onConfirm: (date: Date) => void;
     onCancel: () => void;
-    colors: ThemeColors;
-}) {
+    themeColors: ThemeColors;
+}
+
+function CalendarPickerModal(props: CalendarPickerModalProps) {
+    const { visible, initialDate, onConfirm, onCancel, themeColors: colors } = props;
     const [viewYear, setViewYear] = useState(initialDate.getFullYear());
     const [viewMonth, setViewMonth] = useState(initialDate.getMonth());
     const [selectedDay, setSelectedDay] = useState(initialDate.getDate());
@@ -320,7 +315,7 @@ function CalendarPickerModal({
                                     <Text style={{ fontSize: 16, fontWeight: "600", color: colors.text }}>
                                         {MONTHS_VI[viewMonth]} {viewYear}
                                     </Text>
-                                    <Ionicons name="caret-down" size={14} color={colors.textSecondary} style={{ marginLeft: 4 }} />
+                                    <Ionicons name="caret-down" size={14} color={colors.iconColor} style={{ marginLeft: 4 }} />
                                 </Pressable>
                                 <Pressable onPress={goNextMonth} style={{ padding: 8 }}>
                                     <Ionicons name="chevron-forward" size={22} color={colors.text} />
@@ -514,7 +509,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
 
     return (
         <View style={s.container}>
-            <StatusBar style={colors.statusBar} />
+            <StatusBar style="light" />
             <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
                 <View style={s.header}>
                     <TouchableOpacity
@@ -727,7 +722,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
             <CalendarPickerModal
                 visible={showDatePicker}
                 initialDate={pickerDate}
-                colors={colors}
+                themeColors={colors}
                 onConfirm={(date) => {
                     setPickerDate(date);
                     const yyyy = date.getFullYear();

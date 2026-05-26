@@ -11,7 +11,7 @@ export default function LoginScreen() {
 
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
-            <StatusBar style={colors.background === "#000000" ? "light" : "dark"} />
+            <StatusBar style={colors.isDark ? "light" : "dark"} />
             <SafeAreaView style={{ flex: 1 }}>
                 <View style={styles.content}>
                     {/* Logo */}
