@@ -189,9 +189,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
     };
 
     return (
-        <div className="border-t border-gray-200 bg-white p-4">
+        <div className="border-t p-4" style={{ backgroundColor: "var(--bg-primary)", borderColor: "var(--border-primary)" }}>
             {replyingTo && (
-                <div className="mb-2 flex items-center justify-between rounded-lg bg-gray-50 p-2 border-l-4 border-blue-500">
+                <div className="mb-2 flex items-center justify-between rounded-lg p-2 border-l-4 border-blue-500" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                     <div className="flex flex-col">
                         <span className="text-xs font-bold text-blue-600">Trả lời: {replyingTo.senderName}</span>
                         <span className="text-sm text-gray-600 truncate max-w-md">
@@ -273,7 +273,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
                             onKeyDown={handleKeyDown}
                             placeholder="Nhập tin nhắn..."
                             rows={1}
-                            className="w-full resize-none rounded-2xl bg-gray-100 px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-[42px] max-h-32"
+                            className="w-full resize-none rounded-2xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-[42px] max-h-32"
+                            style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                         />
                     )}
                 </div>
@@ -293,7 +294,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                             {showEmoji && (
                                 <div 
                                     ref={emojiPickerRef}
-                                    className="absolute bottom-full right-0 mb-2 grid grid-cols-8 gap-1 rounded-xl border border-gray-200 bg-white p-2 shadow-2xl z-50 w-64 max-h-48 overflow-y-auto scrollbar-hide"
+                                    className="absolute bottom-full right-0 mb-2 grid grid-cols-8 gap-1 rounded-xl border p-2 shadow-2xl z-50 w-64 max-h-48 overflow-y-auto scrollbar-hide" style={{ backgroundColor: "var(--bg-primary)", borderColor: "var(--border-primary)" }}
                                 >
                                     {EMOJI_LIST.map((emoji, i) => (
                                         <button 

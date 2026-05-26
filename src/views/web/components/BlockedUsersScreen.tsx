@@ -53,7 +53,7 @@ export default function BlockedUsersScreen({
                 display: "flex",
                 flexDirection: "column",
                 height: "100%",
-                backgroundColor: "#f7f9fb",
+                backgroundColor: "var(--bg-primary, #f7f9fb)",
             }}
         >
             {/* Header */}
@@ -68,18 +68,18 @@ export default function BlockedUsersScreen({
             >
                 <div>
                     <h2
-                        style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "#222" }}
+                        style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "var(--text-primary, #222)" }}
                     >
                         Danh sách chặn
                     </h2>
-                    <div style={{ marginTop: 4, fontSize: 12, color: "#6b7280" }}>
+                    <div style={{ marginTop: 4, fontSize: 12, color: "var(--text-secondary, #6b7280)" }}>
                         {blockedUsers.length > 0
                             ? `${blockedUsers.length} người dùng đã bị chặn`
                             : "Bạn chưa chặn ai."}
                     </div>
                 </div>
                 {loading && (
-                    <span style={{ fontSize: 13, color: "#888" }}>Đang tải...</span>
+                    <span style={{ fontSize: 13, color: "var(--text-secondary, #888)" }}>Đang tải...</span>
                 )}
             </div>
 
@@ -113,13 +113,13 @@ export default function BlockedUsersScreen({
             )}
 
             {/* Blocked users list */}
-            <div style={{ flex: 1, overflowY: "auto", backgroundColor: "#f9fafb" }}>
+            <div style={{ flex: 1, overflowY: "auto", backgroundColor: "var(--bg-secondary, #f9fafb)" }}>
                 {blockedUsers.length === 0 && !loading && (
                     <div
                         style={{
                             padding: 48,
                             textAlign: "center",
-                            color: "#6b7280",
+                            color: "var(--text-secondary, #6b7280)",
                             fontSize: 14,
                             display: "flex",
                             flexDirection: "column",
@@ -132,7 +132,7 @@ export default function BlockedUsersScreen({
                                 width: 80,
                                 height: 80,
                                 borderRadius: "50%",
-                                backgroundColor: "#f3f4f6",
+                                backgroundColor: "var(--bg-secondary, #f3f4f6)",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -142,10 +142,10 @@ export default function BlockedUsersScreen({
                             🛡️
                         </div>
                         <div>
-                            <div style={{ fontSize: 16, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary, #374151)", marginBottom: 4 }}>
                                 Chưa chặn ai
                             </div>
-                            <div style={{ fontSize: 13, color: "#9ca3af" }}>
+                            <div style={{ fontSize: 13, color: "var(--text-secondary, #9ca3af)" }}>
                                 Người dùng bạn chặn sẽ xuất hiện ở đây.
                                 <br />
                                 Họ sẽ không thể nhắn tin cho bạn.
@@ -174,15 +174,15 @@ export default function BlockedUsersScreen({
                                 display: "flex",
                                 alignItems: "center",
                                 padding: "12px 16px",
-                                backgroundColor: "#fff",
+                                backgroundColor: "var(--bg-primary, #fff)",
                                 borderBottom: "1px solid #f3f4f6",
                                 transition: "background-color 0.15s",
                             }}
                             onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = "#f9fafb";
+                                e.currentTarget.style.backgroundColor = "var(--bg-secondary, #f9fafb)";
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = "#fff";
+                                e.currentTarget.style.backgroundColor = "var(--bg-primary, #fff)";
                             }}
                         >
                             {/* Avatar */}
@@ -193,7 +193,7 @@ export default function BlockedUsersScreen({
                                     borderRadius: "50%",
                                     overflow: "hidden",
                                     marginRight: 12,
-                                    backgroundColor: "#e3e7ed",
+                                    backgroundColor: "var(--bg-tertiary, #e3e7ed)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
@@ -224,7 +224,7 @@ export default function BlockedUsersScreen({
                                     style={{
                                         fontSize: 14,
                                         fontWeight: 500,
-                                        color: "#111827",
+                                        color: "var(--text-primary, #111827)",
                                         whiteSpace: "nowrap",
                                         overflow: "hidden",
                                         textOverflow: "ellipsis",
@@ -233,7 +233,7 @@ export default function BlockedUsersScreen({
                                     {name}
                                 </div>
                                 {blockedDate && (
-                                    <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>
+                                    <div style={{ fontSize: 12, color: "var(--text-secondary, #9ca3af)", marginTop: 2 }}>
                                         Đã chặn vào {blockedDate}
                                     </div>
                                 )}
@@ -266,8 +266,8 @@ export default function BlockedUsersScreen({
                                     padding: "8px 16px",
                                     borderRadius: 10,
                                     border: "1px solid #d1d5db",
-                                    backgroundColor: "#fff",
-                                    color: "#374151",
+                                    backgroundColor: "var(--bg-primary, #fff)",
+                                    color: "var(--text-primary, #374151)",
                                     fontSize: 13,
                                     fontWeight: 500,
                                     cursor: "pointer",
@@ -282,9 +282,9 @@ export default function BlockedUsersScreen({
                                     e.currentTarget.style.color = "#16a34a";
                                 }}
                                 onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = "#fff";
-                                    e.currentTarget.style.borderColor = "#d1d5db";
-                                    e.currentTarget.style.color = "#374151";
+                                    e.currentTarget.style.backgroundColor = "var(--bg-primary, #fff)";
+                                    e.currentTarget.style.borderColor = "var(--border-primary, #d1d5db)";
+                                    e.currentTarget.style.color = "var(--text-primary, #374151)";
                                 }}
                             >
                                 Bỏ chặn
@@ -311,7 +311,7 @@ export default function BlockedUsersScreen({
                     <div
                         onClick={(e) => e.stopPropagation()}
                         style={{
-                            backgroundColor: "#fff",
+                            backgroundColor: "var(--bg-primary, #fff)",
                             borderRadius: 16,
                             padding: 24,
                             maxWidth: 420,
@@ -340,7 +340,7 @@ export default function BlockedUsersScreen({
                                 margin: "0 0 8px 0",
                                 fontSize: 18,
                                 fontWeight: 600,
-                                color: "#111827",
+                                color: "var(--text-primary, #111827)",
                             }}
                         >
                             Xác nhận bỏ chặn
@@ -349,7 +349,7 @@ export default function BlockedUsersScreen({
                             style={{
                                 margin: "0 0 24px 0",
                                 fontSize: 14,
-                                color: "#6b7280",
+                                color: "var(--text-secondary, #6b7280)",
                                 lineHeight: 1.6,
                             }}
                         >
@@ -374,8 +374,8 @@ export default function BlockedUsersScreen({
                                     padding: "8px 20px",
                                     borderRadius: 10,
                                     border: "1px solid #d1d5db",
-                                    backgroundColor: "#fff",
-                                    color: "#374151",
+                                    backgroundColor: "var(--bg-primary, #fff)",
+                                    color: "var(--text-primary, #374151)",
                                     fontSize: 14,
                                     fontWeight: 500,
                                     cursor: "pointer",
@@ -391,7 +391,7 @@ export default function BlockedUsersScreen({
                                     borderRadius: 10,
                                     border: "none",
                                     backgroundColor: "#22c55e",
-                                    color: "#fff",
+                                    color: "var(--bg-primary, #fff)",
                                     fontSize: 14,
                                     fontWeight: 500,
                                     cursor: "pointer",
@@ -413,7 +413,7 @@ export default function BlockedUsersScreen({
                         bottom: 32,
                         transform: "translateX(-50%)",
                         backgroundColor: "rgba(17,24,39,0.92)",
-                        color: "#fff",
+                        color: "var(--bg-primary, #fff)",
                         padding: "12px 18px",
                         borderRadius: 12,
                         boxShadow: "0 12px 28px rgba(15,23,42,0.25)",
