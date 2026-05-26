@@ -2921,9 +2921,7 @@ export default function WorkScreen() {
             >
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }} style={{ backgroundColor: colors.card, marginBottom: 8 }}>
                     <TouchableOpacity onPress={() => { creationPanY.setValue(SCREEN_HEIGHT); setCreationStep("TYPE"); }} style={styles.storyCard}>
-                        <View style={[StyleSheet.absoluteFillObject, { alignItems: "center", justifyContent: "center", backgroundColor: "#D9E8FF" }]}>
-                            <AvatarImage name={profile?.displayName || profile?.username} uri={profile?.avatarUrl} size={70} />
-                        </View>
+                        <Image source={{ uri: buildAvatarUrl(profile?.displayName || profile?.username, profile?.avatarUrl) }} style={[StyleSheet.absoluteFillObject, { resizeMode: "cover" }]} />
                         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "flex-end", alignItems: "center", paddingBottom: 12 }]}>
                             <View style={styles.createBtn}><Ionicons name="add" size={24} color="white" /></View>
                             <Text style={styles.storyLabel}>Tạo mới</Text>
