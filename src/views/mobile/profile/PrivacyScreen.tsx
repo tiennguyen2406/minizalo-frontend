@@ -98,21 +98,15 @@ export default function PrivacyScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={{ marginTop: 24 }}>
                     <SettingsItem
-                        label="Đổi mật khẩu"
-                        icon="lock-closed-outline"
-                        onPress={() => router.push("/change-password")}
+                        label="Quản lý nguồn tìm kiếm và kết bạn"
+                        icon="shield-checkmark-outline"
+                        onPress={() => router.push("/(tabs)/search-sources")}
                         colors={colors}
                     />
                     <SettingsItem
-                        label="Tự động thêm vào nhóm"
-                        icon="people-outline"
-                        onPress={() => {}}
-                        colors={colors}
-                    />
-                    <SettingsItem
-                        label="Hiển thị trạng thái truy cập"
-                        icon="eye-outline"
-                        onPress={() => {}}
+                        label="Danh sách chặn tin nhắn"
+                        icon="ban-outline"
+                        onPress={() => router.push("/(tabs)/blocked")}
                         colors={colors}
                     />
                     <SettingsItem 

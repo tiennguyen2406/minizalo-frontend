@@ -3430,23 +3430,23 @@ export default function ChatScreen() {
               {Object.keys(typingUsers).length > 0 && !isVoiceActive && (
                 <View
                   style={{
-                    backgroundColor: "#f9fafb",
+                    backgroundColor: colors.searchBg,
                     paddingHorizontal: 16,
                     paddingVertical: 6,
                     flexDirection: "row",
                     alignItems: "center",
                     borderTopWidth: 1,
-                    borderTopColor: "#f3f4f6",
+                    borderTopColor: colors.border,
                     borderBottomWidth: 1,
-                    borderBottomColor: "#f3f4f6",
+                    borderBottomColor: colors.border,
                   }}
                 >
                   <View style={{ flexDirection: "row", marginRight: 8 }}>
-                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "#3b82f6", marginRight: 3 }} />
-                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "#3b82f6", marginRight: 3, opacity: 0.6 }} />
-                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "#3b82f6", opacity: 0.3 }} />
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary, marginRight: 3 }} />
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary, marginRight: 3, opacity: 0.6 }} />
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary, opacity: 0.3 }} />
                   </View>
-                  <Text style={{ fontSize: 11, color: "#2563eb", fontWeight: "600", fontStyle: "italic" }}>
+                  <Text style={{ fontSize: 11, color: colors.primary, fontWeight: "600", fontStyle: "italic" }}>
                     {(() => {
                       const names = Object.values(typingUsers);
                       if (names.length === 1) return `${names[0]} đang soạn tin...`;
@@ -3805,11 +3805,11 @@ export default function ChatScreen() {
                   <Ionicons
                     name="share-outline"
                     size={20}
-                    color="#60a5fa"
+                    color={colors.primary}
                     style={{ marginRight: 12 }}
                   />
                   <Text
-                    style={{ color: "#60a5fa", fontSize: 16, fontWeight: "500" }}
+                    style={{ color: colors.primary, fontSize: 16, fontWeight: "500" }}
                   >
                     Chuyển tiếp
                   </Text>
@@ -4556,7 +4556,7 @@ export default function ChatScreen() {
                   </Text>
                   {selectedForwardRooms.size > 0 && (
                     <Text
-                      style={{ color: "#60a5fa", fontSize: 12, marginTop: 2 }}
+                      style={{ color: colors.primary, fontSize: 12, marginTop: 2 }}
                     >
                       Đã chọn {selectedForwardRooms.size} cuộc trò chuyện
                     </Text>
@@ -4599,7 +4599,7 @@ export default function ChatScreen() {
                           : "chatbubble-outline"
                     }
                     size={18}
-                    color="#60a5fa"
+                    color={colors.primary}
                     style={{ marginRight: 8 }}
                   />
                   <Text
@@ -4725,8 +4725,8 @@ export default function ChatScreen() {
                           height: 24,
                           borderRadius: 12,
                           borderWidth: 2,
-                          borderColor: isSelected ? "#60a5fa" : colors.border,
-                          backgroundColor: isSelected ? "#60a5fa" : "transparent",
+                          borderColor: isSelected ? colors.primary : colors.border,
+                          backgroundColor: isSelected ? colors.primary : "transparent",
                           alignItems: "center",
                           justifyContent: "center",
                           marginRight: 12,
@@ -4756,7 +4756,7 @@ export default function ChatScreen() {
                         <Text
                           numberOfLines={1}
                           style={{
-                            color: isSelected ? "#60a5fa" : colors.text,
+                            color: isSelected ? colors.primary : colors.text,
                             fontSize: 15,
                             fontWeight: isSelected ? "600" : "400",
                           }}

@@ -79,8 +79,8 @@ export default function ReadReceiptModal({
                         {/* Mục: Đã xem */}
                         <View style={{ marginBottom: 20 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                                <Ionicons name="checkmark-done" size={20} color="#0068ff" />
-                                <Text style={{ fontSize: 15, fontWeight: '600', color: "#0068ff", marginLeft: 6 }}>
+                                <Ionicons name="checkmark-done" size={20} color={colors.primary} />
+                                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.primary, marginLeft: 6 }}>
                                     Đã xem ({readers.length})
                                 </Text>
                             </View>

@@ -447,13 +447,13 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     width: 76,
                     height: 76,
                     borderRadius: 38,
-                    backgroundColor: "#eaf2ff",
+                    backgroundColor: "rgba(0, 104, 255, 0.1)",
                     alignItems: "center",
                     justifyContent: "center",
                     marginBottom: 10,
                 }}
             >
-                <Ionicons name="folder-open-outline" size={38} color="#2f7df6" />
+                <Ionicons name="folder-open-outline" size={38} color={colors.primary} />
             </View>
             <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>My Documents</Text>
             <Text style={{ marginTop: 6, fontSize: 13.5, color: colors.textSecondary, textAlign: "center", paddingHorizontal: 22 }}>
@@ -573,10 +573,10 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     paddingHorizontal: 14,
                     paddingVertical: 10,
                     borderRadius: 12,
-                    backgroundColor: primary.variant === "primary" ? "#e6f0ff" : colors.separator,
+                    backgroundColor: primary.variant === "primary" ? "rgba(0, 104, 255, 0.1)" : colors.separator,
                 }}
             >
-                <Text style={{ fontSize: 14, fontWeight: "800", color: primary.variant === "primary" ? "#0068ff" : colors.text }}>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: primary.variant === "primary" ? colors.primary : colors.text }}>
                     {primary.label}
                 </Text>
             </TouchableOpacity>
