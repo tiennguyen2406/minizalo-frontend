@@ -55,6 +55,7 @@ interface PostState {
     commentPost: (postId: string, content: string) => Promise<void>;
     deletePostComment: (postId: string, commentId: string) => Promise<void>;
     updatePostPrivacy: (postId: string, privacy: string, permittedUserIds?: string[]) => Promise<void>;
+    deletePost: (postId: string) => Promise<void>;
 }
 
 const inferMimeFromUri = (uri: string) => {
@@ -140,6 +141,13 @@ export const usePostStore = create<PostState>((set, get) => ({
         const response = await api.put<TimelinePost>(`/posts/${postId}/privacy?${params.toString()}`);
         set((state) => ({
             posts: state.posts.map((post) => post.id === postId ? response.data : post),
+        }));
+    },
+
+    deletePost: async (postId: string) => {
+        await api.delete(`/posts/${postId}`);
+        set((state) => ({
+            posts: state.posts.filter((post) => post.id !== postId),
         }));
     },
 }));

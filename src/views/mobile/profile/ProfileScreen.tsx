@@ -6,7 +6,7 @@ import {
     Image,
     TouchableOpacity,
     ScrollView,
-    Platform,
+    Alert,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
@@ -16,10 +16,11 @@ import type { ComponentProps } from "react";
 import { profileStyles } from "./styles";
 import type { UserProfile } from "@/shared/services/types";
 import { useThemeColors } from "@/shared/theme/colors";
+import { chatService, mapChatRoomResponseToFrontend } from "@/shared/services/chatService";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
-// Icon trong ô vuông xanh (giống Zalo): cloud, sparkles, folder, time, qr-code, shield, lock
 const ListIcon = ({ name }: { name: IconName }) => {
     const colors = useThemeColors();
     return (
@@ -44,8 +45,8 @@ function MenuItem({ icon, title, subtitle, onPress }: MenuItemProps) {
                 profileStyles.listItem,
                 {
                     backgroundColor: colors.card,
-                    borderBottomColor: colors.border
-                }
+                    borderBottomColor: colors.border,
+                },
             ]}
             onPress={onPress}
             activeOpacity={0.7}
@@ -59,7 +60,7 @@ function MenuItem({ icon, title, subtitle, onPress }: MenuItemProps) {
                     </Text>
                 ) : null}
             </View>
-            <Text style={[profileStyles.listItemArrow, { color: colors.textSecondary }]}>›</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
     );
 }
@@ -71,19 +72,44 @@ interface ProfileScreenProps {
 export default function ProfileScreen({ user }: ProfileScreenProps) {
     const router = useRouter();
     const colors = useThemeColors();
+    const rooms = useChatStore((s) => s.rooms);
+    const mergeRooms = useChatStore((s) => s.mergeRooms);
     const [searchQuery, setSearchQuery] = useState("");
 
-    // Tên tài khoản vừa đăng nhập: ưu tiên displayName, rồi username (SĐT/email)
     const displayName =
         (user?.displayName?.trim() || user?.username?.trim() || "").trim() || "Người dùng";
     const avatarUrl = user?.avatarUrl ?? null;
     const avatarInitial = displayName.charAt(0).toUpperCase() || "U";
 
+    const openMyDocuments = async () => {
+        try {
+            let cloudRoom = rooms.find((room) => room.type === "CLOUD");
+
+            if (!cloudRoom?.id) {
+                const apiRooms = await chatService.getChatRooms();
+                const mappedRooms = apiRooms.map(mapChatRoomResponseToFrontend);
+                mergeRooms(mappedRooms as any);
+                cloudRoom = mappedRooms.find((room) => room.type === "CLOUD");
+            }
+
+            if (!cloudRoom?.id) {
+                Alert.alert("My Documents", "Không tìm thấy Cloud của tôi. Vui lòng thử lại.");
+                return;
+            }
+
+            router.push(
+                `/chat/${cloudRoom.id}?name=${encodeURIComponent("Cloud của tôi")}&type=CLOUD&isStranger=false`,
+            );
+        } catch (error) {
+            console.error("Open My Documents error:", error);
+            Alert.alert("Lỗi", "Không thể mở Cloud của tôi. Vui lòng thử lại sau.");
+        }
+    };
+
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
             <StatusBar style={colors.statusBar} />
             <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
-                {/* Search + Settings */}
                 <View
                     style={{
                         height: 52,
@@ -152,7 +178,6 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                 </View>
             </SafeAreaView>
 
-            {/* Profile block */}
             <TouchableOpacity
                 style={[profileStyles.profileSection, { backgroundColor: colors.card }]}
                 activeOpacity={0.8}
@@ -170,7 +195,7 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                             {
                                 alignItems: "center",
                                 justifyContent: "center",
-                                backgroundColor: colors.avatarBg
+                                backgroundColor: colors.avatarBg,
                             },
                         ]}
                     >
@@ -190,16 +215,21 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                 </View>
             </TouchableOpacity>
 
-            {/* Menu list - grouped with separators */}
             <ScrollView style={[profileStyles.list, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
-                {/* Thanh phân tách sau profile */}
+                <View style={{ height: 8, backgroundColor: colors.separator }} />
+
+                <MenuItem
+                    icon="folder"
+                    title="My Documents"
+                    subtitle="Lưu trữ các tin nhắn quan trọng"
+                    onPress={openMyDocuments}
+                />
+
                 <View style={{ height: 8, backgroundColor: colors.separator }} />
 
 
 
 
-
-                {/* Nhóm 3: Bảo mật & Riêng tư */}
                 <MenuItem
                     icon="shield-checkmark"
                     title="Tài khoản và bảo mật"
@@ -211,7 +241,18 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                     onPress={() => router.push("/privacy")}
                 />
 
-                {/* Padding bottom */}
+                <MenuItem
+                    icon="settings"
+                    title="Cài đặt chung"
+                    onPress={() => router.push("/(tabs)/settings")}
+                />
+                <MenuItem
+                    icon="help-circle"
+                    title="Trung tâm trợ giúp"
+                    subtitle="Hướng dẫn sử dụng và hỗ trợ nhanh"
+                    onPress={() => router.push("/(tabs)/support")}
+                />
+
                 <View style={{ height: 24 }} />
             </ScrollView>
         </View>

@@ -4,9 +4,10 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    Platform,
     FlatList,
     Animated,
+    Image,
+    ActivityIndicator,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,6 +22,10 @@ import type { UserProfile } from "@/shared/services/types";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { useThemeColors } from "@/shared/theme/colors";
+import { groupService } from "@/shared/services/groupService";
+import type { GroupDetail } from "@/shared/types";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 type TabKey = "friends" | "groups" | "phonebook";
 
@@ -36,16 +41,55 @@ export default function ContactsMobileScreen() {
     const [searchText, setSearchText] = useState("");
     const [showRequestBanner, setShowRequestBanner] = useState(false);
     const [newRequestsCount, setNewRequestsCount] = useState(0);
+    const [groups, setGroups] = useState<GroupDetail[]>([]);
+    const [groupsLoading, setGroupsLoading] = useState(false);
+    const [groupsError, setGroupsError] = useState<string | null>(null);
     const bannerTranslateY = useRef(new Animated.Value(-80)).current;
     const hideBannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { friends, requests, fetchRequests } = useFriendStore();
     const { profile } = useUserStore();
+    const upsertRoom = useChatStore((s) => s.upsertRoom);
     const currentUserId = profile?.id ?? null;
 
     // Lưu lại số lượng lời mời trước đó để phát hiện "lời mời mới"
     const lastRequestsCountRef = useRef<number>(requests.length);
+
+    const fetchGroups = useCallback(async () => {
+        setGroupsLoading(true);
+        setGroupsError(null);
+        try {
+            const data = await groupService.getUsersGroups();
+            setGroups(data.filter((group) => !group.disbanded));
+        } catch (error) {
+            console.error("Fetch groups error:", error);
+            setGroupsError("Không thể tải danh sách nhóm.");
+        } finally {
+            setGroupsLoading(false);
+        }
+    }, []);
+
+    const openGroupChat = useCallback((group: GroupDetail) => {
+        upsertRoom({
+            id: group.id,
+            name: group.groupName,
+            type: "GROUP",
+            avatarUrl: group.avatarUrl,
+            wallpaperUrl: group.wallpaperUrl,
+            description: group.description,
+            unreadCount: 0,
+            updatedAt: group.createdAt,
+            participants: group.members.map((member) => ({
+                id: member.userId,
+                username: member.username,
+                fullName: member.fullName || member.username,
+                avatarUrl: member.avatarUrl,
+            })),
+            disbanded: !!group.disbanded,
+        });
+        router.push(`/chat/${group.id}?name=${encodeURIComponent(group.groupName)}&type=GROUP`);
+    }, [router, upsertRoom]);
 
     const birthdayFriends = useMemo<UserProfile[]>(() => {
         const result: UserProfile[] = [];
@@ -76,6 +120,10 @@ export default function ContactsMobileScreen() {
             // Gọi lần đầu
             // eslint-disable-next-line @typescript-eslint/no-floating-promises
             fetchRequests();
+            if (activeTab === "groups") {
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                fetchGroups();
+            }
 
             const intervalId = setInterval(() => {
                 if (!isActive) return;
@@ -87,8 +135,15 @@ export default function ContactsMobileScreen() {
                 isActive = false;
                 clearInterval(intervalId);
             };
-        }, [fetchRequests])
+        }, [activeTab, fetchGroups, fetchRequests])
     );
+
+    useEffect(() => {
+        if (activeTab === "groups") {
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+            fetchGroups();
+        }
+    }, [activeTab, fetchGroups]);
 
     // Hiển thị banner thông báo khi có thêm lời mời kết bạn mới
     useEffect(() => {
@@ -139,8 +194,105 @@ export default function ContactsMobileScreen() {
         };
     }, [requests.length, bannerTranslateY]);
 
+    const renderGroupsContent = () => {
+        if (groupsLoading && groups.length === 0) {
+            return (
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                    <ActivityIndicator color={colors.primary} />
+                    <Text style={{ marginTop: 8, color: colors.textSecondary, fontSize: 13 }}>
+                        Đang tải danh sách nhóm...
+                    </Text>
+                </View>
+            );
+        }
+        if (groupsError && groups.length === 0) {
+            return (
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={fetchGroups}
+                    style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}
+                >
+                    <Ionicons name="alert-circle-outline" size={40} color={colors.textSecondary} />
+                    <Text style={{ marginTop: 10, color: colors.text, fontSize: 15, textAlign: "center" }}>
+                        {groupsError}
+                    </Text>
+                    <Text style={{ marginTop: 4, color: colors.primary, fontSize: 13 }}>Chạm để thử lại</Text>
+                </TouchableOpacity>
+            );
+        }
+        if (groups.length === 0) {
+            return (
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+                    <Ionicons name="people-outline" size={42} color={colors.textSecondary} />
+                    <Text style={{ marginTop: 10, color: colors.text, fontSize: 15, fontWeight: "500", textAlign: "center" }}>
+                        Bạn chưa có nhóm nào
+                    </Text>
+                </View>
+            );
+        }
+        return (
+            <FlatList
+                data={groups}
+                keyExtractor={(item) => item.id}
+                refreshing={groupsLoading}
+                onRefresh={fetchGroups}
+                renderItem={({ item }) => {
+                    const avatarUri = getImageUrl(item.avatarUrl);
+                    const initial = (item.groupName || "N").charAt(0).toUpperCase();
+                    return (
+                        <TouchableOpacity
+                            activeOpacity={0.75}
+                            onPress={() => openGroupChat(item)}
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                paddingHorizontal: 16,
+                                paddingVertical: 12,
+                                backgroundColor: colors.background,
+                                borderBottomWidth: 0.5,
+                                borderBottomColor: colors.border,
+                            }}
+                        >
+                            <View
+                                style={{
+                                    width: 48,
+                                    height: 48,
+                                    borderRadius: 24,
+                                    backgroundColor: colors.avatarBg,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    marginRight: 12,
+                                    overflow: "hidden",
+                                }}
+                            >
+                                {avatarUri ? (
+                                    <Image source={{ uri: avatarUri }} style={{ width: 48, height: 48 }} />
+                                ) : (
+                                    <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
+                                        {initial}
+                                    </Text>
+                                )}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>
+                                    {item.groupName}
+                                </Text>
+                                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 3 }}>
+                                    {item.members.length} thành viên
+                                </Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                    );
+                }}
+                contentContainerStyle={{ paddingBottom: 24 }}
+            />
+        );
+    };
+
     const renderTabContent = () => {
-        switch (activeTab) {
+        if (activeTab === "groups") return renderGroupsContent();
+        switch (activeTab as TabKey) {
             case "friends":
                 // Danh sách bạn bè không bị ảnh hưởng bởi thanh tìm kiếm chính.
                 // Thanh tìm kiếm chỉ dùng để mở màn tìm kiếm riêng (contacts-search).
@@ -420,6 +572,7 @@ export default function ContactsMobileScreen() {
                 <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, backgroundColor: colors.background }}>
                     <TouchableOpacity
                         activeOpacity={0.8}
+                        onPress={() => router.push("/(tabs)/create-group")}
                         style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10 }}
                     >
                         <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#22c55e", alignItems: "center", justifyContent: "center", marginRight: 10 }}>

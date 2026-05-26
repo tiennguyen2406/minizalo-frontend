@@ -12,6 +12,7 @@ import {
     ActivityIndicator,
     ActionSheetIOS,
     Platform,
+    StyleSheet,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
@@ -44,6 +45,8 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
     const postsLoading = usePostStore((s) => s.loading);
     const fetchPostFeed = usePostStore((s) => s.fetchFeed);
     const createPost = usePostStore((s) => s.createPost);
+    const updatePostPrivacy = usePostStore((s) => s.updatePostPrivacy);
+    const deletePost = usePostStore((s) => s.deletePost);
     const storyFeed = useStoryStore((s) => s.feed);
     const myStories = useStoryStore((s) => s.myStories);
     const fetchStoryFeed = useStoryStore((s) => s.fetchFeed);
@@ -65,6 +68,8 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
     const [posting, setPosting] = useState(false);
     const [mediaModalVisible, setMediaModalVisible] = useState(false);
     const [storyModalVisible, setStoryModalVisible] = useState(false);
+    const [postPrivacyTarget, setPostPrivacyTarget] = useState<TimelinePost | null>(null);
+    const [privacySaving, setPrivacySaving] = useState(false);
 
     // Hooks for images
     const avatarPicker = useImagePicker({ folder: "avatars/", aspect: [1, 1], allowsEditing: true });
@@ -190,6 +195,44 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
         const d = new Date(value);
         if (Number.isNaN(d.getTime())) return "";
         return d.toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
+    };
+
+    const getPostPrivacyLabel = (privacy?: string | null) => {
+        if (privacy === "SPECIFIC") return "Một số bạn bè";
+        if (privacy === "EXCLUDE") return "Ngoại trừ...";
+        return "Bạn bè Zalo";
+    };
+
+    const handleChangePostPrivacy = async (privacy: "ALL_FRIENDS" | "SPECIFIC" | "EXCLUDE") => {
+        if (!postPrivacyTarget) return;
+        setPrivacySaving(true);
+        try {
+            await updatePostPrivacy(postPrivacyTarget.id, privacy, postPrivacyTarget.permittedUserIds ?? []);
+            setPostPrivacyTarget(null);
+        } catch (error) {
+            console.error("Update profile post privacy error:", error);
+            Alert.alert("Lỗi", "Không thể cập nhật đối tượng xem.");
+        } finally {
+            setPrivacySaving(false);
+        }
+    };
+
+    const handleDeletePost = (postId: string) => {
+        Alert.alert("Xóa bài viết", "Bạn có chắc muốn xóa bài viết này?", [
+            { text: "Hủy", style: "cancel" },
+            {
+                text: "Xóa",
+                style: "destructive",
+                onPress: async () => {
+                    try {
+                        await deletePost(postId);
+                    } catch (error) {
+                        console.error("Delete profile post error:", error);
+                        Alert.alert("Lỗi", "Không thể xóa bài viết.");
+                    }
+                },
+            },
+        ]);
     };
 
     const handlePickPostMedia = async () => {
@@ -350,8 +393,30 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                     )}
                     <View style={{ marginLeft: 10, flex: 1 }}>
                         <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>{displayName}</Text>
-                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>{formatPostTime(post.createdAt)}</Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 2 }}>
+                            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{formatPostTime(post.createdAt)}</Text>
+                            <TouchableOpacity
+                                onPress={(event) => {
+                                    event.stopPropagation?.();
+                                    setPostPrivacyTarget(post);
+                                }}
+                                style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
+                            >
+                                <Ionicons name="people-outline" size={12} color={colors.textSecondary} />
+                                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{getPostPrivacyLabel(post.privacy)}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
+                    <TouchableOpacity
+                        onPress={(event) => {
+                            event.stopPropagation?.();
+                            handleDeletePost(post.id);
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={{ padding: 6 }}
+                    >
+                        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+                    </TouchableOpacity>
                 </View>
                 {post.content ? (
                     <Text style={{ color: colors.text, fontSize: 15, lineHeight: 22, marginBottom: items.length ? 10 : 0 }}>
@@ -938,6 +1003,55 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                 <Text style={{ color: "#fff", fontWeight: "800" }}>{posting ? "Đang đăng..." : "Đăng"}</Text>
                             </TouchableOpacity>
                         </View>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal
+                transparent
+                visible={!!postPrivacyTarget}
+                animationType="fade"
+                statusBarTranslucent
+                onRequestClose={() => setPostPrivacyTarget(null)}
+            >
+                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.52)", justifyContent: "flex-end" }}>
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        onPress={() => setPostPrivacyTarget(null)}
+                        style={{ ...StyleSheet.absoluteFillObject }}
+                    />
+                    <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 12, paddingBottom: 26 }}>
+                        <View style={{ alignItems: "center", paddingBottom: 8 }}>
+                            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
+                        </View>
+                        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", textAlign: "center" }}>
+                            Ai được xem bài viết này?
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: "center", marginTop: 4, marginBottom: 10 }}>
+                            Bạn có thể đổi đối tượng xem bất cứ lúc nào
+                        </Text>
+                        {([
+                            ["ALL_FRIENDS", "people-outline", "Bạn bè Zalo", "Bạn bè của bạn có thể xem"],
+                            ["SPECIFIC", "person-add-outline", "Một số bạn bè", "Giữ danh sách đã chọn hiện tại"],
+                            ["EXCLUDE", "person-remove-outline", "Ngoại trừ...", "Ẩn với danh sách đã chọn hiện tại"],
+                        ] as const).map(([value, icon, title, subtitle]) => {
+                            const active = (postPrivacyTarget?.privacy || "ALL_FRIENDS") === value;
+                            return (
+                                <TouchableOpacity
+                                    key={value}
+                                    disabled={privacySaving}
+                                    onPress={() => handleChangePostPrivacy(value)}
+                                    style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, opacity: privacySaving ? 0.6 : 1 }}
+                                >
+                                    <Ionicons name={icon as any} size={22} color={colors.textSecondary} style={{ marginRight: 12 }} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>{title}</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>{subtitle}</Text>
+                                    </View>
+                                    {active ? <Ionicons name="checkmark-circle" size={22} color={colors.primary} /> : null}
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
                 </View>
             </Modal>

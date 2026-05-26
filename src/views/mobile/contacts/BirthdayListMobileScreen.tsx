@@ -30,10 +30,9 @@ export default function BirthdayListMobileScreen() {
         }
     }, [friends.length, fetchFriends]);
 
-    const upcomingBirthdays = useMemo<BirthdayItem[]>(() => {
+    const birthdaysThisYear = useMemo<BirthdayItem[]>(() => {
         const now = new Date();
         const currentYear = now.getFullYear();
-        const todayKey = now.getMonth() * 31 + now.getDate();
         const seen = new Set<string>();
         const list: BirthdayItem[] = [];
 
@@ -46,11 +45,8 @@ export default function BirthdayListMobileScreen() {
 
             // Đưa sinh nhật về năm hiện tại để dễ so sánh / sort
             const normalized = new Date(currentYear, d.getMonth(), d.getDate());
-            const key = normalized.getMonth() * 31 + normalized.getDate();
 
             // Chỉ lấy những ngày còn lại trong năm (>= hôm nay)
-            if (key < todayKey) return;
-
             seen.add(u.id);
             list.push({ user: u, date: normalized });
         });
@@ -157,7 +153,7 @@ export default function BirthdayListMobileScreen() {
 
     return (
         <SafeAreaView
-            style={{ flex: 1, backgroundColor: colors.background }}
+            style={{ flex: 1, backgroundColor: colors.headerBg }}
             edges={["top"]}
         >
             <StatusBar style={colors.statusBar} />
@@ -212,17 +208,18 @@ export default function BirthdayListMobileScreen() {
                         fontWeight: "600",
                     }}
                 >
-                    Sinh nhật sắp tới
+                    Sinh nhật trong năm
                 </Text>
             </View>
 
-            {upcomingBirthdays.length === 0 ? (
+            {birthdaysThisYear.length === 0 ? (
                 <View
                     style={{
                         flex: 1,
                         alignItems: "center",
                         justifyContent: "center",
                         paddingHorizontal: 32,
+                        backgroundColor: colors.background,
                     }}
                 >
                     <Ionicons
@@ -239,14 +236,15 @@ export default function BirthdayListMobileScreen() {
                             textAlign: "center",
                         }}
                     >
-                        Chưa có sinh nhật nào sắp tới
+                        Chưa có sinh nhật bạn bè trong năm
                     </Text>
                 </View>
             ) : (
                 <FlatList
-                    data={upcomingBirthdays}
+                    data={birthdaysThisYear}
                     keyExtractor={(item) => item.user.id}
                     renderItem={renderItem}
+                    style={{ backgroundColor: colors.background }}
                     contentContainerStyle={{ paddingBottom: 24 }}
                 />
             )}

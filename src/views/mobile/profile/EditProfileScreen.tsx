@@ -218,18 +218,16 @@ const MONTHS_VI = [
     "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
 ];
 
-function CalendarPickerModal({
-    visible,
-    initialDate,
-    onConfirm,
-    onCancel,
-}: {
+interface CalendarPickerModalProps {
     visible: boolean;
     initialDate: Date;
     onConfirm: (date: Date) => void;
     onCancel: () => void;
-}) {
-    const colors = useThemeColors();
+    themeColors: ThemeColors;
+}
+
+function CalendarPickerModal(props: CalendarPickerModalProps) {
+    const { visible, initialDate, onConfirm, onCancel, themeColors: colors } = props;
     const [viewYear, setViewYear] = useState(initialDate.getFullYear());
     const [viewMonth, setViewMonth] = useState(initialDate.getMonth());
     const [selectedDay, setSelectedDay] = useState(initialDate.getDate());
@@ -328,7 +326,7 @@ function CalendarPickerModal({
                             <View style={{ flexDirection: "row" }}>
                                 {DAYS_VI.map((d) => (
                                     <View key={d} style={{ width: cellSize, alignItems: "center", paddingVertical: 4 }}>
-                                        <Text style={{ fontSize: 12, color: "#8e8e93", fontWeight: "600" }}>{d}</Text>
+                                        <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: "600" }}>{d}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -520,7 +518,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                         activeOpacity={0.7}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                        <Ionicons name="chevron-back" size={26} color="#ffffff" />
+                        <Ionicons name="chevron-back" size={26} color={colors.headerText} />
                     </TouchableOpacity>
                     <Text style={s.headerTitle}>Thông tin cá nhân</Text>
                 </View>
@@ -643,7 +641,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                             style={s.modalCloseButton}
                             onPress={() => { Keyboard.dismiss(); setEditModalVisible(false); }}
                         >
-                            <Ionicons name="close" size={18} color="#8e8e93" />
+                            <Ionicons name="close" size={18} color={colors.textSecondary} />
                         </Pressable>
                     </View>
 
@@ -702,7 +700,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
                                 <Text style={s.dobText}>
                                     {editDob ? formatDob(editDob) : "Chọn ngày sinh"}
                                 </Text>
-                                <Ionicons name="calendar-outline" size={18} color="#0068FF" />
+                                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
                             </Pressable>
                         </View>
 
@@ -724,6 +722,7 @@ export default function EditProfileScreen({ user, onSave }: EditProfileScreenPro
             <CalendarPickerModal
                 visible={showDatePicker}
                 initialDate={pickerDate}
+                themeColors={colors}
                 onConfirm={(date) => {
                     setPickerDate(date);
                     const yyyy = date.getFullYear();

@@ -298,7 +298,7 @@ export default function FriendRequestsMobile() {
     <SafeAreaView
       style={{
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: colors.headerBg,
       }}
       edges={["top"]}
     >
@@ -412,6 +412,7 @@ export default function FriendRequestsMobile() {
             flex: 1,
             alignItems: "center",
             justifyContent: "center",
+            backgroundColor: colors.background,
           }}
         >
           <ActivityIndicator color={colors.primary} />
@@ -432,6 +433,7 @@ export default function FriendRequestsMobile() {
             alignItems: "center",
             justifyContent: "center",
             paddingHorizontal: 32,
+            backgroundColor: colors.background,
           }}
         >
           <Ionicons
@@ -458,6 +460,7 @@ export default function FriendRequestsMobile() {
           data={currentList}
           keyExtractor={(item) => item.id}
           renderItem={tab === "received" ? renderReceivedItem : renderSentItem}
+          style={{ backgroundColor: colors.background }}
           contentContainerStyle={{ paddingBottom: 24 }}
         />
       )}
