@@ -2332,6 +2332,21 @@ export default function ChatScreen() {
     [galleryItems],
   );
 
+  const handleOpenStoryFromMessage = useCallback(
+    (story: { storyId?: string; authorId?: string; payload?: string }) => {
+      if (!story.storyId && !story.authorId) return;
+      router.push({
+        pathname: "/(tabs)/work",
+        params: {
+          storyId: story.storyId || "",
+          storyAuthorId: story.authorId || "",
+          storyPayload: story.payload || "",
+        },
+      } as any);
+    },
+    [router],
+  );
+
   /** Làm mịn vị trí khi mở gallery (initialScrollIndex lỗi trên một số máy) + sync index. */
   useEffect(() => {
     if (galleryIndex === null || galleryItems.length === 0) return;
@@ -2593,6 +2608,7 @@ export default function ChatScreen() {
             }
           }}
           onImagePress={(url) => handleGalleryOpen(url)}
+          onStoryPress={handleOpenStoryFromMessage}
           onScrollToMessageId={scrollToMessageId}
           isLastMyMessage={newest.messageId === lastMyMessageId}
           readByIds={newest.readBy?.filter(id => id !== currentUserId)}
@@ -2736,6 +2752,7 @@ export default function ChatScreen() {
           }
         }}
         onImagePress={(url) => handleGalleryOpen(url)}
+        onStoryPress={handleOpenStoryFromMessage}
         onScrollToMessageId={scrollToMessageId}
         isLastMyMessage={itemMsg.messageId === lastMyMessageId}
         readByIds={itemMsg.readBy?.filter(id => id !== currentUserId)}

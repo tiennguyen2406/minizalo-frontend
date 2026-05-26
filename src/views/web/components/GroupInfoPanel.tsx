@@ -686,7 +686,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     onClick={openAddMembers}
                 />
                 {isOwnerOrAdmin && (
-                    <>
+                    <React.Fragment>
                         <input
                             ref={wallpaperInputRef}
                             type="file"
@@ -695,12 +695,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             onChange={handleChangeWallpaper}
                             disabled={isUploadingWallpaper}
                         />
-                        <ActionButton
-                            icon={isUploadingWallpaper ? <span className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /> : <Icon.Image />}
-                            label={<span>Đổi<br />nền</span>}
-                            onClick={() => wallpaperInputRef.current?.click()}
-                        />
-                    </>
+                    </React.Fragment>
                 )}
                 {isOwnerOrAdmin && (
                     <ActionButton
@@ -710,6 +705,22 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     />
                 )}
             </ActionButtonRow>
+
+            {isOwnerOrAdmin && (
+                <div className="border-t border-gray-100">
+                    <button
+                        type="button"
+                        onClick={() => wallpaperInputRef.current?.click()}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                    >
+                        {isUploadingWallpaper ? <span className="w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /> : <Icon.Image />}
+                        <span className="flex-1 text-sm text-gray-700">Đổi nền</span>
+                        <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+            )}
 
             {/* Thành viên nhóm */}
             <div className="border-t border-gray-100 px-4 py-3">

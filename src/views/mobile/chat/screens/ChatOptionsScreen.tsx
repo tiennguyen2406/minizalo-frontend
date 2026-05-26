@@ -25,7 +25,9 @@ import MediaStorageScreen from "./MediaStorageScreen";
 import { chatService, mapChatRoomResponseToFrontend, type MessageDynamo, type Attachment } from "@/shared/services/chatService";
 import { MessageService } from "@/shared/services/MessageService";
 import { userService } from "@/shared/services/userService";
+import friendService from "@/shared/services/friendService";
 import friendCategoryService from "@/shared/services/friendCategoryService";
+import { useFriendStore } from "@/shared/store/friendStore";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { setChatWallpaperUri } from "@/shared/utils/chatWallpaper";
 import { useThemeColors } from "@/shared/theme/colors";
@@ -102,6 +104,9 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     const togglePinRoom = useChatStore((s) => s.togglePinRoom);
     const toggleHiddenRoom = useChatStore((s) => s.toggleHiddenRoom);
     const rooms = useChatStore((s) => s.rooms);
+    const friends = useFriendStore((s) => s.friends);
+    const fetchFriends = useFriendStore((s) => s.fetchFriends);
+    const removeFriend = useFriendStore((s) => s.removeFriend);
     const currentRoom = rooms.find((r) => r.id === roomId);
     const commonGroups = rooms.filter(
         (r) => r.type === "GROUP" && !!partnerId && r.participants?.some((p: any) => p.id === partnerId),
@@ -120,7 +125,9 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     const [savingWallpaper, setSavingWallpaper] = useState(false);
     const [showCommonGroups, setShowCommonGroups] = useState(false);
     const [notifyCall, setNotifyCall] = useState(true);
-    const [recentMedia, setRecentMedia] = useState<{ type: 'image' | 'file' | 'link', url: string }[]>([]);
+    const [recentImages, setRecentImages] = useState<string[]>([]);
+    const [hideMyTimelineFromFriend, setHideMyTimelineFromFriend] = useState(false);
+    const [savingPersonalSetting, setSavingPersonalSetting] = useState(false);
     const isCloud = type === "CLOUD";
 
     type CloudGridItem = { id: string; url: string; label?: string };
@@ -133,6 +140,21 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     useEffect(() => {
         setNicknameDraft(displayName);
     }, [displayName]);
+
+    useEffect(() => {
+        if (type === "DIRECT" && friends.length === 0) {
+            void fetchFriends();
+        }
+    }, [fetchFriends, friends.length, type]);
+
+    useEffect(() => {
+        if (!partnerId) {
+            setHideMyTimelineFromFriend(false);
+            return;
+        }
+        const friendship = friends.find((item: any) => String(item.friend?.id) === String(partnerId));
+        setHideMyTimelineFromFriend(Boolean(friendship?.hideMyTimelineFromFriend));
+    }, [friends, partnerId]);
 
     useEffect(() => {
         if (!partnerId || type !== "DIRECT") {
@@ -261,43 +283,86 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
         }
     }, [bestFriend, closeFriendCategoryId, partnerId]);
 
+    const toggleHideTimeline = useCallback(async () => {
+        if (!partnerId || savingPersonalSetting) return;
+        const next = !hideMyTimelineFromFriend;
+        setHideMyTimelineFromFriend(next);
+        setSavingPersonalSetting(true);
+        try {
+            await friendService.updateHideMyTimelineFromFriend(partnerId, next);
+            await fetchFriends();
+        } catch (error) {
+            setHideMyTimelineFromFriend(!next);
+            console.error("Toggle timeline privacy error:", error);
+            Alert.alert("Lỗi", "Không thể cập nhật quyền riêng tư lúc này.");
+        } finally {
+            setSavingPersonalSetting(false);
+        }
+    }, [fetchFriends, hideMyTimelineFromFriend, partnerId, savingPersonalSetting]);
+
+    const handleRemoveFriend = useCallback(() => {
+        if (!partnerId) return;
+        Alert.alert(
+            "Xóa bạn",
+            `Bạn có chắc chắn muốn xóa ${displayName} khỏi danh sách bạn bè?`,
+            [
+                { text: "Hủy", style: "cancel" },
+                {
+                    text: "Xóa",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            setSavingPersonalSetting(true);
+                            await removeFriend(partnerId);
+                            await fetchFriends();
+                            onClose();
+                        } catch (error) {
+                            console.error("Remove friend error:", error);
+                            Alert.alert("Lỗi", "Không thể xóa bạn lúc này.");
+                        } finally {
+                            setSavingPersonalSetting(false);
+                        }
+                    },
+                },
+            ],
+        );
+    }, [displayName, fetchFriends, onClose, partnerId, removeFriend]);
+
     useEffect(() => {
         if (!roomId || roomId === "new") {
-            setRecentMedia([]);
+            setRecentImages([]);
             return;
         }
 
         const fetchRecentMedia = async () => {
             try {
                 const res = await chatService.getChatHistory(roomId, 50);
-                const mediaItems: { type: 'image' | 'file' | 'link', url: string }[] = [];
+                const imageUrls: string[] = [];
+                const seen = new Set<string>();
+                const pushImage = (url?: string | null) => {
+                    if (!url || seen.has(url) || imageUrls.length >= 5) return;
+                    seen.add(url);
+                    imageUrls.push(url);
+                };
+
                 for (const msg of res.messages || []) {
                     if (msg.attachments && Array.isArray(msg.attachments)) {
                         for (const att of msg.attachments) {
                             const type = (att.type || "").toLowerCase();
                             if (type.startsWith("image") || type === "image") {
-                                mediaItems.push({ type: 'image', url: att.url });
-                            } else {
-                                mediaItems.push({ type: 'file', url: att.url });
+                                pushImage(att.url);
                             }
-                            if (mediaItems.length >= 4) break;
+                            if (imageUrls.length >= 5) break;
                         }
                     }
-                    if (mediaItems.length >= 4) break;
+                    if (imageUrls.length >= 5) break;
 
-                    if (msg.content) {
-                        const urlRegex = /(https?:\/\/[^\s]+)/g;
-                        const matches = msg.content.match(urlRegex);
-                        if (matches) {
-                            for (const url of matches) {
-                                mediaItems.push({ type: 'link', url });
-                                if (mediaItems.length >= 4) break;
-                            }
-                        }
+                    if (String(msg.type || "").toUpperCase() === "IMAGE") {
+                        pushImage((msg as any).fileUrl || msg.content);
                     }
-                    if (mediaItems.length >= 4) break;
+                    if (imageUrls.length >= 5) break;
                 }
-                setRecentMedia(mediaItems);
+                setRecentImages(imageUrls);
             } catch (error) {
                 console.error("Error fetching recent media:", error);
             }
@@ -400,7 +465,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                             }
                         }
 
-                        if (m.content && mt !== "IMAGE" && mt !== "VIDEO") {
+                        if (m.content && mt !== "IMAGE" && mt !== "VIDEO" && !m.content.trimStart().startsWith('{"type":"STORY_QUOTE"')) {
                             const re = /(https?:\/\/[^\s<]+)/g;
                             let match: RegExpExecArray | null;
                             while ((match = re.exec(m.content)) !== null) {
@@ -626,15 +691,36 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     };
 
     // ── Modal: Thêm vào nhóm ──
+    const [showPersonalSettings, setShowPersonalSettings] = useState(false);
+    const [personalSettingsSlide] = useState(new Animated.Value(SCREEN_WIDTH));
+
+    const openPersonalSettings = () => {
+        setShowPersonalSettings(true);
+        Animated.timing(personalSettingsSlide, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const closePersonalSettings = () => {
+        Animated.timing(personalSettingsSlide, {
+            toValue: SCREEN_WIDTH,
+            duration: 250,
+            useNativeDriver: true,
+        }).start(() => setShowPersonalSettings(false));
+    };
+
     const [showAddToGroup, setShowAddToGroup] = useState(false);
 
     /* ────── Custom Sub-components that depend on `colors` ────── */
-    const CustomSwitch = ({ value, onToggle }: { value: boolean; onToggle: () => void }) => (
+    const CustomSwitch = ({ value, onToggle, disabled = false }: { value: boolean; onToggle: () => void; disabled?: boolean }) => (
         <TouchableOpacity
             activeOpacity={0.8}
+            disabled={disabled}
             onPress={onToggle}
             style={[
-                { width: 44, height: 24, borderRadius: 12, justifyContent: "center" },
+                { width: 44, height: 24, borderRadius: 12, justifyContent: "center", opacity: disabled ? 0.65 : 1 },
                 { backgroundColor: value ? colors.primary : colors.separator },
             ]}
         >
@@ -1035,16 +1121,10 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                 <Section>
                     <OptionRow icon="images-outline" label="Ảnh, file, link" right={<Arrow />} onPress={openMediaStorage} first />
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingBottom: 16, paddingRight: 16 }}>
-                        {recentMedia.length > 0 ? (
-                            recentMedia.map((m, i) => (
+                        {recentImages.length > 0 ? (
+                            recentImages.slice(0, 4).map((url, i) => (
                                 <View key={i} style={[s.mediaPH, { backgroundColor: colors.searchBg }]}>
-                                    {m.type === 'image' ? (
-                                        <Image source={{ uri: getImageUrl(m.url) }} style={{ width: 70, height: 70, borderRadius: 8 }} />
-                                    ) : m.type === 'file' ? (
-                                        <Ionicons name="document-text-outline" size={32} color={colors.text} />
-                                    ) : (
-                                        <Ionicons name="link-outline" size={32} color={colors.text} />
-                                    )}
+                                    <Image source={{ uri: getImageUrl(url) }} style={{ width: 70, height: 70, borderRadius: 8 }} />
                                 </View>
                             ))
                         ) : (
@@ -1052,7 +1132,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                                 <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Trống</Text>
                             </View>
                         )}
-                        {recentMedia.length >= 4 && (
+                        {recentImages.length > 4 && (
                             <TouchableOpacity style={[s.mediaPH, { backgroundColor: colors.searchBg }]} onPress={openMediaStorage}>
                                 <Ionicons name="arrow-forward" size={24} color={colors.text} />
                             </TouchableOpacity>
@@ -1122,8 +1202,9 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                         }
                     />
                     <OptionRow icon="call-outline" label="Báo cuộc gọi đến" right={<CustomSwitch value={notifyCall} onToggle={() => setNotifyCall(v => !v)} />} />
-                    <OptionRow icon="settings-outline" label="Cài đặt cá nhân" right={<Arrow />} />
-                    <OptionRow icon="timer-outline" label="Tin nhắn tự xoá" desc="Không tự xoá" />
+                    {type === "DIRECT" && (
+                        <OptionRow icon="settings-outline" label="Cài đặt cá nhân" right={<Arrow />} onPress={openPersonalSettings} />
+                    )}
                 </Section>
 
                 {/* Group 5: Danger */}
@@ -1432,6 +1513,84 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                         roomId={roomId}
                         onClose={closeMediaStorage}
                     />
+                </Animated.View>
+            )}
+
+            {showPersonalSettings && (
+                <Animated.View
+                    style={{
+                        position: "absolute",
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        zIndex: 210,
+                        transform: [{ translateX: personalSettingsSlide }],
+                    }}
+                >
+                    <View style={{ flex: 1, backgroundColor: colors.background }}>
+                        <StatusBar style={colors.statusBar} />
+                        <View style={{ backgroundColor: colors.headerBg }}>
+                            <SafeAreaView edges={["top"]}>
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        height: 52,
+                                        paddingHorizontal: 16,
+                                        borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                                        borderBottomColor: colors.border,
+                                    }}
+                                >
+                                    <TouchableOpacity
+                                        onPress={closePersonalSettings}
+                                        style={{ paddingRight: 10, paddingVertical: 4 }}
+                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    >
+                                        <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+                                    </TouchableOpacity>
+                                    <Text style={{ color: colors.headerText, fontSize: 17, fontWeight: "700" }}>
+                                        Cài đặt cá nhân
+                                    </Text>
+                                </View>
+                            </SafeAreaView>
+                        </View>
+
+                        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                            <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "700", paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 }}>
+                                Thiết lập riêng tư
+                            </Text>
+                            <View style={{ backgroundColor: colors.card, paddingLeft: 16 }}>
+                                <OptionRow
+                                    icon="eye-off-outline"
+                                    label="Chặn người này xem hoạt động của tôi"
+                                    desc="Áp dụng cho story và bài đăng"
+                                    right={
+                                        <CustomSwitch
+                                            value={hideMyTimelineFromFriend}
+                                            onToggle={toggleHideTimeline}
+                                            disabled={savingPersonalSetting || !partnerId}
+                                        />
+                                    }
+                                    first
+                                />
+                            </View>
+
+                            <View style={{ height: 8, backgroundColor: colors.separator }} />
+                            <TouchableOpacity
+                                activeOpacity={0.75}
+                                disabled={savingPersonalSetting || !partnerId}
+                                onPress={handleRemoveFriend}
+                                style={{
+                                    backgroundColor: colors.card,
+                                    paddingHorizontal: 16,
+                                    paddingVertical: 16,
+                                    borderBottomWidth: 0.5,
+                                    borderBottomColor: colors.border,
+                                    opacity: savingPersonalSetting || !partnerId ? 0.6 : 1,
+                                }}
+                            >
+                                <Text style={{ color: "#ef4444", fontSize: 16 }}>Xóa bạn</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
                 </Animated.View>
             )}
 

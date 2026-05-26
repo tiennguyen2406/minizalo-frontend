@@ -85,6 +85,15 @@ export const friendService = {
         const { data } = await api.get(`/friends/block-status/${userId}`);
         return data;
     },
+
+    async updateHideMyTimelineFromFriend(userId: string, hidden: boolean): Promise<FriendResponseDto> {
+        const { data } = await api.put<FriendResponseDto>(
+            `/friends/${userId}/timeline-privacy`,
+            null,
+            { params: { hidden } },
+        );
+        return data;
+    },
 };
 
 export default friendService;

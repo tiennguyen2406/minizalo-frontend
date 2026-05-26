@@ -127,13 +127,14 @@ const LinkPreview = ({ url, isMe }: { url: string, isMe: boolean }) => {
 };
 
 /** Story Reply Quote Card — hiển thị trong đoạn chat khi reply qua Khoảnh khắc */
-function StoryReplyBubble({ content, isMe, time, colors, theme, onLongPress }: {
+function StoryReplyBubble({ content, isMe, time, colors, theme, onLongPress, onPressStory }: {
     content: string;
     isMe: boolean;
     time: string;
     colors: any;
     theme: string;
     onLongPress?: () => void;
+    onPressStory?: (data: { storyId?: string; authorId?: string; payload?: string }) => void;
 }) {
     const [imgError, setImgError] = React.useState(false);
     let data: {
@@ -177,6 +178,7 @@ function StoryReplyBubble({ content, isMe, time, colors, theme, onLongPress }: {
             <TouchableOpacity
                 activeOpacity={0.85}
                 delayLongPress={250}
+                onPress={() => onPressStory?.({ storyId: data.storyId || data.postedAt, authorId: data.authorId, payload: content })}
                 onLongPress={onLongPress}
                 style={{
                     width: SCREEN_WIDTH * 0.70,          // width cố định, không dùng maxWidth
@@ -340,6 +342,7 @@ interface MessageBubbleProps {
     participants?: any[];
     isGroup?: boolean;
     onShowReadReceipts?: (message: MessageDynamo) => void;
+    onStoryPress?: (story: { storyId?: string; authorId?: string; payload?: string }) => void;
 }
 
 // Tạo màu nhất quán cho mỗi tên (giống Zalo)
@@ -387,6 +390,7 @@ export default function MessageBubble({
     participants,
     isGroup,
     onShowReadReceipts,
+    onStoryPress,
 }: MessageBubbleProps) {
     const colors = useThemeColors();
     const theme = useThemeStore(s => s.theme);
@@ -732,6 +736,7 @@ export default function MessageBubble({
                 colors={colors}
                 theme={theme}
                 onLongPress={() => onLongPress?.(message)}
+                onPressStory={onStoryPress}
             />
         );
     }

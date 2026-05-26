@@ -1506,6 +1506,21 @@ export default function WorkScreen() {
         : routeParams.postId
             ? String(routeParams.postId)
             : null;
+    const targetStoryId = Array.isArray(routeParams.storyId)
+        ? routeParams.storyId[0]
+        : routeParams.storyId
+            ? String(routeParams.storyId)
+            : null;
+    const targetStoryAuthorId = Array.isArray(routeParams.storyAuthorId)
+        ? routeParams.storyAuthorId[0]
+        : routeParams.storyAuthorId
+            ? String(routeParams.storyAuthorId)
+            : null;
+    const targetStoryPayload = Array.isArray(routeParams.storyPayload)
+        ? routeParams.storyPayload[0]
+        : routeParams.storyPayload
+            ? String(routeParams.storyPayload)
+            : null;
     const { feed, fetchFeed, uploadStory, viewStory, addReaction, updateStoryPrivacy } = useStoryStore();
     const { profile } = useUserStore();
     const { friends, fetchFriends } = useFriendStore();
@@ -1695,6 +1710,7 @@ export default function WorkScreen() {
 
     // ── Viewer state ──
     const [selectedStory, setSelectedStory] = useState<any>(null);
+    const [openedTargetStoryId, setOpenedTargetStoryId] = useState<string | null>(null);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
@@ -1740,11 +1756,11 @@ export default function WorkScreen() {
     const storyProgress = useRef(new Animated.Value(0)).current;
     const replyScrollX = useRef(new Animated.Value(0)).current;
     const progressAnim = useRef<Animated.CompositeAnimation | null>(null);
-    const unpauseTimer = useRef<NodeJS.Timeout | null>(null);
+    const unpauseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const elapsedProgress = useRef(0);
     const currentUserIndexRef = useRef(0);
     const longPressedPostReactionRef = useRef<string | null>(null);
-    const postReactionPickerCloseTimer = useRef<NodeJS.Timeout | null>(null);
+    const postReactionPickerCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const myUserId = profile?.id;
     const storyFrameWidth = SCREEN_WIDTH;
     const storyFrameHeight = Math.min(SCREEN_HEIGHT - insets.top - insets.bottom - 168, Math.min(SCREEN_WIDTH - 32, 420) * 16 / 9);
@@ -1834,6 +1850,48 @@ export default function WorkScreen() {
 
         return [...myGroup, ...unviewedFriends, ...viewedFriends];
     }, [groupedStories, myUserId]);
+
+    useEffect(() => {
+        if (!targetStoryId || selectedStory || openedTargetStoryId === targetStoryId) return;
+        const candidateGroups = targetStoryAuthorId
+            ? [groupedStories[targetStoryAuthorId] || []]
+            : Object.values(groupedStories);
+        for (const stories of candidateGroups) {
+            const idx = stories.findIndex((story: any) =>
+                String(story.createdAt) === targetStoryId || String(story.storyId || "") === targetStoryId,
+            );
+            if (idx >= 0) {
+                setCurrentItemIndex(idx);
+                setSelectedStory(stories[idx]);
+                setOpenedTargetStoryId(targetStoryId);
+                return;
+            }
+        }
+        if (targetStoryPayload) {
+            try {
+                const quote = JSON.parse(targetStoryPayload);
+                if (quote?.type === "STORY_QUOTE") {
+                    setCurrentItemIndex(0);
+                    setSelectedStory({
+                        userId: quote.authorId || targetStoryAuthorId || "",
+                        createdAt: quote.storyId || targetStoryId,
+                        storyId: quote.storyId || targetStoryId,
+                        mediaUrl: quote.mediaUrl || null,
+                        mediaType: quote.mediaType || "PHOTO",
+                        storyType: quote.mediaType || "PHOTO",
+                        caption: quote.caption || "",
+                        displayName: "",
+                        avatarUrl: "",
+                        viewers: [],
+                        reactions: [],
+                    });
+                    setOpenedTargetStoryId(targetStoryId);
+                }
+            } catch {
+                /* Ignore malformed story quote payload. */
+            }
+        }
+    }, [groupedStories, openedTargetStoryId, selectedStory, targetStoryAuthorId, targetStoryId, targetStoryPayload]);
 
     // ── Navigation ──
     const handleNextItem = useCallback(() => {
@@ -3148,13 +3206,8 @@ export default function WorkScreen() {
                             ]}
                         >
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-<<<<<<< HEAD
                                 <Image source={{ uri: buildAvatarUrl(post.displayName || post.username, post.avatarUrl) }} style={styles.timelinePostAvatar} />
                                 <View style={{ flex: 1 }}>
-=======
-                                <Image source={{ uri: buildAvatarUrl(post.displayName || post.username, post.avatarUrl) }} style={[styles.timelinePostAvatar, { backgroundColor: colors.searchBg }]} />
-                                <View>
->>>>>>> develop
                                     <Text style={{ color: colors.text, fontWeight: "700" }}>{post.displayName || post.username}</Text>
                                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                         <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{formatDate(post.createdAt)}</Text>
@@ -3353,13 +3406,8 @@ export default function WorkScreen() {
                             ]}
                         >
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-<<<<<<< HEAD
                                 <AvatarImage name={post.displayName || post.username} uri={post.avatarUrl} size={40} style={styles.mobilePostAvatar} />
                                 <View style={{ flex: 1 }}>
-=======
-                                <AvatarImage name={post.displayName || post.username} uri={post.avatarUrl} size={40} style={[styles.mobilePostAvatar, { backgroundColor: colors.searchBg }]} />
-                                <View>
->>>>>>> develop
                                     <Text style={{ color: colors.text, fontWeight: "700" }}>{post.displayName || post.username}</Text>
                                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                         <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{formatDate(post.createdAt)}</Text>
