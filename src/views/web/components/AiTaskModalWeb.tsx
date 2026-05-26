@@ -89,7 +89,7 @@ export default function AiTaskModalWeb({ mode, roomId, onClose }: AiTaskModalWeb
       const parts = content.split(/(\*\*.*?\*\*)/g);
       const renderedContent = parts.map((part, pIdx) => {
         if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={pIdx} className="font-bold text-gray-900 dark:text-white">{part.slice(2, -2)}</strong>;
+          return <strong key={pIdx} className="font-bold text-[color:var(--text-primary)] dark:text-white">{part.slice(2, -2)}</strong>;
         }
         return <span key={pIdx}>{part}</span>;
       });
@@ -98,33 +98,33 @@ export default function AiTaskModalWeb({ mode, roomId, onClose }: AiTaskModalWeb
         return (
           <div key={index} className="flex mb-1.5 pl-2">
             <span className={`${data.color} mr-2 text-lg leading-tight`}>•</span>
-            <span className="text-gray-800 dark:text-gray-200 flex-1 text-sm leading-relaxed">{renderedContent}</span>
+            <span className="text-[color:var(--text-primary)] dark:text-gray-200 flex-1 text-sm leading-relaxed">{renderedContent}</span>
           </div>
         );
       }
       
-      return <p key={index} className="text-gray-800 dark:text-gray-200 leading-relaxed text-sm mb-2">{renderedContent}</p>;
+      return <p key={index} className="text-[color:var(--text-primary)] dark:text-gray-200 leading-relaxed text-sm mb-2">{renderedContent}</p>;
     });
   };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 px-4">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-[color:var(--bg-primary)] dark:bg-gray-800 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700 shrink-0">
+        <div className="flex items-center justify-between p-4 border-b border-[color:var(--border-primary)] dark:border-gray-700 shrink-0">
           <div className="flex items-center gap-3">
             <div className={`${data.bgLight} p-2.5 rounded-xl`}>
               <Icon className={`w-6 h-6 ${data.color}`} />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-gray-900 dark:text-white">{data.title}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{data.desc}</p>
+              <h3 className="font-bold text-lg text-[color:var(--text-primary)] dark:text-white">{data.title}</h3>
+              <p className="text-sm text-[color:var(--text-secondary)] dark:text-gray-400">{data.desc}</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500"
+            className="p-2 hover:bg-[color:var(--bg-secondary)] dark:hover:bg-gray-700 rounded-full transition-colors text-[color:var(--text-secondary)]"
           >
             <X className="w-6 h-6" />
           </button>
@@ -138,13 +138,13 @@ export default function AiTaskModalWeb({ mode, roomId, onClose }: AiTaskModalWeb
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder="Nhập hoặc dán đoạn văn bản vào đây..."
-                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 outline-none resize-none min-h-[120px]"
+                className="w-full bg-[color:var(--bg-hover)] dark:bg-gray-900 border border-[color:var(--border-primary)] dark:border-gray-700 rounded-xl p-4 text-sm text-[color:var(--text-primary)] dark:text-white focus:ring-2 focus:ring-blue-500/50 outline-none resize-none min-h-[120px]"
               />
               <button
                 onClick={handleTask}
                 disabled={!inputText.trim()}
                 className={`w-full py-3 rounded-xl font-bold text-white transition-all ${
-                  inputText.trim() ? data.btnBg : "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
+                  inputText.trim() ? data.btnBg : "bg-gray-300 dark:bg-gray-700 text-[color:var(--text-secondary)] cursor-not-allowed"
                 }`}
               >
                 {data.btnText}
@@ -158,7 +158,7 @@ export default function AiTaskModalWeb({ mode, roomId, onClose }: AiTaskModalWeb
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Loader2 className={`w-10 h-10 animate-spin ${data.color} mb-4`} />
-                  <p className="text-gray-500 font-medium">AI đang xử lý yêu cầu của bạn...</p>
+                  <p className="text-[color:var(--text-secondary)] font-medium">AI đang xử lý yêu cầu của bạn...</p>
                 </div>
               ) : error ? (
                 <div className="flex flex-col items-center justify-center py-8">
@@ -173,7 +173,7 @@ export default function AiTaskModalWeb({ mode, roomId, onClose }: AiTaskModalWeb
                 </div>
               ) : result ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                  <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4 rounded-xl max-h-[300px] overflow-y-auto custom-scrollbar">
+                  <div className="bg-[color:var(--bg-hover)] dark:bg-gray-900/50 border border-[color:var(--border-primary)] dark:border-gray-700 p-4 rounded-xl max-h-[300px] overflow-y-auto custom-scrollbar">
                     {renderFormattedText(result)}
                   </div>
                   
@@ -181,7 +181,7 @@ export default function AiTaskModalWeb({ mode, roomId, onClose }: AiTaskModalWeb
                     {(mode === "translate" || mode === "improve") && (
                       <button
                         onClick={() => setResult("")}
-                        className="flex-1 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        className="flex-1 py-3 bg-[color:var(--bg-primary)] dark:bg-gray-800 border border-[color:var(--border-primary)] dark:border-gray-600 rounded-xl font-semibold text-[color:var(--text-secondary)] dark:text-gray-200 hover:bg-[color:var(--bg-hover)] dark:hover:bg-gray-700 transition-colors"
                       >
                         Thử Lại
                       </button>

@@ -139,26 +139,26 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                 return (
                     <div key={index} className="flex gap-3 pl-3 mb-2 items-start">
                         <span className="text-blue-500 mt-1 select-none">•</span>
-                        <p className="text-gray-700 text-sm leading-relaxed flex-1">{renderedContent}</p>
+                        <p className="text-[color:var(--text-secondary)] text-sm leading-relaxed flex-1">{renderedContent}</p>
                     </div>
                 );
             }
             return (
-                <p key={index} className="text-gray-700 text-sm leading-relaxed mb-2 pl-1">{renderedContent}</p>
+                <p key={index} className="text-[color:var(--text-secondary)] text-sm leading-relaxed mb-2 pl-1">{renderedContent}</p>
             );
         });
     };
 
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[600px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[color:var(--bg-primary)] rounded-2xl shadow-2xl w-full max-w-[600px] max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0 bg-white">
+                <div className="flex items-center justify-between px-6 py-5 border-b border-[color:var(--border-primary)] shrink-0 bg-[color:var(--bg-primary)]">
                     <div className="flex items-center gap-4">
                         {view === 'history' ? (
                              <button 
                                 onClick={() => setView('create')}
-                                className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-all"
+                                className="p-2 hover:bg-[color:var(--bg-secondary)] rounded-full text-[color:var(--text-secondary)] transition-all"
                              >
                                 <ArrowLeft className="w-5 h-5" />
                              </button>
@@ -168,10 +168,10 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                             </div>
                         )}
                         <div>
-                            <h3 className="text-lg font-bold text-gray-900">
+                            <h3 className="text-lg font-bold text-[color:var(--text-primary)]">
                                 {view === 'create' ? 'AI Tóm Tắt Chat' : 'Lịch sử tóm tắt'}
                             </h3>
-                            <p className="text-xs text-gray-500">Hỗ trợ bởi Google Gemini</p>
+                            <p className="text-xs text-[color:var(--text-secondary)]">Hỗ trợ bởi Google Gemini</p>
                         </div>
                     </div>
                     
@@ -187,7 +187,7 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                         )}
                         <button
                             onClick={onClose}
-                            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+                            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400 hover:text-[color:var(--text-secondary)] transition-all"
                         >
                             <X className="w-5 h-5" />
                         </button>
@@ -197,7 +197,7 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                 {view === 'create' ? (
                     <>
                         {/* Date Controls */}
-                        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
+                        <div className="px-6 py-4 border-b border-[color:var(--border-primary)] bg-gray-50/50 shrink-0">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="flex flex-col gap-1.5">
                                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Từ ngày</label>
@@ -207,7 +207,7 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                                             type="date"
                                             value={startDate}
                                             onChange={(e) => setStartDate(e.target.value)}
-                                            className="w-full pl-10 pr-3 py-2.5 text-sm font-medium bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/20 focus:border-blue-500 transition-all cursor-pointer"
+                                            className="w-full pl-10 pr-3 py-2.5 text-sm font-medium bg-[color:var(--bg-primary)] border border-[color:var(--border-primary)] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/20 focus:border-blue-500 transition-all cursor-pointer"
                                         />
                                     </div>
                                 </div>
@@ -219,7 +219,7 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                                             type="date"
                                             value={endDate}
                                             onChange={(e) => setEndDate(e.target.value)}
-                                            className="w-full pl-10 pr-3 py-2.5 text-sm font-medium bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/20 focus:border-blue-500 transition-all cursor-pointer"
+                                            className="w-full pl-10 pr-3 py-2.5 text-sm font-medium bg-[color:var(--bg-primary)] border border-[color:var(--border-primary)] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/20 focus:border-blue-500 transition-all cursor-pointer"
                                         />
                                     </div>
                                 </div>
@@ -238,7 +238,7 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                         </div>
 
                         {/* Content Area */}
-                        <div className="flex-1 overflow-y-auto bg-white p-6 relative">
+                        <div className="flex-1 overflow-y-auto bg-[color:var(--bg-primary)] p-6 relative">
                             {summary ? (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     {renderFormattedText(summary)}
@@ -246,11 +246,11 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                                 </div>
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-center opacity-70 py-12">
-                                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+                                    <div className="w-20 h-20 bg-[color:var(--bg-hover)] rounded-full flex items-center justify-center mb-6">
                                         <MessageSquare className="w-10 h-10 text-gray-300" />
                                     </div>
-                                    <h4 className="text-gray-900 font-bold mb-2">Chưa có bản tóm tắt nào</h4>
-                                    <p className="text-gray-500 text-sm max-w-[280px] leading-relaxed">
+                                    <h4 className="text-[color:var(--text-primary)] font-bold mb-2">Chưa có bản tóm tắt nào</h4>
+                                    <p className="text-[color:var(--text-secondary)] text-sm max-w-[280px] leading-relaxed">
                                         Hãy chọn khoảng thời gian bạn muốn AI phân tích và bấm nút bắt đầu nhé!
                                     </p>
                                 </div>
@@ -260,7 +260,7 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                                 <div className="sticky bottom-0 left-0 right-0 flex justify-end gap-3 mt-4 pt-4 border-t border-gray-50 bg-white/80 backdrop-blur-md">
                                     <button
                                         onClick={() => setSummary("")}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all"
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-secondary)] rounded-lg transition-all"
                                     >
                                         <RotateCcw className="w-4 h-4" />
                                         <span>Thử lại</span>
@@ -290,14 +290,14 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                         {loadingHistory ? (
                             <div className="flex flex-col items-center justify-center py-20 grayscale opacity-50">
                                 <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-4" />
-                                <p className="text-sm font-medium text-gray-500">Đang tải lịch sử...</p>
+                                <p className="text-sm font-medium text-[color:var(--text-secondary)]">Đang tải lịch sử...</p>
                             </div>
                         ) : history.length > 0 ? (
                             <div className="space-y-4">
                                 {history.map((item, index) => (
                                     <div 
                                         key={index} 
-                                        className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-all group"
+                                        className="bg-[color:var(--bg-primary)] border border-[color:var(--border-primary)] rounded-xl p-5 shadow-sm hover:shadow-md transition-all group"
                                     >
                                         <div className="flex items-center justify-between mb-4">
                                             <div className="flex items-center gap-2 text-gray-400">
@@ -312,7 +312,7 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                                                 <Copy className="w-4 h-4" />
                                             </button>
                                         </div>
-                                        <div className="text-gray-700 text-sm leading-relaxed max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                        <div className="text-[color:var(--text-secondary)] text-sm leading-relaxed max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                                             {renderFormattedText(item.content)}
                                         </div>
                                     </div>
@@ -320,11 +320,11 @@ const AiSummaryModal: React.FC<AiSummaryModalProps> = ({ roomId, onClose }) => {
                             </div>
                         ) : (
                             <div className="h-full flex flex-col items-center justify-center text-center opacity-60 py-20">
-                                <div className="bg-white p-6 rounded-full shadow-sm mb-6">
+                                <div className="bg-[color:var(--bg-primary)] p-6 rounded-full shadow-sm mb-6">
                                     <History className="w-12 h-12 text-gray-200" />
                                 </div>
-                                <h4 className="text-gray-900 font-bold mb-2">Chưa có lịch sử</h4>
-                                <p className="text-gray-500 text-sm max-w-[280px]">
+                                <h4 className="text-[color:var(--text-primary)] font-bold mb-2">Chưa có lịch sử</h4>
+                                <p className="text-[color:var(--text-secondary)] text-sm max-w-[280px]">
                                     Các bản tóm tắt bạn đã tạo sẽ xuất hiện tại đây (lưu trữ trong 5 ngày).
                                 </p>
                             </div>

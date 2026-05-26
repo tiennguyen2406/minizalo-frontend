@@ -99,13 +99,13 @@ const CreateGroupModal: React.FC = () => {
         >
             {/* Modal container */}
             <div
-                className="bg-white rounded-xl flex flex-col overflow-hidden shadow-2xl"
+                className="bg-[color:var(--bg-primary)] rounded-xl flex flex-col overflow-hidden shadow-2xl"
                 style={{ width: 480, maxHeight: '90vh' }}
             >
                 {/* ── Header ── */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                    <span className="text-base font-semibold text-gray-900">Tạo nhóm</span>
-                    <button onClick={closeCreateGroup} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[color:var(--border-primary)]">
+                    <span className="text-base font-semibold text-[color:var(--text-primary)]">Tạo nhóm</span>
+                    <button onClick={closeCreateGroup} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)]">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -113,9 +113,9 @@ const CreateGroupModal: React.FC = () => {
                 </div>
 
                 {/* ── Tên nhóm row ── */}
-                <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100">
+                <div className="flex items-center gap-3 px-5 py-3 border-b border-[color:var(--border-primary)]">
                     {/* Camera / avatar nhóm placeholder */}
-                    <div className="w-11 h-11 shrink-0 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-200 transition-colors">
+                    <div className="w-11 h-11 shrink-0 rounded-full bg-[color:var(--bg-secondary)] flex items-center justify-center text-gray-400 cursor-pointer hover:bg-[color:var(--bg-tertiary)] transition-colors">
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
@@ -136,8 +136,8 @@ const CreateGroupModal: React.FC = () => {
                 </div>
 
                 {/* ── Search thanh tìm kiếm ── */}
-                <div className="px-5 py-2 border-b border-gray-100">
-                    <div className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5">
+                <div className="px-5 py-2 border-b border-[color:var(--border-primary)]">
+                    <div className="flex items-center gap-2 bg-[color:var(--bg-secondary)] rounded-full px-3 py-1.5">
                         <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
@@ -161,7 +161,7 @@ const CreateGroupModal: React.FC = () => {
                         </div>
                     ) : (
                         <div>
-                            <div className="px-5 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <div className="px-5 py-2 text-xs font-semibold text-[color:var(--text-secondary)] uppercase tracking-wider">
                                 Trò chuyện gần đây
                             </div>
                             {filteredFriends.map((friend) => {
@@ -172,14 +172,14 @@ const CreateGroupModal: React.FC = () => {
                                     <div
                                         key={friend.id}
                                         onClick={() => toggleSelect(friend.id)}
-                                        className="flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                                        className="flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-[color:var(--bg-hover)] transition-colors"
                                     >
                                         {/* Radio button Zalo style */}
                                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                            isSelected ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                                            isSelected ? 'border-blue-600 bg-blue-600' : 'border-[color:var(--border-secondary)]'
                                         }`}>
                                             {isSelected && (
-                                                <div className="w-2 h-2 rounded-full bg-white" />
+                                                <div className="w-2 h-2 rounded-full bg-[color:var(--bg-primary)]" />
                                             )}
                                         </div>
                                         {/* Avatar */}
@@ -187,7 +187,7 @@ const CreateGroupModal: React.FC = () => {
                                             className="w-10 h-10 rounded-full object-cover shrink-0" />
                                         {/* Name */}
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-medium text-gray-800 truncate">
+                                            <div className="text-sm font-medium text-[color:var(--text-primary)] truncate">
                                                 {friend.fullName || friend.username}
                                             </div>
                                         </div>
@@ -200,7 +200,7 @@ const CreateGroupModal: React.FC = () => {
 
                 {/* ── Selected chips (nếu có) ── */}
                 {selectedIds.length > 0 && (
-                    <div className="px-5 py-2 border-t border-gray-100 flex flex-wrap gap-1.5">
+                    <div className="px-5 py-2 border-t border-[color:var(--border-primary)] flex flex-wrap gap-1.5">
                         {selectedIds.map((id) => {
                             const f = friends.find((x) => x.id === id);
                             if (!f) return null;
@@ -218,9 +218,9 @@ const CreateGroupModal: React.FC = () => {
                 {error && <p className="px-5 text-red-500 text-xs pb-1">{error}</p>}
 
                 {/* ── Footer buttons ── */}
-                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200">
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[color:var(--border-primary)]">
                     <button onClick={closeCreateGroup} disabled={isSubmitting}
-                        className="px-5 py-2 text-sm rounded-lg text-gray-600 hover:bg-gray-100 transition-colors font-medium">
+                        className="px-5 py-2 text-sm rounded-lg text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-secondary)] transition-colors font-medium">
                         Hủy
                     </button>
                     <button

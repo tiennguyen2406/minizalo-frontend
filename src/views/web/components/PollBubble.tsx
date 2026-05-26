@@ -166,13 +166,13 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
 
     if (isLoading) {
         return mode === 'preview'
-            ? <div className="w-[360px] max-w-[90vw] rounded-xl border border-gray-200 bg-white p-4 text-gray-500 text-sm">Đang tải bình chọn...</div>
-            : <div className="p-3 min-w-[250px] text-gray-500 italic text-sm">Đang tải bình chọn...</div>;
+            ? <div className="w-[360px] max-w-[90vw] rounded-xl border border-[color:var(--border-primary)] bg-[color:var(--bg-primary)] p-4 text-[color:var(--text-secondary)] text-sm">Đang tải bình chọn...</div>
+            : <div className="p-3 min-w-[250px] text-[color:var(--text-secondary)] italic text-sm">Đang tải bình chọn...</div>;
     }
 
     if (error || !poll) {
         return mode === 'preview'
-            ? <div className="w-[360px] max-w-[90vw] rounded-xl border border-gray-200 bg-white p-4 text-red-500 text-sm">Không thể tải nội dung bình chọn</div>
+            ? <div className="w-[360px] max-w-[90vw] rounded-xl border border-[color:var(--border-primary)] bg-[color:var(--bg-primary)] p-4 text-red-500 text-sm">Không thể tải nội dung bình chọn</div>
             : <div className="p-3 min-w-[250px] text-red-400 italic text-sm">Không thể tải nội dung bình chọn</div>;
     }
 
@@ -195,8 +195,8 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                 </svg>
                 <span className="text-sm font-semibold uppercase tracking-wide">Bình chọn</span>
             </div>
-            <h4 className="text-gray-800 font-bold text-base mt-2 leading-snug">{poll.question}</h4>
-            <div className="text-xs text-gray-500 mt-1">
+            <h4 className="text-[color:var(--text-primary)] font-bold text-base mt-2 leading-snug">{poll.question}</h4>
+            <div className="text-xs text-[color:var(--text-secondary)] mt-1">
                 {poll.closed ? (
                     <span className="text-red-500 font-medium">Đã đóng</span>
                 ) : poll.allowMultipleChoices ? (
@@ -210,8 +210,8 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
 
     const simpleHeader = (
         <div className="px-4 pt-4 pb-1">
-            <h4 className="text-gray-900 font-bold text-lg leading-snug tracking-tight">{poll.question}</h4>
-            <p className="text-sm text-gray-500 mt-1.5">
+            <h4 className="text-[color:var(--text-primary)] font-bold text-lg leading-snug tracking-tight">{poll.question}</h4>
+            <p className="text-sm text-[color:var(--text-secondary)] mt-1.5">
                 {poll.closed
                     ? 'Đã đóng'
                     : poll.allowMultipleChoices
@@ -239,7 +239,7 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                             } ${
                                 mode === 'preview'
                                     ? (isSelected ? 'ring-2 ring-[#0068ff] bg-[#e8f2ff]' : 'hover:bg-[#e9edf2]')
-                                    : (isSelected ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200 bg-white')
+                                    : (isSelected ? 'border-blue-500 bg-blue-50/30' : 'border-[color:var(--border-primary)] bg-[color:var(--bg-primary)]')
                             }`}
                             onClick={() => !poll.closed && handleToggleOption(opt.id)}
                         >
@@ -253,7 +253,7 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                             <div className="flex items-start gap-3 z-10">
                                 <div className="mt-0.5 shrink-0">
                                     <div className={`w-5 h-5 flex items-center justify-center border rounded-md transition-colors ${
-                                        isSelected ? 'bg-[#0068ff] border-[#0068ff]' : 'border-gray-300 bg-white'
+                                        isSelected ? 'bg-[#0068ff] border-[#0068ff]' : 'border-[color:var(--border-secondary)] bg-[color:var(--bg-primary)]'
                                     }`}>
                                         {isSelected && (
                                             <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -264,10 +264,10 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-center gap-2">
-                                        <span className={`text-sm font-medium truncate ${isSelected ? 'text-[#0b3a8a]' : 'text-gray-800'}`}>
+                                        <span className={`text-sm font-medium truncate ${isSelected ? 'text-[#0b3a8a]' : 'text-[color:var(--text-primary)]'}`}>
                                             {opt.text}
                                         </span>
-                                        <span className="text-xs font-semibold text-gray-500 shrink-0">
+                                        <span className="text-xs font-semibold text-[color:var(--text-secondary)] shrink-0">
                                             {votesCount}
                                         </span>
                                     </div>
@@ -298,7 +298,7 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                                 </button>
                                 <button
                                     onClick={() => { setIsAddingOption(false); setNewOptionText(''); }}
-                                    className="bg-gray-100 text-gray-600 rounded p-1.5 text-xs font-medium"
+                                    className="bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)] rounded p-1.5 text-xs font-medium"
                                 >
                                     Hủy
                                 </button>
@@ -347,7 +347,7 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
     );
 
     const InlineContent = (
-        <div className="bg-white rounded-xl overflow-hidden min-w-[300px] max-w-[420px] border border-gray-200 relative w-full shadow-sm">
+        <div className="bg-[color:var(--bg-primary)] rounded-xl overflow-hidden min-w-[300px] max-w-[420px] border border-[color:var(--border-primary)] relative w-full shadow-sm">
             {/* Trạng thái xem trước (Zalo): chỉ tiêu đề + gợi ý + thanh phương án + nút viền xanh — không banner xanh */}
             {!showReadOnlyOverview && pollHeader}
 
@@ -359,8 +359,8 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
             ) : showReadOnlyOverview ? (
                 <>
                     <div className="px-4 pt-4 pb-1">
-                        <h4 className="text-gray-900 font-bold text-lg leading-snug tracking-tight">{poll.question}</h4>
-                        <p className="text-sm text-gray-500 mt-1.5">
+                        <h4 className="text-[color:var(--text-primary)] font-bold text-lg leading-snug tracking-tight">{poll.question}</h4>
+                        <p className="text-sm text-[color:var(--text-secondary)] mt-1.5">
                             {poll.allowMultipleChoices ? 'Chọn nhiều phương án' : 'Chỉ chọn 1 phương án'}
                         </p>
                         <div className="mt-4 space-y-2">
@@ -371,10 +371,10 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                                         key={opt.id}
                                         className="flex items-center justify-between gap-3 min-h-[40px] rounded-lg bg-[#f0f2f5] px-3.5 py-2.5 pointer-events-none select-none"
                                     >
-                                        <span className="text-sm text-gray-800 truncate flex-1 min-w-0 text-left">
+                                        <span className="text-sm text-[color:var(--text-primary)] truncate flex-1 min-w-0 text-left">
                                             {opt.text}
                                         </span>
-                                        <span className="text-sm font-medium text-gray-600 tabular-nums shrink-0">
+                                        <span className="text-sm font-medium text-[color:var(--text-secondary)] tabular-nums shrink-0">
                                             {votesCount}
                                         </span>
                                     </div>
@@ -385,7 +385,7 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                     <div className="px-4 pb-4 pt-3">
                         <button
                             type="button"
-                            className="w-full border border-[#0068ff] text-[#0068ff] bg-white font-semibold py-2.5 rounded-lg text-[15px] transition-colors hover:bg-blue-50/80 active:bg-blue-50"
+                            className="w-full border border-[#0068ff] text-[#0068ff] bg-[color:var(--bg-primary)] font-semibold py-2.5 rounded-lg text-[15px] transition-colors hover:bg-blue-50/80 active:bg-blue-50"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setVoteUiOpen(true);
@@ -402,14 +402,14 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
     );
 
     const ModalVoteContent = (
-        <div className="bg-white rounded-xl overflow-hidden min-w-[300px] max-w-[420px] border border-gray-200 relative w-full shadow-sm">
+        <div className="bg-[color:var(--bg-primary)] rounded-xl overflow-hidden min-w-[300px] max-w-[420px] border border-[color:var(--border-primary)] relative w-full shadow-sm">
             {simpleHeader}
             {interactiveOptionsBlock}
         </div>
     );
 
     const PreviewContent = (
-        <div className="w-[420px] max-w-[92vw] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
+        <div className="w-[420px] max-w-[92vw] bg-[color:var(--bg-primary)] rounded-xl border border-[color:var(--border-primary)] shadow-sm overflow-hidden relative">
             {/* Summary khi bạn tự khóa */}
             {showLockSummary && (
                 <div className="mx-4 mt-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
@@ -426,7 +426,7 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                 </div>
             )}
 
-            <div className="px-4 py-3 border-b border-gray-100">
+            <div className="px-4 py-3 border-b border-[color:var(--border-primary)]">
                 <div className="flex items-center gap-2 text-blue-600 mb-1">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -434,12 +434,12 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                     <span className="text-sm font-semibold uppercase tracking-wide">Bình chọn</span>
                 </div>
 
-                <h4 className="text-gray-800 font-bold text-base mt-2 leading-snug line-clamp-2">{poll.question}</h4>
-                <div className="text-xs text-gray-500 mt-1">
+                <h4 className="text-[color:var(--text-primary)] font-bold text-base mt-2 leading-snug line-clamp-2">{poll.question}</h4>
+                <div className="text-xs text-[color:var(--text-secondary)] mt-1">
                     {poll.closed ? <span className="text-red-500 font-medium">Đã đóng</span> : `${totalVotes} lượt bình chọn`}
                 </div>
 
-                <div className="text-xs text-gray-500 mt-2">
+                <div className="text-xs text-[color:var(--text-secondary)] mt-2">
                     {poll.allowMultipleChoices ? 'Chọn nhiều phương án' : 'Chỉ chọn 1 phương án'}
                 </div>
             </div>
@@ -447,7 +447,7 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
             <div className="p-4">
                 {poll.closed ? (
                     <>
-                        <div className="flex items-center gap-2 text-sm text-gray-700 mb-3">
+                        <div className="flex items-center gap-2 text-sm text-[color:var(--text-secondary)] mb-3">
                             <span className="font-medium">Danh sách lựa chọn</span>
                             <span className="text-gray-400">({poll.options.length} phương án)</span>
                         </div>
@@ -461,7 +461,7 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                                     <div
                                         key={opt.id}
                                         className={`relative rounded-lg border px-3 py-2 overflow-hidden ${
-                                            isSelected ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200 bg-white'
+                                            isSelected ? 'border-blue-200 bg-blue-50/30' : 'border-[color:var(--border-primary)] bg-[color:var(--bg-primary)]'
                                         }`}
                                     >
                                         <div
@@ -471,7 +471,7 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                                         <div className="flex items-center justify-between gap-3 relative z-10">
                                             <div className="flex items-center gap-3 min-w-0">
                                                 <span className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
-                                                    isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300 bg-white'
+                                                    isSelected ? 'border-blue-500 bg-blue-500' : 'border-[color:var(--border-secondary)] bg-[color:var(--bg-primary)]'
                                                 }`}>
                                                     {isSelected ? (
                                                         <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -479,9 +479,9 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                                                         </svg>
                                                     ) : null}
                                                 </span>
-                                                <span className="text-sm font-medium text-gray-800 truncate">{opt.text}</span>
+                                                <span className="text-sm font-medium text-[color:var(--text-primary)] truncate">{opt.text}</span>
                                             </div>
-                                            <span className="text-xs font-semibold text-gray-600 shrink-0">{votesCount}</span>
+                                            <span className="text-xs font-semibold text-[color:var(--text-secondary)] shrink-0">{votesCount}</span>
                                         </div>
                                     </div>
                                 );
@@ -506,10 +506,10 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                                         key={opt.id}
                                         className="flex items-center justify-between gap-3 min-h-[40px] rounded-lg bg-[#f0f2f5] px-3.5 py-2.5 select-none"
                                     >
-                                        <span className="text-sm text-gray-800 truncate flex-1 min-w-0 text-left">
+                                        <span className="text-sm text-[color:var(--text-primary)] truncate flex-1 min-w-0 text-left">
                                             {opt.text}
                                         </span>
-                                        <span className="text-sm font-medium text-gray-600 tabular-nums shrink-0">
+                                        <span className="text-sm font-medium text-[color:var(--text-secondary)] tabular-nums shrink-0">
                                             {votesCount}
                                         </span>
                                     </div>
@@ -518,7 +518,7 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                         </div>
                         <button
                             type="button"
-                            className="w-full mt-4 border border-[#0068ff] text-[#0068ff] bg-white font-semibold py-2.5 rounded-lg text-[15px] transition-colors hover:bg-blue-50/80 active:bg-blue-50"
+                            className="w-full mt-4 border border-[#0068ff] text-[#0068ff] bg-[color:var(--bg-primary)] font-semibold py-2.5 rounded-lg text-[15px] transition-colors hover:bg-blue-50/80 active:bg-blue-50"
                             onClick={() => { setVoteUiOpen(true); setIsModalOpen(true); }}
                         >
                             Bình chọn
@@ -541,17 +541,17 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                         onClick={() => setIsModalOpen(false)}
                     >
                         <div
-                            className="bg-white rounded-2xl shadow-2xl w-[460px] max-w-[94vw] overflow-hidden relative"
+                            className="bg-[color:var(--bg-primary)] rounded-2xl shadow-2xl w-[460px] max-w-[94vw] overflow-hidden relative"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--border-primary)] bg-[color:var(--bg-hover)]">
                                 <div className="flex flex-col">
-                                    <span className="text-sm font-semibold text-gray-800">Bình chọn</span>
-                                    <span className="text-xs text-gray-500 truncate max-w-[380px]">{poll.question}</span>
+                                    <span className="text-sm font-semibold text-[color:var(--text-primary)]">Bình chọn</span>
+                                    <span className="text-xs text-[color:var(--text-secondary)] truncate max-w-[380px]">{poll.question}</span>
                                 </div>
                                 <button
                                     type="button"
-                                    className="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 flex items-center justify-center"
+                                    className="w-9 h-9 rounded-full hover:bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)] flex items-center justify-center"
                                     onClick={() => setIsModalOpen(false)}
                                 >
                                     ×
@@ -570,24 +570,24 @@ const PollBubble: React.FC<PollBubbleProps> = ({ pollId, roomId, messageId, mode
                                 <div className="absolute bottom-4 left-4 z-[140]">
                                     <button
                                         type="button"
-                                        className="w-10 h-10 rounded-full bg-white/90 hover:bg-white border border-gray-200 shadow-sm flex items-center justify-center"
+                                        className="w-10 h-10 rounded-full bg-white/90 hover:bg-[color:var(--bg-primary)] border border-[color:var(--border-primary)] shadow-sm flex items-center justify-center"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setShowSettingsMenu((v) => !v);
                                         }}
                                         aria-label="Cài đặt bình chọn"
                                     >
-                                        <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="w-5 h-5 text-[color:var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                         </svg>
                                     </button>
 
                                     {showSettingsMenu && (
-                                        <div className="absolute bottom-12 left-0 w-[220px] bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                                        <div className="absolute bottom-12 left-0 w-[220px] bg-[color:var(--bg-primary)] rounded-xl shadow-lg border border-[color:var(--border-primary)] overflow-hidden">
                                             <button
                                                 type="button"
-                                                className="w-full px-4 py-3 text-left text-sm text-gray-800 hover:bg-gray-50 flex items-center gap-2"
+                                                className="w-full px-4 py-3 text-left text-sm text-[color:var(--text-primary)] hover:bg-[color:var(--bg-hover)] flex items-center gap-2"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     if (!messageId) {

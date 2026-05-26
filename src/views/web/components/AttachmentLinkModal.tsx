@@ -37,28 +37,28 @@ const AttachmentLinkModal: React.FC<AttachmentLinkModalProps> = ({ open, onClose
             onClick={onClose}
         >
             <div
-                className="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden"
+                className="bg-[color:var(--bg-primary)] rounded-xl max-w-lg w-full shadow-2xl overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200">
-                    <h2 id="file-location-title" className="text-sm font-semibold text-gray-900">
+                <div className="flex justify-between items-center px-4 py-3 border-b border-[color:var(--border-primary)]">
+                    <h2 id="file-location-title" className="text-sm font-semibold text-[color:var(--text-primary)]">
                         Nơi lưu trữ trên máy
                     </h2>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="text-gray-500 hover:bg-gray-100 rounded-lg p-1.5 text-sm"
+                        className="text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-secondary)] rounded-lg p-1.5 text-sm"
                         aria-label="Đóng"
                     >
                         <span aria-hidden="true">×</span>
                     </button>
                 </div>
                 <div className="px-4 py-3 space-y-3">
-                    <p className="text-xs text-gray-600 leading-relaxed">
+                    <p className="text-xs text-[color:var(--text-secondary)] leading-relaxed">
                         Để xem tệp đã lưu <strong>trên máy bạn</strong>: nhấn nút <strong>Tải xuống</strong> (mũi tên) ngay trong khung tin nhắn, sau đó mở thư mục{' '}
                         <strong>Tải xuống</strong> (Downloads) trên Windows hoặc Mac — trình duyệt không thể bật File Explorer giúp bạn giống ứng dụng trên máy tính.
                     </p>
-                    <p className="text-xs text-gray-500 leading-relaxed">
+                    <p className="text-xs text-[color:var(--text-secondary)] leading-relaxed">
                         Liên kết dưới đây là địa chỉ tệp trên máy chủ (kho lưu trữ của ứng dụng), có thể sao chép hoặc mở trong tab mới.
                     </p>
                     {subtitle ? (
@@ -66,14 +66,14 @@ const AttachmentLinkModal: React.FC<AttachmentLinkModalProps> = ({ open, onClose
                             {subtitle}
                         </p>
                     ) : null}
-                    <div className="text-xs break-all font-mono bg-gray-50 border border-gray-200 rounded-lg p-2.5 max-h-28 overflow-y-auto text-gray-800">
+                    <div className="text-xs break-all font-mono bg-[color:var(--bg-hover)] border border-[color:var(--border-primary)] rounded-lg p-2.5 max-h-28 overflow-y-auto text-[color:var(--text-primary)]">
                         {fileUrl || '(Không có liên kết)'}
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <button
                             type="button"
                             onClick={() => void copyFileUrl()}
-                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[color:var(--border-primary)] bg-[color:var(--bg-primary)] hover:bg-[color:var(--bg-hover)]"
                         >
                             {copiedUrl ? 'Đã sao chép' : 'Sao chép liên kết'}
                         </button>

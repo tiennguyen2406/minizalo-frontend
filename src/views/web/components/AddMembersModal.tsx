@@ -91,7 +91,7 @@ const AddMembersModal: React.FC<AddMembersModalProps> = ({ roomId }) => {
             <div className="p-4 flex flex-col gap-4" style={{ minWidth: 340, maxWidth: 460 }}>
                 {/* Tìm kiếm */}
                 <input
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-[color:var(--border-secondary)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Tìm bạn bè..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -99,7 +99,7 @@ const AddMembersModal: React.FC<AddMembersModalProps> = ({ roomId }) => {
 
                 {/* Danh sách */}
                 <div
-                    className="border border-gray-200 rounded-lg overflow-y-auto"
+                    className="border border-[color:var(--border-primary)] rounded-lg overflow-y-auto"
                     style={{ maxHeight: 280 }}
                 >
                     {filteredFriends.length === 0 ? (
@@ -118,7 +118,7 @@ const AddMembersModal: React.FC<AddMembersModalProps> = ({ roomId }) => {
                                 <div
                                     key={friend.id}
                                     onClick={() => toggleSelect(friend.id)}
-                                    className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors ${
+                                    className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-[color:var(--bg-hover)] transition-colors ${
                                         isSelected ? 'bg-blue-50' : ''
                                     }`}
                                 >
@@ -128,14 +128,14 @@ const AddMembersModal: React.FC<AddMembersModalProps> = ({ roomId }) => {
                                         className="w-9 h-9 rounded-full object-cover shrink-0"
                                     />
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-gray-800 truncate">
+                                        <div className="text-sm font-medium text-[color:var(--text-primary)] truncate">
                                             {friend.fullName || friend.username}
                                         </div>
-                                        <div className="text-xs text-gray-500 truncate">@{friend.username}</div>
+                                        <div className="text-xs text-[color:var(--text-secondary)] truncate">@{friend.username}</div>
                                     </div>
                                     <div
                                         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                                            isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                                            isSelected ? 'bg-blue-600 border-blue-600' : 'border-[color:var(--border-secondary)]'
                                         }`}
                                     >
                                         {isSelected && (
@@ -164,7 +164,7 @@ const AddMembersModal: React.FC<AddMembersModalProps> = ({ roomId }) => {
                     <button
                         onClick={closeAddMembers}
                         disabled={isSubmitting}
-                        className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+                        className="px-4 py-2 text-sm rounded-lg border border-[color:var(--border-secondary)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)]"
                     >
                         Hủy
                     </button>

@@ -100,7 +100,7 @@ export default function PinnedMessagesBar({
     return (
       <div
         key={msg.id}
-        className="flex gap-3 px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-[color:var(--bg-hover)]/80 transition-colors"
+        className="flex gap-3 px-4 py-3 border-b border-[color:var(--border-primary)] last:border-0 hover:bg-[color:var(--bg-hover)]/80 transition-colors"
       >
         <button
           type="button"
@@ -196,7 +196,7 @@ export default function PinnedMessagesBar({
               <button
                 type="button"
                 title="Xem danh sách ghim đầy đủ"
-                className="flex items-center gap-0.5 pl-2.5 pr-2 py-1.5 rounded-md border border-gray-300 bg-[color:var(--bg-primary)] text-xs font-semibold text-[color:var(--text-primary)] shadow-sm hover:bg-[color:var(--bg-hover)]"
+                className="flex items-center gap-0.5 pl-2.5 pr-2 py-1.5 rounded-md border border-[color:var(--border-secondary)] bg-[color:var(--bg-primary)] text-xs font-semibold text-[color:var(--text-primary)] shadow-sm hover:bg-[color:var(--bg-hover)]"
                 onClick={(e) => {
                   e.stopPropagation();
                   setExpanded(true);

@@ -28,15 +28,15 @@ const MuteModal: React.FC<{ onClose: () => void; onConfirm: (id: string) => void
     const [selected, setSelected] = useState('1h');
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-xl w-80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                    <span className="font-semibold text-gray-800">Xác nhận</span>
-                    <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400">
+            <div className="bg-[color:var(--bg-primary)] rounded-2xl shadow-xl w-80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[color:var(--border-primary)]">
+                    <span className="font-semibold text-[color:var(--text-primary)]">Xác nhận</span>
+                    <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
                 <div className="px-5 py-4">
-                    <p className="text-sm text-gray-600 mb-4">Bạn có chắc muốn tắt thông báo hội thoại này:</p>
+                    <p className="text-sm text-[color:var(--text-secondary)] mb-4">Bạn có chắc muốn tắt thông báo hội thoại này:</p>
                     <div className="flex flex-col gap-3">
                         {MUTE_OPTIONS.map((opt) => (
                             <label key={opt.id} className="flex items-center gap-3 cursor-pointer">
@@ -48,13 +48,13 @@ const MuteModal: React.FC<{ onClose: () => void; onConfirm: (id: string) => void
                                     onChange={() => setSelected(opt.id)}
                                     className="w-4 h-4 accent-blue-600"
                                 />
-                                <span className="text-sm text-gray-700">{opt.label}</span>
+                                <span className="text-sm text-[color:var(--text-secondary)]">{opt.label}</span>
                             </label>
                         ))}
                     </div>
                 </div>
-                <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-100">
-                    <button onClick={onClose} className="px-5 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Hủy</button>
+                <div className="flex justify-end gap-3 px-5 py-4 border-t border-[color:var(--border-primary)]">
+                    <button onClick={onClose} className="px-5 py-2 text-sm text-[color:var(--text-secondary)] bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg font-medium transition-colors">Hủy</button>
                     <button onClick={() => { onConfirm(selected); onClose(); }} className="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors">Đồng ý</button>
                 </div>
             </div>
@@ -72,16 +72,16 @@ const NicknameModal: React.FC<{
     const [name, setName] = useState(currentName);
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-xl w-80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[color:var(--bg-primary)] rounded-2xl shadow-xl w-80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 <div className="px-5 pt-6 pb-2 flex flex-col items-center text-center">
                     <img src={avatarSrc} alt={currentName} className="w-16 h-16 rounded-full object-cover mb-3 shadow-sm" />
-                    <h3 className="font-semibold text-gray-800 mb-1">Đặt tên gợi nhớ</h3>
-                    <p className="text-sm text-gray-500 mb-1">
+                    <h3 className="font-semibold text-[color:var(--text-primary)] mb-1">Đặt tên gợi nhớ</h3>
+                    <p className="text-sm text-[color:var(--text-secondary)] mb-1">
                         Hãy đặt cho <strong>{currentName}</strong> một cái tên dễ nhớ.
                     </p>
                     <p className="text-xs text-gray-400 mb-4">Lưu ý: Tên gợi nhớ sẽ chỉ hiển thị riêng với bạn.</p>
                     <input
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 mb-2"
+                        className="w-full border border-[color:var(--border-secondary)] rounded-lg px-3 py-2 text-sm text-[color:var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-400 mb-2"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         maxLength={50}
@@ -89,8 +89,8 @@ const NicknameModal: React.FC<{
                         onKeyDown={(e) => { if (e.key === 'Enter') { onConfirm(name.trim()); onClose(); } }}
                     />
                 </div>
-                <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-100">
-                    <button onClick={onClose} className="px-5 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Hủy</button>
+                <div className="flex justify-end gap-3 px-5 py-4 border-t border-[color:var(--border-primary)]">
+                    <button onClick={onClose} className="px-5 py-2 text-sm text-[color:var(--text-secondary)] bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg font-medium transition-colors">Hủy</button>
                     <button
                         onClick={() => { onConfirm(name.trim()); onClose(); }}
                         disabled={!name.trim()}
@@ -114,7 +114,7 @@ const Icon = {
     File: () => <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>,
     Link: () => <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>,
     Eye: () => <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>,
-    Alert: () => <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>,
+    Alert: () => <svg className="w-5 h-5 text-[color:var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>,
     Block: () => <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>,
     Trash: () => <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>,
 };
@@ -414,7 +414,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
 
     return (
         <div
-            className="flex flex-col h-full bg-white border-l border-gray-200 overflow-y-auto"
+            className="flex flex-col h-full bg-[color:var(--bg-primary)] border-l border-[color:var(--border-primary)] overflow-y-auto"
             style={{ width: 300, minWidth: 300 }}
         >
             {/* Toast */}
@@ -425,9 +425,9 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
             )}
 
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0 sticky top-0 bg-white z-10">
-                <span className="font-semibold text-gray-800 text-sm">Thông tin hội thoại</span>
-                <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition-colors">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--border-primary)] shrink-0 sticky top-0 bg-[color:var(--bg-primary)] z-10">
+                <span className="font-semibold text-[color:var(--text-primary)] text-sm">Thông tin hội thoại</span>
+                <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400 transition-colors">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -435,7 +435,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
             </div>
 
             {/* Avatar + Name */}
-            <div className="flex flex-col items-center py-5 px-4 border-b border-gray-100">
+            <div className="flex flex-col items-center py-5 px-4 border-b border-[color:var(--border-primary)]">
                 <div className="relative mb-2">
                     <img
                         src={avatarSrc}
@@ -444,8 +444,8 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                     />
                     {/* Muted badge on avatar */}
                     {muteLabel && (
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 border-2 border-white">
-                            <svg className="w-3.5 h-3.5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center rounded-full bg-[color:var(--bg-tertiary)] border-2 border-white">
+                            <svg className="w-3.5 h-3.5 text-[color:var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
                             </svg>
@@ -453,11 +453,11 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                     )}
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <span className="font-semibold text-gray-900 text-base">{displayName}</span>
+                    <span className="font-semibold text-[color:var(--text-primary)] text-base">{displayName}</span>
                     {/* Pencil — opens Nickname Modal */}
                     <button
                         onClick={() => setShowNicknameModal(true)}
-                        className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                        className="w-6 h-6 flex items-center justify-center rounded-full bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] text-[color:var(--text-secondary)] transition-colors"
                         title="Đặt tên gợi nhớ"
                     >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -485,14 +485,14 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
             </div>
 
             {!!businessDesc && (
-                <div className="mx-3 mb-3 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-3">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                <div className="mx-3 mb-3 rounded-xl border border-[color:var(--border-primary)] bg-gray-50/80 px-3 py-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--text-secondary)] mb-2">
                         Thông tin kinh doanh
                     </div>
                     <div className="space-y-2 text-sm">
                         <div>
                             <div className="text-xs text-gray-400 mb-0.5">Mô tả</div>
-                            <p className="text-gray-800 whitespace-pre-wrap break-words leading-snug">
+                            <p className="text-[color:var(--text-primary)] whitespace-pre-wrap break-words leading-snug">
                                 {businessDescShown}
                             </p>
                         </div>
@@ -538,17 +538,17 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 />
             </ActionButtonRow>
 
-            <div className="border-b border-gray-100">
+            <div className="border-b border-[color:var(--border-primary)]">
                 <button
                     type="button"
                     onClick={() => {
                         onClose();
                         openCreateGroup(partner?.id ? [partner.id] : undefined);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 border-b border-[color:var(--border-primary)] hover:bg-[color:var(--bg-hover)] transition-colors text-left"
                 >
                     <Icon.GroupAdd />
-                    <span className="flex-1 text-sm text-gray-700">Tạo nhóm trò chuyện</span>
+                    <span className="flex-1 text-sm text-[color:var(--text-secondary)]">Tạo nhóm trò chuyện</span>
                     <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
@@ -556,10 +556,10 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 <button
                     type="button"
                     onClick={() => wallpaperInputRef.current?.click()}
-                    className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 border-b border-[color:var(--border-primary)] hover:bg-[color:var(--bg-hover)] transition-colors text-left"
                 >
                     {isUploadingWallpaper ? <span className="w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /> : <Icon.Image />}
-                    <span className="flex-1 text-sm text-gray-700">Đổi nền</span>
+                    <span className="flex-1 text-sm text-[color:var(--text-secondary)]">Đổi nền</span>
                     <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
@@ -567,10 +567,10 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 <button
                     type="button"
                     onClick={() => setShowNicknameModal(true)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors text-left"
                 >
                     <Icon.Person />
-                    <span className="flex-1 text-sm text-gray-700">Đổi tên gợi nhớ</span>
+                    <span className="flex-1 text-sm text-[color:var(--text-secondary)]">Đổi tên gợi nhớ</span>
                     <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
@@ -578,10 +578,10 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 <button
                     type="button"
                     onClick={handleToggleBestFriend}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors text-left"
                 >
                     <Icon.Star />
-                    <span className="flex-1 text-sm text-gray-700">Đánh dấu bạn thân</span>
+                    <span className="flex-1 text-sm text-[color:var(--text-secondary)]">Đánh dấu bạn thân</span>
                     <span onClick={(e) => e.stopPropagation()}>
                         <ToggleSwitch checked={isBestFriend} onChange={handleToggleBestFriend} disabled={!closeFriendCategoryId} />
                     </span>
@@ -637,7 +637,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                 </div>
                             ))}
                         </div>
-                        <button className="w-full text-sm text-center py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500 font-medium transition-colors">
+                        <button className="w-full text-sm text-center py-2 bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg text-[color:var(--text-secondary)] font-medium transition-colors">
                             Xem tất cả
                         </button>
                     </div>
@@ -655,18 +655,18 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                         {fileMessages.map((m) => (
                             <div
                                 key={m.id}
-                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer group"
+                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-[color:var(--bg-hover)] transition-colors cursor-pointer group"
                                 onClick={() => {
                                     useChatStore.getState().setHighlightedMessageId(m.id);
                                 }}
                             >
                                 <Icon.File />
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-sm text-gray-800 truncate font-medium">{m.fileName || 'File'}</div>
+                                    <div className="text-sm text-[color:var(--text-primary)] truncate font-medium">{m.fileName || 'File'}</div>
                                     <div className="text-xs text-gray-400">{formatBytes(m.fileSize)}</div>
                                 </div>
                                 <button
-                                    className="p-1 rounded hover:bg-gray-200 shrink-0 transition-colors opacity-0 group-hover:opacity-100"
+                                    className="p-1 rounded hover:bg-[color:var(--bg-tertiary)] shrink-0 transition-colors opacity-0 group-hover:opacity-100"
                                     title="Tùy chọn"
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -674,7 +674,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                         setMediaMenu({ open: true, message: m, top: rect.bottom + 6, left: Math.max(8, rect.left - 120) });
                                     }}
                                 >
-                                    <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-[color:var(--text-secondary)]" fill="currentColor" viewBox="0 0 24 24">
                                         <circle cx="5" cy="12" r="2" />
                                         <circle cx="12" cy="12" r="2" />
                                         <circle cx="19" cy="12" r="2" />
@@ -685,7 +685,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}
-                                    className="p-1 hover:bg-gray-200 rounded shrink-0 transition-colors"
+                                    className="p-1 hover:bg-[color:var(--bg-tertiary)] rounded shrink-0 transition-colors"
                                     title="Tải xuống"
                                 >
                                     <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -695,7 +695,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                             </div>
                         ))}
                         <div className="px-3 pt-1 pb-2">
-                            <button className="w-full text-sm text-center py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500 font-medium transition-colors">
+                            <button className="w-full text-sm text-center py-2 bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg text-[color:var(--text-secondary)] font-medium transition-colors">
                                 Xem tất cả
                             </button>
                         </div>
@@ -714,7 +714,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                         {linkMessages.map(({ url, message }, i) => (
                             <div
                                 key={i}
-                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group"
+                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-[color:var(--bg-hover)] transition-colors group"
                             >
                                 <a
                                     href={url}
@@ -730,7 +730,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                     </div>
                                 </a>
                                 <button
-                                    className="p-1 rounded hover:bg-gray-200 shrink-0 transition-colors opacity-0 group-hover:opacity-100"
+                                    className="p-1 rounded hover:bg-[color:var(--bg-tertiary)] shrink-0 transition-colors opacity-0 group-hover:opacity-100"
                                     title="Tùy chọn"
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -738,7 +738,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                         setMediaMenu({ open: true, message, top: rect.bottom + 6, left: Math.max(8, rect.left - 120) });
                                     }}
                                 >
-                                    <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-[color:var(--text-secondary)]" fill="currentColor" viewBox="0 0 24 24">
                                         <circle cx="5" cy="12" r="2" />
                                         <circle cx="12" cy="12" r="2" />
                                         <circle cx="19" cy="12" r="2" />
@@ -747,7 +747,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                             </div>
                         ))}
                         <div className="px-3 pt-1 pb-2">
-                            <button className="w-full text-sm text-center py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500 font-medium transition-colors">
+                            <button className="w-full text-sm text-center py-2 bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg text-[color:var(--text-secondary)] font-medium transition-colors">
                                 Xem tất cả
                             </button>
                         </div>
@@ -761,10 +761,10 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
 
             {/* Thiết lập bảo mật */}
             <CollapsibleSection title="Thiết lập bảo mật" defaultOpen={false}>
-                <div className="px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 cursor-pointer">
+                <div className="px-4 py-2.5 flex items-center gap-3 hover:bg-[color:var(--bg-hover)] cursor-pointer">
                     <Icon.Clock />
                     <div className="flex-1">
-                        <div className="text-sm text-gray-700">Tin nhắn tự xóa</div>
+                        <div className="text-sm text-[color:var(--text-secondary)]">Tin nhắn tự xóa</div>
                         <div className="text-xs text-gray-400">{autoDeleteMsg}</div>
                     </div>
                     <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -773,16 +773,16 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 </div>
                 <div className="px-4 py-2.5 flex items-center gap-3">
                     <Icon.Eye />
-                    <span className="flex-1 text-sm text-gray-700">Ẩn trò chuyện</span>
+                    <span className="flex-1 text-sm text-[color:var(--text-secondary)]">Ẩn trò chuyện</span>
                     <ToggleSwitch checked={hideConversation} onChange={() => setHideConversation((v) => !v)} />
                 </div>
             </CollapsibleSection>
 
             {/* Danger zone */}
-            <div className="py-2 border-t border-gray-100 mt-1">
-                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left">
+            <div className="py-2 border-t border-[color:var(--border-primary)] mt-1">
+                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors text-left">
                     <Icon.Alert />
-                    <span className="text-sm text-gray-600">Báo xấu</span>
+                    <span className="text-sm text-[color:var(--text-secondary)]">Báo xấu</span>
                 </button>
                 <button
                     onClick={() => setIsBlockModalOpen(true)}
@@ -823,15 +823,15 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                     onClick={() => setProfileModal(null)}
                 >
                     <div
-                        className="flex max-h-[88vh] w-full max-w-[500px] flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
+                        className="flex max-h-[88vh] w-full max-w-[500px] flex-col overflow-hidden rounded-lg bg-[color:var(--bg-primary)] shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-                            <h2 className="text-lg font-semibold text-gray-800">Thông tin tài khoản</h2>
+                        <div className="flex items-center justify-between border-b border-[color:var(--border-primary)] px-5 py-4">
+                            <h2 className="text-lg font-semibold text-[color:var(--text-primary)]">Thông tin tài khoản</h2>
                             <button
                                 type="button"
                                 onClick={() => setProfileModal(null)}
-                                className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100"
+                                className="flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--text-secondary)] transition-colors hover:bg-[color:var(--bg-secondary)]"
                                 aria-label="Đóng"
                             >
                                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -847,7 +847,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                             />
 
                             <div className="relative flex items-end gap-4 px-5 pb-4">
-                                <div className="-mt-10 flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-gray-200 text-2xl font-bold text-gray-600">
+                                <div className="-mt-10 flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-[color:var(--bg-tertiary)] text-2xl font-bold text-[color:var(--text-secondary)]">
                                     {profileModal.avatarUrl ? (
                                         <img
                                             src={profileModal.avatarUrl}
@@ -859,7 +859,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                     )}
                                 </div>
                                 <div className="mb-3 flex min-w-0 items-center gap-2">
-                                    <div className="truncate text-xl font-semibold text-gray-900">
+                                    <div className="truncate text-xl font-semibold text-[color:var(--text-primary)]">
                                         {profileModal.displayName || profileModal.username || displayName}
                                     </div>
                                     <button
@@ -868,7 +868,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                             setProfileModal(null);
                                             setShowNicknameModal(true);
                                         }}
-                                        className="text-gray-600 hover:text-blue-600"
+                                        className="text-[color:var(--text-secondary)] hover:text-blue-600"
                                         title="Đổi tên gợi nhớ"
                                     >
                                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -879,7 +879,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                             </div>
 
                             {isProfileLoading && (
-                                <div className="px-5 pb-3 text-sm text-gray-500">Đang tải thêm thông tin...</div>
+                                <div className="px-5 pb-3 text-sm text-[color:var(--text-secondary)]">Đang tải thêm thông tin...</div>
                             )}
                             {profileError && (
                                 <div className="px-5 pb-3 text-sm text-red-500">{profileError}</div>
@@ -889,7 +889,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                 <button
                                     type="button"
                                     onClick={() => showToast('Tính năng gọi đang được phát triển')}
-                                    className="h-11 flex-1 rounded-md bg-gray-100 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-200"
+                                    className="h-11 flex-1 rounded-md bg-[color:var(--bg-secondary)] text-sm font-semibold text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-tertiary)]"
                                 >
                                     Gọi điện
                                 </button>
@@ -902,46 +902,46 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                 </button>
                             </div>
 
-                            <div className="h-2 bg-gray-100" />
+                            <div className="h-2 bg-[color:var(--bg-secondary)]" />
 
                             <section className="px-5 py-5">
-                                <h3 className="mb-4 text-base font-semibold text-gray-800">Thông tin cá nhân</h3>
+                                <h3 className="mb-4 text-base font-semibold text-[color:var(--text-primary)]">Thông tin cá nhân</h3>
                                 <div className="space-y-4 text-sm">
                                     <div className="grid grid-cols-[110px_1fr] gap-4">
-                                        <span className="text-gray-500">Giới tính</span>
-                                        <span className="text-gray-800">{formatProfileGender(profileModal.gender)}</span>
+                                        <span className="text-[color:var(--text-secondary)]">Giới tính</span>
+                                        <span className="text-[color:var(--text-primary)]">{formatProfileGender(profileModal.gender)}</span>
                                     </div>
                                     <div className="grid grid-cols-[110px_1fr] gap-4">
-                                        <span className="text-gray-500">Ngày sinh</span>
-                                        <span className="text-gray-800">{formatProfileDate(profileModal.dateOfBirth)}</span>
+                                        <span className="text-[color:var(--text-secondary)]">Ngày sinh</span>
+                                        <span className="text-[color:var(--text-primary)]">{formatProfileDate(profileModal.dateOfBirth)}</span>
                                     </div>
                                     <div className="grid grid-cols-[110px_1fr] gap-4">
-                                        <span className="text-gray-500">Điện thoại</span>
-                                        <span className="text-gray-800">{profileModal.phone || profileModal.username || 'Chưa cập nhật'}</span>
+                                        <span className="text-[color:var(--text-secondary)]">Điện thoại</span>
+                                        <span className="text-[color:var(--text-primary)]">{profileModal.phone || profileModal.username || 'Chưa cập nhật'}</span>
                                     </div>
                                     {profileModal.businessDescription && (
                                         <div className="grid grid-cols-[110px_1fr] gap-4">
-                                            <span className="text-gray-500">Mô tả</span>
-                                            <span className="whitespace-pre-wrap text-gray-800">{profileModal.businessDescription}</span>
+                                            <span className="text-[color:var(--text-secondary)]">Mô tả</span>
+                                            <span className="whitespace-pre-wrap text-[color:var(--text-primary)]">{profileModal.businessDescription}</span>
                                         </div>
                                     )}
                                 </div>
                             </section>
 
-                            <div className="h-2 bg-gray-100" />
+                            <div className="h-2 bg-[color:var(--bg-secondary)]" />
 
                             <section className="px-5 py-5">
-                                <h3 className="mb-4 text-base font-semibold text-gray-800">Hình ảnh</h3>
-                                <div className="py-8 text-center text-sm text-gray-500">Chưa có ảnh nào được chia sẻ</div>
+                                <h3 className="mb-4 text-base font-semibold text-[color:var(--text-primary)]">Hình ảnh</h3>
+                                <div className="py-8 text-center text-sm text-[color:var(--text-secondary)]">Chưa có ảnh nào được chia sẻ</div>
                             </section>
 
-                            <div className="h-2 bg-gray-100" />
+                            <div className="h-2 bg-[color:var(--bg-secondary)]" />
 
                             <div className="py-2">
                                 <button
                                     type="button"
                                     onClick={handleBlockProfile}
-                                    className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-gray-800 transition-colors hover:bg-gray-50"
+                                    className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-hover)]"
                                 >
                                     <Icon.Block />
                                     <span>Chặn liên hệ này</span>
@@ -949,7 +949,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                 <button
                                     type="button"
                                     onClick={handleRemoveProfileFriend}
-                                    className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-gray-800 transition-colors hover:bg-gray-50"
+                                    className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-hover)]"
                                 >
                                     <Icon.Trash />
                                     <span>Xóa khỏi danh sách bạn bè</span>
@@ -1006,14 +1006,14 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                             zIndex: 61,
                             minWidth: 190,
                         }}
-                        className="bg-white rounded-xl shadow-lg border border-gray-200 py-1.5"
+                        className="bg-[color:var(--bg-primary)] rounded-xl shadow-lg border border-[color:var(--border-primary)] py-1.5"
                     >
                         <button
                             onClick={() => {
                                 setForwardingMessages([mediaMenu.message!]);
                                 setMediaMenu(null);
                             }}
-                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                         >
                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                             Chia sẻ
@@ -1026,7 +1026,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                 }
                                 setMediaMenu(null);
                             }}
-                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                         >
                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             Xem tin nhắn gốc

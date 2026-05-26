@@ -149,7 +149,7 @@ const StoryReplyCard: React.FC<{
     return (
         <div className={clsx(
             "flex flex-col w-[300px] max-w-full overflow-hidden rounded-xl border shadow-sm select-none",
-            isMine ? "bg-[#0068ff] border-blue-400" : "bg-[color:var(--bg-primary)] border-gray-200"
+            isMine ? "bg-[#0068ff] border-blue-400" : "bg-[color:var(--bg-primary)] border-[color:var(--border-primary)]"
         )}>
             {/* Story Card Header */}
             <div className={clsx(
@@ -160,7 +160,7 @@ const StoryReplyCard: React.FC<{
                 <div className={clsx("w-[3.5px] self-stretch shrink-0 rounded-full", isMine ? "bg-[color:var(--bg-primary)]/80" : "bg-[#0068ff]")} />
                 
                 <div className="flex items-center gap-3 p-2 pl-0 flex-1 min-w-0">
-                    <div className="w-16 h-16 shrink-0 overflow-hidden rounded bg-gray-200 relative">
+                    <div className="w-16 h-16 shrink-0 overflow-hidden rounded bg-[color:var(--bg-tertiary)] relative">
                         {thumbSrcRaw ? (
                             <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
                         ) : (
@@ -661,7 +661,7 @@ const FileAttachmentCard: React.FC<{
                 <div className="flex shrink-0 items-center gap-1">
                     <button
                         type="button"
-                        className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-[color:var(--bg-primary)] p-0 text-[color:var(--text-secondary)] shadow-sm hover:bg-[color:var(--bg-hover)] disabled:pointer-events-none disabled:opacity-60"
+                        className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[color:var(--border-primary)] bg-[color:var(--bg-primary)] p-0 text-[color:var(--text-secondary)] shadow-sm hover:bg-[color:var(--bg-hover)] disabled:pointer-events-none disabled:opacity-60"
                         title="Xem nơi tải xuống — nếu chưa tải sẽ tải vào thư mục mặc định rồi hướng dẫn (Ctrl+J)"
                         aria-label={
                             downloadsHelpBusy
@@ -735,7 +735,7 @@ const FileAttachmentCard: React.FC<{
                     </button>
                     <button
                         type="button"
-                        className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-[color:var(--bg-primary)] p-0 text-[#0068ff] shadow-sm hover:bg-sky-50"
+                        className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[color:var(--border-primary)] bg-[color:var(--bg-primary)] p-0 text-[#0068ff] shadow-sm hover:bg-sky-50"
                         title="Chọn nơi lưu (Chrome / Edge). Trình khác: tải về Tải xuống mặc định."
                         aria-label="Tải xuống — chọn nơi lưu"
                         onClick={(e) =>
@@ -933,7 +933,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         return (
             <div className="flex justify-center my-2">
-                <div className="bg-[color:var(--bg-primary)] border border-gray-200 shadow-sm rounded-full px-4 py-2 flex items-center gap-2 text-sm text-[color:var(--text-secondary)] max-w-[90%]">
+                <div className="bg-[color:var(--bg-primary)] border border-[color:var(--border-primary)] shadow-sm rounded-full px-4 py-2 flex items-center gap-2 text-sm text-[color:var(--text-secondary)] max-w-[90%]">
                     <span className={clsx("flex shrink-0", isPollSystemMessage ? "text-emerald-500" : "text-orange-500")}>
                         {isPollSystemMessage ? (
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1162,7 +1162,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 {onReply && (
                                     <button
                                         onClick={() => onReply(message)}
-                                        className="bg-[color:var(--bg-primary)] text-[color:var(--text-secondary)] shadow-sm border border-gray-100 rounded-full w-7 h-7 flex items-center justify-center hover:bg-[color:var(--bg-hover)] focus:outline-none"
+                                        className="bg-[color:var(--bg-primary)] text-[color:var(--text-secondary)] shadow-sm border border-[color:var(--border-primary)] rounded-full w-7 h-7 flex items-center justify-center hover:bg-[color:var(--bg-hover)] focus:outline-none"
                                         title="Trả lời"
                                     >
                                         <svg className="w-3.5 h-3.5 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1195,7 +1195,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                             }
                                             setShowMoreMenu(true);
                                         }}
-                                        className="bg-[color:var(--bg-primary)] text-[color:var(--text-secondary)] shadow-sm border border-gray-100 rounded-full w-7 h-7 flex items-center justify-center hover:bg-[color:var(--bg-hover)] focus:outline-none"
+                                        className="bg-[color:var(--bg-primary)] text-[color:var(--text-secondary)] shadow-sm border border-[color:var(--border-primary)] rounded-full w-7 h-7 flex items-center justify-center hover:bg-[color:var(--bg-hover)] focus:outline-none"
                                         title="Thêm"
                                     >
                                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -1225,7 +1225,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         zIndex: 9999,
                                         minWidth: 180,
                                     }}
-                                    className="bg-[color:var(--bg-primary)] rounded-xl shadow-lg border border-gray-200 py-1.5"
+                                    className="bg-[color:var(--bg-primary)] rounded-xl shadow-lg border border-[color:var(--border-primary)] py-1.5"
                                 >
                                     {/* Copy */}
                                     <button
@@ -1273,7 +1273,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                         Xem chi tiết
                                     </button>
-                                    <div className="border-t border-gray-100 my-1" />
+                                    <div className="border-t border-[color:var(--border-primary)] my-1" />
                                     {/* Recall - own messages only */}
                                     {isMine && onRecall && !isCallMessage && (
                                         <button
@@ -1331,7 +1331,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                             <span className="line-clamp-2 text-[color:var(--text-secondary)]">[Tin nhắn đã thu hồi]</span>
                                         ) : rt === 'IMAGE' && rUrl ? (
                                             <>
-                                                <img src={thumb || rUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover bg-gray-200" />
+                                                <img src={thumb || rUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover bg-[color:var(--bg-tertiary)]" />
                                                 <span className="line-clamp-2 text-[color:var(--text-secondary)]">Ảnh</span>
                                             </>
                                         ) : rt === 'VIDEO' && rUrl ? (
@@ -1585,7 +1585,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         {/* Hiển thị Pill cảm xúc hợp nhất */}
                         {sortedEmojis.length > 0 && (
                             <div
-                                className="flex items-center gap-1 bg-[color:var(--bg-primary)] border border-gray-200 rounded-full px-1.5 py-0.5 shadow-sm text-xs cursor-pointer hover:bg-[color:var(--bg-hover)] transition-colors mr-1"
+                                className="flex items-center gap-1 bg-[color:var(--bg-primary)] border border-[color:var(--border-primary)] rounded-full px-1.5 py-0.5 shadow-sm text-xs cursor-pointer hover:bg-[color:var(--bg-hover)] transition-colors mr-1"
                                 onClick={(e) => { e.stopPropagation(); setShowReactionDetail(true); setSelectedEmojiTab(null); }}
                             >
                                 <div className="flex -space-x-1">
@@ -1613,7 +1613,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             >
                                 <button
                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReact(latestEmoji || '👍'); }}
-                                    className="w-[26px] h-[26px] bg-[color:var(--bg-primary)] border border-gray-200 outline-none text-[color:var(--text-secondary)] hover:text-blue-500 rounded-full shadow-sm flex items-center justify-center transition-colors"
+                                    className="w-[26px] h-[26px] bg-[color:var(--bg-primary)] border border-[color:var(--border-primary)] outline-none text-[color:var(--text-secondary)] hover:text-blue-500 rounded-full shadow-sm flex items-center justify-center transition-colors"
                                     title="Thích"
                                 >
                                     {latestEmoji ? (
@@ -1630,7 +1630,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     <div className={clsx("absolute bottom-full pb-1 z-30", isMine ? "right-0" : "left-0")}>
                                         <div
                                             className={clsx(
-                                                "bg-[color:var(--bg-primary)] rounded-[20px] shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-gray-100 p-1.5 flex items-center gap-1 transform hover:scale-100 transition-all",
+                                                "bg-[color:var(--bg-primary)] rounded-[20px] shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-[color:var(--border-primary)] p-1.5 flex items-center gap-1 transform hover:scale-100 transition-all",
                                                 isMine ? "origin-bottom-right" : "origin-bottom-left"
                                             )}
                                             onMouseEnter={() => setIsHoveringReactions(true)}
@@ -1659,7 +1659,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                                         setShowReactPicker(false);
                                                         setIsHoveringReactions(false);
                                                     }}
-                                                    className="w-9 h-9 flex items-center justify-center hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 transition-all text-lg font-bold border-l border-gray-200 ml-0.5 pl-0.5"
+                                                    className="w-9 h-9 flex items-center justify-center hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 transition-all text-lg font-bold border-l border-[color:var(--border-primary)] ml-0.5 pl-0.5"
                                                     title="Xóa tất cả biểu cảm"
                                                 >
                                                     ×
@@ -1682,7 +1682,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--border-primary)]">
                             <span className="font-semibold text-base text-[color:var(--text-primary)]">Biểu cảm</span>
                             <button
                                 onClick={() => setShowReactionDetail(false)}
@@ -1697,7 +1697,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         {/* Body: Left Tabs + Right User List */}
                         <div className="flex flex-1 overflow-hidden">
                             {/* Left: Emoji Tabs */}
-                            <div className="w-[120px] border-r border-gray-100 overflow-y-auto bg-[color:var(--bg-hover)]/50 shrink-0">
+                            <div className="w-[120px] border-r border-[color:var(--border-primary)] overflow-y-auto bg-[color:var(--bg-hover)]/50 shrink-0">
                                 {/* Tất cả */}
                                 <button
                                     onClick={() => setSelectedEmojiTab(null)}
@@ -1776,7 +1776,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             {showMessageDetail && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={() => setShowMessageDetail(false)}>
                     <div className="bg-[color:var(--bg-primary)] rounded-2xl shadow-2xl w-[380px] max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[color:var(--border-primary)]">
                             <h3 className="text-base font-semibold text-[color:var(--text-primary)]">Chi tiết tin nhắn</h3>
                             <button onClick={() => setShowMessageDetail(false)} className="text-gray-400 hover:text-[color:var(--text-secondary)] p-1 rounded-full hover:bg-[color:var(--bg-secondary)]">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1940,7 +1940,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     role="presentation"
                 >
                     <div
-                        className="bg-[color:var(--bg-primary)] rounded-xl shadow-xl max-w-md w-full p-5 border border-gray-100"
+                        className="bg-[color:var(--bg-primary)] rounded-xl shadow-xl max-w-md w-full p-5 border border-[color:var(--border-primary)]"
                         onClick={(e) => e.stopPropagation()}
                         role="dialog"
                         aria-labelledby="downloads-help-title"

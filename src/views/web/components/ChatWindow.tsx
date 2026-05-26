@@ -1494,7 +1494,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 <button
                   onClick={() => void handleCall("VOICE")}
                   title="Cuộc gọi thoại"
-                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)] transition-colors"
                 >
                   <svg
                     className="w-5 h-5"
@@ -1513,7 +1513,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 <button
                   onClick={() => void handleCall("VIDEO")}
                   title="Cuộc gọi video"
-                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)] transition-colors"
                 >
                   <svg
                     className="w-5 h-5"
@@ -1536,17 +1536,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
               title="Tìm kiếm tin nhắn"
               className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${searchOpen
                 ? "bg-blue-100 text-blue-600"
-                : "hover:bg-gray-100 text-gray-500"
+                : "hover:bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)]"
                 }`}
             >
-              <Ionicons name="search-outline" size={20} className="text-gray-500" />
+              <Ionicons name="search-outline" size={20} className="text-[color:var(--text-secondary)]" />
             </button>
             {/* Cloud: mở Options theo UI My Documents */}
             {isCloudRoom ? (
               <button
                 onClick={() => setCloudOptionsOpen(true)}
                 title="Tùy chọn Cloud"
-                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)] transition-colors"
               >
                 <Ionicons name="settings-outline" size={20} />
               </button>
@@ -1558,7 +1558,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                 title="Thông tin hội thoại"
                 className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${infoOpen
                   ? "bg-blue-100 text-blue-600"
-                  : "hover:bg-gray-100 text-gray-500"
+                  : "hover:bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)]"
                   }`}
               >
                 <Ionicons name="information-circle-outline" size={20} />
@@ -1667,10 +1667,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
           {/* Blocked chat overlay / nhóm đã giải tán */}
           {isBlocked ? (
-            <div className="border-t border-gray-200 bg-gray-50">
+            <div className="border-t border-[color:var(--border-primary)] bg-[color:var(--bg-hover)]">
               {blockStatus?.blockedByYou ? (
                 <div className="flex flex-col items-center justify-center py-6 px-4 gap-3">
-                  <div className="flex items-center gap-2 text-gray-600">
+                  <div className="flex items-center gap-2 text-[color:var(--text-secondary)]">
                     <svg
                       className="w-5 h-5 text-red-500"
                       fill="none"
@@ -1711,7 +1711,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
                   </button>
                 </div>
               ) : blockStatus?.blockedByOther ? (
-                <div className="flex items-center justify-center py-6 px-4 gap-2 text-gray-500">
+                <div className="flex items-center justify-center py-6 px-4 gap-2 text-[color:var(--text-secondary)]">
                   <svg
                     className="w-5 h-5 text-gray-400"
                     fill="none"
@@ -1732,8 +1732,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
               ) : null}
             </div>
           ) : isGroupDisbanded ? (
-            <div className="border-t border-gray-200 bg-gray-50 flex flex-col items-center justify-center py-6 px-4 gap-2">
-              <span className="text-sm text-gray-500 text-center">
+            <div className="border-t border-[color:var(--border-primary)] bg-[color:var(--bg-hover)] flex flex-col items-center justify-center py-6 px-4 gap-2">
+              <span className="text-sm text-[color:var(--text-secondary)] text-center">
                 Nhóm đã được giải tán. Bạn không thể gửi tin nhắn vào nhóm này
                 nữa.
               </span>
@@ -1749,8 +1749,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
               </button>
             </div>
           ) : isGroupRoom && !canSendMessage ? (
-            <div className="border-t border-gray-200 bg-gray-50 flex flex-col items-center justify-center py-6 px-4 gap-2">
-              <span className="text-sm text-gray-500 text-center">
+            <div className="border-t border-[color:var(--border-primary)] bg-[color:var(--bg-hover)] flex flex-col items-center justify-center py-6 px-4 gap-2">
+              <span className="text-sm text-[color:var(--text-secondary)] text-center">
                 Chỉ có trưởng nhóm và phó nhóm được phép gửi tin nhắn.
               </span>
             </div>

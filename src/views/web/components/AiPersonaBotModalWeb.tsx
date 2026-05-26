@@ -88,7 +88,7 @@ export default function AiPersonaBotModalWeb({ onClose }: AiPersonaBotModalWebPr
       const parts = content.split(/(\*\*.*?\*\*)/g);
       const renderedContent = parts.map((part, pIdx) => {
         if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={pIdx} className="font-bold text-gray-900 dark:text-white">{part.slice(2, -2)}</strong>;
+          return <strong key={pIdx} className="font-bold text-[color:var(--text-primary)] dark:text-white">{part.slice(2, -2)}</strong>;
         }
         return <span key={pIdx}>{part}</span>;
       });
@@ -97,28 +97,28 @@ export default function AiPersonaBotModalWeb({ onClose }: AiPersonaBotModalWebPr
         return (
           <div key={index} className="flex mb-1.5 pl-2">
             <span className={`${selectedPersona.text} mr-2 text-lg leading-tight`}>•</span>
-            <span className="text-gray-800 dark:text-gray-200 flex-1 text-sm leading-relaxed">{renderedContent}</span>
+            <span className="text-[color:var(--text-primary)] dark:text-gray-200 flex-1 text-sm leading-relaxed">{renderedContent}</span>
           </div>
         );
       }
       
-      return <p key={index} className="text-gray-800 dark:text-gray-200 leading-relaxed text-sm mb-2">{renderedContent}</p>;
+      return <p key={index} className="text-[color:var(--text-primary)] dark:text-gray-200 leading-relaxed text-sm mb-2">{renderedContent}</p>;
     });
   };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 px-4">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-2xl h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-[color:var(--bg-primary)] dark:bg-gray-800 w-full max-w-2xl h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700 shrink-0">
+        <div className="flex items-center justify-between p-4 border-b border-[color:var(--border-primary)] dark:border-gray-700 shrink-0">
           <div className="flex items-center gap-3">
             <div className={`${selectedPersona.bgLight} dark:bg-gray-700 p-2.5 rounded-xl`}>
               <Bot className={`w-6 h-6 ${selectedPersona.text}`} />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-gray-900 dark:text-white">Bot Chuyên Gia</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Hỏi đáp theo chủ đề chuyên biệt</p>
+              <h3 className="font-bold text-lg text-[color:var(--text-primary)] dark:text-white">Bot Chuyên Gia</h3>
+              <p className="text-sm text-[color:var(--text-secondary)] dark:text-gray-400">Hỏi đáp theo chủ đề chuyên biệt</p>
             </div>
           </div>
           <button
@@ -126,14 +126,14 @@ export default function AiPersonaBotModalWeb({ onClose }: AiPersonaBotModalWebPr
             aria-label="Đóng"
             title="Đóng"
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500"
+            className="p-2 hover:bg-[color:var(--bg-secondary)] dark:hover:bg-gray-700 rounded-full transition-colors text-[color:var(--text-secondary)]"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Persona Selector */}
-        <div className="p-3 border-b border-gray-100 dark:border-gray-700 shrink-0 overflow-x-auto no-scrollbar">
+        <div className="p-3 border-b border-[color:var(--border-primary)] dark:border-gray-700 shrink-0 overflow-x-auto no-scrollbar">
           <div className="flex gap-2 min-w-max px-1">
             {PERSONAS.map(p => {
               const isSelected = selectedPersona.id === p.id;
@@ -147,7 +147,7 @@ export default function AiPersonaBotModalWeb({ onClose }: AiPersonaBotModalWebPr
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-full border transition-all ${
                     isSelected 
                       ? `${p.color} ${p.border} text-white shadow-md shadow-${p.color.split('-')[1]}-500/30` 
-                      : `bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700`
+                      : `bg-[color:var(--bg-primary)] dark:bg-gray-800 border-[color:var(--border-primary)] dark:border-gray-600 text-[color:var(--text-secondary)] dark:text-gray-300 hover:bg-[color:var(--bg-hover)] dark:hover:bg-gray-700`
                   }`}
                 >
                   <Bot className="w-4 h-4" />
@@ -165,8 +165,8 @@ export default function AiPersonaBotModalWeb({ onClose }: AiPersonaBotModalWebPr
             <div className={`${selectedPersona.color} w-8 h-8 rounded-full flex items-center justify-center shrink-0`}>
               <Bot className="w-5 h-5 text-white" />
             </div>
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-2xl rounded-tl-sm border border-gray-100 dark:border-gray-700 shadow-sm">
-              <p className="text-gray-800 dark:text-gray-200 text-sm leading-relaxed">
+            <div className="bg-[color:var(--bg-primary)] dark:bg-gray-800 p-3 rounded-2xl rounded-tl-sm border border-[color:var(--border-primary)] dark:border-gray-700 shadow-sm">
+              <p className="text-[color:var(--text-primary)] dark:text-gray-200 text-sm leading-relaxed">
                 Xin chào! Tôi là Bot chuyên gia về <strong className={selectedPersona.text}>{selectedPersona.name}</strong>. Hãy đặt câu hỏi cho tôi!
               </p>
             </div>
@@ -188,7 +188,7 @@ export default function AiPersonaBotModalWeb({ onClose }: AiPersonaBotModalWebPr
                   <div className={`${selectedPersona.color} w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1`}>
                     <Bot className="w-5 h-5 text-white" />
                   </div>
-                  <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl rounded-tl-sm border border-gray-100 dark:border-gray-700 shadow-sm">
+                  <div className="bg-[color:var(--bg-primary)] dark:bg-gray-800 p-4 rounded-2xl rounded-tl-sm border border-[color:var(--border-primary)] dark:border-gray-700 shadow-sm">
                     {renderFormattedText(msg.text)}
                   </div>
                 </div>
@@ -202,7 +202,7 @@ export default function AiPersonaBotModalWeb({ onClose }: AiPersonaBotModalWebPr
               <div className={`${selectedPersona.color} w-8 h-8 rounded-full flex items-center justify-center shrink-0`}>
                 <Bot className="w-5 h-5 text-white" />
               </div>
-              <div className="bg-white dark:bg-gray-800 px-4 py-3 rounded-2xl rounded-tl-sm border border-gray-100 dark:border-gray-700 shadow-sm flex items-center">
+              <div className="bg-[color:var(--bg-primary)] dark:bg-gray-800 px-4 py-3 rounded-2xl rounded-tl-sm border border-[color:var(--border-primary)] dark:border-gray-700 shadow-sm flex items-center">
                 <Loader2 className={`w-5 h-5 animate-spin ${selectedPersona.text}`} />
               </div>
             </div>
@@ -222,14 +222,14 @@ export default function AiPersonaBotModalWeb({ onClose }: AiPersonaBotModalWebPr
         </div>
 
         {/* Input Area */}
-        <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 shrink-0">
-          <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full pl-4 pr-1.5 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+        <div className="p-4 bg-[color:var(--bg-primary)] dark:bg-gray-800 border-t border-[color:var(--border-primary)] dark:border-gray-700 shrink-0">
+          <div className="flex items-center gap-2 bg-[color:var(--bg-hover)] dark:bg-gray-900 border border-[color:var(--border-primary)] dark:border-gray-700 rounded-full pl-4 pr-1.5 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={`Hỏi chuyên gia ${selectedPersona.name}...`}
-              className="flex-1 bg-transparent text-gray-900 dark:text-white text-sm outline-none resize-none py-2 max-h-32 min-h-[40px]"
+              className="flex-1 bg-transparent text-[color:var(--text-primary)] dark:text-white text-sm outline-none resize-none py-2 max-h-32 min-h-[40px]"
               rows={1}
             />
             <button
@@ -237,7 +237,7 @@ export default function AiPersonaBotModalWeb({ onClose }: AiPersonaBotModalWebPr
               disabled={loading || !inputValue.trim()}
               className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 ${
                 !inputValue.trim() || loading
-                  ? "bg-gray-200 dark:bg-gray-700 text-gray-400"
+                  ? "bg-[color:var(--bg-tertiary)] dark:bg-gray-700 text-gray-400"
                   : `${selectedPersona.color} text-white hover:opacity-90 shadow-sm`
               }`}
             >

@@ -125,7 +125,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
         !!(canApproveJoinRequests && pendingJoinRequests.length > 0 && groupId);
 
     const pendingSection = hasPending ? (
-        <div className="shrink-0 px-3 pt-2 pb-3 border-b border-gray-200 bg-gradient-to-b from-amber-50/90 to-orange-50/40">
+        <div className="shrink-0 px-3 pt-2 pb-3 border-b border-[color:var(--border-primary)] bg-gradient-to-b from-amber-50/90 to-orange-50/40">
             <div className="rounded-xl border border-amber-200/90 bg-white/95 shadow-sm overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-100/80 border-b border-amber-200/60">
                     <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-200/80 text-amber-900 text-xs font-bold">
@@ -158,7 +158,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                     className="w-10 h-10 rounded-full object-cover shrink-0 ring-2 ring-amber-200/80"
                                 />
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-semibold text-gray-900 truncate">{label}</div>
+                                    <div className="text-sm font-semibold text-[color:var(--text-primary)] truncate">{label}</div>
                                     <div className="text-xs text-amber-900/70 truncate">{inv}</div>
                                 </div>
                                 <div className="flex flex-col gap-1 shrink-0">
@@ -190,7 +190,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                                 setPendingAction(null);
                                             }
                                         }}
-                                        className="text-[11px] px-2.5 py-1 rounded-lg text-gray-600 hover:bg-gray-100 border border-gray-200"
+                                        className="text-[11px] px-2.5 py-1 rounded-lg text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-secondary)] border border-[color:var(--border-primary)]"
                                     >
                                         Từ chối
                                     </button>
@@ -204,35 +204,35 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
     ) : null;
 
     const membersSectionIntro = hasPending ? (
-        <div className="shrink-0 px-3 pt-3 pb-1.5 bg-white border-b border-gray-100">
-            <p className="text-xs font-semibold text-gray-800">Thành viên trong nhóm</p>
-            <p className="text-[11px] text-gray-500 mt-0.5">{members.length} người · đã tham gia nhóm</p>
+        <div className="shrink-0 px-3 pt-3 pb-1.5 bg-[color:var(--bg-primary)] border-b border-[color:var(--border-primary)]">
+            <p className="text-xs font-semibold text-[color:var(--text-primary)]">Thành viên trong nhóm</p>
+            <p className="text-[11px] text-[color:var(--text-secondary)] mt-0.5">{members.length} người · đã tham gia nhóm</p>
         </div>
     ) : null;
 
     const headerBar = embedded ? (
-        <div className="flex items-center gap-2 px-3 py-3 border-b border-gray-100 shrink-0 bg-white">
+        <div className="flex items-center gap-2 px-3 py-3 border-b border-[color:var(--border-primary)] shrink-0 bg-[color:var(--bg-primary)]">
             <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 shrink-0"
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)] shrink-0"
                 title="Quay lại"
             >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
             </button>
-            <span className="font-semibold text-sm text-gray-800 flex-1 truncate">
+            <span className="font-semibold text-sm text-[color:var(--text-primary)] flex-1 truncate">
                 Thành viên ({members.length})
             </span>
         </div>
     ) : (
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 shrink-0">
-            <span className="font-semibold text-base text-gray-800">Thành viên nhóm ({members.length})</span>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[color:var(--border-primary)] shrink-0">
+            <span className="font-semibold text-base text-[color:var(--text-primary)]">Thành viên nhóm ({members.length})</span>
             <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400 hover:text-[color:var(--text-secondary)] transition-colors"
             >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -261,7 +261,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                         return (
                             <div
                                 key={member.userId}
-                                className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors"
+                                className="flex items-center gap-3 px-5 py-3 hover:bg-[color:var(--bg-hover)] transition-colors"
                             >
                                 <img
                                     src={avatarSrc}
@@ -269,7 +269,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                     className="w-10 h-10 rounded-full object-cover shrink-0"
                                 />
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-medium text-gray-800 truncate">
+                                    <div className="text-sm font-medium text-[color:var(--text-primary)] truncate">
                                         {displayName}
                                         {isMe && <span className="text-xs text-gray-400 ml-1">(Bạn)</span>}
                                     </div>
@@ -291,7 +291,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                     <button
                                         ref={(el) => { menuBtnRefs.current[member.userId] = el; }}
                                         onClick={(e) => handleToggleMenu(member.userId, e)}
-                                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-all shrink-0"
+                                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-tertiary)] text-gray-400 hover:text-[color:var(--text-secondary)] transition-all shrink-0"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01" />
@@ -334,7 +334,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                 zIndex: 9999,
                                 minWidth: 180,
                             }}
-                            className="bg-white rounded-xl shadow-xl border border-gray-100 py-1"
+                            className="bg-[color:var(--bg-primary)] rounded-xl shadow-xl border border-[color:var(--border-primary)] py-1"
                         >
                             {(() => {
                                 const member = members.find((m) => m.userId === menuOpenFor);
@@ -363,7 +363,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                             )}
                                             {onRemoveMember && (
                                                 <>
-                                                    {(onBlockMember) && <div className="border-t border-gray-100 my-0.5" />}
+                                                    {(onBlockMember) && <div className="border-t border-[color:var(--border-primary)] my-0.5" />}
                                                     <button
                                                         className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
                                                         onClick={() => {
@@ -389,7 +389,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                     <>
                                         {onTransferOwnership && (
                                             <button
-                                                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors"
+                                                className="w-full px-4 py-2.5 text-left text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] flex items-center gap-2.5 transition-colors"
                                                 onClick={() => {
                                                     const ok = confirm(`Chuyển quyền trưởng nhóm cho "${member.fullName || member.username}"?`);
                                                     if (!ok) return;
@@ -406,7 +406,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                         )}
                                         {isAdminMember ? (
                                             <button
-                                                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors"
+                                                className="w-full px-4 py-2.5 text-left text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] flex items-center gap-2.5 transition-colors"
                                                 onClick={() => {
                                                     onChangeRole?.(member.userId, 'MEMBER');
                                                     setMenuOpenFor(null);
@@ -420,7 +420,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                             </button>
                                         ) : (
                                             <button
-                                                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors"
+                                                className="w-full px-4 py-2.5 text-left text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] flex items-center gap-2.5 transition-colors"
                                                 onClick={() => {
                                                     onChangeRole?.(member.userId, 'ADMIN');
                                                     setMenuOpenFor(null);
@@ -435,7 +435,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                         )}
                                         {(onBlockMember || onRemoveMember) && (
                                             <>
-                                                <div className="border-t border-gray-100 my-0.5" />
+                                                <div className="border-t border-[color:var(--border-primary)] my-0.5" />
                                                 {onBlockMember ? (
                                                     <button
                                                         className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
@@ -488,7 +488,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
 
     if (embedded) {
         return (
-            <div className="flex flex-col h-full min-h-0 bg-white overflow-hidden">
+            <div className="flex flex-col h-full min-h-0 bg-[color:var(--bg-primary)] overflow-hidden">
                 {inner}
             </div>
         );
@@ -497,7 +497,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
             <div
-                className="bg-white rounded-2xl shadow-2xl w-[420px] max-h-[80vh] flex flex-col overflow-hidden"
+                className="bg-[color:var(--bg-primary)] rounded-2xl shadow-2xl w-[420px] max-h-[80vh] flex flex-col overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
                 {inner}
