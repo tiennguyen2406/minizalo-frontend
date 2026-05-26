@@ -51,7 +51,7 @@ export const PinnedCloudItem = () => {
                     <Text style={{ fontSize: 16, color: colors.text }}>Cloud của tôi</Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                    <Text style={{ fontSize: 14, color: '#3498db' }} numberOfLines={1}>Cuộc trò chuyện này đang được ghim</Text>
+                    <Text style={{ fontSize: 14, color: colors.primary }} numberOfLines={1}>Cuộc trò chuyện này đang được ghim</Text>
                 </View>
             </View>
         </TouchableOpacity>

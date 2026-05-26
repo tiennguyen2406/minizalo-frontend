@@ -140,7 +140,7 @@ export default function BirthdayListMobileScreen() {
                         height: 32,
                         borderRadius: 16,
                         borderWidth: 1,
-                        borderColor: "#1d4ed8",
+                        borderColor: colors.primary,
                         alignItems: "center",
                         justifyContent: "center",
                     }}
@@ -148,7 +148,7 @@ export default function BirthdayListMobileScreen() {
                     <Ionicons
                         name="chatbubble-ellipses-outline"
                         size={16}
-                        color="#1d4ed8"
+                        color={colors.primary}
                     />
                 </TouchableOpacity>
             </View>

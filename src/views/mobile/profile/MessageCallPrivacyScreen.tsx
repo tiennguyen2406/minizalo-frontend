@@ -26,7 +26,7 @@ function SettingsItem({ label, value, onPress, colors, icon, isHeader }: Setting
     if (isHeader) {
         return (
             <View style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.background }}>
-                <Text style={{ color: "#0068FF", fontSize: 14, fontWeight: "600" }}>{label}</Text>
+                <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "600" }}>{label}</Text>
             </View>
         );
     }

@@ -195,40 +195,9 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
                 {/* Thanh phân tách sau profile */}
                 <View style={{ height: 8, backgroundColor: colors.separator }} />
 
-                {/* Nhóm 1: Cloud & Style */}
-                <MenuItem
-                    icon="cloud"
-                    title="zCloud"
-                    subtitle="Không gian lưu trữ dữ liệu trên đám mây"
-                />
-                <MenuItem
-                    icon="sparkles"
-                    title="zStyle – Nổi bật trên Zalo"
-                    subtitle="Hình nền và nhạc cho cuộc gọi Zalo"
-                />
 
-                {/* Thanh phân tách */}
-                <View style={{ height: 8, backgroundColor: colors.separator }} />
 
-                {/* Nhóm 2: Documents & Data */}
-                <MenuItem
-                    icon="folder"
-                    title="My Documents"
-                    subtitle="Lưu trữ các tin nhắn quan trọng"
-                />
-                <MenuItem
-                    icon="time"
-                    title="Dữ liệu trên máy"
-                    subtitle="Quản lý dữ liệu Zalo của bạn"
-                />
-                <MenuItem
-                    icon="qr-code"
-                    title="Ví QR"
-                    subtitle="Lưu trữ và xuất trình các mã QR quan trọng"
-                />
 
-                {/* Thanh phân tách */}
-                <View style={{ height: 8, backgroundColor: colors.separator }} />
 
                 {/* Nhóm 3: Bảo mật & Riêng tư */}
                 <MenuItem

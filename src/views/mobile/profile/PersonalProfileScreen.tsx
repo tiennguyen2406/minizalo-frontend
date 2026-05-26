@@ -520,7 +520,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                         borderRadius: AVATAR_SIZE / 2,
                                         borderWidth: 3,
                                         borderColor: colors.background,
-                                        backgroundColor: "#f0f2f5",
+                                        backgroundColor: colors.searchBg,
                                     }}
                                     onError={(e) => console.log("Avatar Load Error:", e.nativeEvent.error, avatarUrl)}
                                 />
@@ -532,7 +532,7 @@ export default function PersonalProfileScreen({ user }: PersonalProfileScreenPro
                                         borderRadius: AVATAR_SIZE / 2,
                                         borderWidth: 3,
                                         borderColor: colors.background,
-                                        backgroundColor: "#f0f2f5",
+                                        backgroundColor: colors.searchBg,
                                         alignItems: "center",
                                         justifyContent: "center",
                                     }}

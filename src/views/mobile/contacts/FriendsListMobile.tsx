@@ -727,7 +727,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                         >
                             <TouchableOpacity activeOpacity={1} onPress={() => { }} style={{ backgroundColor: colors.modalBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
                                 <View style={{ alignItems: "center", marginBottom: 12 }}>
-                                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.isDark ? "#2a2a2a" : colors.searchBg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                                         {actionSheetFriend.user.avatarUrl ? (
                                             <Image source={{ uri: `${actionSheetFriend.user.avatarUrl}?t=${Date.now()}` }} style={{ width: 64, height: 64 }} />
                                         ) : (
@@ -758,7 +758,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                                 },
                                             } as any);
                                         }}
-                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, paddingVertical: 12, marginRight: 6, borderRadius: 10 }}
+                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: colors.isDark ? "#2a2a2a" : colors.searchBg, paddingVertical: 12, marginRight: 6, borderRadius: 10 }}
                                     >
                                         <Ionicons name="person-outline" size={18} color={colors.text} style={{ marginRight: 6 }} />
                                         <Text style={{ color: colors.text, fontSize: 14 }}>Xem trang cá nhân</Text>
@@ -771,7 +771,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                             setBlockOptions({ blockMessages: false, blockCalls: false, blockTimeline: false });
                                             setBlockSheetFriend({ userId: friendId, displayName: friendName });
                                         }}
-                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, paddingVertical: 12, marginLeft: 6, borderRadius: 10 }}
+                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: colors.isDark ? "#2a2a2a" : colors.searchBg, paddingVertical: 12, marginLeft: 6, borderRadius: 10 }}
                                     >
                                         <Ionicons name="ban-outline" size={18} color={colors.text} style={{ marginRight: 6 }} />
                                         <Text style={{ color: colors.text, fontSize: 14 }}>Quản lý chặn</Text>
@@ -815,7 +815,7 @@ export default function FriendsListMobile({ searchText = "" }: FriendsListMobile
                                             setActionSheetFriend(null);
                                             handleRemoveFriend(actionSheetFriend.user.id, actionSheetFriend.displayName);
                                         }}
-                                        style={{ flex: 1, backgroundColor: colors.background === "#000000" ? "#2a2a2a" : colors.searchBg, paddingVertical: 12, borderRadius: 10, alignItems: "center", marginRight: 8 }}
+                                        style={{ flex: 1, backgroundColor: colors.isDark ? "#2a2a2a" : colors.searchBg, paddingVertical: 12, borderRadius: 10, alignItems: "center", marginRight: 8 }}
                                     >
                                         <Text style={{ color: "#f97373", fontSize: 14, fontWeight: "500" }}>Xóa bạn</Text>
                                     </TouchableOpacity>
