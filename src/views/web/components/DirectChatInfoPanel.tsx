@@ -528,14 +528,6 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                     active={isPinned}
                     onClick={() => { togglePinRoom(room.id); showToast(isPinned ? 'Đã bỏ ghim' : 'Đã ghim hội thoại'); }}
                 />
-                <ActionButton
-                    icon={<Icon.GroupAdd />}
-                    label={<span>Tạo nhóm<br />trò chuyện</span>}
-                    onClick={() => {
-                        onClose();
-                        openCreateGroup(partner?.id ? [partner.id] : undefined);
-                    }}
-                />
                 <input
                     ref={wallpaperInputRef}
                     type="file"
@@ -544,14 +536,34 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                     onChange={handleChangeWallpaper}
                     disabled={isUploadingWallpaper}
                 />
-                <ActionButton
-                    icon={isUploadingWallpaper ? <span className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /> : <Icon.Image />}
-                    label={<span>Đổi<br />nền</span>}
-                    onClick={() => wallpaperInputRef.current?.click()}
-                />
             </ActionButtonRow>
 
             <div className="border-b border-gray-100">
+                <button
+                    type="button"
+                    onClick={() => {
+                        onClose();
+                        openCreateGroup(partner?.id ? [partner.id] : undefined);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors text-left"
+                >
+                    <Icon.GroupAdd />
+                    <span className="flex-1 text-sm text-gray-700">Tạo nhóm trò chuyện</span>
+                    <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => wallpaperInputRef.current?.click()}
+                    className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors text-left"
+                >
+                    {isUploadingWallpaper ? <span className="w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /> : <Icon.Image />}
+                    <span className="flex-1 text-sm text-gray-700">Đổi nền</span>
+                    <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
                 <button
                     type="button"
                     onClick={() => setShowNicknameModal(true)}

@@ -137,7 +137,7 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
 
         messages.forEach((msg) => {
             // Lọc link từ text content
-            if (msg.content) {
+            if (msg.content && !msg.content.trimStart().startsWith('{"type":"STORY_QUOTE"')) {
                 const urlRegex = /(https?:\/\/[^\s]+)/g;
                 const matches = msg.content.match(urlRegex);
                 if (matches) {

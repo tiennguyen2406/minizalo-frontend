@@ -121,7 +121,10 @@ export default function AiPersonaBotModalWeb({ onClose }: AiPersonaBotModalWebPr
               <p className="text-sm text-gray-500 dark:text-gray-400">Hỏi đáp theo chủ đề chuyên biệt</p>
             </div>
           </div>
-          <button 
+          <button
+            type="button"
+            aria-label="Đóng"
+            title="Đóng"
             onClick={onClose}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500"
           >

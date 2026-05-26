@@ -227,7 +227,7 @@ interface CalendarPickerModalProps {
 }
 
 function CalendarPickerModal(props: CalendarPickerModalProps) {
-    const { visible, initialDate, onConfirm, onCancel, themeColors: colors } = props;
+    const { visible, initialDate, onConfirm, onCancel, themeColors: calendarColors } = props;
     const [viewYear, setViewYear] = useState(initialDate.getFullYear());
     const [viewMonth, setViewMonth] = useState(initialDate.getMonth());
     const [selectedDay, setSelectedDay] = useState(initialDate.getDate());
@@ -293,11 +293,11 @@ function CalendarPickerModal(props: CalendarPickerModalProps) {
         <Modal transparent visible animationType="fade" onRequestClose={onCancel}>
             <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" }} onPress={onCancel}>
                 <Pressable
-                    style={{ backgroundColor: colors.card, borderRadius: 16, width: Dimensions.get("window").width - 40, maxHeight: "80%", overflow: "hidden" }}
+                    style={{ backgroundColor: calendarColors.card, borderRadius: 16, width: Dimensions.get("window").width - 40, maxHeight: "80%", overflow: "hidden" }}
                     onPress={() => {}}
                 >
                     {/* Header */}
-                    <View style={{ backgroundColor: colors.primary, paddingVertical: 16, paddingHorizontal: 20, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+                    <View style={{ backgroundColor: calendarColors.primary, paddingVertical: 16, paddingHorizontal: 20, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
                         <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>Chọn ngày sinh</Text>
                         <Text style={{ color: "#fff", fontSize: 22, fontWeight: "700", marginTop: 4 }}>
                             {selectedDay.toString().padStart(2, "0")}/{(viewMonth + 1).toString().padStart(2, "0")}/{viewYear}
@@ -309,16 +309,16 @@ function CalendarPickerModal(props: CalendarPickerModalProps) {
                             {/* Month/Year nav */}
                             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                                 <Pressable onPress={goPrevMonth} style={{ padding: 8 }}>
-                                    <Ionicons name="chevron-back" size={22} color={colors.text} />
+                                    <Ionicons name="chevron-back" size={22} color={calendarColors.text} />
                                 </Pressable>
                                 <Pressable onPress={() => setShowYearPicker(true)} style={{ flexDirection: "row", alignItems: "center" }}>
-                                    <Text style={{ fontSize: 16, fontWeight: "600", color: colors.text }}>
+                                    <Text style={{ fontSize: 16, fontWeight: "600", color: calendarColors.text }}>
                                         {MONTHS_VI[viewMonth]} {viewYear}
                                     </Text>
-                                    <Ionicons name="caret-down" size={14} color={colors.iconColor} style={{ marginLeft: 4 }} />
+                                    <Ionicons name="caret-down" size={14} color={calendarColors.iconColor} style={{ marginLeft: 4 }} />
                                 </Pressable>
                                 <Pressable onPress={goNextMonth} style={{ padding: 8 }}>
-                                    <Ionicons name="chevron-forward" size={22} color={colors.text} />
+                                    <Ionicons name="chevron-forward" size={22} color={calendarColors.text} />
                                 </Pressable>
                             </View>
 
@@ -326,7 +326,7 @@ function CalendarPickerModal(props: CalendarPickerModalProps) {
                             <View style={{ flexDirection: "row" }}>
                                 {DAYS_VI.map((d) => (
                                     <View key={d} style={{ width: cellSize, alignItems: "center", paddingVertical: 4 }}>
-                                        <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: "600" }}>{d}</Text>
+                                        <Text style={{ fontSize: 12, color: calendarColors.textSecondary, fontWeight: "600" }}>{d}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -354,14 +354,14 @@ function CalendarPickerModal(props: CalendarPickerModalProps) {
                                                 borderRadius: 18,
                                                 alignItems: "center",
                                                 justifyContent: "center",
-                                                backgroundColor: isSelected ? colors.primary : "transparent",
+                                                backgroundColor: isSelected ? calendarColors.primary : "transparent",
                                                 borderWidth: isToday && !isSelected ? 1.5 : 0,
-                                                borderColor: colors.primary,
+                                                borderColor: calendarColors.primary,
                                             }}>
                                                 <Text style={{
                                                     fontSize: 15,
                                                     fontWeight: isSelected || isToday ? "700" : "400",
-                                                    color: isSelected ? "#fff" : cell.inMonth ? (cell.disabled ? colors.textSecondary : colors.text) : colors.textSecondary,
+                                                    color: isSelected ? "#fff" : cell.inMonth ? (cell.disabled ? calendarColors.textSecondary : calendarColors.text) : calendarColors.textSecondary,
                                                 }}>
                                                     {cell.day}
                                                 </Text>
@@ -384,13 +384,13 @@ function CalendarPickerModal(props: CalendarPickerModalProps) {
                                             paddingHorizontal: 16,
                                             margin: 4,
                                             borderRadius: 999,
-                                            backgroundColor: y === viewYear ? colors.primary : "transparent",
+                                            backgroundColor: y === viewYear ? calendarColors.primary : "transparent",
                                         }}
                                     >
                                         <Text style={{
                                             fontSize: 15,
                                             fontWeight: y === viewYear ? "700" : "400",
-                                            color: y === viewYear ? "#fff" : colors.text,
+                                            color: y === viewYear ? "#fff" : calendarColors.text,
                                         }}>
                                             {y}
                                         </Text>
@@ -403,11 +403,11 @@ function CalendarPickerModal(props: CalendarPickerModalProps) {
                     {/* Actions */}
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 12 }}>
                         <Pressable onPress={onCancel} style={{ paddingVertical: 10, paddingHorizontal: 20 }}>
-                            <Text style={{ color: colors.textSecondary, fontSize: 15, fontWeight: "600" }}>Hủy</Text>
+                            <Text style={{ color: calendarColors.textSecondary, fontSize: 15, fontWeight: "600" }}>Hủy</Text>
                         </Pressable>
                         <Pressable
                             onPress={() => onConfirm(new Date(viewYear, viewMonth, selectedDay))}
-                            style={{ backgroundColor: colors.primary, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 24 }}
+                            style={{ backgroundColor: calendarColors.primary, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 24 }}
                         >
                             <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>Xác nhận</Text>
                         </Pressable>

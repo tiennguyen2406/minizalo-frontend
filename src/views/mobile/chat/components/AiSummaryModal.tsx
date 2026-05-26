@@ -205,6 +205,8 @@ export default function AiSummaryModal({ visible, onClose, onSummarize, roomId, 
                         <View style={{ flexDirection: "row", alignItems: "center" }}>
                             <TouchableOpacity 
                                 onPress={toggleHistory}
+                                accessibilityRole="button"
+                                accessibilityLabel={view === "history" ? "Xem tóm tắt" : "Xem lịch sử tóm tắt"}
                                 style={{ 
                                     backgroundColor: view === "history" ? "#0068FF" : colors.border, 
                                     padding: 8, 
@@ -220,6 +222,8 @@ export default function AiSummaryModal({ visible, onClose, onSummarize, roomId, 
                             </TouchableOpacity>
                             <TouchableOpacity 
                                 onPress={onClose}
+                                accessibilityRole="button"
+                                accessibilityLabel="Đóng"
                                 style={{ backgroundColor: colors.border, padding: 8, borderRadius: 20 }}
                             >
                                 <Ionicons name="close" size={20} color={colors.textSecondary} />
