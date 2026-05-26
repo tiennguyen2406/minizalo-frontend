@@ -22,7 +22,7 @@ const iconCamera = (
 );
 
 const COLORS = {
-  primary: "#0068FF",
+  primary: "var(--accent)",
   white: "#fff",
   text: "#333",
   textSecondary: "#666",
@@ -33,13 +33,17 @@ const inputStyle = {
   width: "100%" as const,
   padding: "12px 14px",
   fontSize: 16,
-  border: `1px solid ${COLORS.border}`,
+  border: `1px solid var(--border-primary)`,
   borderRadius: 10,
   boxSizing: "border-box" as const,
+  backgroundColor: "var(--bg-input)",
+  color: "var(--text-primary)",
+  outline: "none",
 };
 
-export default function EditProfileView() {
+export default function EditProfileView({ onClose: onCloseProp }: { onClose?: () => void } = {}) {
   const router = useRouter();
+  const onClose = onCloseProp ?? (() => router.back());
   const { profile, loading, error, fetchProfile, updateProfile } =
     useUserStore();
   const isHydrated = useAuthStore((s) => s.isHydrated);
@@ -89,7 +93,7 @@ export default function EditProfileView() {
         businessDescription: businessDescription.trim() || undefined,
       };
       await updateProfile(data);
-      router.replace("/(tabs)/account");
+      onClose();
     } catch {
       setSubmitError("Cập nhật thất bại. Vui lòng thử lại.");
     } finally {
@@ -103,7 +107,7 @@ export default function EditProfileView() {
         style={{
           padding: 40,
           textAlign: "center",
-          color: COLORS.textSecondary,
+          color: "var(--text-secondary)",
           fontSize: 16,
         }}
       >
@@ -118,7 +122,7 @@ export default function EditProfileView() {
         style={{
           padding: 24,
           textAlign: "center",
-          color: COLORS.textSecondary,
+          color: "var(--text-secondary)",
           fontSize: 16,
         }}
       >
@@ -133,7 +137,7 @@ export default function EditProfileView() {
         style={{
           padding: 40,
           textAlign: "center",
-          color: COLORS.textSecondary,
+          color: "var(--text-secondary)",
           fontSize: 16,
         }}
       >
@@ -158,7 +162,10 @@ export default function EditProfileView() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        position: "fixed",
+        inset: 0,
+        zIndex: 1200,
+        overflowY: "auto",
         backgroundColor: "rgba(0,0,0,0.4)",
         display: "flex",
         alignItems: "flex-start",
@@ -168,7 +175,7 @@ export default function EditProfileView() {
     >
       <div
         style={{
-          backgroundColor: COLORS.white,
+          backgroundColor: "var(--bg-primary)",
           borderRadius: 20,
           maxWidth: 640,
           width: "100%",
@@ -183,7 +190,7 @@ export default function EditProfileView() {
             alignItems: "center",
             justifyContent: "space-between",
             padding: "20px 28px",
-            borderBottom: "1px solid #eee",
+            borderBottom: "1px solid var(--border-primary)",
           }}
         >
           <h2
@@ -191,20 +198,20 @@ export default function EditProfileView() {
               margin: 0,
               fontSize: 22,
               fontWeight: 600,
-              color: COLORS.text,
+              color: "var(--text-primary)",
             }}
           >
             Chỉnh sửa thông tin tài khoản
           </h2>
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={onClose}
             style={{
               border: "none",
               background: "none",
               cursor: "pointer",
               padding: 8,
-              color: COLORS.textSecondary,
+              color: "var(--text-secondary)",
               fontSize: 24,
             }}
           >
@@ -219,13 +226,13 @@ export default function EditProfileView() {
               height: 160,
               background: profile?.coverPhotoUrl
                 ? `url(${profile.coverPhotoUrl}) center/cover no-repeat`
-                : "linear-gradient(135deg, #0068FF 0%, #00C6FF 100%)",
+                : "linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)",
             }}
           />
 
           {/* Avatar + Tên (chỉnh sửa) - cho phép đổi ảnh */}
           <div style={{ padding: "0 28px 20px", marginTop: -60 }}>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 20 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 20 }}>
               <div
                 style={{
                   position: "relative",
@@ -240,13 +247,13 @@ export default function EditProfileView() {
                     height: "100%",
                     borderRadius: "50%",
                     overflow: "hidden",
-                    border: "4px solid #fff",
+                    border: "4px solid var(--bg-primary)",
                     boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
-                    backgroundColor: "#e0e0e0",
+                    backgroundColor: "var(--border-primary)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "#666",
+                    color: "var(--text-secondary)",
                     fontSize: 40,
                     fontWeight: 600,
                   }}
@@ -285,9 +292,9 @@ export default function EditProfileView() {
                     width: 40,
                     height: 40,
                     borderRadius: "50%",
-                    border: "3px solid #fff",
-                    backgroundColor: COLORS.primary,
-                    color: COLORS.white,
+                    border: "3px solid var(--bg-primary)",
+                    backgroundColor: "var(--accent)",
+                    color: "var(--text-inverse)",
                     cursor: avatarUploading ? "wait" : "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -299,13 +306,13 @@ export default function EditProfileView() {
                   {iconCamera}
                 </button>
               </div>
-              <div style={{ flex: 1, paddingBottom: 10 }}>
+              <div style={{ flex: 1, marginTop: 64 }}>
                 <label
                   style={{
                     display: "block",
                     fontSize: 16,
                     fontWeight: 500,
-                    color: COLORS.textSecondary,
+                    color: "var(--text-secondary)",
                     marginBottom: 8,
                   }}
                 >
@@ -320,7 +327,7 @@ export default function EditProfileView() {
                   style={inputStyle}
                 />
                 {avatarError && (
-                  <div style={{ fontSize: 14, color: "#e53935", marginTop: 8 }}>
+                  <div style={{ fontSize: 14, color: "var(--danger)", marginTop: 8 }}>
                     {avatarError}
                   </div>
                 )}
@@ -333,11 +340,11 @@ export default function EditProfileView() {
             style={{
               margin: "0 28px 20px",
               padding: 20,
-              backgroundColor: "#f5f5f5",
+              backgroundColor: "var(--bg-secondary)",
               borderRadius: 14,
             }}
           >
-            <div style={{ fontSize: 16, color: "#666", marginBottom: 10 }}>
+            <div style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 10 }}>
               Mô tả
             </div>
             <input
@@ -355,21 +362,18 @@ export default function EditProfileView() {
             style={{
               margin: "0 28px 24px",
               padding: 20,
-              backgroundColor: "#f5f5f5",
+              backgroundColor: "var(--bg-secondary)",
               borderRadius: 14,
             }}
           >
-            <div style={{ fontSize: 16, color: "#666", marginBottom: 10 }}>
+            <div style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 10 }}>
               Giới tính
             </div>
             <select
               value={gender}
               onChange={(e) => setGender(e.target.value)}
               disabled={saving}
-              style={{
-                ...inputStyle,
-                backgroundColor: COLORS.white,
-              }}
+              style={inputStyle}
             >
               <option value="">Chọn giới tính</option>
               <option value="Nam">Nam</option>
@@ -380,7 +384,7 @@ export default function EditProfileView() {
             <div
               style={{
                 fontSize: 16,
-                color: "#666",
+                color: "var(--text-secondary)",
                 marginBottom: 10,
                 marginTop: 16,
               }}
@@ -398,7 +402,7 @@ export default function EditProfileView() {
             <div
               style={{
                 fontSize: 16,
-                color: "#666",
+                color: "var(--text-secondary)",
                 marginBottom: 10,
                 marginTop: 16,
               }}
@@ -413,14 +417,14 @@ export default function EditProfileView() {
               disabled={saving}
               style={inputStyle}
             />
-            <div style={{ fontSize: 14, color: "#666", marginTop: 10 }}>
+            <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 10 }}>
               Chỉ bạn bè có lưu số của bạn trong danh bạ mới xem được số này.
             </div>
           </div>
 
           {submitError && (
             <p
-              style={{ color: "#d32f2f", fontSize: 15, margin: "0 28px 16px" }}
+              style={{ color: "var(--danger)", fontSize: 15, margin: "0 28px 16px" }}
             >
               {submitError}
             </p>
@@ -441,8 +445,8 @@ export default function EditProfileView() {
                 padding: "10px 20px",
                 borderRadius: 10,
                 border: "none",
-                backgroundColor: saving ? "#88b4ff" : COLORS.primary,
-                color: COLORS.white,
+                backgroundColor: saving ? "var(--accent-hover)" : "var(--accent)",
+                color: "var(--text-inverse)",
                 fontSize: 16,
                 fontWeight: 500,
                 cursor: saving ? "wait" : "pointer",
@@ -452,13 +456,13 @@ export default function EditProfileView() {
             </button>
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={onClose}
               style={{
                 padding: "10px 20px",
                 borderRadius: 10,
-                border: `1px solid ${COLORS.border}`,
+                border: `1px solid ${"var(--border-primary)"}`,
                 backgroundColor: "transparent",
-                color: COLORS.textSecondary,
+                color: "var(--text-secondary)",
                 fontSize: 16,
                 cursor: "pointer",
               }}

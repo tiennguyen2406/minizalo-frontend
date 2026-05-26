@@ -92,33 +92,33 @@ const UnreadAiSummaryModal: React.FC<UnreadAiSummaryModalProps> = ({
                 return (
                     <div key={index} className="flex gap-2 pl-2 mb-2 items-start">
                         <span className="text-blue-500 mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                        <p className="text-gray-700 text-[15px] leading-relaxed flex-1">{renderedContent}</p>
+                        <p className="text-[color:var(--text-secondary)] text-[15px] leading-relaxed flex-1">{renderedContent}</p>
                     </div>
                 );
             }
             return (
-                <p key={index} className="text-gray-700 text-[15px] leading-relaxed mb-3 font-medium">{renderedContent}</p>
+                <p key={index} className="text-[color:var(--text-secondary)] text-[15px] leading-relaxed mb-3 font-medium">{renderedContent}</p>
             );
         });
     };
 
     return (
         <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4" onClick={onClose}>
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[520px] max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[color:var(--bg-primary)] rounded-3xl shadow-2xl w-full max-w-[520px] max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
-                <div className="flex items-center justify-between px-7 py-6 shrink-0 bg-white border-b border-gray-50">
+                <div className="flex items-center justify-between px-7 py-6 shrink-0 bg-[color:var(--bg-primary)] border-b border-gray-50">
                     <div className="flex items-center gap-4">
                         <div className="bg-red-50 p-3 rounded-2xl">
                             <Flashlight className="w-6 h-6 text-red-500" />
                         </div>
                         <div>
-                            <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">Điểm tin nhanh</h3>
+                            <h3 className="text-xl font-extrabold text-[color:var(--text-primary)] tracking-tight">Điểm tin nhanh</h3>
                             <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">{unreadCount} tin nhắn mới được tóm lược</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition-all"
+                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400 transition-all"
                     >
                         <X className="w-6 h-6" />
                     </button>
@@ -129,7 +129,7 @@ const UnreadAiSummaryModal: React.FC<UnreadAiSummaryModalProps> = ({
                     {loading ? (
                         <div className="h-full flex flex-col items-center justify-center py-12">
                             <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
-                            <p className="text-gray-500 font-bold animate-pulse">Gemini đang đọc tin nhắn...</p>
+                            <p className="text-[color:var(--text-secondary)] font-bold animate-pulse">Gemini đang đọc tin nhắn...</p>
                         </div>
                     ) : (
                         <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">

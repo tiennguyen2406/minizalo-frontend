@@ -94,7 +94,7 @@ const FolderAttachmentBubble: React.FC<FolderAttachmentBubbleProps> = ({
             <div
                 className={clsx(
                     'flex items-stretch',
-                    isMine ? 'bg-white/75 border-t border-blue-100/80' : 'bg-white/80 border-t border-gray-100',
+                    isMine ? 'bg-white/75 border-t border-blue-100/80' : 'bg-white/80 border-t border-[color:var(--border-primary)]',
                 )}
             >
                 <button
@@ -113,10 +113,10 @@ const FolderAttachmentBubble: React.FC<FolderAttachmentBubbleProps> = ({
                         </svg>
                     </div>
                     <div className="flex flex-col flex-1 min-w-0 gap-0.5">
-                        <span className="text-sm font-semibold text-gray-900 truncate" title={folderName}>
+                        <span className="text-sm font-semibold text-[color:var(--text-primary)] truncate" title={folderName}>
                             {folderName}
                         </span>
-                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500">
+                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[color:var(--text-secondary)]">
                             <span>
                                 {formatSize(totalSize)}
                                 {fileCount > 0 ? ` · ${fileCount} tệp` : ''}
@@ -171,21 +171,21 @@ const FolderAttachmentBubble: React.FC<FolderAttachmentBubbleProps> = ({
                         onClick={() => setFilesModalOpen(false)}
                     >
                         <div
-                            className="bg-white rounded-xl max-w-md w-full max-h-[80vh] flex flex-col shadow-xl"
+                            className="bg-[color:var(--bg-primary)] rounded-xl max-w-md w-full max-h-[80vh] flex flex-col shadow-xl"
                             onClick={(e) => e.stopPropagation()}
                         >
                             <div className="flex justify-between items-center px-4 py-3 border-b">
-                                <h2 className="text-sm font-semibold text-gray-900 truncate pr-2">{folderName}</h2>
+                                <h2 className="text-sm font-semibold text-[color:var(--text-primary)] truncate pr-2">{folderName}</h2>
                                 <button
                                     type="button"
                                     onClick={() => setFilesModalOpen(false)}
-                                    className="text-gray-500 hover:bg-gray-100 rounded-lg p-1.5 text-sm shrink-0"
+                                    className="text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-secondary)] rounded-lg p-1.5 text-sm shrink-0"
                                     aria-label="Đóng"
                                 >
                                     ×
                                 </button>
                             </div>
-                            <p className="text-xs text-gray-500 px-4 pt-2">
+                            <p className="text-xs text-[color:var(--text-secondary)] px-4 pt-2">
                                 {fileCount} tệp — chọn từng liên kết để mở hoặc tải (trình duyệt có thể chặn tải hàng loạt).
                             </p>
                             <ul className="overflow-y-auto flex-1 min-h-0 px-2 py-2 space-y-1">
@@ -198,7 +198,7 @@ const FolderAttachmentBubble: React.FC<FolderAttachmentBubbleProps> = ({
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 download={label.split('/').pop()}
-                                                className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg hover:bg-gray-50 text-sm text-blue-600 break-all"
+                                                className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg hover:bg-[color:var(--bg-hover)] text-sm text-blue-600 break-all"
                                             >
                                                 <span>{label}</span>
                                                 <span className="text-xs text-gray-400 shrink-0">{formatSize(a.size)}</span>

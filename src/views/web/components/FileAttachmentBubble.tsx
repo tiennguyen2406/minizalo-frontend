@@ -166,7 +166,7 @@ const FileAttachmentBubble: React.FC<FileAttachmentBubbleProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Mở tệp trong tab mới"
-                className="block bg-white hover:bg-gray-50/90 transition-colors border-b border-gray-100/80"
+                className="block bg-[color:var(--bg-primary)] hover:bg-gray-50/90 transition-colors border-b border-gray-100/80"
             >
                 <DocumentPreviewPlaceholder kind={kind} />
             </a>
@@ -174,7 +174,7 @@ const FileAttachmentBubble: React.FC<FileAttachmentBubbleProps> = ({
             <div
                 className={clsx(
                     'flex items-stretch',
-                    isMine ? 'bg-white/75 border-t border-blue-100/80' : 'bg-white/80 border-t border-gray-100',
+                    isMine ? 'bg-white/75 border-t border-blue-100/80' : 'bg-white/80 border-t border-[color:var(--border-primary)]',
                 )}
             >
                 <a
@@ -186,10 +186,10 @@ const FileAttachmentBubble: React.FC<FileAttachmentBubbleProps> = ({
                 >
                     <FileTypeIcon kind={kind} isMine={isMine} />
                     <div className="flex flex-col flex-1 min-w-0 gap-0.5">
-                        <span className="text-sm font-semibold text-gray-900 truncate" title={fileName}>
+                        <span className="text-sm font-semibold text-[color:var(--text-primary)] truncate" title={fileName}>
                             {fileName || 'Tài liệu'}
                         </span>
-                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500">
+                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[color:var(--text-secondary)]">
                             <span>{formatSize(fileSize)}</span>
                             <OnDeviceBadge />
                         </div>

@@ -8,6 +8,7 @@ import { useUserStore } from "@/shared/store/userStore";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { useGroupStore } from "@/shared/store/useGroupStore";
 import { useFriendStore } from "@/shared/store/friendStore";
+import AccountInfoView from "@/views/web/profile/AccountInfoView";
 
 const SIDEBAR_WIDTH = 72;
 const PANEL_WIDTH = 280;
@@ -148,6 +149,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
     const isDark = theme === "dark";
     const [showChangePassword, setShowChangePassword] = useState(false);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [showAccountInfo, setShowAccountInfo] = useState(false);
 
     const handleLogout = async () => {
         await logout();
@@ -167,8 +169,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
             icon: iconPerson,
             highlighted: true,
             onClick: () => {
-                router.push("/(tabs)/account");
-                onClose();
+                setShowAccountInfo(true);
             },
         },
         {
@@ -357,6 +358,10 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
             
             {showSettingsModal && (
                 <SettingsModal onClose={() => setShowSettingsModal(false)} />
+            )}
+
+            {showAccountInfo && (
+                <AccountInfoView onClose={() => { setShowAccountInfo(false); onClose(); }} />
             )}
         </>
     );

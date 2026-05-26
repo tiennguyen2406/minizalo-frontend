@@ -104,14 +104,14 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
                 <div className={clsx('max-w-[70%] flex flex-col relative group/bubble', isMine ? 'items-end' : 'items-start')}>
                     {/* Sender name */}
                     {!isMine && senderName && (
-                        <span className="text-xs text-gray-500 mb-0.5 ml-1 font-medium">{senderName}</span>
+                        <span className="text-xs text-[color:var(--text-secondary)] mb-0.5 ml-1 font-medium">{senderName}</span>
                     )}
 
                     {/* Image Grid */}
                     <div
                         className={clsx(
                             'rounded-2xl overflow-hidden p-1 relative message-bubble-content',
-                            isMine ? 'bg-[#e5f1ff] border border-blue-100' : 'bg-white shadow-sm border border-gray-100'
+                            isMine ? 'bg-[#e5f1ff] border border-blue-100' : 'bg-[color:var(--bg-primary)] shadow-sm border border-[color:var(--border-primary)]'
                         )}
                         style={getGridStyle()}
                         onContextMenu={(e) => {
@@ -168,7 +168,7 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
                         {onReply && (
                             <button
                                 onClick={() => onReply(representativeMsg)}
-                                className="bg-white text-gray-500 shadow-sm border border-gray-100 rounded-full w-7 h-7 flex items-center justify-center hover:bg-gray-50 focus:outline-none"
+                                className="bg-[color:var(--bg-primary)] text-[color:var(--text-secondary)] shadow-sm border border-[color:var(--border-primary)] rounded-full w-7 h-7 flex items-center justify-center hover:bg-[color:var(--bg-hover)] focus:outline-none"
                                 title="Trả lời"
                             >
                                 <svg className="w-3.5 h-3.5 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -199,7 +199,7 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
                                     }
                                     setShowMoreMenu(true);
                                 }}
-                                className="bg-white text-gray-500 shadow-sm border border-gray-100 rounded-full w-7 h-7 flex items-center justify-center hover:bg-gray-50 focus:outline-none"
+                                className="bg-[color:var(--bg-primary)] text-[color:var(--text-secondary)] shadow-sm border border-[color:var(--border-primary)] rounded-full w-7 h-7 flex items-center justify-center hover:bg-[color:var(--bg-hover)] focus:outline-none"
                                 title="Thêm"
                             >
                                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -227,12 +227,12 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
                                     zIndex: 9999,
                                     minWidth: 180,
                                 }}
-                                className="bg-white rounded-xl shadow-lg border border-gray-200 py-1.5"
+                                className="bg-[color:var(--bg-primary)] rounded-xl shadow-lg border border-[color:var(--border-primary)] py-1.5"
                             >
                                 {onTogglePin && (
                                     <button
                                         onClick={() => { onTogglePin(representativeMsg.id, !!representativeMsg.pinned); setShowMoreMenu(false); setMenuPos(null); }}
-                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                                     >
                                         <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
                                         {representativeMsg.pinned ? 'Bỏ ghim' : 'Ghim tin nhắn'}
@@ -241,7 +241,7 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
                                 {onReply && (
                                     <button
                                         onClick={() => { onReply(representativeMsg); setShowMoreMenu(false); setMenuPos(null); }}
-                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                                     >
                                         <svg className="w-4 h-4 text-gray-400 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
                                         Trả lời
@@ -249,12 +249,12 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
                                 )}
                                 <button
                                     onClick={() => { onForward?.(messages); setShowMoreMenu(false); setMenuPos(null); }}
-                                    className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                    className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                                 >
                                     <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                                     Chia sẻ
                                 </button>
-                                <div className="border-t border-gray-100 my-1" />
+                                <div className="border-t border-[color:var(--border-primary)] my-1" />
                                 {isMine && onRecall && (
                                     <button
                                         onClick={() => {

@@ -38,13 +38,13 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
     }, [open]);
 
     return (
-        <div className="border-b border-gray-100">
+        <div className="border-b border-[color:var(--border-primary)]">
             <button
                 onClick={() => setOpen((v) => !v)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors"
             >
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-700">{title}</span>
+                    <span className="text-sm font-semibold text-[color:var(--text-secondary)]">{title}</span>
                     {badge !== undefined && (
                         <span className="text-xs text-gray-400 font-normal">({badge})</span>
                     )}
@@ -90,12 +90,12 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onClick
                 ? 'bg-red-50 group-hover:bg-red-100 text-red-500'
                 : active
                     ? 'bg-blue-100 text-blue-600'
-                    : 'bg-gray-100 group-hover:bg-gray-200 text-gray-600'
+                    : 'bg-[color:var(--bg-secondary)] group-hover:bg-[color:var(--bg-tertiary)] text-[color:var(--text-secondary)]'
         }`}>
             {icon}
         </div>
         <span
-            className={`min-h-[32px] w-full text-center text-xs leading-tight ${danger ? 'text-red-500' : 'text-gray-600'}`}
+            className={`min-h-[32px] w-full text-center text-xs leading-tight ${danger ? 'text-red-500' : 'text-[color:var(--text-secondary)]'}`}
             style={{ maxWidth: 58 }}
         >
             {label}
@@ -105,7 +105,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onClick
 
 /** Hàng action button — dùng trong 2 panel */
 export const ActionButtonRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(44px,1fr))] items-start gap-2 px-4 py-4 border-b border-gray-100">
+    <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(44px,1fr))] items-start gap-2 px-4 py-4 border-b border-[color:var(--border-primary)]">
         {children}
     </div>
 );
@@ -127,7 +127,7 @@ export const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; di
         aria-checked={checked}
         aria-disabled={disabled || undefined}
     >
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-[color:var(--bg-primary)] shadow-sm transition-transform duration-200 ${
             checked ? 'translate-x-[18px]' : 'translate-x-0.5'
         }`} />
     </button>

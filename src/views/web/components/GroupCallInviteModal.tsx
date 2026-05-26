@@ -49,20 +49,20 @@ export default function GroupCallInviteModal({
   return (
     <div className="fixed inset-0 z-[999999] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-[520px] max-w-[92vw] rounded-2xl bg-white p-4 shadow-2xl">
+      <div className="relative w-[520px] max-w-[92vw] rounded-2xl bg-[color:var(--bg-primary)] p-4 shadow-2xl">
         <div className="flex items-center justify-between gap-3">
           <div className="text-lg font-semibold">{title}</div>
           <button
-            className="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100"
+            className="rounded-lg px-2 py-1 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-secondary)]"
             onClick={onClose}
           >
             Đóng
           </button>
         </div>
 
-        <div className="mt-3 max-h-[52vh] overflow-auto rounded-xl border border-gray-200">
+        <div className="mt-3 max-h-[52vh] overflow-auto rounded-xl border border-[color:var(--border-primary)]">
           {selectable.length === 0 ? (
-            <div className="p-4 text-sm text-gray-600">
+            <div className="p-4 text-sm text-[color:var(--text-secondary)]">
               Không có thành viên để thêm.
             </div>
           ) : (
@@ -72,7 +72,7 @@ export default function GroupCallInviteModal({
               return (
                 <label
                   key={String(m.id)}
-                  className="flex cursor-pointer items-center gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 hover:bg-gray-50"
+                  className="flex cursor-pointer items-center gap-3 border-b border-[color:var(--border-primary)] px-4 py-3 last:border-b-0 hover:bg-[color:var(--bg-hover)]"
                 >
                   <input
                     type="checkbox"
@@ -92,7 +92,7 @@ export default function GroupCallInviteModal({
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{label}</div>
                     {m.username ? (
-                      <div className="truncate text-xs text-gray-500">
+                      <div className="truncate text-xs text-[color:var(--text-secondary)]">
                         @{m.username}
                       </div>
                     ) : null}
@@ -104,12 +104,12 @@ export default function GroupCallInviteModal({
         </div>
 
         <div className="mt-4 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-[color:var(--text-secondary)]">
             Đã chọn: <b>{selected.size}</b>
           </div>
           <div className="flex gap-2">
             <button
-              className="rounded-xl border border-gray-200 px-4 py-2 text-sm hover:bg-gray-50"
+              className="rounded-xl border border-[color:var(--border-primary)] px-4 py-2 text-sm hover:bg-[color:var(--bg-hover)]"
               onClick={onClose}
             >
               Hủy

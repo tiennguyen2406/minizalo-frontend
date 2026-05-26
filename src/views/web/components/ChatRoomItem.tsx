@@ -218,7 +218,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                         className="w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-200/60 transition-all"
                         title="Tùy chọn"
                     >
-                        <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-[color:var(--text-secondary)]" fill="currentColor" viewBox="0 0 24 24">
                             <circle cx="5" cy="12" r="2" />
                             <circle cx="12" cy="12" r="2" />
                             <circle cx="19" cy="12" r="2" />
@@ -280,11 +280,11 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                             zIndex: 61,
                             minWidth: 220,
                         }}
-                        className="bg-white rounded-xl shadow-lg border border-gray-200 py-1.5"
+                        className="bg-[color:var(--bg-primary)] rounded-xl shadow-lg border border-[color:var(--border-primary)] py-1.5"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <button
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700"
+                            className="w-full text-left px-4 py-2 hover:bg-[color:var(--bg-hover)] text-sm text-[color:var(--text-secondary)]"
                             onClick={() => {
                                 togglePinRoom(room.id);
                                 setShowMenu(false);
@@ -294,7 +294,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                             {isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại'}
                         </button>
                         <button
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700"
+                            className="w-full text-left px-4 py-2 hover:bg-[color:var(--bg-hover)] text-sm text-[color:var(--text-secondary)]"
                             onClick={() => {
                                 markRoomAsUnread(room.id, 1);
                                 setShowMenu(false);
@@ -304,7 +304,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                             Đánh dấu chưa đọc
                         </button>
                         <button
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700"
+                            className="w-full text-left px-4 py-2 hover:bg-[color:var(--bg-hover)] text-sm text-[color:var(--text-secondary)]"
                             onClick={() => {
                                 toggleMuteRoom(room.id);
                                 setShowMenu(false);
@@ -313,7 +313,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
                         >
                             {isMuted ? 'Bật thông báo' : 'Tắt thông báo'}
                         </button>
-                        <div className="border-t border-gray-100 my-1" />
+                        <div className="border-t border-[color:var(--border-primary)] my-1" />
                         <button
                             className="w-full text-left px-4 py-2 hover:bg-red-50 text-sm text-red-600"
                             onClick={() => {

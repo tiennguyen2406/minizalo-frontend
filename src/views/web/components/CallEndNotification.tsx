@@ -47,7 +47,7 @@ const CallEndNotification: React.FC = () => {
 
     return (
         <div className="fixed top-6 right-6 z-[9999] animate-in slide-in-from-right duration-300">
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-4 w-80">
+            <div className="bg-[color:var(--bg-primary)] dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-4 w-80">
                 <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 mt-0.5">
                         {info.icon}

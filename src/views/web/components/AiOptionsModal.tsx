@@ -22,15 +22,15 @@ export default function AiOptionsModal({
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700">
+      <div className="bg-[color:var(--bg-primary)] dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between p-4 border-b border-[color:var(--border-primary)] dark:border-gray-700">
           <div className="flex items-center gap-2">
             <div className="bg-yellow-100 dark:bg-yellow-500/20 p-2 rounded-lg">
               <Sparkles className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
             </div>
             <div>
-              <h3 className="font-bold text-gray-900 dark:text-white">AI Gemini</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Trợ lý thông minh</p>
+              <h3 className="font-bold text-[color:var(--text-primary)] dark:text-white">AI Gemini</h3>
+              <p className="text-xs text-[color:var(--text-secondary)] dark:text-gray-400">Trợ lý thông minh</p>
             </div>
           </div>
           <button
@@ -38,7 +38,7 @@ export default function AiOptionsModal({
             aria-label="Đóng"
             title="Đóng"
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500"
+            className="p-2 hover:bg-[color:var(--bg-secondary)] dark:hover:bg-gray-700 rounded-full transition-colors text-[color:var(--text-secondary)]"
           >
             <X className="w-5 h-5" />
           </button>
@@ -54,8 +54,8 @@ export default function AiOptionsModal({
               <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:text-white transition-colors" />
             </div>
             <div>
-              <div className="font-semibold text-gray-900 dark:text-white text-sm">Tóm tắt cuộc trò chuyện</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Nắm bắt nội dung nhanh chóng</div>
+              <div className="font-semibold text-[color:var(--text-primary)] dark:text-white text-sm">Tóm tắt cuộc trò chuyện</div>
+              <div className="text-xs text-[color:var(--text-secondary)] dark:text-gray-400">Nắm bắt nội dung nhanh chóng</div>
             </div>
           </button>
 
@@ -68,8 +68,8 @@ export default function AiOptionsModal({
               <Bot className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:text-white transition-colors" />
             </div>
             <div>
-              <div className="font-semibold text-gray-900 dark:text-white text-sm">Gọi Bot chuyên gia</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Hỏi đáp theo chủ đề riêng biệt</div>
+              <div className="font-semibold text-[color:var(--text-primary)] dark:text-white text-sm">Gọi Bot chuyên gia</div>
+              <div className="text-xs text-[color:var(--text-secondary)] dark:text-gray-400">Hỏi đáp theo chủ đề riêng biệt</div>
             </div>
           </button>
 
@@ -82,8 +82,8 @@ export default function AiOptionsModal({
               <Languages className="w-5 h-5 text-green-600 dark:text-green-400 group-hover:text-white transition-colors" />
             </div>
             <div>
-              <div className="font-semibold text-gray-900 dark:text-white text-sm">Dịch thuật tự động</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Dịch tin nhắn sang ngôn ngữ của bạn</div>
+              <div className="font-semibold text-[color:var(--text-primary)] dark:text-white text-sm">Dịch thuật tự động</div>
+              <div className="text-xs text-[color:var(--text-secondary)] dark:text-gray-400">Dịch tin nhắn sang ngôn ngữ của bạn</div>
             </div>
           </button>
 
@@ -96,8 +96,8 @@ export default function AiOptionsModal({
               <PenLine className="w-5 h-5 text-orange-600 dark:text-orange-400 group-hover:text-white transition-colors" />
             </div>
             <div>
-              <div className="font-semibold text-gray-900 dark:text-white text-sm">Cải thiện văn phong</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Sửa lỗi chính tả, làm câu từ chuyên nghiệp</div>
+              <div className="font-semibold text-[color:var(--text-primary)] dark:text-white text-sm">Cải thiện văn phong</div>
+              <div className="text-xs text-[color:var(--text-secondary)] dark:text-gray-400">Sửa lỗi chính tả, làm câu từ chuyên nghiệp</div>
             </div>
           </button>
 
@@ -110,8 +110,8 @@ export default function AiOptionsModal({
               <Calendar className="w-5 h-5 text-red-600 dark:text-red-400 group-hover:text-white transition-colors" />
             </div>
             <div>
-              <div className="font-semibold text-gray-900 dark:text-white text-sm">Trích xuất lịch hẹn</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Tìm kiếm sự kiện, ngày tháng trong chat</div>
+              <div className="font-semibold text-[color:var(--text-primary)] dark:text-white text-sm">Trích xuất lịch hẹn</div>
+              <div className="text-xs text-[color:var(--text-secondary)] dark:text-gray-400">Tìm kiếm sự kiện, ngày tháng trong chat</div>
             </div>
           </button>
         </div>

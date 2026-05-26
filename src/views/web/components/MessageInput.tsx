@@ -194,12 +194,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 <div className="mb-2 flex items-center justify-between rounded-lg p-2 border-l-4 border-blue-500" style={{ backgroundColor: 'var(--bg-secondary)' }}>
                     <div className="flex flex-col">
                         <span className="text-xs font-bold text-blue-600">Trả lời: {replyingTo.senderName}</span>
-                        <span className="text-sm text-gray-600 truncate max-w-md">
+                        <span className="text-sm text-[color:var(--text-secondary)] truncate max-w-md">
                             {replyingTo.type === 'VOICE' ? 'Tin nhắn thoại' : replyingTo.content || '[Tin nhắn]'}
                         </span>
                     </div>
-                    <button onClick={onCancelReply} className="p-1 hover:bg-gray-200 rounded-full">
-                        <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <button onClick={onCancelReply} className="p-1 hover:bg-[color:var(--bg-tertiary)] rounded-full">
+                        <svg className="h-4 w-4 text-[color:var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
@@ -211,7 +211,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     <div className="flex gap-1 mb-1">
                         <button 
                             onClick={() => fileInputRef.current?.click()}
-                            className="p-2 hover:bg-gray-100 rounded-full text-gray-600 transition-colors"
+                            className="p-2 hover:bg-[color:var(--bg-secondary)] rounded-full text-[color:var(--text-secondary)] transition-colors"
                             title="Gửi file/ảnh"
                         >
                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -228,7 +228,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         
                         <button 
                             onClick={onCreatePoll}
-                            className="p-2 hover:bg-gray-100 rounded-full text-gray-600 transition-colors"
+                            className="p-2 hover:bg-[color:var(--bg-secondary)] rounded-full text-[color:var(--text-secondary)] transition-colors"
                             title="Tạo bình chọn"
                         >
                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -250,7 +250,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                             <div className="flex gap-2">
                                 <button 
                                     onClick={cancelRecording}
-                                    className="px-3 py-1 text-sm font-semibold text-gray-500 hover:text-red-500 transition-colors"
+                                    className="px-3 py-1 text-sm font-semibold text-[color:var(--text-secondary)] hover:text-red-500 transition-colors"
                                 >
                                     Hủy
                                 </button>
@@ -284,7 +284,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         <div className="relative">
                             <button 
                                 onClick={() => setShowEmoji(!showEmoji)}
-                                className="p-2 hover:bg-gray-100 rounded-full text-gray-600 transition-colors"
+                                className="p-2 hover:bg-[color:var(--bg-secondary)] rounded-full text-[color:var(--text-secondary)] transition-colors"
                             >
                                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -300,7 +300,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                         <button 
                                             key={i} 
                                             onClick={() => insertEmoji(emoji)}
-                                            className="p-1.5 hover:bg-gray-100 rounded text-xl transition-colors"
+                                            className="p-1.5 hover:bg-[color:var(--bg-secondary)] rounded text-xl transition-colors"
                                         >
                                             {emoji}
                                         </button>
@@ -313,7 +313,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                             <div className="flex gap-1">
                                 <button 
                                     onClick={startRecording}
-                                    className="p-2 hover:bg-red-50 rounded-full text-gray-600 hover:text-red-500 transition-colors"
+                                    className="p-2 hover:bg-red-50 rounded-full text-[color:var(--text-secondary)] hover:text-red-500 transition-colors"
                                     title="Ghi âm"
                                 >
                                     <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -322,7 +322,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                                 </button>
                                 <button 
                                     onClick={onSendLike}
-                                    className="p-2 hover:bg-gray-100 rounded-full transition-colors text-2xl leading-none"
+                                    className="p-2 hover:bg-[color:var(--bg-secondary)] rounded-full transition-colors text-2xl leading-none"
                                     title="Gửi icon Like"
                                 >
                                     👍

@@ -26,15 +26,15 @@ const MuteModal: React.FC<{ onClose: () => void; onConfirm: (id: string) => void
     const [selected, setSelected] = useState('1h');
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-xl w-80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                    <span className="font-semibold text-gray-800">Xác nhận</span>
-                    <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400">
+            <div className="bg-[color:var(--bg-primary)] rounded-2xl shadow-xl w-80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[color:var(--border-primary)]">
+                    <span className="font-semibold text-[color:var(--text-primary)]">Xác nhận</span>
+                    <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
                 <div className="px-5 py-4">
-                    <p className="text-sm text-gray-600 mb-4">Bạn có chắc muốn tắt thông báo hội thoại này:</p>
+                    <p className="text-sm text-[color:var(--text-secondary)] mb-4">Bạn có chắc muốn tắt thông báo hội thoại này:</p>
                     <div className="flex flex-col gap-3">
                         {MUTE_OPTIONS.map((opt) => (
                             <label key={opt.id} className="flex items-center gap-3 cursor-pointer">
@@ -46,13 +46,13 @@ const MuteModal: React.FC<{ onClose: () => void; onConfirm: (id: string) => void
                                     onChange={() => setSelected(opt.id)}
                                     className="w-4 h-4 accent-blue-600"
                                 />
-                                <span className="text-sm text-gray-700">{opt.label}</span>
+                                <span className="text-sm text-[color:var(--text-secondary)]">{opt.label}</span>
                             </label>
                         ))}
                     </div>
                 </div>
-                <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-100">
-                    <button onClick={onClose} className="px-5 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Hủy</button>
+                <div className="flex justify-end gap-3 px-5 py-4 border-t border-[color:var(--border-primary)]">
+                    <button onClick={onClose} className="px-5 py-2 text-sm text-[color:var(--text-secondary)] bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg font-medium transition-colors">Hủy</button>
                     <button onClick={() => { onConfirm(selected); onClose(); }} className="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors">Đồng ý</button>
                 </div>
             </div>
@@ -83,23 +83,23 @@ const PickSuccessorLeaveModal: React.FC<{
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={onClose}>
             <div
-                className="bg-white rounded-2xl shadow-xl w-[400px] max-h-[85vh] overflow-hidden flex flex-col"
+                className="bg-[color:var(--bg-primary)] rounded-2xl shadow-xl w-[400px] max-h-[85vh] overflow-hidden flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-                    <span className="font-semibold text-gray-800">Chọn trưởng nhóm mới</span>
-                    <button onClick={onClose} type="button" className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[color:var(--border-primary)] shrink-0">
+                    <span className="font-semibold text-[color:var(--text-primary)]">Chọn trưởng nhóm mới</span>
+                    <button onClick={onClose} type="button" className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
                 <div className="px-5 py-3 border-b border-gray-50">
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-[color:var(--text-secondary)]">
                         Bạn đang là trưởng nhóm. Chọn một thành viên để nhường quyền trước khi rời nhóm.
                     </p>
                 </div>
                 <div className="flex-1 overflow-y-auto min-h-[120px] max-h-[320px] styled-scrollbar">
                     {candidates.length === 0 ? (
-                        <div className="px-5 py-8 text-sm text-gray-500 text-center">Không có thành viên khác trong nhóm.</div>
+                        <div className="px-5 py-8 text-sm text-[color:var(--text-secondary)] text-center">Không có thành viên khác trong nhóm.</div>
                     ) : (
                         candidates.map((m) => {
                             const label = m.fullName?.trim() || m.username;
@@ -112,11 +112,11 @@ const PickSuccessorLeaveModal: React.FC<{
                                     key={m.userId}
                                     type="button"
                                     onClick={() => onSelectUserId(m.userId)}
-                                    className={`w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 ${sel ? 'bg-blue-50' : ''}`}
+                                    className={`w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-[color:var(--bg-hover)] transition-colors border-b border-gray-50 ${sel ? 'bg-blue-50' : ''}`}
                                 >
                                     <img src={avatar} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-gray-800 truncate">{label}</div>
+                                        <div className="text-sm font-medium text-[color:var(--text-primary)] truncate">{label}</div>
                                         <div className="text-xs text-gray-400 truncate">@{m.username}</div>
                                     </div>
                                     <input type="radio" readOnly checked={sel} className="w-4 h-4 accent-blue-600 shrink-0" />
@@ -125,8 +125,8 @@ const PickSuccessorLeaveModal: React.FC<{
                         })
                     )}
                 </div>
-                <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-100 shrink-0">
-                    <button type="button" onClick={onClose} className="px-5 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">
+                <div className="flex justify-end gap-3 px-5 py-4 border-t border-[color:var(--border-primary)] shrink-0">
+                    <button type="button" onClick={onClose} className="px-5 py-2 text-sm text-[color:var(--text-secondary)] bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg font-medium transition-colors">
                         Hủy
                     </button>
                     <button
@@ -161,13 +161,13 @@ const RenameGroupModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-xl w-80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[color:var(--bg-primary)] rounded-2xl shadow-xl w-80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 <div className="px-5 pt-6 pb-2 flex flex-col items-center text-center">
                     <div className="text-4xl mb-3">📅</div>
-                    <h3 className="font-semibold text-gray-800 mb-1">Đổi tên nhóm</h3>
-                    <p className="text-sm text-gray-500 mb-4">Bạn có chắc chắn muốn đổi tên nhóm, khi xác nhận tên nhóm mới sẽ hiển thị với tất cả thành viên.</p>
+                    <h3 className="font-semibold text-[color:var(--text-primary)] mb-1">Đổi tên nhóm</h3>
+                    <p className="text-sm text-[color:var(--text-secondary)] mb-4">Bạn có chắc chắn muốn đổi tên nhóm, khi xác nhận tên nhóm mới sẽ hiển thị với tất cả thành viên.</p>
                     <input
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 mb-4"
+                        className="w-full border border-[color:var(--border-secondary)] rounded-lg px-3 py-2 text-sm text-[color:var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-400 mb-4"
                         value={name || ''}
                         onChange={(e) => setName(e.target.value)}
                         maxLength={50}
@@ -175,8 +175,8 @@ const RenameGroupModal: React.FC<{
                         onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm(); }}
                     />
                 </div>
-                <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-100">
-                    <button onClick={onClose} className="px-5 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Hủy</button>
+                <div className="flex justify-end gap-3 px-5 py-4 border-t border-[color:var(--border-primary)]">
+                    <button onClick={onClose} className="px-5 py-2 text-sm text-[color:var(--text-secondary)] bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg font-medium transition-colors">Hủy</button>
                     <button onClick={handleConfirm} disabled={saving || !(name || '').trim()} className="px-5 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-medium transition-colors">{saving ? 'Đang lưu...' : 'Xác nhận'}</button>
                 </div>
             </div>
@@ -202,7 +202,7 @@ const Icon = {
     Copy: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>,
     File: () => <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>,
     Eye: () => <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>,
-    Alert: () => <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>,
+    Alert: () => <svg className="w-5 h-5 text-[color:var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>,
     Trash: () => <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>,
     Leave: () => <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>,
     Share: () => <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>,
@@ -558,7 +558,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
 
     return (
         <div
-            className={`flex flex-col h-full bg-white border-l border-gray-200 ${
+            className={`flex flex-col h-full bg-[color:var(--bg-primary)] border-l border-[color:var(--border-primary)] ${
                 isGroupManagementOpen || showMembersModal ? 'overflow-hidden min-h-0' : 'overflow-y-auto'
             }`}
             style={{ width: 300, minWidth: 300 }}
@@ -595,9 +595,9 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             ) : (
             <>
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0 sticky top-0 bg-white z-10">
-                <span className="font-semibold text-gray-800 text-sm">Thông tin nhóm</span>
-                <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition-colors">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--border-primary)] shrink-0 sticky top-0 bg-[color:var(--bg-primary)] z-10">
+                <span className="font-semibold text-[color:var(--text-primary)] text-sm">Thông tin nhóm</span>
+                <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400 transition-colors">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -605,7 +605,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             </div>
 
             {/* Avatar + Group Name */}
-            <div className="flex flex-col items-center py-5 px-4 border-b border-gray-100">
+            <div className="flex flex-col items-center py-5 px-4 border-b border-[color:var(--border-primary)]">
                 <div className="relative mb-2">
                     <img
                         key={avatarSrc}
@@ -626,8 +626,8 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             type="button"
                             onClick={() => avatarInputRef.current?.click()}
                             disabled={isUploadingAvatar || !isOwnerOrAdmin}
-                            className={`absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 shadow-sm text-gray-600 transition-colors disabled:opacity-35 ${
-                                isOwnerOrAdmin ? 'hover:bg-gray-50' : 'cursor-not-allowed opacity-45'
+                            className={`absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center rounded-full bg-[color:var(--bg-primary)] border border-[color:var(--border-primary)] shadow-sm text-[color:var(--text-secondary)] transition-colors disabled:opacity-35 ${
+                                isOwnerOrAdmin ? 'hover:bg-[color:var(--bg-hover)]' : 'cursor-not-allowed opacity-45'
                             }`}
                             title={isOwnerOrAdmin ? 'Đổi ảnh nhóm' : 'Chỉ trưởng/phó nhóm đổi ảnh nhóm'}
                         >
@@ -645,7 +645,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     </>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
-                    <span className="font-semibold text-gray-900 text-lg">
+                    <span className="font-semibold text-[color:var(--text-primary)] text-lg">
                         {group.groupName || 'Nhóm chưa đặt tên'}
                     </span>
                     {/* Edit pencil — opens rename modal */}
@@ -653,8 +653,8 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                         type="button"
                         onClick={() => isOwnerOrAdmin && setShowRenameModal(true)}
                         disabled={!isOwnerOrAdmin}
-                        className={`w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors ${
-                            isOwnerOrAdmin ? 'hover:bg-gray-200' : 'opacity-40 cursor-not-allowed'
+                        className={`w-6 h-6 flex items-center justify-center rounded-full bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)] transition-colors ${
+                            isOwnerOrAdmin ? 'hover:bg-[color:var(--bg-tertiary)]' : 'opacity-40 cursor-not-allowed'
                         }`}
                         title={isOwnerOrAdmin ? 'Sửa tên nhóm' : 'Chỉ trưởng/phó nhóm đổi tên nhóm'}
                     >
@@ -707,14 +707,14 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             </ActionButtonRow>
 
             {isOwnerOrAdmin && (
-                <div className="border-t border-gray-100">
+                <div className="border-t border-[color:var(--border-primary)]">
                     <button
                         type="button"
                         onClick={() => wallpaperInputRef.current?.click()}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors text-left"
                     >
                         {isUploadingWallpaper ? <span className="w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /> : <Icon.Image />}
-                        <span className="flex-1 text-sm text-gray-700">Đổi nền</span>
+                        <span className="flex-1 text-sm text-[color:var(--text-secondary)]">Đổi nền</span>
                         <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
@@ -723,9 +723,9 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             )}
 
             {/* Thành viên nhóm */}
-            <div className="border-t border-gray-100 px-4 py-3">
+            <div className="border-t border-[color:var(--border-primary)] px-4 py-3">
                 <div className="flex items-center justify-between gap-3 mb-2">
-                    <span className="text-sm font-semibold text-gray-800">Mô tả nhóm</span>
+                    <span className="text-sm font-semibold text-[color:var(--text-primary)]">Mô tả nhóm</span>
                     <button
                         type="button"
                         onClick={handleSaveDescription}
@@ -739,12 +739,12 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     value={descriptionDraft}
                     onChange={(e) => setDescriptionDraft(e.target.value.slice(0, 1000))}
                     placeholder="Thêm mô tả để mọi người hiểu thêm về đoạn chat"
-                    className="w-full min-h-[76px] resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 outline-none focus:border-blue-300 focus:bg-white"
+                    className="w-full min-h-[76px] resize-none rounded-xl border border-[color:var(--border-primary)] bg-[color:var(--bg-hover)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-blue-300 focus:bg-[color:var(--bg-primary)]"
                 />
                 <div className="mt-1 text-right text-[11px] text-gray-400">{descriptionDraft.length}/1000</div>
             </div>
 
-            <div className="border-t border-gray-100">
+            <div className="border-t border-[color:var(--border-primary)]">
                 {/* Group join link */}
                 <div className="mx-3 mb-1 mt-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 flex items-center gap-2">
                     <Icon.Link />
@@ -759,7 +759,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             : <Icon.Copy />
                         }
                     </button>
-                    <button className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors" title="Chia sẻ">
+                    <button className="shrink-0 text-gray-400 hover:text-[color:var(--text-secondary)] transition-colors" title="Chia sẻ">
                         <Icon.Share />
                     </button>
                 </div>
@@ -767,11 +767,11 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                 {/* Member count button -> opens modal */}
                 <button
                     onClick={() => setShowMembersModal(true)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors text-left"
                 >
                     <Icon.Users />
                     <div className="flex-1 min-w-0 text-left">
-                        <span className="text-sm text-gray-700 font-medium">Thành viên nhóm</span>
+                        <span className="text-sm text-[color:var(--text-secondary)] font-medium">Thành viên nhóm</span>
                         <p className="text-xs text-gray-400 mt-0.5">{group.members.length} thành viên</p>
                     </div>
                     <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -782,7 +782,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     <button
                         type="button"
                         onClick={() => setShowMembersModal(true)}
-                        className="w-full flex items-start gap-2 pl-12 pr-4 py-2 hover:bg-gray-50 text-left"
+                        className="w-full flex items-start gap-2 pl-12 pr-4 py-2 hover:bg-[color:var(--bg-hover)] text-left"
                     >
                         <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
                         <span className="text-sm text-blue-600 font-medium">
@@ -845,7 +845,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             );
                             })}
                         </div>
-                        <button className="w-full text-sm text-center py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500 font-medium transition-colors">
+                        <button className="w-full text-sm text-center py-2 bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg text-[color:var(--text-secondary)] font-medium transition-colors">
                             Xem tất cả
                         </button>
                     </div>
@@ -863,7 +863,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                         {fileMessages.map((m) => (
                             <div
                                 key={m.id}
-                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer group"
+                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-[color:var(--bg-hover)] transition-colors cursor-pointer group"
                                 onClick={() => {
                                     useChatStore.getState().setHighlightedMessageId(m.id);
                                     // Optional: You might want onClose() here if you want to close sidebar on jump
@@ -871,11 +871,11 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             >
                                 <Icon.File />
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-sm text-gray-800 truncate font-medium">{m.fileName || 'File'}</div>
+                                    <div className="text-sm text-[color:var(--text-primary)] truncate font-medium">{m.fileName || 'File'}</div>
                                     <div className="text-xs text-gray-400">{formatBytes(m.fileSize)}</div>
                                 </div>
                                 <button
-                                    className="p-1 rounded hover:bg-gray-200 shrink-0 transition-colors opacity-0 group-hover:opacity-100"
+                                    className="p-1 rounded hover:bg-[color:var(--bg-tertiary)] shrink-0 transition-colors opacity-0 group-hover:opacity-100"
                                     title="Tùy chọn"
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -883,7 +883,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                                         setMediaMenu({ open: true, message: m, top: rect.bottom + 6, left: Math.max(8, rect.left - 120) });
                                     }}
                                 >
-                                    <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-[color:var(--text-secondary)]" fill="currentColor" viewBox="0 0 24 24">
                                         <circle cx="5" cy="12" r="2" />
                                         <circle cx="12" cy="12" r="2" />
                                         <circle cx="19" cy="12" r="2" />
@@ -894,7 +894,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}
-                                    className="p-1 hover:bg-gray-200 rounded shrink-0 transition-colors"
+                                    className="p-1 hover:bg-[color:var(--bg-tertiary)] rounded shrink-0 transition-colors"
                                     title="Tải xuống"
                                 >
                                     <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -904,7 +904,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             </div>
                         ))}
                         <div className="px-3 pt-1 pb-2">
-                            <button className="w-full text-sm text-center py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500 font-medium transition-colors">
+                            <button className="w-full text-sm text-center py-2 bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg text-[color:var(--text-secondary)] font-medium transition-colors">
                                 Xem tất cả
                             </button>
                         </div>
@@ -926,7 +926,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                                 href={url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-[color:var(--bg-hover)] transition-colors"
                             >
                                 <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
                                     <Icon.Link />
@@ -937,7 +937,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             </a>
                         ))}
                         <div className="px-3 pt-1 pb-2">
-                            <button className="w-full text-sm text-center py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500 font-medium transition-colors">
+                            <button className="w-full text-sm text-center py-2 bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg text-[color:var(--text-secondary)] font-medium transition-colors">
                                 Xem tất cả
                             </button>
                         </div>
@@ -951,10 +951,10 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
 
             {/* Thiết lập bảo mật */}
             <CollapsibleSection title="Thiết lập bảo mật" defaultOpen={false}>
-                <div className="px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 cursor-pointer">
+                <div className="px-4 py-2.5 flex items-center gap-3 hover:bg-[color:var(--bg-hover)] cursor-pointer">
                     <Icon.Clock />
                     <div className="flex-1">
-                        <div className="text-sm text-gray-700">Tin nhắn tự xóa</div>
+                        <div className="text-sm text-[color:var(--text-secondary)]">Tin nhắn tự xóa</div>
                         <div className="text-xs text-gray-400">{autoDeleteMsg}</div>
                     </div>
                     <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -963,16 +963,16 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                 </div>
                 <div className="px-4 py-2.5 flex items-center gap-3">
                     <Icon.Eye />
-                    <span className="flex-1 text-sm text-gray-700">Ẩn trò chuyện</span>
+                    <span className="flex-1 text-sm text-[color:var(--text-secondary)]">Ẩn trò chuyện</span>
                     <ToggleSwitch checked={hideConversation} onChange={() => setHideConversation((v) => !v)} />
                 </div>
             </CollapsibleSection>
 
             {/* Danger zone */}
-            <div className="py-2 border-t border-gray-100 mt-1">
-                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left">
+            <div className="py-2 border-t border-[color:var(--border-primary)] mt-1">
+                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors text-left">
                     <Icon.Alert />
-                    <span className="text-sm text-gray-600">Báo xấu</span>
+                    <span className="text-sm text-[color:var(--text-secondary)]">Báo xấu</span>
                 </button>
                 <button
                     onClick={() => setIsClearHistoryModalOpen(true)}
@@ -1060,7 +1060,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     <div style={{ position: 'fixed', inset: 0, zIndex: 60 }} onClick={() => setMediaMenu(null)} />
                     <div
                         style={{ position: 'fixed', top: mediaMenu.top, left: mediaMenu.left, zIndex: 61, minWidth: 190 }}
-                        className="bg-white rounded-xl shadow-lg border border-gray-200 py-1.5"
+                        className="bg-[color:var(--bg-primary)] rounded-xl shadow-lg border border-[color:var(--border-primary)] py-1.5"
                     >
                         <button
                             onClick={() => {
@@ -1069,7 +1069,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                                 }
                                 setMediaMenu(null);
                             }}
-                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                         >
                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                             Chia sẻ
@@ -1080,7 +1080,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                                 if (id) useChatStore.getState().setHighlightedMessageId(id);
                                 setMediaMenu(null);
                             }}
-                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                         >
                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             Xem tin nhắn gốc

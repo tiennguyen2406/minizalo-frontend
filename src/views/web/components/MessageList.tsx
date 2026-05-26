@@ -625,7 +625,7 @@ const MessageList: React.FC<MessageListProps> = ({
             <div className="flex flex-col min-h-full px-4 pt-4 pb-2">
                 <div className="flex-1" />
                 {loadingOlder ? (
-                    <div className="flex justify-center py-2 text-xs text-gray-500 shrink-0">
+                    <div className="flex justify-center py-2 text-xs text-[color:var(--text-secondary)] shrink-0">
                         Đang tải tin nhắn cũ…
                     </div>
                 ) : null}
@@ -671,7 +671,7 @@ const MessageList: React.FC<MessageListProps> = ({
                         if (item.type === 'date') {
                              return (
                                 <div key={item.id} className="flex justify-center my-4">
-                                    <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-[11px] text-gray-500 font-medium">
+                                    <span className="px-3 py-1 rounded-full bg-[color:var(--bg-secondary)] dark:bg-gray-800 text-[11px] text-[color:var(--text-secondary)] font-medium">
                                         {item.content}
                                     </span>
                                 </div>
@@ -850,7 +850,7 @@ const MessageList: React.FC<MessageListProps> = ({
             {showScrollToBottom && (
                 <button
                     onClick={scrollToBottom}
-                    className="fixed bottom-28 right-10 w-11 h-11 rounded-full bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition-all z-[100] hover:scale-110 active:scale-95"
+                    className="fixed bottom-28 right-10 w-11 h-11 rounded-full bg-[color:var(--bg-primary)] dark:bg-gray-800 shadow-2xl border border-[color:var(--border-primary)] dark:border-gray-700 flex items-center justify-center text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition-all z-[100] hover:scale-110 active:scale-95"
                     title="Cuộn xuống dưới cùng"
                     style={{
                       boxShadow: '0 8px 24px rgba(0,0,0,0.2)'

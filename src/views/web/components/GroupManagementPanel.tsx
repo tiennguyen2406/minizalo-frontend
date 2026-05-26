@@ -327,7 +327,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
     });
 
     return (
-        <div className="flex flex-col h-full min-h-0 w-full bg-gray-50">
+        <div className="flex flex-col h-full min-h-0 w-full bg-[color:var(--bg-hover)]">
             {/* Toast notification */}
             {toast && (
                 <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] bg-gray-800 text-white text-xs px-4 py-2 rounded-full shadow-lg pointer-events-none">
@@ -335,7 +335,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                 </div>
             )}
             {/* Header */}
-            <div className="flex items-center justify-between px-2 py-3 bg-white border-b border-gray-200 shrink-0">
+            <div className="flex items-center justify-between px-2 py-3 bg-[color:var(--bg-primary)] border-b border-[color:var(--border-primary)] shrink-0">
                 <div className="flex items-center min-w-0">
                     <button
                         type="button"
@@ -343,20 +343,20 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             if (showBackToMain) setView('main');
                             else closeGroupManagement();
                         }}
-                        className="p-2 hover:bg-gray-100 rounded-full shrink-0"
+                        className="p-2 hover:bg-[color:var(--bg-secondary)] rounded-full shrink-0"
                         title={showBackToMain ? 'Quay lại' : 'Về thông tin nhóm'}
                     >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-5 h-5 text-[color:var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                         </svg>
                     </button>
-                    <h2 className="font-semibold text-gray-800 text-base truncate pl-1">{headerTitle}</h2>
+                    <h2 className="font-semibold text-[color:var(--text-primary)] text-base truncate pl-1">{headerTitle}</h2>
                 </div>
                 {onClosePanel && (
                     <button
                         type="button"
                         onClick={onClosePanel}
-                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 shrink-0"
+                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400 shrink-0"
                         title="Đóng"
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -368,7 +368,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
 
             <div className="flex-1 min-h-0 overflow-y-auto w-full styled-scrollbar pb-6">
                 {view === 'main' && loading && !settings && (
-                    <div className="px-4 py-6 text-sm text-gray-500">Đang tải cấu hình nhóm...</div>
+                    <div className="px-4 py-6 text-sm text-[color:var(--text-secondary)]">Đang tải cấu hình nhóm...</div>
                 )}
 
                 {view === 'main' && settingsError && !settings && (
@@ -378,7 +378,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                 {view === 'main' && settings && (
                     <>
                         {/* Permissions Section */}
-                        <div className="mt-2 bg-white px-4 py-3">
+                        <div className="mt-2 bg-[color:var(--bg-primary)] px-4 py-3">
                             <h3 className="text-sm font-semibold text-blue-600 mb-3 uppercase">Quyền của thành viên</h3>
                             <div className="flex justify-between items-center py-2">
                                 <span className="text-sm">Sửa thông tin nhóm</span>
@@ -399,7 +399,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                         </div>
 
                         {/* Admission Section */}
-                        <div className="mt-2 bg-white px-4 py-3">
+                        <div className="mt-2 bg-[color:var(--bg-primary)] px-4 py-3">
                             <h3 className="text-sm font-semibold text-blue-600 mb-3 uppercase">Quản lý thành viên mới</h3>
                             <div
                                 className={`flex justify-between items-center py-2 gap-3 ${!isOwner ? 'opacity-55' : ''}`}
@@ -420,7 +420,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             <div className="flex justify-between items-center py-2">
                                 <div className="flex flex-col">
                                     <span className="text-sm">Xem lịch sử trò chuyện</span>
-                                    <span className="text-xs text-gray-500">Cho phép thành viên mới xem tin nhắn cũ</span>
+                                    <span className="text-xs text-[color:var(--text-secondary)]">Cho phép thành viên mới xem tin nhắn cũ</span>
                                 </div>
                                 <ToggleSwitch checked={settings.allowNewMemberReadHistory} onChange={() => handleToggle('allowNewMemberReadHistory', !settings.allowNewMemberReadHistory)} />
                             </div>
@@ -430,13 +430,13 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             </div>
                             
                             {settings.allowJoinByLink && (
-                                <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                    <p className="text-xs text-gray-500 mb-1">Link tham gia nhóm:</p>
-                                    <div className="bg-white px-3 py-2 border border-gray-300 rounded text-sm text-blue-600 font-mono break-all w-full">
+                                <div className="mt-3 p-3 bg-[color:var(--bg-hover)] rounded-lg border border-[color:var(--border-primary)]">
+                                    <p className="text-xs text-[color:var(--text-secondary)] mb-1">Link tham gia nhóm:</p>
+                                    <div className="bg-[color:var(--bg-primary)] px-3 py-2 border border-[color:var(--border-secondary)] rounded text-sm text-blue-600 font-mono break-all w-full">
                                         <span className="select-text">{settings.joinLink}</span>
                                     </div>
                                     <div className="flex gap-2 mt-2">
-                                        <button className="flex-1 text-xs bg-gray-200 hover:bg-gray-300 py-1.5 rounded" onClick={() => navigator.clipboard.writeText(settings.joinLink)}>Copy Link</button>
+                                        <button className="flex-1 text-xs bg-[color:var(--bg-tertiary)] hover:bg-gray-300 py-1.5 rounded" onClick={() => navigator.clipboard.writeText(settings.joinLink)}>Copy Link</button>
                                         <button className="flex-1 text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 py-1.5 rounded" onClick={handleRefreshLink} disabled={loading}>Đổi Link</button>
                                     </div>
                                 </div>
@@ -444,11 +444,11 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                         </div>
 
                         {/* Danger Zone — mỗi tính năng một nút full-width, không icon */}
-                        <div className="mt-2 bg-white border-t border-gray-100">
+                        <div className="mt-2 bg-[color:var(--bg-primary)] border-t border-[color:var(--border-primary)]">
                             <button
                                 type="button"
-                                className={`w-full text-left px-4 py-3 text-sm transition-colors border-b border-gray-100 ${
-                                    isOwner ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'
+                                className={`w-full text-left px-4 py-3 text-sm transition-colors border-b border-[color:var(--border-primary)] ${
+                                    isOwner ? 'text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)]' : 'text-gray-400 cursor-not-allowed'
                                 }`}
                                 onClick={() => { if (isOwner) setView('roles'); }}
                                 disabled={!isOwner}
@@ -457,8 +457,8 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             </button>
                             <button
                                 type="button"
-                                className={`w-full text-left px-4 py-3 text-sm transition-colors border-b border-gray-100 ${
-                                    isOwnerOrAdmin ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'
+                                className={`w-full text-left px-4 py-3 text-sm transition-colors border-b border-[color:var(--border-primary)] ${
+                                    isOwnerOrAdmin ? 'text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)]' : 'text-gray-400 cursor-not-allowed'
                                 }`}
                                 onClick={() => { if (isOwnerOrAdmin) setView('blocked'); }}
                                 disabled={!isOwnerOrAdmin}
@@ -467,7 +467,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             </button>
                             <button
                                 type="button"
-                                className={`w-full text-left px-4 py-3 text-sm transition-colors font-medium border-t border-gray-100 ${
+                                className={`w-full text-left px-4 py-3 text-sm transition-colors font-medium border-t border-[color:var(--border-primary)] ${
                                     isOwner
                                         ? 'text-red-600 hover:bg-red-50'
                                         : 'text-gray-400 cursor-not-allowed bg-gray-50/80'
@@ -485,9 +485,9 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                 )}
 
                 {view === 'roles' && (
-                    <div className="mt-2 bg-white">
-                        <div className="px-4 py-3 border-b border-gray-100">
-                            <div className="text-xs text-gray-500 mb-2">Trưởng nhóm</div>
+                    <div className="mt-2 bg-[color:var(--bg-primary)]">
+                        <div className="px-4 py-3 border-b border-[color:var(--border-primary)]">
+                            <div className="text-xs text-[color:var(--text-secondary)] mb-2">Trưởng nhóm</div>
                             <div className="flex items-center gap-3">
                                 <img
                                     src={
@@ -498,16 +498,16 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                                     className="w-9 h-9 rounded-full object-cover shrink-0"
                                 />
                                 <div className="min-w-0">
-                                    <div className="text-sm font-medium text-gray-800 truncate">{ownerMember?.fullName || ownerMember?.username || '---'}</div>
+                                    <div className="text-sm font-medium text-[color:var(--text-primary)] truncate">{ownerMember?.fullName || ownerMember?.username || '---'}</div>
                                     <div className="text-xs text-gray-400 truncate">Trưởng nhóm</div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="px-4 py-3 border-b border-gray-100">
-                            <div className="text-xs text-gray-500 mb-2">Phó nhóm ({adminMembers.length})</div>
+                        <div className="px-4 py-3 border-b border-[color:var(--border-primary)]">
+                            <div className="text-xs text-[color:var(--text-secondary)] mb-2">Phó nhóm ({adminMembers.length})</div>
                             {adminMembers.length === 0 ? (
-                                <div className="text-sm text-gray-500 py-2">Chưa có phó nhóm.</div>
+                                <div className="text-sm text-[color:var(--text-secondary)] py-2">Chưa có phó nhóm.</div>
                             ) : (
                                 <div className="flex flex-col">
                                     {adminMembers.map((m) => (
@@ -521,7 +521,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                                                 className="w-9 h-9 rounded-full object-cover shrink-0"
                                             />
                                             <div className="min-w-0 flex-1">
-                                                <div className="text-sm font-medium text-gray-800 truncate">{m.fullName || m.username}</div>
+                                                <div className="text-sm font-medium text-[color:var(--text-primary)] truncate">{m.fullName || m.username}</div>
                                                 <div className="text-xs text-gray-400 truncate">Phó nhóm</div>
                                             </div>
                                             {isOwner && (
@@ -540,17 +540,17 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             )}
                         </div>
 
-                        <div className="border-t border-gray-100">
+                        <div className="border-t border-[color:var(--border-primary)]">
                             <button
                                 type="button"
-                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-100"
+                                className="w-full text-left px-4 py-3 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors border-b border-[color:var(--border-primary)]"
                                 onClick={() => openPicker('ADD_ADMIN')}
                             >
                                 Thêm phó nhóm
                             </button>
                             <button
                                 type="button"
-                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                className="w-full text-left px-4 py-3 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                                 onClick={() => openPicker('TRANSFER_OWNER')}
                             >
                                 Chuyển quyền trưởng nhóm
@@ -560,8 +560,8 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                 )}
 
                 {view === 'blocked' && (
-                    <div className="mt-2 bg-white">
-                        <div className="border-b border-gray-100">
+                    <div className="mt-2 bg-[color:var(--bg-primary)]">
+                        <div className="border-b border-[color:var(--border-primary)]">
                             <div className="px-4 py-3 flex justify-center">
                                 <button
                                     type="button"
@@ -573,24 +573,24 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             </div>
                         </div>
 
-                        <div className="px-4 py-3 border-b border-gray-100">
-                            <div className="text-xs text-gray-500">Danh sách bị chặn</div>
+                        <div className="px-4 py-3 border-b border-[color:var(--border-primary)]">
+                            <div className="text-xs text-[color:var(--text-secondary)]">Danh sách bị chặn</div>
                         </div>
 
                         {blockedLoading && (
-                            <div className="px-4 py-6 text-sm text-gray-500">Đang tải...</div>
+                            <div className="px-4 py-6 text-sm text-[color:var(--text-secondary)]">Đang tải...</div>
                         )}
                         {!blockedLoading && (blockedMembers?.length ?? 0) === 0 && (
-                            <div className="px-4 py-6 text-sm text-gray-500">Chưa có thành viên bị chặn.</div>
+                            <div className="px-4 py-6 text-sm text-[color:var(--text-secondary)]">Chưa có thành viên bị chặn.</div>
                         )}
                         {!blockedLoading && (blockedMembers || []).map((m) => {
                             const name = m.displayName || m.username;
                             const avatarSrc = m.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0068FF&color=fff&bold=true`;
                             return (
-                                <div key={m.userId} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50">
+                                <div key={m.userId} className="flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors border-b border-gray-50">
                                     <img src={avatarSrc} alt={name} className="w-9 h-9 rounded-full object-cover shrink-0" />
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-gray-800 truncate">{name}</div>
+                                        <div className="text-sm font-medium text-[color:var(--text-primary)] truncate">{name}</div>
                                         <div className="text-xs text-gray-400 truncate">@{m.username}</div>
                                     </div>
                                     <button
@@ -610,11 +610,11 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
             {pickerOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { if (!pickerBusy) setPickerOpen(false); }}>
                     <div
-                        className="bg-white rounded-2xl shadow-2xl w-[420px] max-h-[80vh] flex flex-col overflow-hidden"
+                        className="bg-[color:var(--bg-primary)] rounded-2xl shadow-2xl w-[420px] max-h-[80vh] flex flex-col overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 shrink-0">
-                            <span className="font-semibold text-base text-gray-800">
+                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[color:var(--border-primary)] shrink-0">
+                            <span className="font-semibold text-base text-[color:var(--text-primary)]">
                                 {pickerMode === 'ADD_ADMIN'
                                     ? 'Chọn thành viên để bổ nhiệm phó nhóm'
                                     : pickerMode === 'TRANSFER_OWNER'
@@ -623,7 +623,7 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             </span>
                             <button
                                 onClick={() => { if (!pickerBusy) setPickerOpen(false); }}
-                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400 hover:text-[color:var(--text-secondary)] transition-colors"
                                 disabled={pickerBusy}
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -632,19 +632,19 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             </button>
                         </div>
 
-                        <div className="px-5 py-3 border-b border-gray-100">
+                        <div className="px-5 py-3 border-b border-[color:var(--border-primary)]">
                             <input
                                 value={pickerQuery}
                                 onChange={(e) => setPickerQuery(e.target.value)}
                                 placeholder="Tìm theo tên..."
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                className="w-full border border-[color:var(--border-secondary)] rounded-lg px-3 py-2 text-sm text-[color:var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-400"
                                 autoFocus
                             />
                         </div>
 
                         <div className="flex-1 overflow-y-auto">
                             {selectableMembers.length === 0 ? (
-                                <div className="px-5 py-6 text-sm text-gray-500">Không có thành viên phù hợp.</div>
+                                <div className="px-5 py-6 text-sm text-[color:var(--text-secondary)]">Không có thành viên phù hợp.</div>
                             ) : (
                                 selectableMembers.map((m) => {
                                     const name = m.fullName || m.username;
@@ -655,13 +655,13 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                                             key={m.userId}
                                             type="button"
                                             onClick={() => setPickerSelected(m.userId)}
-                                            className={`w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-gray-50 transition-colors ${
+                                            className={`w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-[color:var(--bg-hover)] transition-colors ${
                                                 selected ? 'bg-blue-50' : ''
                                             }`}
                                         >
                                             <img src={avatarSrc} alt={name} className="w-10 h-10 rounded-full object-cover shrink-0" />
                                             <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-gray-800 truncate">{name}</div>
+                                                <div className="text-sm font-medium text-[color:var(--text-primary)] truncate">{name}</div>
                                                 <div className="text-xs text-gray-400 truncate">@{m.username}</div>
                                             </div>
                                             <input type="radio" readOnly checked={selected} className="w-4 h-4 accent-blue-600" />
@@ -671,11 +671,11 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                             )}
                         </div>
 
-                        <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-100 shrink-0">
+                        <div className="flex justify-end gap-3 px-5 py-4 border-t border-[color:var(--border-primary)] shrink-0">
                             <button
                                 type="button"
                                 onClick={() => { if (!pickerBusy) setPickerOpen(false); }}
-                                className="px-5 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                className="px-5 py-2 text-sm text-[color:var(--text-secondary)] bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg font-medium transition-colors disabled:opacity-50"
                                 disabled={pickerBusy}
                             >
                                 Hủy

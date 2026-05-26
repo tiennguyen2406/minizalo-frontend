@@ -4,7 +4,7 @@ import { useAuthStore } from "@/shared/store/authStore";
 import axios from "axios";
 
 const COLORS = {
-    primary: "#0068FF",
+    primary: "var(--accent)",
     white: "#fff",
     text: "#333",
     textSecondary: "#666",
@@ -75,7 +75,7 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
         >
             <div
                 style={{
-                    backgroundColor: COLORS.white,
+                    backgroundColor: "var(--bg-primary)",
                     borderRadius: 16,
                     padding: 32,
                     width: 400,
@@ -83,79 +83,91 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
                     boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
                 }}
             >
-                <h2 style={{ margin: "0 0 24px", fontSize: 22, fontWeight: 700, color: COLORS.text, textAlign: "center" }}>
+                <h2 style={{ margin: "0 0 24px", fontSize: 22, fontWeight: 700, color: "var(--text-primary)", textAlign: "center" }}>
                     Đổi mật khẩu
                 </h2>
 
                 {success ? (
-                    <p style={{ color: COLORS.success, textAlign: "center", fontSize: 16, fontWeight: 500 }}>
+                    <p style={{ color: "var(--success)", textAlign: "center", fontSize: 16, fontWeight: 500 }}>
                         Đổi mật khẩu thành công!
                     </p>
                 ) : (
                     <>
                         <div style={{ marginBottom: 16 }}>
-                            <label style={{ fontSize: 14, color: COLORS.textSecondary, marginBottom: 4, display: "block" }}>
+                            <label style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 4, display: "block" }}>
                                 Mật khẩu cũ
                             </label>
                             <input
                                 type="password"
+                                name="old-password-field"
+                                autoComplete="new-password"
                                 value={oldPassword}
                                 onChange={(e) => setOldPassword(e.target.value)}
                                 disabled={loading}
                                 style={{
                                     width: "100%",
                                     padding: "12px 16px",
-                                    border: `1px solid ${COLORS.border}`,
+                                    border: `1px solid ${"var(--border-primary)"}`,
                                     borderRadius: 8,
                                     fontSize: 15,
                                     outline: "none",
                                     boxSizing: "border-box",
+                                    backgroundColor: "var(--bg-input)",
+                                    color: "var(--text-primary)",
                                 }}
                             />
                         </div>
                         <div style={{ marginBottom: 16 }}>
-                            <label style={{ fontSize: 14, color: COLORS.textSecondary, marginBottom: 4, display: "block" }}>
+                            <label style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 4, display: "block" }}>
                                 Mật khẩu mới
                             </label>
                             <input
                                 type="password"
+                                name="new-password-field"
+                                autoComplete="new-password"
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
                                 disabled={loading}
                                 style={{
                                     width: "100%",
                                     padding: "12px 16px",
-                                    border: `1px solid ${COLORS.border}`,
+                                    border: `1px solid ${"var(--border-primary)"}`,
                                     borderRadius: 8,
                                     fontSize: 15,
                                     outline: "none",
                                     boxSizing: "border-box",
+                                    backgroundColor: "var(--bg-input)",
+                                    color: "var(--text-primary)",
                                 }}
                             />
                         </div>
                         <div style={{ marginBottom: 16 }}>
-                            <label style={{ fontSize: 14, color: COLORS.textSecondary, marginBottom: 4, display: "block" }}>
+                            <label style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 4, display: "block" }}>
                                 Nhập lại mật khẩu mới
                             </label>
                             <input
                                 type="password"
+                                name="confirm-password-field"
+                                autoComplete="new-password"
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 disabled={loading}
                                 style={{
                                     width: "100%",
                                     padding: "12px 16px",
-                                    border: `1px solid ${COLORS.border}`,
+                                    border: `1px solid ${"var(--border-primary)"}`,
                                     borderRadius: 8,
                                     fontSize: 15,
                                     outline: "none",
                                     boxSizing: "border-box",
+                                    backgroundColor: "var(--bg-input)",
+                                    color: "var(--text-primary)",
                                 }}
                             />
                         </div>
 
                         {error ? (
-                            <p style={{ color: COLORS.error, fontSize: 14, marginBottom: 12 }}>{error}</p>
+                            <p style={{ color: "var(--danger)", fontSize: 14, marginBottom: 12 }}>{error}</p>
                         ) : null}
 
                         <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
@@ -166,10 +178,10 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
                                 style={{
                                     flex: 1,
                                     padding: "12px 16px",
-                                    border: `1px solid ${COLORS.border}`,
+                                    border: `1px solid ${"var(--border-primary)"}`,
                                     borderRadius: 25,
-                                    background: COLORS.white,
-                                    color: COLORS.text,
+                                    background: "var(--bg-primary)",
+                                    color: "var(--text-primary)",
                                     fontSize: 15,
                                     fontWeight: 500,
                                     cursor: "pointer",
@@ -186,8 +198,8 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
                                     padding: "12px 16px",
                                     border: "none",
                                     borderRadius: 25,
-                                    background: loading ? "#88b4ff" : COLORS.primary,
-                                    color: COLORS.white,
+                                    background: loading ? "#88b4ff" : "var(--accent)",
+                                    color: "var(--text-inverse)",
                                     fontSize: 15,
                                     fontWeight: 600,
                                     cursor: loading ? "default" : "pointer",

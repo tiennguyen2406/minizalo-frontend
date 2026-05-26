@@ -134,7 +134,7 @@ const VideoAttachmentBubble: React.FC<VideoAttachmentBubbleProps> = ({
                     title="Xem video màn hình lớn"
                     onClick={() => setTheaterOpen(true)}
                 >
-                    <span className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-white/95 text-gray-900 shadow-lg">
+                    <span className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-white/95 text-[color:var(--text-primary)] shadow-lg">
                         <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" className="ml-0.5">
                             <path d="M8 5v14l11-7z" />
                         </svg>
@@ -165,7 +165,7 @@ const VideoAttachmentBubble: React.FC<VideoAttachmentBubbleProps> = ({
             <div
                 className={clsx(
                     'flex items-stretch border-t',
-                    isMine ? 'border-blue-100/80 bg-white/75' : 'border-gray-100 bg-white/80',
+                    isMine ? 'border-blue-100/80 bg-white/75' : 'border-[color:var(--border-primary)] bg-white/80',
                 )}
             >
                 <a
@@ -177,10 +177,10 @@ const VideoAttachmentBubble: React.FC<VideoAttachmentBubbleProps> = ({
                 >
                     <VideoTypeIcon isMine={isMine} />
                     <div className="flex flex-col flex-1 min-w-0 gap-0.5">
-                        <span className="text-sm font-semibold text-gray-900 truncate" title={fileName}>
+                        <span className="text-sm font-semibold text-[color:var(--text-primary)] truncate" title={fileName}>
                             {fileName || 'Video'}
                         </span>
-                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500">
+                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[color:var(--text-secondary)]">
                             <span>{formatSize(fileSize)}</span>
                             <OnDeviceBadge />
                         </div>

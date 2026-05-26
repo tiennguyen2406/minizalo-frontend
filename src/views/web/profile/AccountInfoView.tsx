@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "expo-router";
 import { useUserStore } from "@/shared/store/userStore";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useAvatarUpload } from "@/shared/hooks/useAvatarUpload";
+import EditProfileView from "@/views/web/profile/EditProfileView";
 
 const MONTHS = "tháng 01,tháng 02,tháng 03,tháng 04,tháng 05,tháng 06,tháng 07,tháng 08,tháng 09,tháng 10,tháng 11,tháng 12".split(",");
 
@@ -33,7 +35,7 @@ const iconCamera = (
     </svg>
 );
 
-export default function AccountInfoView() {
+export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: () => void } = {}) {
     const router = useRouter();
     const { profile, loading, error, fetchProfile } = useUserStore();
     const isHydrated = useAuthStore((s) => s.isHydrated);
@@ -46,13 +48,14 @@ export default function AccountInfoView() {
     const [coverUploading, setCoverUploading] = useState(false);
     const [coverError, setCoverError] = useState<string | null>(null);
     const [coverHover, setCoverHover] = useState(false);
+    const [showEdit, setShowEdit] = useState(false);
 
     // Chỉ gọi API sau khi auth đã rehydrate từ storage (tránh 401 do token chưa kịp có)
     useEffect(() => {
         if (isHydrated && hasToken) fetchProfile();
     }, [isHydrated, hasToken, fetchProfile]);
 
-    const onClose = () => router.replace("/(tabs)");
+    const onClose = onCloseProp ?? (() => router.replace("/(tabs)"));
 
     const onAvatarClick = () => fileInputRef.current?.click();
     const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,6 +102,7 @@ export default function AccountInfoView() {
     const displayName = displayProfile?.displayName || displayProfile?.username || "Người dùng";
 
     return (
+        <>
         <div
             role="dialog"
             aria-label="Thông tin tài khoản"
@@ -117,7 +121,7 @@ export default function AccountInfoView() {
             <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                    backgroundColor: "#fff",
+                    backgroundColor: "var(--bg-primary)",
                     borderRadius: 20,
                     maxWidth: 640,
                     width: "100%",
@@ -133,10 +137,10 @@ export default function AccountInfoView() {
                         alignItems: "center",
                         justifyContent: "space-between",
                         padding: "20px 28px",
-                        borderBottom: "1px solid #eee",
+                        borderBottom: "1px solid var(--border-primary)",
                     }}
                 >
-                    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: "#333" }}>
+                    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: "var(--text-primary)" }}>
                         Thông tin tài khoản
                     </h2>
                     <button
@@ -147,7 +151,7 @@ export default function AccountInfoView() {
                             background: "none",
                             cursor: "pointer",
                             padding: 4,
-                            color: "#666",
+                            color: "var(--text-secondary)",
                         }}
                     >
                         {iconClose}
@@ -156,19 +160,19 @@ export default function AccountInfoView() {
 
                 {/* Đợi auth rehydrate từ storage (tránh 401 do token chưa kịp có) */}
                 {!isHydrated && (
-                    <div style={{ padding: 40, textAlign: "center", color: "#666", fontSize: 16 }}>
+                    <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontSize: 16 }}>
                         Đang tải...
                     </div>
                 )}
                 {/* Loading / Error */}
                 {isHydrated && loading && !displayProfile && (
-                    <div style={{ padding: 40, textAlign: "center", color: "#666", fontSize: 16 }}>
+                    <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontSize: 16 }}>
                         Đang tải thông tin tài khoản...
                     </div>
                 )}
                 {isHydrated && error && !displayProfile && (
                     <div style={{ padding: 28, textAlign: "center" }}>
-                        <p style={{ color: "#e53935", marginBottom: 16, fontSize: 16 }}>{error}</p>
+                        <p style={{ color: "var(--danger)", marginBottom: 16, fontSize: 16 }}>{error}</p>
                         <button
                             type="button"
                             onClick={() => fetchProfile()}
@@ -176,8 +180,8 @@ export default function AccountInfoView() {
                                 padding: "10px 20px",
                                 borderRadius: 10,
                                 border: "none",
-                                backgroundColor: "#0068FF",
-                                color: "#fff",
+                                backgroundColor: "var(--accent)",
+                                color: "var(--text-inverse)",
                                 fontSize: 16,
                                 fontWeight: 500,
                                 cursor: "pointer",
@@ -200,7 +204,7 @@ export default function AccountInfoView() {
                                 height: 160,
                                 background: (coverPreview || displayProfile?.coverPhotoUrl)
                                     ? `url(${coverPreview || displayProfile?.coverPhotoUrl}) center/cover no-repeat`
-                                    : "linear-gradient(135deg, #0068FF 0%, #00C6FF 100%)",
+                                    : "linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)",
                                 borderRadius: "0 0 0 0",
                                 cursor: coverUploading ? "wait" : "pointer",
                                 position: "relative",
@@ -225,7 +229,7 @@ export default function AccountInfoView() {
                                         display: "flex",
                                         alignItems: "center",
                                         gap: 8,
-                                        color: "#fff",
+                                        color: "var(--text-inverse)",
                                         fontSize: 14,
                                         fontWeight: 500,
                                         opacity: coverHover ? 1 : 0,
@@ -252,7 +256,7 @@ export default function AccountInfoView() {
                             />
                         </div>
                         {coverError && (
-                            <div style={{ padding: "6px 28px", fontSize: 14, color: "#e53935" }}>
+                            <div style={{ padding: "6px 28px", fontSize: 14, color: "var(--danger)" }}>
                                 {coverError}
                             </div>
                         )}
@@ -274,7 +278,7 @@ export default function AccountInfoView() {
                                             height: "100%",
                                             borderRadius: "50%",
                                             overflow: "hidden",
-                                            border: "4px solid #fff",
+                                            border: "4px solid var(--bg-primary)",
                                             boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
                                         }}
                                     >
@@ -289,11 +293,11 @@ export default function AccountInfoView() {
                                                 style={{
                                                     width: "100%",
                                                     height: "100%",
-                                                    backgroundColor: "#e0e0e0",
+                                                    backgroundColor: "var(--border-primary)",
                                                     display: "flex",
                                                     alignItems: "center",
                                                     justifyContent: "center",
-                                                    color: "#666",
+                                                    color: "var(--text-secondary)",
                                                     fontSize: 40,
                                                     fontWeight: 600,
                                                 }}
@@ -320,9 +324,9 @@ export default function AccountInfoView() {
                                             width: 40,
                                             height: 40,
                                             borderRadius: "50%",
-                                            border: "3px solid #fff",
-                                            backgroundColor: "#0068FF",
-                                            color: "#fff",
+                                            border: "3px solid var(--bg-primary)",
+                                            backgroundColor: "var(--accent)",
+                                            color: "var(--text-inverse)",
                                             cursor: uploading ? "wait" : "pointer",
                                             display: "flex",
                                             alignItems: "center",
@@ -336,25 +340,25 @@ export default function AccountInfoView() {
                                 </div>
                                 <div style={{ flex: 1, paddingBottom: 10 }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                        <span style={{ fontSize: 26, fontWeight: 600, color: "#333" }}>
+                                        <span style={{ fontSize: 26, fontWeight: 600, color: "var(--text-primary)" }}>
                                             {displayName}
                                         </span>
                                         <button
                                             type="button"
-                                            onClick={() => router.push("/(tabs)/account-edit")}
+                                            onClick={(e) => { e.stopPropagation(); setShowEdit(true); }}
                                             style={{
                                                 border: "none",
                                                 background: "none",
                                                 cursor: "pointer",
                                                 padding: 4,
-                                                color: "#0068FF",
+                                                color: "var(--accent)",
                                             }}
                                         >
                                             {iconPencil}
                                         </button>
                                     </div>
                                     {(avatarError || error) && (
-                                        <div style={{ fontSize: 14, color: "#e53935", marginTop: 6 }}>
+                                        <div style={{ fontSize: 14, color: "var(--danger)", marginTop: 6 }}>
                                             {avatarError || error}
                                         </div>
                                     )}
@@ -367,18 +371,18 @@ export default function AccountInfoView() {
                             style={{
                                 margin: "0 28px 20px",
                                 padding: 20,
-                                backgroundColor: "#f5f5f5",
+                                backgroundColor: "var(--bg-secondary)",
                                 borderRadius: 14,
                             }}
                         >
-                            <div style={{ fontSize: 16, color: "#666", marginBottom: 10 }}>Mô tả</div>
+                            <div style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 10 }}>Mô tả</div>
                             <a
                                 href={displayProfile?.businessDescription || "#"}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 style={{
                                     fontSize: 16,
-                                    color: "#0068FF",
+                                    color: "var(--accent)",
                                     textDecoration: "none",
                                     wordBreak: "break-all",
                                 }}
@@ -392,20 +396,20 @@ export default function AccountInfoView() {
                             style={{
                                 margin: "0 28px 24px",
                                 padding: 20,
-                                backgroundColor: "#f5f5f5",
+                                backgroundColor: "var(--bg-secondary)",
                                 borderRadius: 14,
                             }}
                         >
-                            <div style={{ fontSize: 16, color: "#333", marginBottom: 14 }}>
+                            <div style={{ fontSize: 16, color: "var(--text-primary)", marginBottom: 14 }}>
                                 <strong>Giới tính:</strong> {displayProfile?.gender || "Chưa cập nhật"}
                             </div>
-                            <div style={{ fontSize: 16, color: "#333", marginBottom: 14 }}>
+                            <div style={{ fontSize: 16, color: "var(--text-primary)", marginBottom: 14 }}>
                                 <strong>Ngày sinh:</strong> {formatDate(displayProfile?.dateOfBirth) || "Chưa cập nhật"}
                             </div>
-                            <div style={{ fontSize: 16, color: "#333", marginBottom: 10 }}>
+                            <div style={{ fontSize: 16, color: "var(--text-primary)", marginBottom: 10 }}>
                                 <strong>Điện thoại:</strong> {displayProfile?.phone || "Chưa cập nhật"}
                             </div>
-                            <div style={{ fontSize: 14, color: "#666", marginBottom: 0 }}>
+                            <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 0 }}>
                                 Chỉ bạn bè có lưu số của bạn trong danh bạ mới xem được số này.
                             </div>
                         </div>
@@ -419,13 +423,13 @@ export default function AccountInfoView() {
                         >
                             <button
                                 type="button"
-                                onClick={() => router.push("/(tabs)/account-edit")}
+                                onClick={(e) => { e.stopPropagation(); setShowEdit(true); }}
                                 style={{
                                     padding: "12px 32px",
                                     borderRadius: 10,
                                     border: "none",
-                                    backgroundColor: "#0068FF",
-                                    color: "#fff",
+                                    backgroundColor: "var(--accent)",
+                                    color: "var(--text-inverse)",
                                     fontSize: 16,
                                     fontWeight: 500,
                                     cursor: "pointer",
@@ -439,5 +443,11 @@ export default function AccountInfoView() {
                 )}
             </div>
         </div>
+
+        {showEdit && createPortal(
+            <EditProfileView onClose={() => { setShowEdit(false); fetchProfile(); }} />,
+            document.body
+        )}
+        </>
     );
 }
