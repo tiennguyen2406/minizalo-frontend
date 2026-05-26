@@ -77,13 +77,13 @@ export default function FriendRequestsScreen({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        backgroundColor: "#eef1f5",
+        backgroundColor: "var(--bg-secondary, #eef1f5)",
       }}
     >
       <div
         style={{
           padding: "16px 20px 12px",
-          backgroundColor: "#f7f9fb",
+          backgroundColor: "var(--bg-primary, #f7f9fb)",
           borderBottom: "1px solid #e3e6ea",
         }}
       >
@@ -109,12 +109,12 @@ export default function FriendRequestsScreen({
             <circle cx="9" cy="7" r="4" />
             <path d="M19 8v6M22 11h-6" />
           </svg>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#1a1a1a" }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--text-primary, #1a1a1a)" }}>
             Lời mời kết bạn
           </h2>
         </div>
         {loading && (
-          <span style={{ fontSize: 13, color: "#888" }}>Đang tải...</span>
+          <span style={{ fontSize: 13, color: "var(--text-secondary, #888)" }}>Đang tải...</span>
         )}
       </div>
 
@@ -123,9 +123,9 @@ export default function FriendRequestsScreen({
           padding: "10px 16px 8px",
           fontSize: 15,
           fontWeight: 600,
-          color: "#333",
+          color: "var(--text-primary, #333)",
           borderBottom: "1px solid #dde1e6",
-          backgroundColor: "#f7f9fb",
+          backgroundColor: "var(--bg-primary, #f7f9fb)",
         }}
       >
         Lời mời đã nhận ({count})
@@ -166,7 +166,7 @@ export default function FriendRequestsScreen({
             style={{
               padding: 32,
               textAlign: "center",
-              color: "#666",
+              color: "var(--text-secondary, #666)",
               fontSize: 14,
             }}
           >
@@ -188,7 +188,7 @@ export default function FriendRequestsScreen({
             <div
               key={item.id}
               style={{
-                backgroundColor: "#fff",
+                backgroundColor: "var(--bg-primary, #fff)",
                 borderRadius: 12,
                 boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
                 padding: 16,
@@ -202,7 +202,7 @@ export default function FriendRequestsScreen({
                     height: 48,
                     borderRadius: "50%",
                     overflow: "hidden",
-                    backgroundColor: "#e3e7ed",
+                    backgroundColor: "var(--bg-tertiary, #e3e7ed)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -238,7 +238,7 @@ export default function FriendRequestsScreen({
                       style={{
                         fontSize: 16,
                         fontWeight: 700,
-                        color: "#111",
+                        color: "var(--text-primary, #111)",
                       }}
                     >
                       {displayName}
@@ -247,7 +247,7 @@ export default function FriendRequestsScreen({
                       title="Từ trò chuyện"
                       style={{
                         flexShrink: 0,
-                        color: "#9ca3af",
+                        color: "var(--text-secondary, #9ca3af)",
                         display: "flex",
                         alignItems: "center",
                       }}
@@ -268,7 +268,7 @@ export default function FriendRequestsScreen({
                   <div
                     style={{
                       fontSize: 13,
-                      color: "#6b7280",
+                      color: "var(--text-secondary, #6b7280)",
                       marginTop: 4,
                     }}
                   >
@@ -279,11 +279,11 @@ export default function FriendRequestsScreen({
 
               <div
                 style={{
-                  backgroundColor: "#f3f4f6",
+                  backgroundColor: "var(--bg-secondary, #f3f4f6)",
                   borderRadius: 8,
                   padding: "12px 14px",
                   fontSize: 14,
-                  color: "#374151",
+                  color: "var(--text-primary, #374151)",
                   lineHeight: 1.45,
                   marginBottom: 14,
                 }}
@@ -300,8 +300,8 @@ export default function FriendRequestsScreen({
                     padding: "11px 16px",
                     borderRadius: 8,
                     border: "none",
-                    backgroundColor: "#e5e7eb",
-                    color: "#374151",
+                    backgroundColor: "var(--bg-tertiary, #e5e7eb)",
+                    color: "var(--text-primary, #374151)",
                     fontSize: 15,
                     fontWeight: 600,
                     cursor: "pointer",

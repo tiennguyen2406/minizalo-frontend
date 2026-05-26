@@ -7,20 +7,15 @@ import { getPinnedBarPreview, pinnedKindLabel } from "./pinnedBarUtils";
 function ChatPinIcon({ className = "h-9 w-9" }: { className?: string }) {
   return (
     <div
-      className={`rounded-full bg-[#0068ff] flex items-center justify-center shrink-0 text-white shadow-sm ${className}`}
+      className={`rounded-full flex items-center justify-center shrink-0 ${className}`}
+      style={{ backgroundColor: 'var(--bg-message-own)', color: 'var(--accent)' }}
     >
       <svg
-        className="w-4 h-4"
-        fill="none"
+        className="w-5 h-5"
+        fill="currentColor"
         viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
       >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-        />
+        <path d="M12 2C6.477 2 2 6.14 2 11.25c0 2.82 1.397 5.34 3.593 7.025-.333 1.83-1.464 3.255-1.528 3.336-.123.155-.138.368-.035.538.102.17.288.266.486.25 2.502-.19 4.343-1.282 5.35-1.996C10.552 20.67 11.266 20.75 12 20.75c5.523 0 10-4.14 10-9.5S17.523 2 12 2z" />
       </svg>
     </div>
   );
@@ -105,7 +100,7 @@ export default function PinnedMessagesBar({
     return (
       <div
         key={msg.id}
-        className="flex gap-3 px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50/80 transition-colors"
+        className="flex gap-3 px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-[color:var(--bg-hover)]/80 transition-colors"
       >
         <button
           type="button"
@@ -114,17 +109,17 @@ export default function PinnedMessagesBar({
         >
           <ChatPinIcon className="h-9 w-9" />
           <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-semibold text-gray-800">{kind}</p>
+          <p className="text-[11px] font-semibold text-[color:var(--text-primary)]">{kind}</p>
           {msg.type === "POLL" && pol ? (
-            <p className="text-[13px] font-semibold text-gray-900 mt-1 leading-snug">
+            <p className="text-[13px] font-semibold text-[color:var(--text-primary)] mt-1 leading-snug">
               {pol.question}
             </p>
           ) : msg.type === "POLL" && !pol ? (
-            <p className="text-sm text-gray-500 mt-1 italic">
+            <p className="text-sm text-[color:var(--text-secondary)] mt-1 italic">
               Đang tải bình chọn…
             </p>
           ) : (
-            <p className="text-[13px] text-gray-700 mt-1 line-clamp-3 break-words">
+            <p className="text-[13px] text-[color:var(--text-secondary)] mt-1 line-clamp-3 break-words">
               {getPinnedBarPreview(msg, participantMap)}
             </p>
           )}
@@ -137,49 +132,17 @@ export default function PinnedMessagesBar({
         >
           <button
             type="button"
-            className="p-1 rounded-full text-gray-500 hover:bg-gray-200/80"
-            aria-label="Tùy chọn"
+            className="p-1 rounded-full text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-tertiary)] transition-colors"
+            title="Bỏ ghim"
             onClick={(e) => {
               e.stopPropagation();
-              setRowMenuFor(menuOpen ? null : String(msg.id));
+              handleTogglePin(String(msg.id), true);
             }}
           >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <circle cx="5" cy="12" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="19" cy="12" r="2" />
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          {menuOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setRowMenuFor(null)}
-              />
-              <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-100 py-1.5 min-w-[150px]">
-                <button
-                  type="button"
-                  className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(copyForMessage(msg));
-                    setRowMenuFor(null);
-                  }}
-                >
-                  Copy
-                </button>
-                <button
-                  type="button"
-                  className="w-full text-left px-4 py-2 hover:bg-red-50 text-sm text-red-600"
-                  onClick={() => {
-                    handleTogglePin(String(msg.id), true);
-                    setRowMenuFor(null);
-                  }}
-                >
-                  Bỏ ghim
-                </button>
-              </div>
-            </>
-          )}
         </div>
       </div>
     );
@@ -188,11 +151,12 @@ export default function PinnedMessagesBar({
   return (
     <>
       {!expanded ? (
-        <div className="w-full min-w-0 flex items-stretch gap-2 px-3 py-2 bg-[#f7f8fa] border-b border-gray-200/90 shrink-0">
+        <div className="w-full min-w-0 flex items-stretch gap-2 px-3 py-2 border-b shrink-0" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
           <div
             role="button"
             tabIndex={0}
-            className="flex flex-1 min-w-0 items-start gap-2.5 cursor-pointer rounded-lg px-1 py-0.5 hover:bg-gray-100/90 transition-colors"
+            className="flex flex-1 min-w-0 items-start gap-2.5 cursor-pointer rounded-lg px-1 py-0.5 transition-colors"
+            style={{ backgroundColor: 'var(--bg-secondary)' }}
             title="Xem trong cuộc trò chuyện"
             onClick={() => scrollToMessageHighlight(String(hero.id))}
             onKeyDown={(e) => {
@@ -218,10 +182,10 @@ export default function PinnedMessagesBar({
               </svg>
             </div>
             <div className="flex flex-col min-w-0 text-left">
-              <span className="text-[11px] font-semibold text-gray-800 leading-tight">
+              <span className="text-[11px] font-semibold text-[color:var(--text-primary)] leading-tight">
                 {heroKind}
               </span>
-              <span className="text-[13px] text-gray-600 truncate leading-snug">
+              <span className="text-[13px] text-[color:var(--text-secondary)] truncate leading-snug">
                 {heroPreview}
               </span>
             </div>
@@ -232,7 +196,7 @@ export default function PinnedMessagesBar({
               <button
                 type="button"
                 title="Xem danh sách ghim đầy đủ"
-                className="flex items-center gap-0.5 pl-2.5 pr-2 py-1.5 rounded-md border border-gray-300 bg-white text-xs font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
+                className="flex items-center gap-0.5 pl-2.5 pr-2 py-1.5 rounded-md border border-gray-300 bg-[color:var(--bg-primary)] text-xs font-semibold text-[color:var(--text-primary)] shadow-sm hover:bg-[color:var(--bg-hover)]"
                 onClick={(e) => {
                   e.stopPropagation();
                   setExpanded(true);
@@ -241,7 +205,7 @@ export default function PinnedMessagesBar({
               >
                 +{extraPins.length} ghim
                 <svg
-                  className="w-4 h-4 text-gray-500"
+                  className="w-4 h-4 text-[color:var(--text-secondary)]"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -256,67 +220,17 @@ export default function PinnedMessagesBar({
               </button>
             )}
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setHeroMenuOpen((v) => !v);
-                }}
-                className="p-1.5 rounded-full text-gray-500 hover:bg-gray-200/80 transition-colors"
-                title="Tùy chọn"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <circle cx="5" cy="12" r="2" />
-                  <circle cx="12" cy="12" r="2" />
-                  <circle cx="19" cy="12" r="2" />
-                </svg>
-              </button>
-
-              {heroMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setHeroMenuOpen(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-gray-100 py-1.5 min-w-[150px]">
-                    <button
-                      type="button"
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2 text-gray-700"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(
-                          copyForMessage(hero),
-                        );
-                        setHeroMenuOpen(false);
-                      }}
-                    >
-                      Copy
-                    </button>
-                    <button
-                      type="button"
-                      className="w-full text-left px-4 py-2 hover:bg-red-50 hover:text-red-600 text-sm flex items-center gap-2 text-gray-700"
-                      onClick={() => {
-                        handleTogglePin(String(hero.id), true);
-                        setHeroMenuOpen(false);
-                      }}
-                    >
-                      Bỏ ghim
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
           </div>
         </div>
       ) : (
-        <div className="w-full min-w-0 shrink-0 bg-[#eef0f2] border-b border-gray-200/90">
+        <div className="w-full min-w-0 shrink-0 border-b" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
           <div className="flex items-center justify-between px-3 py-2.5">
-            <span className="text-sm font-semibold text-gray-800">
+            <span className="text-sm font-semibold text-[color:var(--text-primary)]">
               Danh sách ghim ({pinnedMessagesSorted.length})
             </span>
             <button
               type="button"
-              className="text-sm font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1"
+              className="text-sm font-medium text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] flex items-center gap-1"
               onClick={() => setExpanded(false)}
             >
               Thu gọn
@@ -337,7 +251,7 @@ export default function PinnedMessagesBar({
           </div>
 
           <div className="px-3 pb-3">
-            <div className="bg-white rounded-xl border border-gray-200/90 shadow-sm overflow-hidden">
+            <div className="rounded-xl border shadow-sm overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
               {pinnedMessagesSorted.map((msg) => renderExpandedRow(msg))}
             </div>
 

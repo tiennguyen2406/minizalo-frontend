@@ -1755,7 +1755,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
               </span>
             </div>
           ) : (
-            <div className="flex flex-col border-t border-gray-100 bg-white">
+            <div className="flex flex-col border-t" style={{ backgroundColor: "var(--bg-primary)", borderColor: "var(--border-primary)" }}>
               {/* Typing Indicator - Dính liền ngay trên MessageInput */}
               {Object.keys(typingUsers).length > 0 && (
                 <div className="px-4 py-1.5 flex items-center gap-2 bg-gray-50/50 border-b border-gray-50 transition-all">

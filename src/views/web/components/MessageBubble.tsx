@@ -114,7 +114,7 @@ const VoicePlayer: React.FC<{ url: string }> = ({ url }) => {
                     />
                 ))}
             </div>
-            <span className="text-sm font-medium text-gray-700 ml-1 min-w-[40px] tabular-nums">{displayTime}</span>
+            <span className="text-sm font-medium text-[color:var(--text-secondary)] ml-1 min-w-[40px] tabular-nums">{displayTime}</span>
         </div>
     );
 };
@@ -149,22 +149,22 @@ const StoryReplyCard: React.FC<{
     return (
         <div className={clsx(
             "flex flex-col w-[300px] max-w-full overflow-hidden rounded-xl border shadow-sm select-none",
-            isMine ? "bg-[#0068ff] border-blue-400" : "bg-white border-gray-200"
+            isMine ? "bg-[#0068ff] border-blue-400" : "bg-[color:var(--bg-primary)] border-gray-200"
         )}>
             {/* Story Card Header */}
             <div className={clsx(
                 "flex items-center gap-3 m-2 mb-0 rounded-lg overflow-hidden relative",
-                isMine ? "bg-white/10" : "bg-blue-50"
+                isMine ? "bg-[color:var(--bg-primary)]/10" : "bg-[color:var(--bg-tertiary)]"
             )}>
                 {/* Accent Line */}
-                <div className={clsx("w-[3.5px] self-stretch shrink-0 rounded-full", isMine ? "bg-white/80" : "bg-[#0068ff]")} />
+                <div className={clsx("w-[3.5px] self-stretch shrink-0 rounded-full", isMine ? "bg-[color:var(--bg-primary)]/80" : "bg-[#0068ff]")} />
                 
                 <div className="flex items-center gap-3 p-2 pl-0 flex-1 min-w-0">
                     <div className="w-16 h-16 shrink-0 overflow-hidden rounded bg-gray-200 relative">
                         {thumbSrcRaw ? (
                             <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
                         ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+                            <div className="w-full h-full flex items-center justify-center bg-[color:var(--bg-secondary)] text-gray-400">
                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                </svg>
@@ -181,10 +181,10 @@ const StoryReplyCard: React.FC<{
                         )}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className={clsx("text-[13px] font-bold leading-tight line-clamp-2", isMine ? "text-white" : "text-gray-900")}>
+                        <p className={clsx("text-[13px] font-bold leading-tight line-clamp-2", isMine ? "text-white" : "text-[color:var(--text-primary)]")}>
                             {cardTitle}
                         </p>
-                        <p className={clsx("text-[11px] mt-1 line-clamp-1", isMine ? "text-white/70" : "text-gray-500")}>
+                        <p className={clsx("text-[11px] mt-1 line-clamp-1", isMine ? "text-white/70" : "text-[color:var(--text-secondary)]")}>
                             Khoảnh khắc đăng lúc {data.postedAt}
                         </p>
                     </div>
@@ -194,8 +194,8 @@ const StoryReplyCard: React.FC<{
             {/* Divider & User Reply Text */}
             {data.replyText && (
                 <div className="px-3 pt-2 pb-1">
-                    <div className={clsx("h-[1px] mb-2", isMine ? "bg-white/10" : "bg-gray-100")} />
-                    <p className={clsx("text-sm leading-relaxed break-words", isMine ? "text-white" : "text-gray-800")}>
+                    <div className={clsx("h-[1px] mb-2", isMine ? "bg-[color:var(--bg-primary)]/10" : "bg-[color:var(--bg-secondary)]")} />
+                    <p className={clsx("text-sm leading-relaxed break-words", isMine ? "text-white" : "text-[color:var(--text-primary)]")}>
                         {data.replyText}
                     </p>
                 </div>
@@ -358,7 +358,7 @@ function getFilePresentation(fileName: string, mime?: string): {
         return {
             label: 'TXT',
             gradient: 'from-gray-50 to-slate-100',
-            badgeClass: 'bg-gray-500',
+            badgeClass: 'bg-[color:var(--bg-hover)]0',
             iconTint: 'text-gray-400',
         };
     }
@@ -592,7 +592,7 @@ const FileAttachmentCard: React.FC<{
                 <div
                     role="button"
                     tabIndex={0}
-                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg py-0.5 text-left hover:bg-white/55 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0068ff]/25"
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg py-0.5 text-left hover:bg-[color:var(--bg-primary)]/55 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0068ff]/25"
                     title="Mở file — PDF trên Windows sẽ ưu tiên Microsoft Edge (khi đang dùng trình duyệt khác)"
                     onClick={(e) =>
                         openFileFromCard(url, e, {
@@ -628,13 +628,13 @@ const FileAttachmentCard: React.FC<{
                     </div>
                     <div className="min-w-0 flex-1">
                         <div
-                            className="truncate text-sm font-semibold text-gray-900"
+                            className="truncate text-sm font-semibold text-[color:var(--text-primary)]"
                             title={fileName}
                         >
                             {fileName}
                         </div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                            <span className="text-gray-500">
+                            <span className="text-[color:var(--text-secondary)]">
                                 {formatFileSizeBytes(size) || 'Không rõ dung lượng'}
                             </span>
                             {fileSavedOnDevice && (
@@ -661,7 +661,7 @@ const FileAttachmentCard: React.FC<{
                 <div className="flex shrink-0 items-center gap-1">
                     <button
                         type="button"
-                        className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white p-0 text-gray-600 shadow-sm hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-60"
+                        className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-[color:var(--bg-primary)] p-0 text-[color:var(--text-secondary)] shadow-sm hover:bg-[color:var(--bg-hover)] disabled:pointer-events-none disabled:opacity-60"
                         title="Xem nơi tải xuống — nếu chưa tải sẽ tải vào thư mục mặc định rồi hướng dẫn (Ctrl+J)"
                         aria-label={
                             downloadsHelpBusy
@@ -697,7 +697,7 @@ const FileAttachmentCard: React.FC<{
                     >
                         {downloadsHelpBusy ? (
                             <svg
-                                className="h-5 w-5 animate-spin text-gray-500"
+                                className="h-5 w-5 animate-spin text-[color:var(--text-secondary)]"
                                 viewBox="0 0 24 24"
                                 fill="none"
                                 aria-hidden
@@ -735,7 +735,7 @@ const FileAttachmentCard: React.FC<{
                     </button>
                     <button
                         type="button"
-                        className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white p-0 text-[#0068ff] shadow-sm hover:bg-sky-50"
+                        className="box-border inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-[color:var(--bg-primary)] p-0 text-[#0068ff] shadow-sm hover:bg-sky-50"
                         title="Chọn nơi lưu (Chrome / Edge). Trình khác: tải về Tải xuống mặc định."
                         aria-label="Tải xuống — chọn nơi lưu"
                         onClick={(e) =>
@@ -933,7 +933,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         return (
             <div className="flex justify-center my-2">
-                <div className="bg-white border border-gray-200 shadow-sm rounded-full px-4 py-2 flex items-center gap-2 text-sm text-gray-600 max-w-[90%]">
+                <div className="bg-[color:var(--bg-primary)] border border-gray-200 shadow-sm rounded-full px-4 py-2 flex items-center gap-2 text-sm text-[color:var(--text-secondary)] max-w-[90%]">
                     <span className={clsx("flex shrink-0", isPollSystemMessage ? "text-emerald-500" : "text-orange-500")}>
                         {isPollSystemMessage ? (
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1058,7 +1058,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             return (
                 <div className="flex flex-col py-0">
                     <div className="flex items-center gap-2 mb-1.5">
-                        <div className={clsx("p-1.5 rounded-full bg-gray-50 flex items-center justify-center", iconColor)}>
+                        <div className={clsx("p-1.5 rounded-full bg-[color:var(--bg-hover)] flex items-center justify-center", iconColor)}>
                             <Icon size={15} />
                         </div>
                         <div className="flex flex-col">
@@ -1088,7 +1088,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     */}
                     {!groupEnded && (
                         <>
-                            <div className="h-[1px] bg-gray-100 w-full mb-1" />
+                            <div className="h-[1px] bg-[color:var(--bg-secondary)] w-full mb-1" />
                             <button
                                 onClick={handlePrimaryAction}
                                 className="w-full py-0.5 text-blue-600 font-semibold text-[12px] hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-center gap-1"
@@ -1128,7 +1128,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 )}>
                     {/* Tên người gửi (hiện ở đầu nhóm) */}
                     {!isMine && senderName && (
-                        <span className="text-xs text-gray-500 mb-0.5 ml-1 font-medium">{senderName}</span>
+                        <span className="text-xs text-[color:var(--text-secondary)] mb-0.5 ml-1 font-medium">{senderName}</span>
                     )}
 
                     {/* Nội dung tin nhắn */}
@@ -1137,9 +1137,14 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             'px-3.5 py-2.5 break-words relative flex flex-col group/bubble message-bubble-content',
                             bubbleRadius,
                             isMine
-                                ? (message.isRecall ? 'bg-gray-100 text-gray-500 italic border border-transparent' : 'bg-[#e5f1ff] text-gray-900 border border-blue-100')
-                                : (message.isRecall ? 'bg-gray-100 text-gray-500 italic border border-transparent' : 'bg-white text-gray-900 shadow-sm border border-gray-100')
+                                ? (message.isRecall ? 'italic border border-transparent' : 'border')
+                                : (message.isRecall ? 'italic border border-transparent' : 'shadow-sm border')
                         )}
+                        style={{
+                            backgroundColor: message.isRecall ? 'var(--bg-secondary)' : (isMine ? 'var(--bg-message-own)' : 'var(--bg-message-other)'),
+                            color: message.isRecall ? 'var(--text-secondary)' : 'var(--text-primary)',
+                            borderColor: 'var(--border-primary)'
+                        }}
                         onContextMenu={(e) => {
                             if (!message.isRecall && !isCallMessage) {
                                 e.preventDefault();
@@ -1157,7 +1162,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 {onReply && (
                                     <button
                                         onClick={() => onReply(message)}
-                                        className="bg-white text-gray-500 shadow-sm border border-gray-100 rounded-full w-7 h-7 flex items-center justify-center hover:bg-gray-50 focus:outline-none"
+                                        className="bg-[color:var(--bg-primary)] text-[color:var(--text-secondary)] shadow-sm border border-gray-100 rounded-full w-7 h-7 flex items-center justify-center hover:bg-[color:var(--bg-hover)] focus:outline-none"
                                         title="Trả lời"
                                     >
                                         <svg className="w-3.5 h-3.5 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1190,7 +1195,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                             }
                                             setShowMoreMenu(true);
                                         }}
-                                        className="bg-white text-gray-500 shadow-sm border border-gray-100 rounded-full w-7 h-7 flex items-center justify-center hover:bg-gray-50 focus:outline-none"
+                                        className="bg-[color:var(--bg-primary)] text-[color:var(--text-secondary)] shadow-sm border border-gray-100 rounded-full w-7 h-7 flex items-center justify-center hover:bg-[color:var(--bg-hover)] focus:outline-none"
                                         title="Thêm"
                                     >
                                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -1220,12 +1225,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         zIndex: 9999,
                                         minWidth: 180,
                                     }}
-                                    className="bg-white rounded-xl shadow-lg border border-gray-200 py-1.5"
+                                    className="bg-[color:var(--bg-primary)] rounded-xl shadow-lg border border-gray-200 py-1.5"
                                 >
                                     {/* Copy */}
                                     <button
                                         onClick={() => { navigator.clipboard.writeText(message.content || ''); setShowMoreMenu(false); setMenuPos(null); }}
-                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                                     >
                                         <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                                         Copy tin nhắn
@@ -1234,7 +1239,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     {onTogglePin && !isCallMessage && (
                                         <button
                                             onClick={() => { onTogglePin(message.id, !!message.pinned); setShowMoreMenu(false); setMenuPos(null); }}
-                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                                         >
                                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
                                             {message.pinned ? 'Bỏ ghim' : 'Ghim tin nhắn'}
@@ -1244,7 +1249,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     {onReply && !isCallMessage && (
                                         <button
                                             onClick={() => { onReply(message); setShowMoreMenu(false); setMenuPos(null); }}
-                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                                         >
                                             <svg className="w-4 h-4 text-gray-400 transform -scale-x-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
                                             Trả lời
@@ -1254,7 +1259,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     {!isCallMessage && (
                                         <button
                                             onClick={() => { onForward?.(message); setShowMoreMenu(false); setMenuPos(null); }}
-                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                            className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                                         >
                                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                                             Chia sẻ
@@ -1263,7 +1268,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     {/* View Detail */}
                                     <button
                                         onClick={() => { setShowMessageDetail(true); setShowMoreMenu(false); setMenuPos(null); }}
-                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        className="w-full flex items-center gap-3 px-3.5 py-2 text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] transition-colors"
                                     >
                                         <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                         Xem chi tiết
@@ -1312,9 +1317,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             return (
                                 <div
                                     className={clsx(
-                                        "mb-1.5 p-1.5 bg-[#c7e0ff] rounded text-xs border-l-2 cursor-pointer hover:bg-[#b8d6f7] transition-colors",
+                                        "mb-1.5 p-1.5 rounded text-xs border-l-2 cursor-pointer transition-colors",
                                         isMine ? "border-blue-300" : "border-blue-500"
                                     )}
+                                    style={{ backgroundColor: 'var(--bg-tertiary)' }}
                                     onClick={() => repliedMessage.id && onScrollToMessage?.(repliedMessage.id)}
                                 >
                                     <span className="font-medium block text-blue-700">
@@ -1322,33 +1328,33 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     </span>
                                     <div className="flex items-center gap-2 pt-0.5 min-w-0">
                                         {repliedMessage.isRecall ? (
-                                            <span className="line-clamp-2 text-gray-700">[Tin nhắn đã thu hồi]</span>
+                                            <span className="line-clamp-2 text-[color:var(--text-secondary)]">[Tin nhắn đã thu hồi]</span>
                                         ) : rt === 'IMAGE' && rUrl ? (
                                             <>
                                                 <img src={thumb || rUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover bg-gray-200" />
-                                                <span className="line-clamp-2 text-gray-700">Ảnh</span>
+                                                <span className="line-clamp-2 text-[color:var(--text-secondary)]">Ảnh</span>
                                             </>
                                         ) : rt === 'VIDEO' && rUrl ? (
                                             <>
                                                 <div className="h-10 w-10 shrink-0 rounded bg-gray-800 flex items-center justify-center text-white text-[10px]">▶</div>
-                                                <span className="line-clamp-2 text-gray-700">Video{rName ? ` · ${rName}` : ''}</span>
+                                                <span className="line-clamp-2 text-[color:var(--text-secondary)]">Video{rName ? ` · ${rName}` : ''}</span>
                                             </>
                                         ) : rt === 'VOICE' && rUrl ? (
                                             <>
                                                 <div className="h-9 w-9 shrink-0 rounded bg-[#eff6ff] flex items-center justify-center text-blue-500">
                                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                                                 </div>
-                                                <span className="line-clamp-2 text-gray-700">Tin nhắn thoại</span>
+                                                <span className="line-clamp-2 text-[color:var(--text-secondary)]">Tin nhắn thoại</span>
                                             </>
                                         ) : (rt === 'FILE' || rt === 'DOCUMENT') ? (
                                             <>
                                                 <div className="h-9 w-9 shrink-0 rounded bg-blue-100 flex items-center justify-center text-blue-600">
                                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                                                 </div>
-                                                <span className="line-clamp-2 text-gray-700 truncate">{rName || 'Tệp đính kèm'}</span>
+                                                <span className="line-clamp-2 text-[color:var(--text-secondary)] truncate">{rName || 'Tệp đính kèm'}</span>
                                             </>
                                         ) : (
-                                            <span className="line-clamp-2 text-gray-700">{repliedMessage.content || '[Tin nhắn]'}</span>
+                                            <span className="line-clamp-2 text-[color:var(--text-secondary)]">{repliedMessage.content || '[Tin nhắn]'}</span>
                                         )}
                                     </div>
                                 </div>
@@ -1579,7 +1585,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         {/* Hiển thị Pill cảm xúc hợp nhất */}
                         {sortedEmojis.length > 0 && (
                             <div
-                                className="flex items-center gap-1 bg-white border border-gray-200 rounded-full px-1.5 py-0.5 shadow-sm text-xs cursor-pointer hover:bg-gray-50 transition-colors mr-1"
+                                className="flex items-center gap-1 bg-[color:var(--bg-primary)] border border-gray-200 rounded-full px-1.5 py-0.5 shadow-sm text-xs cursor-pointer hover:bg-[color:var(--bg-hover)] transition-colors mr-1"
                                 onClick={(e) => { e.stopPropagation(); setShowReactionDetail(true); setSelectedEmojiTab(null); }}
                             >
                                 <div className="flex -space-x-1">
@@ -1588,7 +1594,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     ))}
                                 </div>
                                 {totalReactions > 0 && (
-                                    <span className="text-gray-600 font-medium pl-0.5 text-[11px]">{totalReactions}</span>
+                                    <span className="text-[color:var(--text-secondary)] font-medium pl-0.5 text-[11px]">{totalReactions}</span>
                                 )}
                             </div>
                         )}
@@ -1607,7 +1613,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             >
                                 <button
                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReact(latestEmoji || '👍'); }}
-                                    className="w-[26px] h-[26px] bg-white border border-gray-200 outline-none text-gray-500 hover:text-blue-500 rounded-full shadow-sm flex items-center justify-center transition-colors"
+                                    className="w-[26px] h-[26px] bg-[color:var(--bg-primary)] border border-gray-200 outline-none text-[color:var(--text-secondary)] hover:text-blue-500 rounded-full shadow-sm flex items-center justify-center transition-colors"
                                     title="Thích"
                                 >
                                     {latestEmoji ? (
@@ -1624,7 +1630,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     <div className={clsx("absolute bottom-full pb-1 z-30", isMine ? "right-0" : "left-0")}>
                                         <div
                                             className={clsx(
-                                                "bg-white rounded-[20px] shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-gray-100 p-1.5 flex items-center gap-1 transform hover:scale-100 transition-all",
+                                                "bg-[color:var(--bg-primary)] rounded-[20px] shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-gray-100 p-1.5 flex items-center gap-1 transform hover:scale-100 transition-all",
                                                 isMine ? "origin-bottom-right" : "origin-bottom-left"
                                             )}
                                             onMouseEnter={() => setIsHoveringReactions(true)}
@@ -1638,7 +1644,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                                         e.stopPropagation();
                                                         handleReact(emoji);
                                                     }}
-                                                    className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 rounded-full text-xl transition-all hover:-translate-y-1"
+                                                    className="w-9 h-9 flex items-center justify-center hover:bg-[color:var(--bg-secondary)] rounded-full text-xl transition-all hover:-translate-y-1"
                                                 >
                                                     {emoji}
                                                 </button>
@@ -1672,15 +1678,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             {showReactionDetail && totalReactions > 0 && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowReactionDetail(false)}>
                     <div
-                        className="bg-white rounded-xl shadow-2xl w-[420px] max-h-[400px] flex flex-col overflow-hidden"
+                        className="bg-[color:var(--bg-primary)] rounded-xl shadow-2xl w-[420px] max-h-[400px] flex flex-col overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                            <span className="font-semibold text-base text-gray-800">Biểu cảm</span>
+                            <span className="font-semibold text-base text-[color:var(--text-primary)]">Biểu cảm</span>
                             <button
                                 onClick={() => setShowReactionDetail(false)}
-                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[color:var(--bg-secondary)] text-gray-400 hover:text-[color:var(--text-secondary)] transition-colors"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1691,13 +1697,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         {/* Body: Left Tabs + Right User List */}
                         <div className="flex flex-1 overflow-hidden">
                             {/* Left: Emoji Tabs */}
-                            <div className="w-[120px] border-r border-gray-100 overflow-y-auto bg-gray-50/50 shrink-0">
+                            <div className="w-[120px] border-r border-gray-100 overflow-y-auto bg-[color:var(--bg-hover)]/50 shrink-0">
                                 {/* Tất cả */}
                                 <button
                                     onClick={() => setSelectedEmojiTab(null)}
                                     className={clsx(
                                         "w-full flex items-center justify-between px-3 py-2.5 text-sm transition-colors",
-                                        selectedEmojiTab === null ? "bg-blue-50 text-blue-600 font-semibold border-r-2 border-blue-500" : "text-gray-600 hover:bg-gray-100"
+                                        selectedEmojiTab === null ? "bg-blue-50 text-blue-600 font-semibold border-r-2 border-blue-500" : "text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-secondary)]"
                                     )}
                                 >
                                     <span>Tất cả</span>
@@ -1710,7 +1716,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         onClick={() => setSelectedEmojiTab(emoji)}
                                         className={clsx(
                                             "w-full flex items-center justify-between px-3 py-2.5 text-sm transition-colors",
-                                            selectedEmojiTab === emoji ? "bg-blue-50 text-blue-600 font-semibold border-r-2 border-blue-500" : "text-gray-600 hover:bg-gray-100"
+                                            selectedEmojiTab === emoji ? "bg-blue-50 text-blue-600 font-semibold border-r-2 border-blue-500" : "text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-secondary)]"
                                         )}
                                     >
                                         <span className="text-base">{emoji}</span>
@@ -1740,21 +1746,21 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         const avatar = participant?.avatarUrl;
 
                                         return (
-                                            <div key={userId} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                                            <div key={userId} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 hover:bg-[color:var(--bg-hover)]/50 transition-colors">
                                                 <div className="flex items-center gap-3 min-w-0">
                                                     <img
                                                         src={getAvatarUrl(name, avatar)}
                                                         alt={name}
                                                         className="w-9 h-9 rounded-full object-cover shrink-0"
                                                     />
-                                                    <span className="text-sm font-medium text-gray-800 truncate">{name}</span>
+                                                    <span className="text-sm font-medium text-[color:var(--text-primary)] truncate">{name}</span>
                                                 </div>
                                                 <div className="flex items-center gap-0.5 shrink-0 ml-2">
                                                     {/* Show unique emojis stacked */}
                                                     {[...new Set(emojis)].map((e) => (
                                                         <span key={e} className="text-base">{e}</span>
                                                     ))}
-                                                    <span className="text-xs text-gray-500 font-medium ml-1">{emojis.length}</span>
+                                                    <span className="text-xs text-[color:var(--text-secondary)] font-medium ml-1">{emojis.length}</span>
                                                 </div>
                                             </div>
                                         );
@@ -1769,54 +1775,54 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             {/* Message Detail Modal */}
             {showMessageDetail && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={() => setShowMessageDetail(false)}>
-                    <div className="bg-white rounded-2xl shadow-2xl w-[380px] max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <div className="bg-[color:var(--bg-primary)] rounded-2xl shadow-2xl w-[380px] max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-                            <h3 className="text-base font-semibold text-gray-800">Chi tiết tin nhắn</h3>
-                            <button onClick={() => setShowMessageDetail(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100">
+                            <h3 className="text-base font-semibold text-[color:var(--text-primary)]">Chi tiết tin nhắn</h3>
+                            <button onClick={() => setShowMessageDetail(false)} className="text-gray-400 hover:text-[color:var(--text-secondary)] p-1 rounded-full hover:bg-[color:var(--bg-secondary)]">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
                         <div className="px-5 py-4 space-y-3 overflow-y-auto max-h-[60vh] text-sm">
                             <div className="flex justify-between">
-                                <span className="text-gray-500">Người gửi</span>
-                                <span className="font-medium text-gray-800">{message.senderName || message.senderId.slice(0, 8)}</span>
+                                <span className="text-[color:var(--text-secondary)]">Người gửi</span>
+                                <span className="font-medium text-[color:var(--text-primary)]">{message.senderName || message.senderId.slice(0, 8)}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-500">Thời gian</span>
-                                <span className="text-gray-800">{new Date(message.createdAt).toLocaleString('vi-VN')}</span>
+                                <span className="text-[color:var(--text-secondary)]">Thời gian</span>
+                                <span className="text-[color:var(--text-primary)]">{new Date(message.createdAt).toLocaleString('vi-VN')}</span>
                             </div>
                             {message.content && (
                                 <div>
-                                    <span className="text-gray-500 block mb-1">Nội dung</span>
-                                    <p className="text-gray-800 bg-gray-50 rounded-lg p-2.5 break-words">{message.content}</p>
+                                    <span className="text-[color:var(--text-secondary)] block mb-1">Nội dung</span>
+                                    <p className="text-[color:var(--text-primary)] bg-[color:var(--bg-hover)] rounded-lg p-2.5 break-words">{message.content}</p>
                                 </div>
                             )}
                             {effectiveFileUrl && (
                                 <div className="flex justify-between items-center">
-                                    <span className="text-gray-500">Tệp đính kèm</span>
+                                    <span className="text-[color:var(--text-secondary)]">Tệp đính kèm</span>
                                     <a href={effectiveFileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline truncate max-w-[180px] text-right">{effectiveFileName || 'Tải xuống'}</a>
                                 </div>
                             )}
                             {effectiveFileSize && effectiveFileSize > 0 && (
                                 <div className="flex justify-between">
-                                    <span className="text-gray-500">Kích thước</span>
-                                    <span className="text-gray-800">{effectiveFileSize < 1024 * 1024 ? (effectiveFileSize / 1024).toFixed(1) + ' KB' : (effectiveFileSize / (1024 * 1024)).toFixed(1) + ' MB'}</span>
+                                    <span className="text-[color:var(--text-secondary)]">Kích thước</span>
+                                    <span className="text-[color:var(--text-primary)]">{effectiveFileSize < 1024 * 1024 ? (effectiveFileSize / 1024).toFixed(1) + ' KB' : (effectiveFileSize / (1024 * 1024)).toFixed(1) + ' MB'}</span>
                                 </div>
                             )}
                             <div className="flex justify-between">
-                                <span className="text-gray-500">Trạng thái</span>
-                                <span className="text-gray-800">{message.pinned ? '📌 Đã ghim' : message.isRecall ? '🚫 Đã thu hồi' : '✓ Đã gửi'}</span>
+                                <span className="text-[color:var(--text-secondary)]">Trạng thái</span>
+                                <span className="text-[color:var(--text-primary)]">{message.pinned ? '📌 Đã ghim' : message.isRecall ? '🚫 Đã thu hồi' : '✓ Đã gửi'}</span>
                             </div>
                             {message.readBy && message.readBy.length > 0 && (
                                 <div className="flex justify-between">
-                                    <span className="text-gray-500">Đã đọc</span>
-                                    <span className="text-gray-800">{message.readBy.length} người</span>
+                                    <span className="text-[color:var(--text-secondary)]">Đã đọc</span>
+                                    <span className="text-[color:var(--text-primary)]">{message.readBy.length} người</span>
                                 </div>
                             )}
                             {totalReactions > 0 && (
                                 <div className="flex justify-between">
-                                    <span className="text-gray-500">Biểu cảm</span>
-                                    <span className="text-gray-800">{sortedEmojis.join(' ')} ({totalReactions})</span>
+                                    <span className="text-[color:var(--text-secondary)]">Biểu cảm</span>
+                                    <span className="text-[color:var(--text-primary)]">{sortedEmojis.join(' ')} ({totalReactions})</span>
                                 </div>
                             )}
 
@@ -1842,7 +1848,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         <>
                             <button
                                 type="button"
-                                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white"
+                                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-[color:var(--bg-primary)]/20 hover:bg-[color:var(--bg-primary)]/30 text-white"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     setImageLightbox((prev) =>
@@ -1862,7 +1868,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             </button>
                             <button
                                 type="button"
-                                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white"
+                                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-[color:var(--bg-primary)]/20 hover:bg-[color:var(--bg-primary)]/30 text-white"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     setImageLightbox((prev) =>
@@ -1885,7 +1891,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     )}
                     <button
                         type="button"
-                        className="absolute top-4 right-16 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+                        className="absolute top-4 right-16 w-9 h-9 flex items-center justify-center rounded-full bg-[color:var(--bg-primary)]/20 hover:bg-[color:var(--bg-primary)]/30 text-white transition-colors"
                         onClick={async (e) => {
                             e.stopPropagation();
                             const url = imageLightbox.urls[imageLightbox.index];
@@ -1912,7 +1918,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     </button>
                     <button
                         type="button"
-                        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+                        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-[color:var(--bg-primary)]/20 hover:bg-[color:var(--bg-primary)]/30 text-white transition-colors"
                         onClick={(e) => {
                             e.stopPropagation();
                             setImageLightbox(null);
@@ -1934,41 +1940,41 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     role="presentation"
                 >
                     <div
-                        className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 border border-gray-100"
+                        className="bg-[color:var(--bg-primary)] rounded-xl shadow-xl max-w-md w-full p-5 border border-gray-100"
                         onClick={(e) => e.stopPropagation()}
                         role="dialog"
                         aria-labelledby="downloads-help-title"
                     >
-                        <h3 id="downloads-help-title" className="text-base font-semibold text-gray-900 mb-2">
+                        <h3 id="downloads-help-title" className="text-base font-semibold text-[color:var(--text-primary)] mb-2">
                             Xem file đã tải ở đâu?
                         </h3>
                         {downloadsHelpJustFetched ? (
-                            <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                            <p className="text-sm text-[color:var(--text-secondary)] leading-relaxed mb-3">
                                 File vừa được tải xuống vào thư mục <strong>Tải xuống</strong> mặc định (đúng theo nơi lưu bạn đã cấu hình trong trình duyệt).
                                 Trang web không thể mở sẵn File Explorer; dùng phím tắt bên dưới để mở danh sách tải và thấy đường dẫn file.
                             </p>
                         ) : (
-                            <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                            <p className="text-sm text-[color:var(--text-secondary)] leading-relaxed mb-3">
                                 Trình duyệt không cho phép trang web mở trực tiếp thư mục <strong>Tải xuống</strong> trên máy (giống File Explorer).
                                 Bạn có thể xem danh sách và đường dẫn như sau:
                             </p>
                         )}
-                        <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1.5 mb-4">
+                        <ul className="text-sm text-[color:var(--text-secondary)] list-disc pl-5 space-y-1.5 mb-4">
                             <li>
-                                <strong>Chrome / Edge:</strong> nhấn <kbd className="px-1 py-0.5 rounded bg-gray-100 text-xs font-mono">Ctrl</kbd>{' '}
-                                + <kbd className="px-1 py-0.5 rounded bg-gray-100 text-xs font-mono">J</kbd>
+                                <strong>Chrome / Edge:</strong> nhấn <kbd className="px-1 py-0.5 rounded bg-[color:var(--bg-secondary)] text-xs font-mono">Ctrl</kbd>{' '}
+                                + <kbd className="px-1 py-0.5 rounded bg-[color:var(--bg-secondary)] text-xs font-mono">J</kbd>
                             </li>
                             <li>
                                 <strong>Firefox:</strong>{' '}
-                                <kbd className="px-1 py-0.5 rounded bg-gray-100 text-xs font-mono">Ctrl</kbd> +{' '}
-                                <kbd className="px-1 py-0.5 rounded bg-gray-100 text-xs font-mono">Shift</kbd> +{' '}
-                                <kbd className="px-1 py-0.5 rounded bg-gray-100 text-xs font-mono">Y</kbd>
+                                <kbd className="px-1 py-0.5 rounded bg-[color:var(--bg-secondary)] text-xs font-mono">Ctrl</kbd> +{' '}
+                                <kbd className="px-1 py-0.5 rounded bg-[color:var(--bg-secondary)] text-xs font-mono">Shift</kbd> +{' '}
+                                <kbd className="px-1 py-0.5 rounded bg-[color:var(--bg-secondary)] text-xs font-mono">Y</kbd>
                             </li>
                             <li>
                                 <strong>Safari (Mac):</strong> menu Window → Downloads
                             </li>
                         </ul>
-                        <p className="text-xs text-gray-500 mb-4">
+                        <p className="text-xs text-[color:var(--text-secondary)] mb-4">
                             Sau khi file đã có trên máy, double-click trong thư mục để mở bằng Word, WPS hoặc phần mềm mặc định của hệ điều hành.
                         </p>
                         <button
