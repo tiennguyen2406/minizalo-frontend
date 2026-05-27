@@ -138,6 +138,7 @@ export default function LoginScreenWeb() {
                 alignItems: "center",
                 justifyContent: "center",
                 padding: 16,
+                colorScheme: "light",
             }}
         >
             <div
@@ -398,6 +399,8 @@ function PasswordLoginForm({ onSwitchToQr }: { onSwitchToQr: () => void }) {
                         fontSize: 15,
                         outline: "none",
                         boxSizing: "border-box",
+                        backgroundColor: COLORS.white,
+                        color: COLORS.text,
                     }}
                 />
             </div>
@@ -417,6 +420,8 @@ function PasswordLoginForm({ onSwitchToQr }: { onSwitchToQr: () => void }) {
                         fontSize: 15,
                         outline: "none",
                         boxSizing: "border-box",
+                        backgroundColor: COLORS.white,
+                        color: COLORS.text,
                     }}
                 />
             </div>
