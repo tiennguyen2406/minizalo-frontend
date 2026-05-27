@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -11,6 +11,7 @@ import {
     Animated,
     Dimensions,
     Alert,
+    FlatList,
     Modal,
     Pressable,
     Linking,
@@ -19,6 +20,7 @@ import {
 import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { ResizeMode, Video } from "expo-av";
 import CreateGroupScreen from "./CreateGroupScreen";
 import AddToGroupModal from "../components/AddToGroupModal";
 import MediaStorageScreen from "./MediaStorageScreen";
@@ -130,12 +132,23 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     const [savingPersonalSetting, setSavingPersonalSetting] = useState(false);
     const isCloud = type === "CLOUD";
 
-    type CloudGridItem = { id: string; url: string; label?: string };
+    type CloudGridItem = { id: string; url: string; messageId?: string; label?: string };
     const [cloudPhotos, setCloudPhotos] = useState<CloudGridItem[]>([]);
     const [cloudVideos, setCloudVideos] = useState<CloudGridItem[]>([]);
     const [cloudLinks, setCloudLinks] = useState<CloudGridItem[]>([]);
     const [cloudFiles, setCloudFiles] = useState<CloudGridItem[]>([]);
     const [cloudStorageStats, setCloudStorageStats] = useState<CloudStorageBreakdown>(EMPTY_CLOUD_STORAGE);
+    const [cloudReloadNonce, setCloudReloadNonce] = useState(0);
+    const [cloudPreviewOpen, setCloudPreviewOpen] = useState(false);
+    const [cloudPreviewIndex, setCloudPreviewIndex] = useState(0);
+
+    const cloudPreviewItems = useMemo(
+        () => [
+            ...cloudPhotos.map((item) => ({ ...item, kind: "photo" as const })),
+            ...cloudVideos.map((item) => ({ ...item, kind: "video" as const })),
+        ],
+        [cloudPhotos, cloudVideos],
+    );
 
     useEffect(() => {
         setNicknameDraft(displayName);
@@ -416,13 +429,14 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                         const fileUrl = (m as any).fileUrl as string | undefined;
                         if (fileUrl) {
                             if (mt === "IMAGE") {
-                                pushUnique(photos, { id: `${m.messageId}-fu`, url: fileUrl }, 30);
+                                pushUnique(photos, { id: `${m.messageId}-fu`, url: fileUrl, messageId: m.messageId }, 30);
                             } else if (mt === "VIDEO") {
-                                pushUnique(videos, { id: `${m.messageId}-fv`, url: fileUrl }, 30);
+                                pushUnique(videos, { id: `${m.messageId}-fv`, url: fileUrl, messageId: m.messageId }, 30);
                             } else if (mt === "FILE" || mt === "DOCUMENT" || mt === "VOICE") {
                                 pushUnique(files, {
                                     id: `${m.messageId}-ff`,
                                     url: fileUrl,
+                                    messageId: m.messageId,
                                     label: (m as any).fileName || (m as any).filename,
                                 }, 30);
                             }
@@ -433,13 +447,14 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                                 const kind = classifyAtt(att);
                                 const id = `${m.messageId}-a${idx}-${att.id || att.url}`;
                                 if (kind === "image") {
-                                    pushUnique(photos, { id, url: att.url }, 30);
+                                    pushUnique(photos, { id, url: att.url, messageId: m.messageId }, 30);
                                 } else if (kind === "video") {
-                                    pushUnique(videos, { id, url: att.url }, 30);
+                                    pushUnique(videos, { id, url: att.url, messageId: m.messageId }, 30);
                                 } else {
                                     pushUnique(files, {
                                         id,
                                         url: att.url,
+                                        messageId: m.messageId,
                                         label: att.filename || att.name,
                                     }, 30);
                                 }
@@ -452,13 +467,14 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                             const urlOnly = c.startsWith("http") ? c.split(/\s+/)[0] : null;
                             if (urlOnly) {
                                 if (mt === "IMAGE") {
-                                    pushUnique(photos, { id: `${m.messageId}-cimg`, url: urlOnly }, 30);
+                                    pushUnique(photos, { id: `${m.messageId}-cimg`, url: urlOnly, messageId: m.messageId }, 30);
                                 } else if (mt === "VIDEO") {
-                                    pushUnique(videos, { id: `${m.messageId}-cvd`, url: urlOnly }, 30);
+                                    pushUnique(videos, { id: `${m.messageId}-cvd`, url: urlOnly, messageId: m.messageId }, 30);
                                 } else if (mt === "FILE" || mt === "DOCUMENT" || mt === "VOICE") {
                                     pushUnique(files, {
                                         id: `${m.messageId}-cf`,
                                         url: urlOnly,
+                                        messageId: m.messageId,
                                         label: (m as any).fileName,
                                     }, 30);
                                 }
@@ -501,7 +517,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
             return () => {
                 cancelled = true;
             };
-        }, [isCloud, roomId]),
+        }, [cloudReloadNonce, isCloud, roomId]),
     );
 
     // Cloud Options UI (My Documents style)
@@ -687,7 +703,10 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
             toValue: SCREEN_WIDTH,
             duration: 250,
             useNativeDriver: true,
-        }).start(() => setShowMediaStorage(false));
+        }).start(() => {
+            setShowMediaStorage(false);
+            setCloudReloadNonce((value) => value + 1);
+        });
     };
 
     // ── Modal: Thêm vào nhóm ──
@@ -771,6 +790,17 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     const cloudInner = SCREEN_WIDTH - cloudGutter * 2;
     const cloudTile = (cloudInner - cloudGap * (cloudCols - 1)) / cloudCols;
 
+    const openCloudPreview = (itemId: string) => {
+        const index = cloudPreviewItems.findIndex((item) => item.id === itemId);
+        if (index < 0) return;
+        setCloudPreviewIndex(index);
+        setCloudPreviewOpen(true);
+    };
+
+    const closeCloudPreview = () => {
+        setCloudPreviewOpen(false);
+    };
+
     const renderCloudCategoryGrid = (
         sectionTitle: string,
         sectionIcon: string,
@@ -801,8 +831,11 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                                     key={it.id}
                                     activeOpacity={0.85}
                                     onPress={() => {
-                                        const u = getImageUrl(it.url);
-                                        void Linking.openURL(u);
+                                        if (mode === "photo" || mode === "video") {
+                                            openCloudPreview(it.id);
+                                            return;
+                                        }
+                                        void Linking.openURL(getImageUrl(it.url));
                                     }}
                                     style={{
                                         width: cloudTile,
@@ -927,12 +960,6 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     <CloudHeader />
                     <CloudStorageCard />
                     <CloudActionCard
-                        title="Thêm dung lượng với zCloud"
-                        desc="100 GB dành cho My Documents để lưu thêm tài liệu, ảnh, video và ghi âm của riêng bạn"
-                        primary={{ label: "Thêm dung lượng", variant: "primary" }}
-                        onPress={() => Alert.alert("Thông báo", "Tính năng đang được phát triển.")}
-                    />
-                    <CloudActionCard
                         title="Dọn dẹp dữ liệu My Documents"
                         desc="Xóa bớt nội dung không cần thiết để có thêm dung lượng trống"
                         primary={{ label: "Xem và dọn dẹp", variant: "secondary" }}
@@ -985,6 +1012,80 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                         <MediaStorageScreen roomId={roomId} onClose={closeMediaStorage} />
                     </Animated.View>
                 )}
+
+                <Modal
+                    visible={cloudPreviewOpen}
+                    transparent
+                    animationType="fade"
+                    onRequestClose={closeCloudPreview}
+                >
+                    <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.96)", justifyContent: "center", alignItems: "center" }}>
+                        <TouchableOpacity
+                            onPress={closeCloudPreview}
+                            style={{ position: "absolute", top: 50, right: 18, zIndex: 10, padding: 10 }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <Ionicons name="close" size={30} color="#fff" />
+                        </TouchableOpacity>
+                        <FlatList
+                            data={cloudPreviewItems}
+                            horizontal
+                            pagingEnabled
+                            initialScrollIndex={cloudPreviewIndex}
+                            getItemLayout={(_, index) => ({
+                                length: SCREEN_WIDTH,
+                                offset: SCREEN_WIDTH * index,
+                                index,
+                            })}
+                            keyExtractor={(item) => item.id}
+                            showsHorizontalScrollIndicator={false}
+                            onMomentumScrollEnd={(event) => {
+                                const nextIndex = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                                setCloudPreviewIndex(nextIndex);
+                            }}
+                            onScrollToIndexFailed={(info) => {
+                                setTimeout(() => setCloudPreviewIndex(info.index), 80);
+                            }}
+                            renderItem={({ item, index }) => (
+                                <View style={{ width: SCREEN_WIDTH, flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 72 }}>
+                                    {item.kind === "video" ? (
+                                        <Video
+                                            source={{ uri: getImageUrl(item.url) }}
+                                            style={{ width: SCREEN_WIDTH, height: "100%", backgroundColor: "#000" }}
+                                            resizeMode={ResizeMode.CONTAIN}
+                                            useNativeControls
+                                            shouldPlay={index === cloudPreviewIndex}
+                                            isLooping={false}
+                                        />
+                                    ) : (
+                                        <Image
+                                            source={{ uri: getImageUrl(item.url) }}
+                                            style={{ width: SCREEN_WIDTH, height: "100%" }}
+                                            resizeMode="contain"
+                                        />
+                                    )}
+                                </View>
+                            )}
+                        />
+                        {cloudPreviewItems.length > 1 ? (
+                            <View
+                                style={{
+                                    position: "absolute",
+                                    bottom: 38,
+                                    alignSelf: "center",
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 6,
+                                    borderRadius: 16,
+                                    backgroundColor: "rgba(0,0,0,0.55)",
+                                }}
+                            >
+                                <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
+                                    {cloudPreviewIndex + 1} / {cloudPreviewItems.length}
+                                </Text>
+                            </View>
+                        ) : null}
+                    </View>
+                </Modal>
             </View>
         );
     }

@@ -10,6 +10,7 @@ import {
     Image,
     Dimensions,
     ActivityIndicator,
+    Alert,
     Modal,
     Linking
 } from "react-native";
@@ -19,7 +20,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
 import { chatService } from "@/shared/services/chatService";
 import type { MessageDynamo, Attachment } from "@/shared/services/chatService";
+import { MessageService } from "@/shared/services/MessageService";
 import { useThemeColors } from "@/shared/theme/colors";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const COLUMN_COUNT = 3;
@@ -94,6 +97,27 @@ function isVideoAttachment(att: Attachment | null | undefined): boolean {
     );
 }
 
+function normalizeCloudUrl(url: string | undefined): string {
+    const raw = (url || "").trim();
+    if (!raw) return "";
+    const withoutQuery = raw.split("?")[0] || raw;
+    try {
+        return decodeURIComponent(withoutQuery);
+    } catch {
+        return withoutQuery;
+    }
+}
+
+function cloudUrlMatches(a: string | undefined, b: string | undefined): boolean {
+    const left = normalizeCloudUrl(a);
+    const right = normalizeCloudUrl(b);
+    if (!left || !right) return false;
+    if (left === right || left.endsWith(right) || right.endsWith(left)) return true;
+    const leftName = left.slice(left.lastIndexOf("/") + 1);
+    const rightName = right.slice(right.lastIndexOf("/") + 1);
+    return !!leftName && leftName === rightName;
+}
+
 export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScreenProps) {
     const colors = useThemeColors();
     const [tab, setTab] = useState<"IMAGE" | "FILE" | "LINK">("IMAGE");
@@ -101,6 +125,9 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
     const [loading, setLoading] = useState(true);
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+    const [selected, setSelected] = useState<Set<string>>(() => new Set());
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     const fetchAllMessages = useCallback(async () => {
         setLoading(true);
@@ -128,6 +155,11 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
     useEffect(() => {
         fetchAllMessages();
     }, [fetchAllMessages]);
+
+    useEffect(() => {
+        setSelected(new Set());
+        setSelectionMode(false);
+    }, [tab]);
 
     // Lọc ra danh sách attachments
     const { images, files, links } = useMemo(() => {
@@ -190,6 +222,105 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
         setPreviewIndex(null);
     }, []);
 
+    const selectableItems = useMemo(() => {
+        const base = tab === "IMAGE" ? images : tab === "FILE" ? files : [];
+        return base.map((item) => ({
+            key: `${item.msg.messageId}-${item.att.url}`,
+            messageId: item.msg.messageId,
+            url: item.att.url,
+        }));
+    }, [files, images, tab]);
+
+    const selectedItems = useMemo(
+        () => selectableItems.filter((item) => selected.has(item.key)),
+        [selectableItems, selected],
+    );
+
+    const patchDeletedItemsInChat = useCallback((items: { messageId: string; url: string }[]) => {
+        if (!items.length) return;
+        const store = useChatStore.getState();
+        const currentMessages = store.messages[roomId] || [];
+        if (!currentMessages.length) return;
+        const nextMessages = currentMessages.map((message) => {
+            const selectedForMessage = items.filter((item) => item.messageId === message.id);
+            if (!selectedForMessage.length) return message;
+            const nextAttachments = (message.attachments || []).filter(
+                (attachment: any) => !selectedForMessage.some((item) => cloudUrlMatches(attachment?.url, item.url)),
+            );
+            if ((message.attachments || []).length > 0) {
+                if (nextAttachments.length === 0) {
+                    return { ...message, attachments: [], fileUrl: undefined, fileName: undefined, fileSize: undefined, isRecall: true, content: "[Tin nhắn đã thu hồi]" };
+                }
+                const first = nextAttachments[0] as any;
+                return {
+                    ...message,
+                    attachments: nextAttachments,
+                    fileUrl: first?.url,
+                    fileName: first?.name || first?.filename,
+                    fileSize: first?.size,
+                };
+            }
+            const shouldRecallLegacy = selectedForMessage.some((item) => cloudUrlMatches(message.fileUrl || message.content, item.url));
+            return shouldRecallLegacy
+                ? { ...message, fileUrl: undefined, fileName: undefined, fileSize: undefined, isRecall: true, content: "[Tin nhắn đã thu hồi]" }
+                : message;
+        });
+        store.setMessages(roomId, nextMessages);
+    }, [roomId]);
+
+    const toggleSelected = useCallback((key: string) => {
+        setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    }, []);
+
+    const enterSelectionMode = useCallback((key: string) => {
+        setSelectionMode(true);
+        setSelected((prev) => {
+            const next = new Set(prev);
+            next.add(key);
+            return next;
+        });
+    }, []);
+
+    const exitSelectionMode = useCallback(() => {
+        setSelectionMode(false);
+        setSelected(new Set());
+    }, []);
+
+    const deleteSelected = useCallback(() => {
+        if (!selectedItems.length || deleting) return;
+        Alert.alert(
+            "Xóa nội dung",
+            `Bạn có chắc chắn muốn xóa ${selectedItems.length} mục đã chọn khỏi My Documents?`,
+            [
+                { text: "Hủy", style: "cancel" },
+                {
+                    text: "Xóa",
+                    style: "destructive",
+                    onPress: async () => {
+                        setDeleting(true);
+                        try {
+                            await MessageService.deleteCloudMediaItems(roomId, selectedItems);
+                            patchDeletedItemsInChat(selectedItems);
+                            setSelected(new Set());
+                            setSelectionMode(false);
+                            await fetchAllMessages();
+                        } catch (error: any) {
+                            const msg = error?.response?.data?.message || "Không thể xóa nội dung đã chọn.";
+                            Alert.alert("Lỗi", msg);
+                        } finally {
+                            setDeleting(false);
+                        }
+                    },
+                },
+            ],
+        );
+    }, [deleting, fetchAllMessages, patchDeletedItemsInChat, roomId, selectedItems]);
+
     const renderTabHeader = () => (
         <View style={[s.tabContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             {(["IMAGE", "FILE", "LINK"] as const).map((t) => (
@@ -212,9 +343,14 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             keyExtractor={(item, index) => `${item.msg.messageId}-${index}`}
             numColumns={COLUMN_COUNT}
             contentContainerStyle={{ padding: 8 }}
-            renderItem={({ item, index }) => (
+            renderItem={({ item, index }) => {
+                const key = `${item.msg.messageId}-${item.att.url}`;
+                const checked = selected.has(key);
+                return (
                 <TouchableOpacity
-                    onPress={() => openPreview(index)}
+                    onPress={() => selectionMode ? toggleSelected(key) : openPreview(index)}
+                    onLongPress={() => enterSelectionMode(key)}
+                    delayLongPress={2000}
                     style={{ margin: 4, borderRadius: 12, overflow: "hidden", backgroundColor: colors.searchBg }}
                 >
                     {isVideoAttachment(item.att) ? (
@@ -243,8 +379,17 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                             resizeMode="cover"
                         />
                     )}
+                    {selectionMode ? (
+                        <TouchableOpacity
+                            onPress={() => toggleSelected(key)}
+                            style={[s.checkBadge, { backgroundColor: checked ? colors.primary : "rgba(0,0,0,0.38)" }]}
+                        >
+                            {checked ? <Ionicons name="checkmark" size={18} color="#fff" /> : null}
+                        </TouchableOpacity>
+                    ) : null}
                 </TouchableOpacity>
-            )}
+            );
+            }}
             ListEmptyComponent={
                 <View style={s.emptyContainer}>
                     <Text style={[s.emptyText, { color: colors.textSecondary }]}>Chưa có ảnh nào được gửi</Text>
@@ -258,10 +403,15 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             data={files}
             keyExtractor={(item, index) => `${item.msg.messageId}-${index}`}
             contentContainerStyle={{ padding: 16 }}
-            renderItem={({ item }) => (
+            renderItem={({ item }) => {
+                const key = `${item.msg.messageId}-${item.att.url}`;
+                const checked = selected.has(key);
+                return (
                 <TouchableOpacity
                     style={[s.fileRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-                    onPress={() => Linking.openURL(getImageUrl(item.att.url))}
+                    onPress={() => selectionMode ? toggleSelected(key) : Linking.openURL(getImageUrl(item.att.url))}
+                    onLongPress={() => enterSelectionMode(key)}
+                    delayLongPress={2000}
                     activeOpacity={0.82}
                 >
                     <View style={[s.fileIcon, { backgroundColor: colors.searchBg }]}>
@@ -273,11 +423,24 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                         </Text>
                         <Text style={[s.fileSize, { color: colors.textSecondary }]}>{formatBytes(item.att.size)}</Text>
                     </View>
-                    <View style={[s.rowAction, { backgroundColor: colors.searchBg }]}>
-                        <Ionicons name="download-outline" size={20} color={colors.textSecondary} />
-                    </View>
+                    {selectionMode ? (
+                        <TouchableOpacity
+                            onPress={() => toggleSelected(key)}
+                            style={[s.rowAction, { backgroundColor: checked ? colors.primary : colors.searchBg }]}
+                        >
+                            {checked ? <Ionicons name="checkmark" size={20} color="#fff" /> : null}
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity
+                            onPress={() => Linking.openURL(getImageUrl(item.att.url))}
+                            style={[s.rowAction, { backgroundColor: colors.searchBg }]}
+                        >
+                            <Ionicons name="download-outline" size={20} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                    )}
                 </TouchableOpacity>
-            )}
+            );
+            }}
             ListEmptyComponent={
                 <View style={s.emptyContainer}>
                     <Text style={[s.emptyText, { color: colors.textSecondary }]}>Chưa có file nào được gửi</Text>
@@ -343,6 +506,29 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                         <Text style={{ fontSize: 18, fontWeight: "600", color: colors.headerText, flex: 1 }}>
                             Ảnh, file, link
                         </Text>
+                        {selectionMode ? (
+                            <TouchableOpacity
+                                onPress={exitSelectionMode}
+                                activeOpacity={0.75}
+                                style={{ paddingHorizontal: 8, paddingVertical: 6 }}
+                            >
+                                <Text style={{ color: colors.headerText, fontWeight: "700" }}>
+                                    Hủy
+                                </Text>
+                            </TouchableOpacity>
+                        ) : null}
+                        {selectedItems.length > 0 ? (
+                            <TouchableOpacity
+                                onPress={deleteSelected}
+                                disabled={deleting}
+                                activeOpacity={0.75}
+                                style={{ paddingHorizontal: 10, paddingVertical: 6 }}
+                            >
+                                <Text style={{ color: colors.headerText, fontWeight: "700" }}>
+                                    {deleting ? "Đang xóa" : `Xóa (${selectedItems.length})`}
+                                </Text>
+                            </TouchableOpacity>
+                        ) : null}
                     </View>
                 </SafeAreaView>
             </View>
@@ -512,6 +698,18 @@ const s = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    checkBadge: {
+        position: "absolute",
+        top: 8,
+        right: 8,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: "#fff",
         alignItems: "center",
         justifyContent: "center",
     },

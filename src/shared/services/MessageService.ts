@@ -20,6 +20,14 @@ export const MessageService = {
         await api.post('/messages/recall', { roomId, messageId });
     },
 
+    deleteCloudMessage: async (roomId: string, messageId: string): Promise<void> => {
+        await api.delete(`/messages/cloud/${roomId}/${messageId}`);
+    },
+
+    deleteCloudMediaItems: async (roomId: string, items: { messageId: string; url: string }[]): Promise<void> => {
+        await api.post(`/messages/cloud/${roomId}/media/delete`, { items });
+    },
+
     setReaction: async (roomId: string, messageId: string, emoji: string): Promise<void> => {
         await api.put(`/chat/${roomId}/messages/${messageId}/reactions`, { emoji });
     },

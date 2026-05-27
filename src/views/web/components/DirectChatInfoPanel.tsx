@@ -3,6 +3,7 @@ import { CollapsibleSection, ActionButton, ActionButtonRow, ToggleSwitch } from 
 import { useGroupStore } from '@/shared/store/useGroupStore';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { useFriendStore } from '@/shared/store/friendStore';
+import { usePostStore } from '@/shared/store/postStore';
 import { ChatRoom } from '@/shared/types';
 import ConfirmModal from './ConfirmModal';
 import { chatService, mapChatRoomResponseToFrontend } from '@/shared/services/chatService';
@@ -150,32 +151,49 @@ function formatProfileGender(value?: string | null): string {
     return value || 'Chưa cập nhật';
 }
 
-type PanelMediaItem = MediaGalleryItem & { message: Message };
+type PanelMediaItem = MediaGalleryItem & { id: string; message: Message };
 type DirectProfileModalData = Partial<UserProfile> & {
     id: string;
     username?: string | null;
     displayName?: string | null;
 };
 
-function getPanelMediaItem(message: Message): PanelMediaItem | null {
-    if (message.isRecall) return null;
-    const attachment = message.attachments?.[0];
-    const rawUrl = (message.fileUrl || attachment?.url || '').trim();
-    if (!rawUrl) return null;
-
+function getPanelMediaItems(message: Message): PanelMediaItem[] {
+    if (message.isRecall) return [];
+    const candidates = [
+        ...(message.attachments || []).map((attachment, index) => ({
+            rawUrl: (attachment?.url || '').trim(),
+            attachment,
+            index,
+        })),
+        ...(message.fileUrl
+            ? [{ rawUrl: message.fileUrl.trim(), attachment: undefined, index: -1 }]
+            : []),
+    ];
+    const seen = new Set<string>();
     const type = String(message.type || '').toUpperCase();
-    const name = `${message.fileName || ''} ${(attachment as any)?.name || ''} ${(attachment as any)?.filename || ''} ${rawUrl}`.toLowerCase();
-    const isVideo =
-        type === 'VIDEO' ||
-        (attachment ? isVideoAttachment(attachment) : false) ||
-        /\.(mp4|mov|m4v|webm|3gp|avi|mkv)(\?|#|$)/i.test(name);
-    const isImage =
-        type === 'IMAGE' ||
-        (attachment ? isImageAttachment(attachment) : false) ||
-        /\.(png|jpe?g|gif|webp|bmp|heic|heif)(\?|#|$)/i.test(name);
 
-    if (!isImage && !isVideo) return null;
-    return { url: getImageUrl(rawUrl) || rawUrl, kind: isVideo ? 'video' : 'image', message };
+    return candidates.flatMap(({ rawUrl, attachment, index }) => {
+        if (!rawUrl || seen.has(rawUrl)) return [];
+        seen.add(rawUrl);
+        const name = `${message.fileName || ''} ${(attachment as any)?.name || ''} ${(attachment as any)?.filename || ''} ${rawUrl}`.toLowerCase();
+        const isVideo =
+            type === 'VIDEO' ||
+            (attachment ? isVideoAttachment(attachment) : false) ||
+            /\.(mp4|mov|m4v|webm|3gp|avi|mkv)(\?|#|$)/i.test(name);
+        const isImage =
+            type === 'IMAGE' ||
+            (attachment ? isImageAttachment(attachment) : false) ||
+            /\.(png|jpe?g|gif|webp|bmp|heic|heif)(\?|#|$)/i.test(name);
+
+        if (!isImage && !isVideo) return [];
+        return [{
+            id: `${message.id}-${index}-${rawUrl}`,
+            url: getImageUrl(rawUrl) || rawUrl,
+            kind: isVideo ? 'video' : 'image',
+            message,
+        }];
+    });
 }
 
 interface DirectChatInfoPanelProps {
@@ -195,10 +213,11 @@ interface DirectChatInfoPanelProps {
 const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose, partner }) => {
     const { openCreateGroup } = useGroupStore();
     const { blockUser, removeFriend } = useFriendStore();
-    const { pinnedRooms, togglePinRoom, mutedRooms, toggleMuteRoom, upsertRoom } = useChatStore();
+    const posts = usePostStore((s) => s.posts);
+    const fetchPostFeed = usePostStore((s) => s.fetchFeed);
+    const { pinnedRooms, togglePinRoom, mutedRooms, toggleMuteRoom, hiddenRooms, toggleHiddenRoom, upsertRoom } = useChatStore();
 
     const [autoDeleteMsg] = useState('Không bao giờ');
-    const [hideConversation, setHideConversation] = useState(false);
     const [muteLabel, setMuteLabel] = useState<string | null>(null);
     const [nickname, setNickname] = useState<string | null>(null);
     const [toast, setToast] = useState<string | null>(null);
@@ -221,6 +240,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
     const [businessDescExpanded, setBusinessDescExpanded] = useState(false);
 
     const isPinned = pinnedRooms.has(room.id);
+    const isHidden = hiddenRooms.has(String(room.id));
     const displayName = nickname || partner?.fullName || partner?.username || room.name || 'Người dùng';
     const realName = partner?.fullName || partner?.username || room.name || 'Người dùng';
     const avatarSrc = partner?.avatarUrl ||
@@ -264,6 +284,24 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
             cancelled = true;
         };
     }, [partner?.id]);
+
+    useEffect(() => {
+        void fetchPostFeed({ silent: true });
+    }, [fetchPostFeed]);
+
+    const profilePostMedia = useMemo(() => {
+        if (!profileModal?.id) return [];
+        return posts
+            .filter((post) => post.userId === profileModal.id)
+            .flatMap((post) => {
+                const items = Array.isArray(post.mediaItems) && post.mediaItems.length > 0
+                    ? post.mediaItems
+                    : post.mediaUrl
+                        ? [{ id: post.id, mediaUrl: post.mediaUrl, mediaType: post.mediaType, sortOrder: 0 }]
+                        : [];
+                return items.filter((item) => item.mediaUrl && (item.mediaType === 'IMAGE' || item.mediaType === 'VIDEO'));
+            });
+    }, [posts, profileModal?.id]);
 
     const handleMuteConfirm = useCallback((optionId: string) => {
         const labels: Record<string, string> = {
@@ -380,10 +418,11 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
         }
     }, [profileModal, removeFriend, showToast]);
 
-    const mediaItems = useMemo(
-        () => allMessages.map(getPanelMediaItem).filter(Boolean).slice(-9).reverse() as PanelMediaItem[],
+    const allMediaItems = useMemo(
+        () => [...allMessages].reverse().flatMap(getPanelMediaItems),
         [allMessages],
     );
+    const previewMediaItems = useMemo(() => allMediaItems.slice(0, 9), [allMediaItems]);
 
     // File: any message with fileUrl that is NOT image or video
     const fileMessages = useMemo(() =>
@@ -589,13 +628,13 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
             </div>
 
             {/* Ảnh/Video */}
-            <CollapsibleSection title="Ảnh/Video" badge={mediaItems.length || undefined}>
-                {mediaItems.length > 0 ? (
+            <CollapsibleSection title="Ảnh/Video" badge={allMediaItems.length || undefined}>
+                {allMediaItems.length > 0 ? (
                     <div className="px-3">
                         <div className="grid grid-cols-3 gap-1 mb-2">
-                            {mediaItems.map((item, index) => (
+                            {previewMediaItems.map((item, index) => (
                                 <div
-                                    key={item.message.id}
+                                    key={item.id}
                                     role="button"
                                     tabIndex={0}
                                     onClick={() => setMediaPreviewIndex(index)}
@@ -637,7 +676,11 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                 </div>
                             ))}
                         </div>
-                        <button className="w-full text-sm text-center py-2 bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg text-[color:var(--text-secondary)] font-medium transition-colors">
+                        <button
+                            type="button"
+                            onClick={() => setMediaPreviewIndex(0)}
+                            className="w-full text-sm text-center py-2 bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg text-[color:var(--text-secondary)] font-medium transition-colors"
+                        >
                             Xem tất cả
                         </button>
                     </div>
@@ -774,7 +817,14 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 <div className="px-4 py-2.5 flex items-center gap-3">
                     <Icon.Eye />
                     <span className="flex-1 text-sm text-[color:var(--text-secondary)]">Ẩn trò chuyện</span>
-                    <ToggleSwitch checked={hideConversation} onChange={() => setHideConversation((v) => !v)} />
+                    <ToggleSwitch
+                        checked={isHidden}
+                        onChange={() => {
+                            if (isHidden || window.confirm('Ẩn cuộc trò chuyện này khỏi danh sách tin nhắn?')) {
+                                toggleHiddenRoom(room.id);
+                            }
+                        }}
+                    />
                 </div>
             </CollapsibleSection>
 
@@ -932,7 +982,24 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
 
                             <section className="px-5 py-5">
                                 <h3 className="mb-4 text-base font-semibold text-[color:var(--text-primary)]">Hình ảnh</h3>
-                                <div className="py-8 text-center text-sm text-[color:var(--text-secondary)]">Chưa có ảnh nào được chia sẻ</div>
+                                {profilePostMedia.length > 0 ? (
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {profilePostMedia.map((item) => {
+                                            const uri = getImageUrl(item.mediaUrl);
+                                            return (
+                                                <div key={item.id} className="aspect-square overflow-hidden rounded-lg bg-black">
+                                                    {item.mediaType === 'VIDEO' ? (
+                                                        <video src={uri} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                                                    ) : (
+                                                        <img src={uri} alt="" className="h-full w-full object-cover" />
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="py-8 text-center text-sm text-[color:var(--text-secondary)]">Chưa có ảnh nào được chia sẻ</div>
+                                )}
                             </section>
 
                             <div className="h-2 bg-[color:var(--bg-secondary)]" />
@@ -984,7 +1051,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
             />
 
             <MediaGalleryViewer
-                items={mediaItems}
+                items={allMediaItems}
                 index={mediaPreviewIndex}
                 onIndexChange={setMediaPreviewIndex}
                 onClose={() => setMediaPreviewIndex(null)}

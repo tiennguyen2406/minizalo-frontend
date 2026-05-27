@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useFriendStore } from "@/shared/store/friendStore";
+import { usePostStore } from "@/shared/store/postStore";
 import { useThemeStore } from "@/shared/store/themeStore";
 import friendCategoryService from "@/shared/services/friendCategoryService";
 import type { FriendResponseDto } from "@/shared/services/types";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
 import WebSearchInputBar, {
   WEB_SEARCH_PLACEHOLDER,
 } from "@/views/web/components/WebSearchInputBar";
@@ -38,6 +40,8 @@ export default function FriendsListScreen({
     clearError,
   } = useFriendStore();
   const isDark = useThemeStore((s) => s.theme === "dark");
+  const posts = usePostStore((s) => s.posts);
+  const fetchPostFeed = usePostStore((s) => s.fetchFeed);
   const [internalSearch, setInternalSearch] = useState("");
   const search = searchText ?? internalSearch;
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
@@ -80,6 +84,24 @@ export default function FriendsListScreen({
   >({});
   const [toast, setToast] = useState<string | null>(null);
   const toastTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    void fetchPostFeed({ silent: true });
+  }, [fetchPostFeed]);
+
+  const viewingProfileMedia = useMemo(() => {
+    if (!viewingProfile?.id) return [];
+    return posts
+      .filter((post) => post.userId === viewingProfile.id)
+      .flatMap((post) => {
+        const items = Array.isArray(post.mediaItems) && post.mediaItems.length > 0
+          ? post.mediaItems
+          : post.mediaUrl
+            ? [{ id: post.id, mediaUrl: post.mediaUrl, mediaType: post.mediaType, sortOrder: 0 }]
+            : [];
+        return items.filter((item) => item.mediaUrl && (item.mediaType === "IMAGE" || item.mediaType === "VIDEO"));
+      });
+  }, [posts, viewingProfile?.id]);
 
   // Load categories + assignments từ backend
   useEffect(() => {
@@ -2078,16 +2100,33 @@ export default function FriendsListScreen({
                 >
                   Hình ảnh
                 </h4>
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "20px 0",
-                    color: "var(--text-tertiary)",
-                    fontSize: 14,
-                  }}
-                >
-                  Chưa có ảnh nào được chia sẻ
-                </div>
+                {viewingProfileMedia.length > 0 ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                    {viewingProfileMedia.map((item) => {
+                      const uri = getImageUrl(item.mediaUrl);
+                      return (
+                        <div key={item.id} style={{ aspectRatio: "1 / 1", borderRadius: 8, overflow: "hidden", backgroundColor: "#000" }}>
+                          {item.mediaType === "VIDEO" ? (
+                            <video src={uri} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <img src={uri} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "20px 0",
+                      color: "var(--text-tertiary)",
+                      fontSize: 14,
+                    }}
+                  >
+                    Chưa có ảnh nào được chia sẻ
+                  </div>
+                )}
               </div>
 
               {/* Divider */}

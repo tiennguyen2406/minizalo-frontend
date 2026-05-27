@@ -24,6 +24,7 @@ const WebChatLayout: React.FC<WebChatLayoutProps> = ({
   onSelectRoom,
 }) => {
   const rooms = useChatStore((s) => s.rooms);
+  const hiddenRooms = useChatStore((s) => s.hiddenRooms);
   const { openCreateGroup } = useGroupStore();
   const theme = useThemeStore((s) => s.theme);
   const isDark = theme === "dark";
@@ -59,11 +60,12 @@ const WebChatLayout: React.FC<WebChatLayoutProps> = ({
         : filterTab === "all"
           ? mainRooms
           : rooms;
+    const visibleRooms = base.filter((r) => !hiddenRooms.has(String(r.id)));
     if (filterTab === "unread") {
-      return base.filter((r) => (r.unreadCount ?? 0) > 0);
+      return visibleRooms.filter((r) => (r.unreadCount ?? 0) > 0);
     }
-    return base;
-  }, [rooms, mainRooms, strangerRooms, filterTab]);
+    return visibleRooms;
+  }, [rooms, mainRooms, strangerRooms, filterTab, hiddenRooms]);
 
   const getTabStyle = (tab: FilterTab): React.CSSProperties => ({
     flex: 1,
