@@ -395,6 +395,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     const toggleMuteRoom = useChatStore((s) => s.toggleMuteRoom);
     const pinnedRooms = useChatStore((s) => s.pinnedRooms);
     const togglePinRoom = useChatStore((s) => s.togglePinRoom);
+    const hiddenRooms = useChatStore((s) => s.hiddenRooms);
+    const toggleHiddenRoom = useChatStore((s) => s.toggleHiddenRoom);
     const upsertRoom = useChatStore((s) => s.upsertRoom);
     const [group, setGroup] = useState<GroupDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -421,6 +423,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     const wallpaperPicker = useImagePicker({ folder: "groups/wallpapers/", aspect: [9, 16], allowsEditing: true });
 
     const currentUserId = useAuthStore.getState().user?.id;
+    const isRoomHidden = hiddenRooms.has(String(roomId));
 
     const openMediaStorage = () => {
         setShowMediaStorage(true);
@@ -437,6 +440,27 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
             duration: 250,
             useNativeDriver: true,
         }).start(() => setShowMediaStorage(false));
+    };
+
+    const handleToggleHiddenConversation = () => {
+        if (isRoomHidden) {
+            toggleHiddenRoom(roomId);
+            return;
+        }
+        Alert.alert(
+            "Ẩn trò chuyện",
+            "Cuộc trò chuyện sẽ không hiển thị trong danh sách. Bạn vẫn có thể tìm lại bằng tên nhóm.",
+            [
+                { text: "Hủy", style: "cancel" },
+                {
+                    text: "Ẩn",
+                    onPress: () => {
+                        toggleHiddenRoom(roomId);
+                        onClose();
+                    },
+                },
+            ],
+        );
     };
 
     const openGroupSettings = () => {
@@ -1164,7 +1188,19 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         />
                     }
                 />
-                <SectionRow icon="eye-off-outline" label="Ẩn trò chuyện" />
+                <SectionRow
+                    icon="eye-off-outline"
+                    label="Ẩn trò chuyện"
+                    showChevron={false}
+                    rightElement={
+                        <Switch
+                            value={isRoomHidden}
+                            onValueChange={handleToggleHiddenConversation}
+                            trackColor={{ false: colors.separator, true: colors.primary }}
+                            thumbColor="#fff"
+                        />
+                    }
+                />
 
                 <View style={{ height: 6, backgroundColor: colors.separator }} />
 

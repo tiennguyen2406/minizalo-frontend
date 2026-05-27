@@ -1545,6 +1545,7 @@ export default function WorkScreen() {
     const [postCommentDrafts, setPostCommentDrafts] = useState<Record<string, string>>({});
     const [expandedPostComments, setExpandedPostComments] = useState<Record<string, boolean>>({});
     const [activePostReactionPicker, setActivePostReactionPicker] = useState<string | null>(null);
+    const [dragPostReaction, setDragPostReaction] = useState<{ postId: string; type: string | null } | null>(null);
     const [reactionListPostId, setReactionListPostId] = useState<string | null>(null);
     const [postPrivacyTargetId, setPostPrivacyTargetId] = useState<string | null>(null);
     const [postActionMenuId, setPostActionMenuId] = useState<string | null>(null);
@@ -2724,6 +2725,23 @@ export default function WorkScreen() {
         const isCommentsOpen = !!expandedPostComments[post.id];
         const isWeb = size === "web";
         const isReactionPickerOpen = activePostReactionPicker === post.id;
+        const currentDragPostReaction = dragPostReaction;
+        const dragType = currentDragPostReaction && currentDragPostReaction.postId === post.id ? currentDragPostReaction.type : null;
+        const updateDragReaction = (event: any) => {
+            if (isWeb || longPressedPostReactionRef.current !== post.id) return;
+            const x = Number(event?.nativeEvent?.locationX ?? 0);
+            const y = Number(event?.nativeEvent?.locationY ?? 0);
+            if (y > 6) {
+                setDragPostReaction({ postId: post.id, type: null });
+                return;
+            }
+            const emojiSize = 38;
+            const gap = 6;
+            const paddingX = 8;
+            const index = Math.floor((x - paddingX) / (emojiSize + gap));
+            const reaction = POST_REACTIONS[Math.max(0, Math.min(POST_REACTIONS.length - 1, index))];
+            setDragPostReaction({ postId: post.id, type: reaction?.type || null });
+        };
         return (
             <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -2752,8 +2770,33 @@ export default function WorkScreen() {
                         onLongPress={() => {
                             if (!isWeb) {
                                 longPressedPostReactionRef.current = post.id;
+                                setDragPostReaction({ postId: post.id, type: null });
                                 openPostReactionPicker(post.id);
                             }
+                        }}
+                        onTouchMove={updateDragReaction}
+                        onTouchEnd={() => {
+                            if (!isWeb && longPressedPostReactionRef.current === post.id) {
+                                const currentDrag = dragPostReaction;
+                                const selectedType = currentDrag && currentDrag.postId === post.id ? currentDrag.type : null;
+                                setActivePostReactionPicker(null);
+                                setDragPostReaction(null);
+                                longPressedPostReactionRef.current = null;
+                                if (selectedType) {
+                                    handleReactTimelinePost(post.id, selectedType);
+                                }
+                            }
+                        }}
+                        onTouchCancel={() => {
+                            if (!isWeb && longPressedPostReactionRef.current === post.id) {
+                                setActivePostReactionPicker(null);
+                                setDragPostReaction(null);
+                                longPressedPostReactionRef.current = null;
+                            }
+                        }}
+                        onPressOut={() => {
+                            // Khi đang nhấn giữ rồi trượt lên, Pressable có thể bắn pressOut
+                            // trước touchEnd. Không đóng picker ở đây để thanh cảm xúc không biến mất giữa chừng.
                         }}
                         onPress={() => {
                             if (longPressedPostReactionRef.current === post.id) {
@@ -2825,7 +2868,8 @@ export default function WorkScreen() {
                                                 borderRadius: 19,
                                                 alignItems: "center",
                                                 justifyContent: "center",
-                                                backgroundColor: myReaction?.type === reaction.type ? "rgba(0, 104, 255, 0.15)" : "transparent",
+                                                backgroundColor: dragType === reaction.type || myReaction?.type === reaction.type ? "rgba(0, 104, 255, 0.15)" : "transparent",
+                                                transform: [{ scale: dragType === reaction.type ? 1.18 : 1 }],
                                             }}
                                         >
                                             <Text style={{ fontSize: isWeb ? 20 : 22 }}>{reaction.emoji}</Text>
@@ -2834,9 +2878,13 @@ export default function WorkScreen() {
                                 </View>
                             </Pressable>
                         ) : null}
-                        <Text style={{ color: myReaction ? colors.primary : colors.text, fontWeight: "700", fontSize: myReaction ? 20 : 14 }}>
-                            {myReaction ? getPostReactionEmoji(myReaction.type) : "Thả cảm xúc"}
-                        </Text>
+                        {myReaction ? (
+                            <Text style={{ color: colors.primary, fontWeight: "700", fontSize: 20 }}>
+                                {getPostReactionEmoji(myReaction.type)}
+                            </Text>
+                        ) : (
+                            <Ionicons name="thumbs-up-outline" size={22} color={colors.text} />
+                        )}
                     </Pressable>
                     <TouchableOpacity
                         onPress={() => setExpandedPostComments((prev) => ({ ...prev, [post.id]: !prev[post.id] }))}
@@ -3159,6 +3207,7 @@ export default function WorkScreen() {
                 <ScrollView
                     ref={wallScrollRef}
                     style={{ width: "100%", flex: 1 }}
+                    scrollEnabled={!dragPostReaction}
                     contentContainerStyle={{ width: "100%", maxWidth: 720, alignSelf: "center", padding: 24, paddingBottom: 40, gap: 14 }}
                     refreshControl={<RefreshControl refreshing={isRefreshingWall} onRefresh={refreshWall} tintColor="#0068FF" />}
                 >
@@ -3310,8 +3359,9 @@ export default function WorkScreen() {
 
             <ScrollView
                 ref={wallScrollRef}
+                scrollEnabled={!dragPostReaction}
                 showsVerticalScrollIndicator={false}
-                refreshControl={<RefreshControl refreshing={isRefreshingWall} onRefresh={refreshWall} tintColor="#0068FF" />}
+                refreshControl={<RefreshControl refreshing={isRefreshingWall && !dragPostReaction} onRefresh={refreshWall} enabled={!dragPostReaction} tintColor="#0068FF" />}
             >
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }} style={{ backgroundColor: colors.card, marginBottom: 8 }}>
                     <TouchableOpacity onPress={() => { creationPanY.setValue(SCREEN_HEIGHT); setCreationStep("TYPE"); }} style={styles.storyCard}>

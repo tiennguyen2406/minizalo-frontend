@@ -9,6 +9,7 @@ import {
     Modal,
     Pressable,
     Alert,
+    FlatList,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
@@ -52,6 +53,7 @@ export default function FriendProfileScreen({
     const fetchPostFeed = usePostStore((s) => s.fetchFeed);
     const colors = useThemeColors();
     const [menuVisible, setMenuVisible] = React.useState(false);
+    const [commonGroupsVisible, setCommonGroupsVisible] = React.useState(false);
     const avatarInitial = (displayName || "?").charAt(0).toUpperCase();
     const mediaTile = (SCREEN_WIDTH - 48) / 3;
 
@@ -96,6 +98,13 @@ export default function FriendProfileScreen({
         if (room) {
             router.push(`/chat/${room.id}?name=${encodeURIComponent(displayName)}&type=DIRECT` as any);
         }
+    };
+
+    const openGroupChat = (group: (typeof rooms)[number]) => {
+        setCommonGroupsVisible(false);
+        router.push(
+            `/chat/${group.id}?name=${encodeURIComponent(group.name || "Nhóm")}&type=GROUP` as any,
+        );
     };
 
     const handleReport = () => {
@@ -334,7 +343,9 @@ export default function FriendProfileScreen({
                     </View>
 
                     <TouchableOpacity
-                        onPress={() => {}}
+                        onPress={() => {
+                            if (commonGroups.length > 0) setCommonGroupsVisible(true);
+                        }}
                         activeOpacity={0.75}
                         style={{
                             marginTop: 8,
@@ -375,7 +386,12 @@ export default function FriendProfileScreen({
                         {commonGroups.length > 0 ? (
                             <View style={{ marginTop: 12, gap: 8 }}>
                                 {commonGroups.slice(0, 3).map((group) => (
-                                    <View key={group.id} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                    <TouchableOpacity
+                                        key={group.id}
+                                        activeOpacity={0.75}
+                                        onPress={() => openGroupChat(group)}
+                                        style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+                                    >
                                         <Image
                                             source={{
                                                 uri:
@@ -387,7 +403,7 @@ export default function FriendProfileScreen({
                                         <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: 13 }}>
                                             {group.name}
                                         </Text>
-                                    </View>
+                                    </TouchableOpacity>
                                 ))}
                             </View>
                         ) : null}
@@ -564,6 +580,86 @@ export default function FriendProfileScreen({
                         <MenuRow icon="person-add-outline" label="Giới thiệu cho bạn" onPress={handleRecommend} />
                         <MenuRow icon="ban-outline" label="Chặn liên hệ này" color="#ef4444" onPress={handleBlock} />
                         <MenuRow icon="trash-outline" label="Xóa bạn" color="#ef4444" onPress={handleRemoveFriend} />
+                    </Pressable>
+                </Pressable>
+            </Modal>
+
+            <Modal
+                transparent
+                visible={commonGroupsVisible}
+                animationType="slide"
+                onRequestClose={() => setCommonGroupsVisible(false)}
+            >
+                <Pressable
+                    onPress={() => setCommonGroupsVisible(false)}
+                    style={{
+                        flex: 1,
+                        backgroundColor: "rgba(0,0,0,0.38)",
+                        justifyContent: "flex-end",
+                    }}
+                >
+                    <Pressable
+                        onPress={(e) => e.stopPropagation()}
+                        style={{
+                            maxHeight: "70%",
+                            backgroundColor: colors.card,
+                            borderTopLeftRadius: 22,
+                            borderTopRightRadius: 22,
+                            paddingTop: 10,
+                            paddingBottom: 12,
+                        }}
+                    >
+                        <View
+                            style={{
+                                width: 42,
+                                height: 4,
+                                borderRadius: 2,
+                                backgroundColor: colors.border,
+                                alignSelf: "center",
+                                marginBottom: 10,
+                            }}
+                        />
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontSize: 17,
+                                fontWeight: "700",
+                                paddingHorizontal: 18,
+                                paddingBottom: 8,
+                            }}
+                        >
+                            Nhóm chung
+                        </Text>
+                        <FlatList
+                            data={commonGroups}
+                            keyExtractor={(item) => item.id}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity
+                                    activeOpacity={0.75}
+                                    onPress={() => openGroupChat(item)}
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        paddingHorizontal: 18,
+                                        paddingVertical: 12,
+                                        gap: 12,
+                                    }}
+                                >
+                                    <Image
+                                        source={{
+                                            uri:
+                                                item.avatarUrl ||
+                                                `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=0068ff&color=fff`,
+                                        }}
+                                        style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: colors.avatarBg }}
+                                    />
+                                    <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: 15, fontWeight: "600" }}>
+                                        {item.name}
+                                    </Text>
+                                    <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                                </TouchableOpacity>
+                            )}
+                        />
                     </Pressable>
                 </Pressable>
             </Modal>

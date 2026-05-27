@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'expo-router';
 import { GroupMember, GroupRole, PendingJoinRequest } from '@/shared/types';
 import { friendService } from '@/shared/services/friendService';
 import { groupService } from '@/shared/services/groupService';
@@ -38,6 +39,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
     onClose,
     embedded = false,
 }) => {
+    const router = useRouter();
     const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
     const [menuPos, setMenuPos] = useState<{ top: number; left?: number; right?: number } | null>(null);
     const menuBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -117,6 +119,21 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
         } finally {
             setSendingFriendReq(null);
         }
+    };
+
+    const openMemberProfile = (member: GroupMember) => {
+        if (member.userId === currentUserId) {
+            router.push('/(tabs)/personal-profile' as any);
+            return;
+        }
+        router.push({
+            pathname: '/(tabs)/friend-profile',
+            params: {
+                userId: member.userId,
+                displayName: member.fullName || member.username || 'Người dùng',
+                avatarUrl: member.avatarUrl || '',
+            },
+        } as any);
     };
 
     if (!visible) return null;
@@ -244,10 +261,14 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
     const memberList = (
                 <div className={`flex-1 min-h-0 overflow-y-auto styled-scrollbar ${embedded ? '' : ''}`}>
                     {sorted.map((member) => {
-                        const displayName = member.fullName || member.username;
-                        const avatarSrc =
-                            member.avatarUrl ||
-                            `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0068FF&color=fff&bold=true`;
+                        const displayName = member.fullName || member.username || 'Người dùng';
+                        const initials =
+                            displayName
+                                .trim()
+                                .split(/\s+/)
+                                .slice(-2)
+                                .map((part) => part.charAt(0).toUpperCase())
+                                .join('') || '?';
                         const isOwnerMember = member.userId === ownerId;
                         const isAdminMember = member.role === 'ADMIN';
                         const isMe = member.userId === currentUserId;
@@ -261,13 +282,20 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                         return (
                             <div
                                 key={member.userId}
-                                className="flex items-center gap-3 px-5 py-3 hover:bg-[color:var(--bg-hover)] transition-colors"
+                                onClick={() => openMemberProfile(member)}
+                                className="flex items-center gap-3 px-5 py-3 hover:bg-[color:var(--bg-hover)] transition-colors cursor-pointer"
                             >
-                                <img
-                                    src={avatarSrc}
-                                    alt={displayName}
-                                    className="w-10 h-10 rounded-full object-cover shrink-0"
-                                />
+                                {member.avatarUrl ? (
+                                    <img
+                                        src={member.avatarUrl}
+                                        alt={displayName}
+                                        className="w-10 h-10 rounded-full object-cover shrink-0 bg-blue-600"
+                                    />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full shrink-0 bg-blue-600 text-white flex items-center justify-center text-sm font-bold">
+                                        {initials}
+                                    </div>
+                                )}
                                 <div className="flex-1 min-w-0">
                                     <div className="text-sm font-medium text-[color:var(--text-primary)] truncate">
                                         {displayName}
@@ -305,7 +333,10 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                         <span className="text-xs text-gray-400 px-2 py-1 shrink-0">Đã gửi lời mời</span>
                                     ) : (
                                         <button
-                                            onClick={() => handleSendFriendRequest(member.userId)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSendFriendRequest(member.userId);
+                                            }}
                                             disabled={sendingFriendReq === member.userId}
                                             className="text-xs text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full font-medium transition-colors shrink-0 disabled:opacity-50"
                                         >

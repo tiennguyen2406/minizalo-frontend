@@ -43,13 +43,26 @@ export default function SearchUsersMobile({
     const [error, setError] = useState<string | null>(null);
     const { sendRequest, friends, sentRequests } = useFriendStore();
     const { profile } = useUserStore();
-    const { rooms } = useChatStore();
+    const { rooms, hiddenRooms } = useChatStore();
 
     const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
 
     const currentUserId = profile?.id ?? null;
     const inputRef = useRef<TextInput | null>(null);
+
+    const matchedRooms = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return [];
+        return rooms.filter((room) => {
+            const roomName = (room.name || "").toLowerCase();
+            const participantNames = (room.participants || [])
+                .map((p: any) => `${p.fullName || ""} ${p.username || ""}`)
+                .join(" ")
+                .toLowerCase();
+            return roomName.includes(q) || participantNames.includes(q);
+        });
+    }, [rooms, query]);
 
     const friendIdSet = useMemo(() => {
         const set = new Set<string>();
@@ -285,6 +298,128 @@ export default function SearchUsersMobile({
         );
     };
 
+    const openRoom = (room: (typeof rooms)[number]) => {
+        const partner =
+            room.type === "PRIVATE"
+                ? room.participants?.find((p: any) => p.id !== currentUserId)
+                : null;
+        const isFriend = !!partner?.id && friendIdSet.has(partner.id);
+        const type =
+            room.type === "GROUP" ? "GROUP" : room.type === "CLOUD" ? "CLOUD" : "DIRECT";
+
+        router.push({
+            pathname: "/chat/[id]",
+            params: {
+                id: room.id,
+                name: room.name || partner?.fullName || partner?.username || "Người dùng",
+                type,
+                isStranger: room.type === "PRIVATE" ? (isFriend ? "false" : "true") : "false",
+                targetUserId: partner?.id || "",
+                receiverId: partner?.id || "",
+            },
+        } as any);
+    };
+
+    const renderRoomItem = (room: (typeof rooms)[number]) => {
+        const displayName = room.name || "Cuộc trò chuyện";
+        const initial = (displayName.charAt(0).toUpperCase() || "?").toUpperCase();
+        const isHidden = hiddenRooms.has(String(room.id));
+        const subtitle =
+            room.type === "GROUP"
+                ? "Nhóm"
+                : room.type === "CLOUD"
+                    ? "Cloud của tôi"
+                    : "Tin nhắn";
+
+        return (
+            <TouchableOpacity
+                key={room.id}
+                activeOpacity={0.8}
+                onPress={() => openRoom(room)}
+                style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderBottomWidth: 0.5,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.background,
+                }}
+            >
+                <View
+                    style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: colors.searchBg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 12,
+                        overflow: "hidden",
+                    }}
+                >
+                    {room.avatarUrl ? (
+                        <Image source={{ uri: room.avatarUrl }} style={{ width: 40, height: 40 }} />
+                    ) : (
+                        <Text style={{ color: colors.text, fontWeight: "600", fontSize: 16 }}>
+                            {initial}
+                        </Text>
+                    )}
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text
+                        numberOfLines={1}
+                        style={{ color: colors.text, fontSize: 15, fontWeight: "500" }}
+                    >
+                        {displayName}
+                    </Text>
+                    <Text
+                        numberOfLines={1}
+                        style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}
+                    >
+                        {isHidden ? `${subtitle} · Đang ẩn` : subtitle}
+                    </Text>
+                </View>
+                <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
+        );
+    };
+
+    const renderSearchHeader = () => {
+        if (!query.trim() || matchedRooms.length === 0) return null;
+        return (
+            <View>
+                <Text
+                    style={{
+                        color: colors.textSecondary,
+                        fontSize: 13,
+                        fontWeight: "600",
+                        paddingHorizontal: 16,
+                        paddingTop: 12,
+                        paddingBottom: 6,
+                    }}
+                >
+                    Cuộc trò chuyện
+                </Text>
+                {matchedRooms.map(renderRoomItem)}
+                {results.length > 0 ? (
+                    <Text
+                        style={{
+                            color: colors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: "600",
+                            paddingHorizontal: 16,
+                            paddingTop: 12,
+                            paddingBottom: 6,
+                        }}
+                    >
+                        Người dùng
+                    </Text>
+                ) : null}
+            </View>
+        );
+    };
+
     return (
         <View
             style={{
@@ -400,7 +535,7 @@ export default function SearchUsersMobile({
                 </View>
             ) : null}
 
-            {loading && results.length === 0 ? (
+            {loading && results.length === 0 && matchedRooms.length === 0 ? (
                 <View
                     style={{
                         flex: 1,
@@ -419,7 +554,7 @@ export default function SearchUsersMobile({
                         Đang tìm kiếm người dùng...
                     </Text>
                 </View>
-            ) : results.length === 0 ? (
+            ) : results.length === 0 && matchedRooms.length === 0 ? (
                 <View
                     style={{
                         flex: 1,
@@ -450,6 +585,7 @@ export default function SearchUsersMobile({
                     data={results}
                     keyExtractor={(item) => item.id}
                     renderItem={renderItem}
+                    ListHeaderComponent={renderSearchHeader}
                     contentContainerStyle={{ paddingBottom: 24 }}
                 />
             )}

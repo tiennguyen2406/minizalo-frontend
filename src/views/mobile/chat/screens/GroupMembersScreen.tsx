@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, Image, FlatList, Alert } from "react-native";
 import { SafeAreaView as SafeAreaViewCtx } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { GroupDetail, GroupMember } from "@/shared/types";
 import { useThemeColors } from "@/shared/theme/colors";
@@ -25,6 +26,7 @@ export default function GroupMembersScreen({
     onRemoveMember,
 }: GroupMembersScreenProps) {
     const colors = useThemeColors();
+    const router = useRouter();
 
     const confirmRemove = (member: GroupMember) => {
         Alert.alert(
@@ -42,17 +44,37 @@ export default function GroupMembersScreen({
     };
 
     const renderMember = ({ item: member }: { item: GroupMember }) => {
-        const memberAvatar =
-            member.avatarUrl ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(member.username)}&background=0068FF&color=fff&bold=true`;
+        const displayName = member.fullName || member.username || "Người dùng";
+        const initials = displayName
+            .trim()
+            .split(/\s+/)
+            .slice(-2)
+            .map((part) => part.charAt(0).toUpperCase())
+            .join("") || "?";
         const isOwnerMember = member.userId === group.ownerId;
         const isAdminRole = member.role === "ADMIN";
         const isCurrentUser = member.userId === currentUserId;
         const canRemove =
             canManage && !isOwnerMember && !isCurrentUser;
+        const openProfile = () => {
+            if (isCurrentUser) {
+                router.push("/(tabs)/personal-profile" as any);
+                return;
+            }
+            router.push({
+                pathname: "/(tabs)/friend-profile",
+                params: {
+                    userId: member.userId,
+                    displayName,
+                    avatarUrl: member.avatarUrl || "",
+                },
+            } as any);
+        };
 
         return (
-            <View
+            <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={openProfile}
                 style={{
                     flexDirection: "row",
                     alignItems: "center",
@@ -63,26 +85,43 @@ export default function GroupMembersScreen({
                     backgroundColor: colors.card,
                 }}
             >
-                <Image
-                    source={{ uri: memberAvatar }}
-                    style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 24,
-                        marginRight: 12,
-                        backgroundColor: colors.separator,
-                    }}
-                />
+                {member.avatarUrl ? (
+                    <Image
+                        source={{ uri: member.avatarUrl }}
+                        style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 24,
+                            marginRight: 12,
+                            backgroundColor: colors.separator,
+                        }}
+                    />
+                ) : (
+                    <View
+                        style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 24,
+                            marginRight: 12,
+                            backgroundColor: colors.primary,
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
+                            {initials}
+                        </Text>
+                    </View>
+                )}
                 <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Text style={{ fontSize: 15, color: colors.text, fontWeight: "500" }} numberOfLines={1}>
-                            {member.fullName || member.username}
+                            {displayName}
                         </Text>
                         {isCurrentUser ? (
                             <Text style={{ fontSize: 12, color: colors.textSecondary }}>(Bạn)</Text>
                         ) : null}
                     </View>
-                    <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>@{member.username}</Text>
                 </View>
                 {isOwnerMember ? (
                     <View
@@ -114,7 +153,7 @@ export default function GroupMembersScreen({
                         <Ionicons name="trash-outline" size={22} color="#ef4444" />
                     </TouchableOpacity>
                 ) : null}
-            </View>
+            </TouchableOpacity>
         );
     };
 

@@ -9,6 +9,34 @@ import {
   type CloudStorageBreakdown,
 } from "@/shared/utils/cloudStorageAggregate";
 import type { Attachment, MessageDynamo } from "@/shared/services/chatService";
+import { MessageService } from "@/shared/services/MessageService";
+import { useChatStore } from "@/shared/store/useChatStore";
+
+type CloudMediaItem = { id: string; url: string; messageId: string };
+type CloudGalleryItem = CloudMediaItem & { kind: "photo" | "video" };
+type CloudFileItem = CloudMediaItem & { label: string };
+type CloudCleanupItem = CloudMediaItem & { kind: "photo" | "video" | "file"; label?: string };
+
+function normalizeCloudUrl(url: string | undefined): string {
+  const raw = (url || "").trim();
+  if (!raw) return "";
+  const withoutQuery = raw.split("?")[0] || raw;
+  try {
+    return decodeURIComponent(withoutQuery);
+  } catch {
+    return withoutQuery;
+  }
+}
+
+function cloudUrlMatches(a: string | undefined, b: string | undefined): boolean {
+  const left = normalizeCloudUrl(a);
+  const right = normalizeCloudUrl(b);
+  if (!left || !right) return false;
+  if (left === right || left.endsWith(right) || right.endsWith(left)) return true;
+  const leftName = left.slice(left.lastIndexOf("/") + 1);
+  const rightName = right.slice(right.lastIndexOf("/") + 1);
+  return !!leftName && leftName === rightName;
+}
 
 export default function CloudOptionsModal({
   open,
@@ -21,15 +49,19 @@ export default function CloudOptionsModal({
 }) {
   const [stats, setStats] = useState<CloudStorageBreakdown>(EMPTY_CLOUD_STORAGE);
   const [loading, setLoading] = useState(false);
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [videos, setVideos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<CloudMediaItem[]>([]);
+  const [videos, setVideos] = useState<CloudMediaItem[]>([]);
   const [links, setLinks] = useState<string[]>([]);
-  const [files, setFiles] = useState<{ url: string; label: string }[]>([]);
-
-  const [showAll, setShowAll] = useState(false);
+  const [files, setFiles] = useState<CloudFileItem[]>([]);
+  const [showGalleryModal, setShowGalleryModal] = useState(false);
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [mediaPreviewIndex, setMediaPreviewIndex] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const collectLimitEach = 60;
   const defaultPreviewLimit = 6;
-  const previewLimit = showAll ? collectLimitEach : defaultPreviewLimit;
+  const previewLimit = defaultPreviewLimit;
 
   const gridColStyle = useMemo(
     () =>
@@ -49,7 +81,8 @@ export default function CloudOptionsModal({
       setVideos([]);
       setLinks([]);
       setFiles([]);
-      setShowAll(false);
+      setShowGalleryModal(false);
+      setShowCleanupModal(false);
       return;
     }
     let cancelled = false;
@@ -64,19 +97,19 @@ export default function CloudOptionsModal({
           );
 
           const seen = new Set<string>();
-          const pushUrl = (arr: string[], kind: string, url: string | undefined, cap: number) => {
+          const pushUrl = (arr: CloudMediaItem[], kind: string, url: string | undefined, messageId: string | undefined, cap: number) => {
             if (!url || arr.length >= cap) return;
             const k = `${kind}|${url.split("?")[0]}`;
             if (seen.has(k)) return;
             seen.add(k);
-            arr.push(url);
+            arr.push({ id: `${messageId || "msg"}-${kind}-${url}`, url, messageId: messageId || "" });
           };
-          const pushFile = (arr: { url: string; label: string }[], url: string | undefined, label: string | undefined, cap: number) => {
+          const pushFile = (arr: CloudFileItem[], url: string | undefined, label: string | undefined, messageId: string | undefined, cap: number) => {
             if (!url || arr.length >= cap) return;
             const k = `file|${url.split("?")[0]}`;
             if (seen.has(k)) return;
             seen.add(k);
-            arr.push({ url, label: label?.trim() ? label : "Tệp" });
+            arr.push({ id: `${messageId || "msg"}-file-${url}`, url, messageId: messageId || "", label: label?.trim() ? label : "Tệp" });
           };
           const isImage = (att: Attachment) => (att.type || "").toLowerCase().startsWith("image") || (att.type || "").toLowerCase() === "image";
           const isVideo = (att: Attachment) => {
@@ -84,10 +117,10 @@ export default function CloudOptionsModal({
             return t.startsWith("video") || t === "video" || t.includes("mp4") || t.includes("webm");
           };
 
-          const nextPhotos: string[] = [];
-          const nextVideos: string[] = [];
+          const nextPhotos: CloudMediaItem[] = [];
+          const nextVideos: CloudMediaItem[] = [];
           const nextLinks: string[] = [];
-          const nextFiles: { url: string; label: string }[] = [];
+          const nextFiles: CloudFileItem[] = [];
 
           for (const msg of sorted) {
             const m = msg as MessageDynamo & { fileUrl?: string; fileName?: string; filename?: string };
@@ -96,18 +129,18 @@ export default function CloudOptionsModal({
 
             if (Array.isArray(m.attachments) && m.attachments.length) {
               m.attachments.forEach((att) => {
-                if (isImage(att)) pushUrl(nextPhotos, "img", att.url, collectLimitEach);
-                else if (isVideo(att)) pushUrl(nextVideos, "vid", att.url, collectLimitEach);
-                else pushFile(nextFiles, att.url, att.filename || (att as any).name, collectLimitEach);
+                if (isImage(att)) pushUrl(nextPhotos, "img", att.url, m.messageId, collectLimitEach);
+                else if (isVideo(att)) pushUrl(nextVideos, "vid", att.url, m.messageId, collectLimitEach);
+                else pushFile(nextFiles, att.url, att.filename || (att as any).name, m.messageId, collectLimitEach);
               });
             } else {
               const c = String((m as any).content || "").trim();
               const urlOnly = c.startsWith("http") ? c.split(/\s+/)[0] : "";
               const url = (m as any).fileUrl || urlOnly;
               if (url && url.startsWith("http")) {
-                if (mt === "IMAGE") pushUrl(nextPhotos, "img", url, collectLimitEach);
-                else if (mt === "VIDEO") pushUrl(nextVideos, "vid", url, collectLimitEach);
-                else if (mt === "FILE" || mt === "DOCUMENT" || mt === "VOICE") pushFile(nextFiles, url, (m as any).fileName || (m as any).filename, collectLimitEach);
+                if (mt === "IMAGE") pushUrl(nextPhotos, "img", url, m.messageId, collectLimitEach);
+                else if (mt === "VIDEO") pushUrl(nextVideos, "vid", url, m.messageId, collectLimitEach);
+                else if (mt === "FILE" || mt === "DOCUMENT" || mt === "VOICE") pushFile(nextFiles, url, (m as any).fileName || (m as any).filename, m.messageId, collectLimitEach);
               }
             }
 
@@ -146,7 +179,8 @@ export default function CloudOptionsModal({
           setVideos([]);
           setLinks([]);
           setFiles([]);
-          setShowAll(false);
+          setShowGalleryModal(false);
+          setShowCleanupModal(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -155,7 +189,7 @@ export default function CloudOptionsModal({
     return () => {
       cancelled = true;
     };
-  }, [open, roomId]);
+  }, [open, roomId, reloadNonce]);
 
   if (!open) return null;
 
@@ -167,6 +201,62 @@ export default function CloudOptionsModal({
   const { photoBytes, videoBytes, fileBytes } = stats;
   const mediaSum = photoBytes + videoBytes + fileBytes;
   const hasAnyGrid = photos.length || videos.length || links.length || files.length;
+  const allMedia = [
+    ...photos.map((item) => ({ ...item, kind: "photo" as const })),
+    ...videos.map((item) => ({ ...item, kind: "video" as const })),
+  ];
+
+  const patchDeletedItemsInChat = (items: CloudMediaItem[]) => {
+    if (!roomId || items.length === 0) return;
+    const store = useChatStore.getState();
+    const currentMessages = store.messages[roomId] || [];
+    if (!currentMessages.length) return;
+    const nextMessages = currentMessages.map((message) => {
+      const selectedForMessage = items.filter((item) => item.messageId === message.id);
+      if (!selectedForMessage.length) return message;
+      const nextAttachments = (message.attachments || []).filter(
+        (attachment: any) => !selectedForMessage.some((item) => cloudUrlMatches(attachment?.url, item.url)),
+      );
+      if ((message.attachments || []).length > 0) {
+        if (nextAttachments.length === 0) {
+          return { ...message, attachments: [], fileUrl: undefined, fileName: undefined, fileSize: undefined, isRecall: true, content: "[Tin nhắn đã thu hồi]" };
+        }
+        const first = nextAttachments[0] as any;
+        return {
+          ...message,
+          attachments: nextAttachments,
+          fileUrl: first?.url,
+          fileName: first?.name || first?.filename,
+          fileSize: first?.size,
+        };
+      }
+      const shouldRecallLegacy = selectedForMessage.some((item) => cloudUrlMatches(message.fileUrl || message.content, item.url));
+      return shouldRecallLegacy
+        ? { ...message, fileUrl: undefined, fileName: undefined, fileSize: undefined, isRecall: true, content: "[Tin nhắn đã thu hồi]" }
+        : message;
+    });
+    store.setMessages(roomId, nextMessages);
+  };
+
+  const deleteMediaItems = async (items: CloudMediaItem[]) => {
+    if (!roomId || items.length === 0) return;
+    setDeletingId("bulk");
+    setDeleteError(null);
+    try {
+      await MessageService.deleteCloudMediaItems(
+        roomId,
+        items.map((item) => ({ messageId: item.messageId, url: item.url })),
+      );
+      patchDeletedItemsInChat(items);
+      setReloadNonce((v) => v + 1);
+    } catch (error: any) {
+      const serverMessage = error?.response?.data?.message || error?.response?.data?.error;
+      setDeleteError(serverMessage || "Không thể xóa nội dung này. Vui lòng thử lại.");
+      throw error;
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div
@@ -257,7 +347,7 @@ export default function CloudOptionsModal({
               border: "1px solid var(--border-primary)",
               color: "var(--text-primary)",
             }}
-            onClick={() => {}}
+            onClick={() => setShowCleanupModal(true)}
           >
             Xem và dọn dẹp My Documents
           </button>
@@ -273,15 +363,38 @@ export default function CloudOptionsModal({
                   type="button"
                   className="text-sm font-semibold hover:opacity-80 transition-opacity"
                   style={{ color: "var(--text-link)" }}
-                  onClick={() => setShowAll((v) => !v)}
+                  onClick={() => {
+                    setShowGalleryModal(true);
+                    setMediaPreviewIndex(0);
+                  }}
                 >
-                  {showAll ? "Thu gọn" : "Xem tất cả"}
+                  Xem tất cả
                 </button>
               ) : null}
             </div>
 
-            <CloudGridSection title="Ảnh" items={photos} kind="photo" gridColStyle={gridColStyle} limit={previewLimit} />
-            <CloudGridSection title="Video" items={videos} kind="video" gridColStyle={gridColStyle} limit={previewLimit} />
+            <CloudGridSection
+              title="Ảnh"
+              items={photos}
+              kind="photo"
+              gridColStyle={gridColStyle}
+              limit={previewLimit}
+              onOpenMedia={(item) => {
+                const index = allMedia.findIndex((media) => media.id === item.id);
+                if (index >= 0) setMediaPreviewIndex(index);
+              }}
+            />
+            <CloudGridSection
+              title="Video"
+              items={videos}
+              kind="video"
+              gridColStyle={gridColStyle}
+              limit={previewLimit}
+              onOpenMedia={(item) => {
+                const index = allMedia.findIndex((media) => media.id === item.id);
+                if (index >= 0) setMediaPreviewIndex(index);
+              }}
+            />
             <CloudGridSection title="Link" items={links} kind="link" gridColStyle={gridColStyle} limit={previewLimit} />
             <CloudGridSection title="Tệp tin" items={files} kind="file" gridColStyle={gridColStyle} limit={previewLimit} />
 
@@ -291,36 +404,40 @@ export default function CloudOptionsModal({
               </div>
             ) : null}
           </div>
-
-          <div
-            className="mt-4 rounded-2xl p-4"
-            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-primary)" }}
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                <span style={{ color: "#0068ff", fontWeight: 800 }}>i</span>
-              </div>
-              <div className="min-w-0">
-                <div className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                  Nâng cấp dung lượng My Documents
-                </div>
-                <div className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-                  Mở rộng dung lượng lên đến 100GB để lưu thêm tài liệu, ảnh, video và ghi âm trong Cloud của tôi.
-                </div>
-                <button
-                  type="button"
-                  className="mt-3 px-4 py-2 rounded-xl text-sm font-semibold"
-                  style={{ backgroundColor: "#e6f0ff", color: "#0068ff" }}
-                  onClick={() => {}}
-                >
-                  Thêm dung lượng
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
+
+      {mediaPreviewIndex !== null ? (
+        <CloudMediaModal
+          items={allMedia}
+          initialIndex={mediaPreviewIndex}
+          onClose={() => {
+            setShowGalleryModal(false);
+            setMediaPreviewIndex(null);
+          }}
+        />
+      ) : null}
+
+      {showCleanupModal ? (
+        <CloudCleanupModal
+          photos={photos}
+          videos={videos}
+          files={files}
+          deletingId={deletingId}
+          error={deleteError}
+          onClearError={() => setDeleteError(null)}
+          onOpen={(item) => {
+            const index = allMedia.findIndex((media) => media.id === item.id);
+            if (index >= 0) setMediaPreviewIndex(index);
+          }}
+          onDelete={deleteMediaItems}
+          onClose={() => {
+            setDeleteError(null);
+            setShowCleanupModal(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -340,12 +457,14 @@ function CloudGridSection({
   kind,
   gridColStyle,
   limit,
+  onOpenMedia,
 }: {
   title: string;
   items: any[];
   kind: "photo" | "video" | "link" | "file";
   gridColStyle: React.CSSProperties;
   limit: number;
+  onOpenMedia?: (item: CloudMediaItem) => void;
 }) {
   const cardStyle: React.CSSProperties = {
     backgroundColor: "var(--bg-secondary)",
@@ -373,9 +492,9 @@ function CloudGridSection({
 
       <div style={gridColStyle}>
         {kind === "file"
-          ? (items as { url: string; label: string }[]).slice(0, displayLimit).map((it) => (
+          ? (items as CloudFileItem[]).slice(0, displayLimit).map((it) => (
               <a
-                key={it.url}
+                key={it.id || it.url}
                 href={it.url}
                 target="_blank"
                 rel="noreferrer"
@@ -389,36 +508,41 @@ function CloudGridSection({
                 </div>
               </a>
             ))
-          : (items as string[]).slice(0, displayLimit).map((url) =>
+          : (items as (string | CloudMediaItem)[]).slice(0, displayLimit).map((raw) => {
+              const url = typeof raw === "string" ? raw : raw.url;
+              const key = typeof raw === "string" ? raw : raw.id;
+              return (
               kind === "photo" ? (
-                <a
-                  key={url}
-                  href={url}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  key={key}
                   style={cardStyle}
                   className="block aspect-square hover:opacity-90 transition-opacity"
+                  onClick={() => {
+                    if (typeof raw !== "string") onOpenMedia?.(raw);
+                  }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={url} alt="" className="w-full h-full object-cover" />
-                </a>
+                </button>
               ) : kind === "video" ? (
-                <a
-                  key={url}
-                  href={url}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  key={key}
                   style={{ ...cardStyle, backgroundColor: "#141414" }}
                   className="block aspect-square flex items-center justify-center hover:opacity-90 transition-opacity"
                   title="Video"
+                  onClick={() => {
+                    if (typeof raw !== "string") onOpenMedia?.(raw);
+                  }}
                 >
                   <div className="text-3xl" style={{ color: "rgba(255,255,255,0.75)" }}>
                     ▶
                   </div>
-                </a>
+                </button>
               ) : (
                 <a
-                  key={url}
+                  key={key}
                   href={url}
                   target="_blank"
                   rel="noreferrer"
@@ -430,9 +554,270 @@ function CloudGridSection({
                     {url.replace(/^https?:\/\//, "")}
                   </div>
                 </a>
-              ),
-            )}
+              )
+              );
+            })}
       </div>
+    </div>
+  );
+}
+
+function CloudMediaModal({
+  items,
+  initialIndex,
+  onClose,
+}: {
+  items: CloudGalleryItem[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(() => Math.min(Math.max(initialIndex, 0), Math.max(items.length - 1, 0)));
+  const item = items[index];
+  const goPrev = () => setIndex((value) => (value <= 0 ? items.length - 1 : value - 1));
+  const goNext = () => setIndex((value) => (value >= items.length - 1 ? 0 : value + 1));
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key === "ArrowLeft") goPrev();
+      if (event.key === "ArrowRight") goNext();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [items.length, onClose]);
+
+  if (!item) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="relative w-[min(980px,96vw)] h-[min(720px,92vh)] rounded-2xl overflow-hidden shadow-2xl flex flex-col bg-black"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="absolute left-0 right-0 top-0 z-10 px-4 py-3 flex items-center justify-between bg-black/45">
+          <div className="text-sm font-semibold text-white">
+            {index + 1}/{items.length}
+          </div>
+          <button type="button" onClick={onClose} className="w-9 h-9 rounded-full bg-white/15 text-white hover:bg-white/25">
+            ×
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          {item.kind === "video" ? (
+            <video src={item.url} controls autoPlay className="max-h-full max-w-full" />
+          ) : (
+            <img src={item.url} alt="" className="max-h-full max-w-full object-contain" />
+          )}
+        </div>
+
+        {items.length > 1 ? (
+          <>
+            <button
+              type="button"
+              onClick={goPrev}
+              className="absolute left-4 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-white/15 text-2xl text-white hover:bg-white/25"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={goNext}
+              className="absolute right-4 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-white/15 text-2xl text-white hover:bg-white/25"
+            >
+              ›
+            </button>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CloudCleanupModal({
+  photos,
+  videos,
+  files,
+  deletingId,
+  error,
+  onClearError,
+  onOpen,
+  onDelete,
+  onClose,
+}: {
+  photos: CloudMediaItem[];
+  videos: CloudMediaItem[];
+  files: CloudFileItem[];
+  deletingId: string | null;
+  error: string | null;
+  onClearError: () => void;
+  onOpen: (item: CloudGalleryItem) => void;
+  onDelete: (items: CloudMediaItem[]) => Promise<void>;
+  onClose: () => void;
+}) {
+  const items: CloudCleanupItem[] = [
+    ...photos.map((item) => ({ ...item, kind: "photo" as const })),
+    ...videos.map((item) => ({ ...item, kind: "video" as const })),
+    ...files.map((item) => ({ ...item, kind: "file" as const })),
+  ];
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const selectedItems = items.filter((item) => selectedIds.has(item.id));
+  const isDeleting = deletingId === "bulk";
+
+  const toggleSelected = (id: string) => {
+    onClearError();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedItems.length) return;
+    try {
+      await onDelete(selectedItems);
+      setSelectedIds(new Set());
+      setConfirmOpen(false);
+    } catch {
+      // Error is surfaced in this modal; keep the confirm dialog open.
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="w-[760px] max-w-[96vw] max-h-[86vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+        style={{ backgroundColor: "var(--bg-primary)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 flex items-center justify-between border-b" style={{ borderColor: "var(--border-primary)" }}>
+          <div>
+            <div className="font-semibold" style={{ color: "var(--text-primary)" }}>Xem và dọn dẹp My Documents</div>
+            <div className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+              {selectedItems.length ? `Đã chọn ${selectedItems.length} mục` : "Chọn một hoặc nhiều ảnh/video để xóa"}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedItems.length ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClearError();
+                  setConfirmOpen(true);
+                }}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                style={{ backgroundColor: "#ef4444" }}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Đang xóa" : `Xóa (${selectedItems.length})`}
+              </button>
+            ) : null}
+            <button type="button" onClick={onClose} className="w-9 h-9 rounded-full hover:bg-gray-100/60">×</button>
+          </div>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          {items.length ? (
+            <div className="grid grid-cols-4 max-sm:grid-cols-2 gap-3">
+              {items.map((item) => {
+                const selected = selectedIds.has(item.id);
+                return (
+                <div key={item.id} className="aspect-square rounded-xl overflow-hidden bg-black relative group">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (item.kind === "file") {
+                        window.open(item.url, "_blank", "noopener,noreferrer");
+                      } else {
+                        onOpen(item as CloudGalleryItem);
+                      }
+                    }}
+                    className="absolute inset-0"
+                    title="Xem"
+                  >
+                  {item.kind === "video" ? (
+                    <>
+                      <video src={item.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/15">
+                        <span className="h-10 w-10 rounded-full bg-black/60 text-white flex items-center justify-center">▶</span>
+                      </div>
+                    </>
+                  ) : item.kind === "photo" ? (
+                    <img src={item.url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="h-full w-full flex flex-col items-center justify-center gap-2 bg-[color:var(--bg-secondary)] p-3">
+                      <div className="text-3xl">📄</div>
+                      <div className="line-clamp-3 text-center text-xs" style={{ color: "var(--text-primary)" }}>
+                        {item.label || "Tệp"}
+                      </div>
+                    </div>
+                  )}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={() => {
+                      toggleSelected(item.id);
+                    }}
+                    className="absolute right-2 top-2 h-7 w-7 rounded-full border-2 border-white shadow disabled:opacity-60"
+                    style={{ backgroundColor: selected ? "#2563eb" : "rgba(0,0,0,0.45)" }}
+                    title={selected ? "Bỏ chọn" : "Chọn"}
+                  >
+                    <span className="text-sm font-bold text-white">{selected ? "✓" : ""}</span>
+                  </button>
+                </div>
+              );
+              })}
+            </div>
+          ) : (
+            <div className="py-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>Không có ảnh/video để dọn dẹp.</div>
+          )}
+        </div>
+      </div>
+
+      {confirmOpen ? (
+        <div className="fixed inset-0 z-[100] bg-black/55 flex items-center justify-center p-4" onClick={() => setConfirmOpen(false)}>
+          <div
+            className="w-[360px] max-w-[92vw] rounded-2xl p-5 shadow-2xl"
+            style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-primary)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+              Xóa nội dung
+            </div>
+            <div className="mt-2 text-sm leading-6" style={{ color: "var(--text-secondary)" }}>
+              Bạn có chắc chắn muốn xóa {selectedItems.length} mục đã chọn khỏi My Documents?
+            </div>
+            {error ? (
+              <div className="mt-3 rounded-xl px-3 py-2 text-sm" style={{ backgroundColor: "#fef2f2", color: "#dc2626" }}>
+                {error}
+              </div>
+            ) : null}
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-xl text-sm font-semibold"
+                style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-primary)" }}
+                onClick={() => setConfirmOpen(false)}
+                disabled={isDeleting}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                style={{ backgroundColor: "#ef4444" }}
+                onClick={confirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Đang xóa" : "Xóa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

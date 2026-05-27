@@ -58,12 +58,31 @@ export function addIncomingChatMessageFromStomp(roomId: string, rawBody: string)
          * tạo bubble mới và cũng không làm "nhảy" room lên đầu list như tin mới.
          */
         if (dynamo.messageUpdate === true && typeof dynamo.messageId === 'string' && dynamo.messageId) {
+            const attachments: RawAttachment[] = Array.isArray(dynamo.attachments)
+                ? dynamo.attachments.filter((a): a is RawAttachment => !!a && typeof a === 'object')
+                : [];
+            const firstAttachment = attachments[0];
             const updates: Partial<Message> = {
                 content: dynamo.recalled ? '[Tin nhắn đã thu hồi]' : dynamo.content || '',
                 type: (dynamo.type as Message['type']) || 'TEXT',
                 isRecall: !!dynamo.recalled,
                 pinned: !!dynamo.pinned,
                 reactions: normalizeReactions(dynamo.reactions),
+                fileUrl: typeof firstAttachment?.url === 'string' ? firstAttachment.url : undefined,
+                fileName:
+                    typeof firstAttachment?.name === 'string'
+                        ? firstAttachment.name
+                        : typeof firstAttachment?.filename === 'string'
+                            ? firstAttachment.filename
+                            : undefined,
+                fileSize: typeof firstAttachment?.size === 'number' ? firstAttachment.size : undefined,
+                attachments: attachments.map((a) => ({
+                    url: (a.url as string) || '',
+                    type: (a.type as string) || 'DOCUMENT',
+                    name: (a.name as string) || (a.filename as string) || '',
+                    filename: (a.filename as string) || (a.name as string) || '',
+                    size: (a.size as number) || 0,
+                })),
             };
             useChatStore.getState().updateMessage(resolvedRoomId, dynamo.messageId, updates);
             return;

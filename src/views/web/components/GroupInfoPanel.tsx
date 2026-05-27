@@ -221,36 +221,52 @@ function extractUrls(text: string): string[] {
     return [...(text.match(URL_REGEX) || [])];
 }
 
-type PanelMediaItem = MediaGalleryItem & { message: Message };
+type PanelMediaItem = MediaGalleryItem & { id: string; message: Message };
 
-function getPanelMediaItem(message: Message): PanelMediaItem | null {
-    if (message.isRecall) return null;
-    const attachment = message.attachments?.[0];
-    const rawUrl = (message.fileUrl || attachment?.url || '').trim();
-    if (!rawUrl) return null;
-
+function getPanelMediaItems(message: Message): PanelMediaItem[] {
+    if (message.isRecall) return [];
+    const candidates = [
+        ...(message.attachments || []).map((attachment, index) => ({
+            rawUrl: (attachment?.url || '').trim(),
+            attachment,
+            index,
+        })),
+        ...(message.fileUrl
+            ? [{ rawUrl: message.fileUrl.trim(), attachment: undefined, index: -1 }]
+            : []),
+    ];
+    const seen = new Set<string>();
     const type = String(message.type || '').toUpperCase();
-    const name = `${message.fileName || ''} ${(attachment as any)?.name || ''} ${(attachment as any)?.filename || ''} ${rawUrl}`.toLowerCase();
-    const isVideo =
-        type === 'VIDEO' ||
-        (attachment ? isVideoAttachment(attachment) : false) ||
-        /\.(mp4|mov|m4v|webm|3gp|avi|mkv)(\?|#|$)/i.test(name);
-    const isImage =
-        type === 'IMAGE' ||
-        (attachment ? isImageAttachment(attachment) : false) ||
-        /\.(png|jpe?g|gif|webp|bmp|heic|heif)(\?|#|$)/i.test(name);
 
-    if (!isImage && !isVideo) return null;
-    return { url: getImageUrl(rawUrl) || rawUrl, kind: isVideo ? 'video' : 'image', message };
+    return candidates.flatMap(({ rawUrl, attachment, index }) => {
+        if (!rawUrl || seen.has(rawUrl)) return [];
+        seen.add(rawUrl);
+        const name = `${message.fileName || ''} ${(attachment as any)?.name || ''} ${(attachment as any)?.filename || ''} ${rawUrl}`.toLowerCase();
+        const isVideo =
+            type === 'VIDEO' ||
+            (attachment ? isVideoAttachment(attachment) : false) ||
+            /\.(mp4|mov|m4v|webm|3gp|avi|mkv)(\?|#|$)/i.test(name);
+        const isImage =
+            type === 'IMAGE' ||
+            (attachment ? isImageAttachment(attachment) : false) ||
+            /\.(png|jpe?g|gif|webp|bmp|heic|heif)(\?|#|$)/i.test(name);
+
+        if (!isImage && !isVideo) return [];
+        return [{
+            id: `${message.id}-${index}-${rawUrl}`,
+            url: getImageUrl(rawUrl) || rawUrl,
+            kind: isVideo ? 'video' : 'image',
+            message,
+        }];
+    });
 }
 
 const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
     const { currentGroupDetail, setCurrentGroupDetail, openAddMembers, openGroupManagement, isGroupManagementOpen } = useGroupStore();
     const { user } = useAuthStore();
-    const { rooms, setRooms, pinnedRooms, togglePinRoom, mutedRooms, toggleMuteRoom, upsertRoom } = useChatStore();
+    const { rooms, setRooms, pinnedRooms, togglePinRoom, mutedRooms, toggleMuteRoom, hiddenRooms, toggleHiddenRoom, upsertRoom } = useChatStore();
 
     const [isLeaving, setIsLeaving] = useState(false);
-    const [hideConversation, setHideConversation] = useState(false);
     const [muteLabel, setMuteLabel] = useState<string | null>(null); // null = not muted
     const [autoDeleteMsg] = useState('Không bao giờ');
     const [showMembersModal, setShowMembersModal] = useState(false);
@@ -275,6 +291,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
     const wallpaperInputRef = useRef<HTMLInputElement>(null);
 
     const isPinned = pinnedRooms.has(roomId);
+    const isHidden = hiddenRooms.has(String(roomId));
 
     const showToast = useCallback((msg: string) => {
         setToast(msg);
@@ -377,10 +394,11 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
     // Subscribe to messages for live media/file/link data
     const allMessages = useChatStore((s) => s.messages[roomId] || []);
 
-    const mediaItems = useMemo(
-        () => allMessages.map(getPanelMediaItem).filter(Boolean).slice(-9).reverse() as PanelMediaItem[],
+    const allMediaItems = useMemo(
+        () => [...allMessages].reverse().flatMap(getPanelMediaItems),
         [allMessages],
     );
+    const previewMediaItems = useMemo(() => allMediaItems.slice(0, 9), [allMediaItems]);
 
     // File: any message with fileUrl that is NOT image or video
     const fileMessages = useMemo(() =>
@@ -793,15 +811,15 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             </div>
 
             {/* Ảnh/Video */}
-            <CollapsibleSection title="Ảnh/Video" badge={mediaItems.length || undefined}>
-                {mediaItems.length > 0 ? (
+            <CollapsibleSection title="Ảnh/Video" badge={allMediaItems.length || undefined}>
+                {allMediaItems.length > 0 ? (
                     <div className="px-3">
                         <div className="grid grid-cols-3 gap-1 mb-2">
-                            {mediaItems.map((item, index) => {
+                            {previewMediaItems.map((item, index) => {
                                 const m = item.message;
                                 return (
                                     <div
-                                        key={m.id}
+                                        key={item.id}
                                         onClick={() => setMediaPreviewIndex(index)}
                                         role="button"
                                         tabIndex={0}
@@ -845,7 +863,11 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             );
                             })}
                         </div>
-                        <button className="w-full text-sm text-center py-2 bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg text-[color:var(--text-secondary)] font-medium transition-colors">
+                        <button
+                            type="button"
+                            onClick={() => setMediaPreviewIndex(0)}
+                            className="w-full text-sm text-center py-2 bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] rounded-lg text-[color:var(--text-secondary)] font-medium transition-colors"
+                        >
                             Xem tất cả
                         </button>
                     </div>
@@ -964,7 +986,14 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                 <div className="px-4 py-2.5 flex items-center gap-3">
                     <Icon.Eye />
                     <span className="flex-1 text-sm text-[color:var(--text-secondary)]">Ẩn trò chuyện</span>
-                    <ToggleSwitch checked={hideConversation} onChange={() => setHideConversation((v) => !v)} />
+                    <ToggleSwitch
+                        checked={isHidden}
+                        onChange={() => {
+                            if (isHidden || window.confirm('Ẩn cuộc trò chuyện này khỏi danh sách tin nhắn?')) {
+                                toggleHiddenRoom(roomId);
+                            }
+                        }}
+                    />
                 </div>
             </CollapsibleSection>
 
@@ -1047,7 +1076,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             )}
 
             <MediaGalleryViewer
-                items={mediaItems}
+                items={allMediaItems}
                 index={mediaPreviewIndex}
                 onIndexChange={setMediaPreviewIndex}
                 onClose={() => setMediaPreviewIndex(null)}

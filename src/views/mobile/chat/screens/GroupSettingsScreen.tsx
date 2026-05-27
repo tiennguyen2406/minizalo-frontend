@@ -20,6 +20,7 @@ import type { BlockedMember, GroupMember, GroupSettings } from "@/shared/types";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useAuthStore } from "@/shared/store/authStore";
 import { webSocketService } from "@/shared/services/WebSocketService";
+import { useChatStore } from "@/shared/store/useChatStore";
 import {
     GroupSettingsRow,
     GroupSettingsSectionLabel,
@@ -76,6 +77,9 @@ export default function GroupSettingsScreen({
     const [pickerMode, setPickerMode] = useState<MemberActionPickerMode>("ADD_ADMIN");
     const [pickerBusy, setPickerBusy] = useState(false);
     const [membersState, setMembersState] = useState<GroupMember[]>(members);
+    const hiddenRooms = useChatStore((s) => s.hiddenRooms);
+    const toggleHiddenRoom = useChatStore((s) => s.toggleHiddenRoom);
+    const isConversationHidden = hiddenRooms.has(String(groupId));
 
     useEffect(() => {
         setMembersState(members);
@@ -162,6 +166,27 @@ export default function GroupSettingsScreen({
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleToggleHiddenConversation = () => {
+        if (isConversationHidden) {
+            toggleHiddenRoom(groupId);
+            return;
+        }
+        Alert.alert(
+            "Ẩn trò chuyện",
+            "Cuộc trò chuyện sẽ không hiển thị trong danh sách. Bạn vẫn có thể tìm lại bằng tên nhóm.",
+            [
+                { text: "Hủy", style: "cancel" },
+                {
+                    text: "Ẩn",
+                    onPress: () => {
+                        toggleHiddenRoom(groupId);
+                        onClose();
+                    },
+                },
+            ],
+        );
     };
 
     const openPicker = (mode: MemberActionPickerMode) => {
@@ -649,6 +674,34 @@ export default function GroupSettingsScreen({
                             />
                         }
                         subtitle="Tất cả mọi người"
+                        last
+                    />
+                </View>
+
+                <View style={{ height: 14 }} />
+                <View
+                    style={{
+                        backgroundColor: colors.card,
+                        marginHorizontal: 12,
+                        marginTop: 6,
+                        borderRadius: 14,
+                        overflow: "hidden",
+                        borderWidth: 0.5,
+                        borderColor: colors.border,
+                    }}
+                >
+                    <GroupSettingsRow
+                        label="Ẩn trò chuyện"
+                        subtitle={isConversationHidden ? "Đang ẩn khỏi danh sách tin nhắn" : undefined}
+                        right={
+                            <Switch
+                                value={isConversationHidden}
+                                onValueChange={handleToggleHiddenConversation}
+                                trackColor={{ false: colors.separator, true: colors.primary }}
+                                thumbColor="#fff"
+                            />
+                        }
+                        first
                         last
                     />
                 </View>

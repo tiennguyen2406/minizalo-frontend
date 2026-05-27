@@ -1,9 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUserStore } from "@/shared/store/userStore";
 import { useAuthStore } from "@/shared/store/authStore";
+import { usePostStore } from "@/shared/store/postStore";
 import { useAvatarUpload } from "@/shared/hooks/useAvatarUpload";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
+import userService from "@/shared/services/userService";
+import type { UserProfile } from "@/shared/services/types";
 import EditProfileView from "@/views/web/profile/EditProfileView";
 
 const MONTHS = "tháng 01,tháng 02,tháng 03,tháng 04,tháng 05,tháng 06,tháng 07,tháng 08,tháng 09,tháng 10,tháng 11,tháng 12".split(",");
@@ -37,7 +41,10 @@ const iconCamera = (
 
 export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: () => void } = {}) {
     const router = useRouter();
+    const params = useLocalSearchParams<{ userId?: string }>();
     const { profile, loading, error, fetchProfile } = useUserStore();
+    const posts = usePostStore((s) => s.posts);
+    const fetchPostFeed = usePostStore((s) => s.fetchFeed);
     const isHydrated = useAuthStore((s) => s.isHydrated);
     const accessToken = useAuthStore((s) => s.accessToken);
     const hasToken = !!accessToken;
@@ -49,11 +56,41 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
     const [coverError, setCoverError] = useState<string | null>(null);
     const [coverHover, setCoverHover] = useState(false);
     const [showEdit, setShowEdit] = useState(false);
+    const [otherProfile, setOtherProfile] = useState<UserProfile | null>(null);
+    const [otherLoading, setOtherLoading] = useState(false);
+    const [otherError, setOtherError] = useState<string | null>(null);
+    const targetUserId = typeof params.userId === "string" ? params.userId : "";
+    const isOtherProfile = !!targetUserId && targetUserId !== profile?.id;
 
     // Chỉ gọi API sau khi auth đã rehydrate từ storage (tránh 401 do token chưa kịp có)
     useEffect(() => {
         if (isHydrated && hasToken) fetchProfile();
     }, [isHydrated, hasToken, fetchProfile]);
+
+    useEffect(() => {
+        void fetchPostFeed({ silent: true });
+    }, [fetchPostFeed]);
+
+    useEffect(() => {
+        if (!isHydrated || !hasToken || !isOtherProfile) return;
+        let cancelled = false;
+        setOtherLoading(true);
+        setOtherError(null);
+        userService
+            .getUserProfile(targetUserId)
+            .then((data) => {
+                if (!cancelled) setOtherProfile(data);
+            })
+            .catch(() => {
+                if (!cancelled) setOtherError("Không tải được thông tin người dùng.");
+            })
+            .finally(() => {
+                if (!cancelled) setOtherLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [isHydrated, hasToken, isOtherProfile, targetUserId]);
 
     const onClose = onCloseProp ?? (() => router.replace("/(tabs)"));
 
@@ -97,9 +134,23 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
     };
 
     // Khi đã đăng nhập: chỉ dùng profile từ API (userStore), không dùng data ảo
-    const displayProfile = profile ?? null;
+    const displayProfile = isOtherProfile ? otherProfile : profile ?? null;
     const avatarUrl = preview || displayProfile?.avatarUrl || null;
     const displayName = displayProfile?.displayName || displayProfile?.username || "Người dùng";
+    const displayUserId = params.userId || displayProfile?.id || "";
+    const postMedia = useMemo(() => {
+        if (!displayUserId) return [];
+        return posts
+            .filter((post) => post.userId === displayUserId)
+            .flatMap((post) => {
+                const items = Array.isArray(post.mediaItems) && post.mediaItems.length > 0
+                    ? post.mediaItems
+                    : post.mediaUrl
+                        ? [{ id: post.id, mediaUrl: post.mediaUrl, mediaType: post.mediaType, sortOrder: 0 }]
+                        : [];
+                return items.filter((item) => item.mediaUrl && (item.mediaType === "IMAGE" || item.mediaType === "VIDEO"));
+            });
+    }, [posts, displayUserId]);
 
     return (
         <>
@@ -165,14 +216,14 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
                     </div>
                 )}
                 {/* Loading / Error */}
-                {isHydrated && loading && !displayProfile && (
+                {isHydrated && (loading || otherLoading) && !displayProfile && (
                     <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontSize: 16 }}>
                         Đang tải thông tin tài khoản...
                     </div>
                 )}
-                {isHydrated && error && !displayProfile && (
+                {isHydrated && (error || otherError) && !displayProfile && (
                     <div style={{ padding: 28, textAlign: "center" }}>
-                        <p style={{ color: "var(--danger)", marginBottom: 16, fontSize: 16 }}>{error}</p>
+                        <p style={{ color: "var(--danger)", marginBottom: 16, fontSize: 16 }}>{otherError || error}</p>
                         <button
                             type="button"
                             onClick={() => fetchProfile()}
@@ -197,7 +248,7 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
                     <>
                         {/* Banner - click to update cover photo */}
                         <div
-                            onClick={onCoverClick}
+                            onClick={isOtherProfile ? undefined : onCoverClick}
                             onMouseEnter={() => setCoverHover(true)}
                             onMouseLeave={() => setCoverHover(false)}
                             style={{
@@ -206,7 +257,7 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
                                     ? `url(${coverPreview || displayProfile?.coverPhotoUrl}) center/cover no-repeat`
                                     : "linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)",
                                 borderRadius: "0 0 0 0",
-                                cursor: coverUploading ? "wait" : "pointer",
+                                cursor: isOtherProfile ? "default" : coverUploading ? "wait" : "pointer",
                                 position: "relative",
                                 transition: "filter 0.2s ease",
                             }}
@@ -216,7 +267,7 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
                                 style={{
                                     position: "absolute",
                                     inset: 0,
-                                    backgroundColor: coverHover ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0)",
+                                    backgroundColor: !isOtherProfile && coverHover ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
@@ -232,7 +283,7 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
                                         color: "var(--text-inverse)",
                                         fontSize: 14,
                                         fontWeight: 500,
-                                        opacity: coverHover ? 1 : 0,
+                                        opacity: !isOtherProfile && coverHover ? 1 : 0,
                                         transition: "opacity 0.2s ease",
                                         pointerEvents: "none",
                                     }}
@@ -313,6 +364,7 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
                                         style={{ display: "none" }}
                                         onChange={onFileChange}
                                     />
+                                    {!isOtherProfile && (
                                     <button
                                         type="button"
                                         onClick={onAvatarClick}
@@ -337,12 +389,14 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
                                     >
                                         {iconCamera}
                                     </button>
+                                    )}
                                 </div>
                                 <div style={{ flex: 1, paddingBottom: 10 }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                         <span style={{ fontSize: 26, fontWeight: 600, color: "var(--text-primary)" }}>
                                             {displayName}
                                         </span>
+                                        {!isOtherProfile && (
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); setShowEdit(true); }}
@@ -356,6 +410,7 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
                                         >
                                             {iconPencil}
                                         </button>
+                                        )}
                                     </div>
                                     {(avatarError || error) && (
                                         <div style={{ fontSize: 14, color: "var(--danger)", marginTop: 6 }}>
@@ -416,6 +471,38 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
 
                         <div
                             style={{
+                                margin: "0 28px 24px",
+                                padding: 20,
+                                backgroundColor: "var(--bg-secondary)",
+                                borderRadius: 14,
+                            }}
+                        >
+                            <h3 style={{ margin: "0 0 14px", fontSize: 18, color: "var(--text-primary)" }}>Hình ảnh</h3>
+                            {postMedia.length > 0 ? (
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                                    {postMedia.map((item) => {
+                                        const uri = getImageUrl(item.mediaUrl);
+                                        return (
+                                            <div key={item.id} style={{ aspectRatio: "1 / 1", borderRadius: 10, overflow: "hidden", backgroundColor: "#000" }}>
+                                                {item.mediaType === "VIDEO" ? (
+                                                    <video src={uri} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                ) : (
+                                                    <img src={uri} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div style={{ padding: "28px 0", textAlign: "center", color: "var(--text-secondary)", fontSize: 15 }}>
+                                    Chưa có ảnh nào được chia sẻ
+                                </div>
+                            )}
+                        </div>
+
+                        {!isOtherProfile && (
+                        <div
+                            style={{
                                 margin: "0 28px 28px",
                                 display: "flex",
                                 justifyContent: "center",
@@ -439,6 +526,7 @@ export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: ()
                                 Cập nhật
                             </button>
                         </div>
+                        )}
                     </>
                 )}
             </div>
