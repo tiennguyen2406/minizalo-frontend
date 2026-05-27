@@ -205,6 +205,7 @@ export default function RegisterFormWeb() {
         margin: 0,
         backgroundColor: COLORS.white,
         boxSizing: "border-box",
+        colorScheme: "light",
       }}
     >
       <div
@@ -305,6 +306,8 @@ export default function RegisterFormWeb() {
                     borderBottom: `1px solid ${nameError ? "#d32f2f" : COLORS.border}`,
                     padding: "12px 0",
                     fontSize: 16,
+                    backgroundColor: COLORS.white,
+                    color: COLORS.text,
                   }}
                 />
                 {nameError ? (
@@ -328,6 +331,8 @@ export default function RegisterFormWeb() {
                     borderBottom: `1px solid ${phoneError ? "#d32f2f" : COLORS.border}`,
                     padding: "12px 0",
                     fontSize: 16,
+                    backgroundColor: COLORS.white,
+                    color: COLORS.text,
                   }}
                 />
                 {phoneError ? (
@@ -351,6 +356,8 @@ export default function RegisterFormWeb() {
                     borderBottom: `1px solid ${emailError ? "#d32f2f" : COLORS.border}`,
                     padding: "12px 0",
                     fontSize: 16,
+                    backgroundColor: COLORS.white,
+                    color: COLORS.text,
                   }}
                 />
                 {emailError ? (
@@ -376,6 +383,8 @@ export default function RegisterFormWeb() {
                     borderBottom: `1px solid ${passwordError ? "#d32f2f" : COLORS.border}`,
                     padding: "12px 0",
                     fontSize: 16,
+                    backgroundColor: COLORS.white,
+                    color: COLORS.text,
                   }}
                 />
                 {passwordError ? (
@@ -400,6 +409,8 @@ export default function RegisterFormWeb() {
                     borderBottom: `1px solid ${confirmPasswordError ? "#d32f2f" : COLORS.border}`,
                     padding: "12px 0",
                     fontSize: 16,
+                    backgroundColor: COLORS.white,
+                    color: COLORS.text,
                   }}
                 />
                 {confirmPasswordError ? (

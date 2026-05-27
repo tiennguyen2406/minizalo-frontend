@@ -111,7 +111,7 @@ export default function ForgotPasswordWeb() {
     }, [otp, newPassword, confirmPassword, phone, router]);
 
     return (
-        <div style={{ minHeight: "100vh", backgroundColor: COLORS.white, padding: 24 }}>
+        <div style={{ minHeight: "100vh", backgroundColor: COLORS.white, padding: 24, colorScheme: "light" }}>
             <div style={{ paddingTop: 20, paddingBottom: 20 }}>
                 <button
                     type="button"
@@ -175,7 +175,7 @@ export default function ForgotPasswordWeb() {
                                 value={phone}
                                 onChange={(e: any) => setPhone(e.target?.value ?? e)}
                                 disabled={loading}
-                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16 }}
+                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16, backgroundColor: COLORS.white, color: COLORS.text }}
                             />
                         </div>
 
@@ -220,7 +220,7 @@ export default function ForgotPasswordWeb() {
                                 value={newPassword}
                                 onChange={(e: any) => setNewPassword(e.target?.value ?? e)}
                                 disabled={loading}
-                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16 }}
+                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16, backgroundColor: COLORS.white, color: COLORS.text }}
                             />
                         </div>
                         <div style={{ marginBottom: 16 }}>
@@ -230,7 +230,7 @@ export default function ForgotPasswordWeb() {
                                 value={confirmPassword}
                                 onChange={(e: any) => setConfirmPassword(e.target?.value ?? e)}
                                 disabled={loading}
-                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16 }}
+                                style={{ borderBottom: `1px solid ${COLORS.border}`, padding: "12px 0", fontSize: 16, backgroundColor: COLORS.white, color: COLORS.text }}
                             />
                         </div>
 

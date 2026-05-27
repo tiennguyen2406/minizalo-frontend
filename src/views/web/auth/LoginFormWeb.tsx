@@ -72,6 +72,7 @@ export default function LoginFormWeb() {
                 minHeight: "100vh",
                 backgroundColor: COLORS.white,
                 padding: 24,
+                colorScheme: "light",
             }}
         >
             <div
@@ -129,6 +130,8 @@ export default function LoginFormWeb() {
                             borderBottom: `1px solid ${COLORS.border}`,
                             padding: "12px 0",
                             fontSize: 16,
+                            backgroundColor: COLORS.white,
+                            color: COLORS.text,
                         }}
                     />
                 </div>
@@ -143,6 +146,8 @@ export default function LoginFormWeb() {
                             borderBottom: `1px solid ${COLORS.border}`,
                             padding: "12px 36px 12px 0",
                             fontSize: 16,
+                            backgroundColor: COLORS.white,
+                            color: COLORS.text,
                         }}
                     />
                     <button
