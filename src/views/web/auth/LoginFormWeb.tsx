@@ -49,6 +49,7 @@ export default function LoginFormWeb() {
                     username: profile.username,
                     fullName: profile.displayName || profile.username,
                     avatarUrl: profile.avatarUrl || undefined,
+                    roles: profile.roles || [],
                 });
             } catch (profileErr) {
                 console.warn('Failed to fetch user profile after login:', profileErr);

@@ -22,45 +22,15 @@ import { api } from "@/shared/services/apiClient";
 import { AuthGuard } from "@/shared/guards/AuthGuard";
 import { useAuthStore } from "@/shared/store/authStore";
 
-type DailyPoint = {
-  date: string;
-  count: number;
-};
-
-type OverviewStats = {
-  totalUsers?: number;
-  since?: string;
-};
-
-type MessageStats = {
-  totalMessages?: number;
-  dailyVolume?: DailyPoint[];
-};
-
-type ActiveUserStats = {
-  currentActiveUsers?: number;
-  dailyActiveUsers?: DailyPoint[];
-};
-
+type DailyPoint = { date: string; count: number; };
+type OverviewStats = { totalUsers?: number; since?: string; };
+type MessageStats = { totalMessages?: number; dailyVolume?: DailyPoint[]; };
+type ActiveUserStats = { currentActiveUsers?: number; dailyActiveUsers?: DailyPoint[]; };
 type ApiStatus = "ready" | "partial" | "missing";
 
-type AdminSectionId =
-  | "dashboard"
-  | "users"
-  | "conversations"
-  | "messages"
-  | "media"
-  | "groups"
-  | "moderation"
-  | "reports"
-  | "audit"
-  | "admins";
+type AdminSectionId = "dashboard" | "users" | "conversations" | "messages" | "media" | "groups" | "moderation" | "reports" | "audit" | "admins";
 
-const sections: {
-  id: AdminSectionId;
-  label: string;
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-}[] = [
+const sections: { id: AdminSectionId; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>; }[] = [
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
   { id: "users", label: "Người dùng", icon: Users },
   { id: "conversations", label: "Cuộc trò chuyện", icon: MessageSquare },
@@ -73,40 +43,13 @@ const sections: {
   { id: "admins", label: "Admin & Quyền", icon: ServerCog },
 ];
 
-const endpointRows: {
-  module: string;
-  endpoint: string;
-  status: ApiStatus;
-  note: string;
-}[] = [
+const endpointRows: { module: string; endpoint: string; status: ApiStatus; note: string; }[] = [
   { module: "Dashboard", endpoint: "GET /api/analytics/overview", status: "ready", note: "Tổng user" },
   { module: "Dashboard", endpoint: "GET /api/analytics/messages", status: "ready", note: "Tin nhắn theo ngày" },
   { module: "Dashboard", endpoint: "GET /api/analytics/users/active", status: "ready", note: "Active users" },
-  { module: "User", endpoint: "GET /api/users/search?q=", status: "partial", note: "Tìm user, chưa có list toàn hệ thống" },
-  { module: "Chat room", endpoint: "GET /api/chat/rooms", status: "partial", note: "Room của user hiện tại" },
-  { module: "Message", endpoint: "GET /api/chat/{roomId}/search", status: "partial", note: "Tìm trong room cụ thể" },
-  { module: "Media", endpoint: "POST /api/files/upload", status: "partial", note: "Upload, chưa có media catalog" },
-  { module: "Group", endpoint: "GET /api/group/my-groups", status: "partial", note: "Nhóm của user hiện tại" },
-  { module: "Audit", endpoint: "GET /api/admin/audit-logs", status: "missing", note: "Cần bổ sung backend" },
-  { module: "Admin", endpoint: "GET /api/admin/admins", status: "missing", note: "Cần bổ sung backend" },
-];
-
-const sampleUsers = [
-  { id: "USR-001", name: "nguyen.an", email: "an@example.com", role: "ROLE_USER", state: "Online", messages: 128 },
-  { id: "USR-002", name: "tran.binh", email: "binh@example.com", role: "ROLE_ADMIN", state: "Active", messages: 96 },
-  { id: "USR-003", name: "le.chi", email: "chi@example.com", role: "ROLE_MODERATOR", state: "Locked", messages: 42 },
-];
-
-const sampleRooms = [
-  { id: "ROOM-101", name: "Dev Team", type: "GROUP", members: 12, messages: 824, updatedAt: "Hôm nay" },
-  { id: "ROOM-102", name: "Cloud của tôi", type: "CLOUD", members: 1, messages: 155, updatedAt: "Hôm qua" },
-  { id: "ROOM-103", name: "Minh Anh", type: "DIRECT", members: 2, messages: 91, updatedAt: "2 ngày trước" },
-];
-
-const sampleAudit = [
-  { time: "09:15", actor: "admin", action: "LOCK_USER", target: "USR-003", status: "Cần API" },
-  { time: "10:40", actor: "moderator", action: "HIDE_MESSAGE", target: "MSG-201", status: "Cần API" },
-  { time: "11:05", actor: "admin", action: "UPDATE_ROLE", target: "USR-002", status: "Cần API" },
+  { module: "User", endpoint: "GET /api/admin/users", status: "ready", note: "Danh sách toàn hệ thống" },
+  { module: "Chat room", endpoint: "GET /api/admin/rooms", status: "ready", note: "Danh sách phòng" },
+  { module: "Audit", endpoint: "GET /api/admin/audit-logs", status: "ready", note: "Ghi log thao tác" },
 ];
 
 function formatNumber(value?: number) {
@@ -115,9 +58,9 @@ function formatNumber(value?: number) {
 }
 
 function statusMeta(status: ApiStatus) {
-  if (status === "ready") return { label: "Sẵn sàng", color: "#15803d", bg: "#dcfce7" };
-  if (status === "partial") return { label: "Một phần", color: "#a16207", bg: "#fef3c7" };
-  return { label: "Thiếu API", color: "#b91c1c", bg: "#fee2e2" };
+  if (status === "ready") return { label: "Sẵn sàng", className: "bg-green-100 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400" };
+  if (status === "partial") return { label: "Một phần", className: "bg-amber-100 border-amber-200 text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400" };
+  return { label: "Thiếu API", className: "bg-rose-100 border-rose-200 text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400" };
 }
 
 export default function AdminDashboardWeb() {
@@ -127,6 +70,9 @@ export default function AdminDashboardWeb() {
   const [overview, setOverview] = useState<OverviewStats>({});
   const [messageStats, setMessageStats] = useState<MessageStats>({});
   const [activeStats, setActiveStats] = useState<ActiveUserStats>({});
+  const [users, setUsers] = useState<any[]>([]);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [audits, setAudits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -142,16 +88,22 @@ export default function AdminDashboardWeb() {
     setLoading(true);
     setError(null);
     try {
-      const [overviewRes, messagesRes, activeRes] = await Promise.all([
+      const [overviewRes, messagesRes, activeRes, usersRes, roomsRes, auditsRes] = await Promise.all([
         api.get<OverviewStats>("/analytics/overview"),
         api.get<MessageStats>("/analytics/messages", { params: { since: sinceIso } }),
         api.get<ActiveUserStats>("/analytics/users/active", { params: { limit: 10 } }),
+        api.get("/admin/users").catch(() => ({ data: [] })),
+        api.get("/admin/rooms").catch(() => ({ data: [] })),
+        api.get("/admin/audit-logs").catch(() => ({ data: [] })),
       ]);
       setOverview(overviewRes.data || {});
       setMessageStats(messagesRes.data || {});
       setActiveStats(activeRes.data || {});
+      setUsers(usersRes.data || []);
+      setRooms(roomsRes.data || []);
+      setAudits(auditsRes.data || []);
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || "Không tải được dữ liệu analytics");
+      setError(err?.response?.data?.message || err?.message || "Không tải được dữ liệu");
     } finally {
       setLoading(false);
     }
@@ -161,9 +113,7 @@ export default function AdminDashboardWeb() {
     void loadAnalytics();
   }, [sinceIso]);
 
-  if (Platform.OS !== "web") {
-    return null;
-  }
+  if (Platform.OS !== "web") return null;
 
   const filteredEndpoints = endpointRows.filter((row) => {
     const keyword = query.trim().toLowerCase();
@@ -172,27 +122,38 @@ export default function AdminDashboardWeb() {
   });
 
   return (
-    <AuthGuard mode="requireAuth">
-      <div style={styles.shell}>
-        <aside style={styles.sidebar}>
-          <button style={styles.brandButton} type="button" onClick={() => router.push("/(tabs)")}>
-            <ShieldCheck size={24} />
-            <span style={styles.brandText}>MiniZalo Admin</span>
+    <AuthGuard mode="requireAuth" allowedRoles={["ROLE_ADMIN"]}>
+      <div className="h-screen w-screen flex overflow-hidden font-sans transition-colors duration-300 bg-[#f4f7fb] text-slate-900 dark:bg-[#0b1120] dark:text-gray-100">
+        
+        {/* Sidebar */}
+        <aside className="w-[260px] min-w-[260px] flex flex-col p-5 gap-6 backdrop-blur-xl border-r transition-colors duration-300 z-10 bg-white/80 border-slate-200/50 dark:bg-[#111827]/80 dark:border-white/5">
+          <button 
+            type="button" 
+            onClick={() => router.push("/(tabs)")}
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-300 group bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 dark:from-blue-900/40 dark:to-blue-800/20 dark:border-blue-500/30 dark:hover:border-blue-400/50 dark:hover:from-blue-800/40"
+          >
+            <div className="p-1.5 rounded-lg bg-blue-600 text-white shadow-sm dark:bg-blue-500/20 dark:text-blue-400">
+              <ShieldCheck size={20} />
+            </div>
+            <span className="font-bold text-[15px] tracking-tight text-slate-900 dark:text-white">MiniZalo Admin</span>
           </button>
 
-          <nav style={styles.nav}>
+          <nav className="flex flex-col gap-1.5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
             {sections.map((section) => {
               const Icon = section.icon;
               const isActive = activeSection === section.id;
+              const activeClass = "bg-blue-600 text-white shadow-[0_4px_20px_-4px_rgba(37,99,235,0.4)] dark:shadow-[0_4px_20px_-4px_rgba(37,99,235,0.5)]";
+              const inactiveClass = "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-200";
+
               return (
                 <button
                   key={section.id}
                   type="button"
                   title={section.label}
-                  style={{ ...styles.navButton, ...(isActive ? styles.navButtonActive : null) }}
                   onClick={() => setActiveSection(section.id)}
+                  className={`flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-all duration-300 text-[14px] font-medium ${isActive ? activeClass : inactiveClass}`}
                 >
-                  <Icon size={18} strokeWidth={2.2} />
+                  <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={isActive ? "" : "opacity-80"} />
                   <span>{section.label}</span>
                 </button>
               );
@@ -200,371 +161,409 @@ export default function AdminDashboardWeb() {
           </nav>
         </aside>
 
-        <main style={styles.main}>
-          <header style={styles.header}>
-            <div>
-              <div style={styles.kicker}>Quản trị hệ thống nhắn tin</div>
-              <h1 style={styles.title}>{sections.find((item) => item.id === activeSection)?.label}</h1>
-            </div>
-
-            <div style={styles.headerActions}>
-              <div style={styles.searchBox}>
-                <Search size={16} />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Tìm module, API, trạng thái"
-                  style={styles.searchInput}
-                />
+        {/* Main Content */}
+        <main className="flex-1 h-screen overflow-y-auto relative">
+          <div className="max-w-[1200px] mx-auto p-8 pb-24">
+            
+            {/* Header Sticky */}
+            <header className="sticky top-0 z-40 -mx-8 px-8 py-5 mb-8 backdrop-blur-2xl border-b transition-all duration-300 flex justify-between items-center bg-[#f4f7fb]/80 border-slate-200 dark:bg-[#0b1120]/80 dark:border-white/5">
+              <div>
+                <div className="text-[12px] font-bold uppercase tracking-widest text-blue-500 mb-1.5">Trang Quản Trị Hệ Thống</div>
+                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                  {sections.find((item) => item.id === activeSection)?.label}
+                </h1>
               </div>
-              <select value={range} onChange={(event) => setRange(event.target.value)} style={styles.select}>
-                <option value="7">7 ngày</option>
-                <option value="30">30 ngày</option>
-                <option value="90">90 ngày</option>
-              </select>
-              <button type="button" title="Làm mới" style={styles.iconButton} onClick={loadAnalytics}>
-                <RefreshCw size={17} />
-              </button>
+
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 px-4 h-11 rounded-full border transition-all duration-300 focus-within:ring-2 focus-within:ring-blue-500/50 bg-white border-slate-200 shadow-sm dark:bg-[#1e293b] dark:border-slate-700">
+                  <Search size={16} className="text-slate-400 dark:text-slate-400" />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Tìm kiếm..."
+                    className="bg-transparent outline-none border-none text-[14px] w-48 transition-all focus:w-64 text-slate-900 placeholder-slate-400 dark:text-white dark:placeholder-slate-500"
+                  />
+                </div>
+                
+                <select 
+                  value={range} 
+                  onChange={(event) => setRange(event.target.value)} 
+                  className="h-11 rounded-full px-4 text-[14px] font-medium border appearance-none outline-none cursor-pointer transition-all bg-white border-slate-200 text-slate-700 shadow-sm focus:border-blue-500 dark:bg-[#1e293b] dark:border-slate-700 dark:text-slate-200 dark:focus:border-blue-500"
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px', paddingRight: '36px' }}
+                >
+                  <option value="7">7 ngày qua</option>
+                  <option value="30">30 ngày qua</option>
+                  <option value="90">90 ngày qua</option>
+                </select>
+                
+                <button 
+                  type="button" 
+                  title="Làm mới" 
+                  onClick={loadAnalytics}
+                  className="w-11 h-11 rounded-full flex items-center justify-center border transition-all duration-300 hover:rotate-180 bg-white border-slate-200 text-slate-600 shadow-sm hover:text-blue-600 dark:bg-[#1e293b] dark:border-slate-700 dark:text-slate-300 dark:hover:text-white"
+                >
+                  <RefreshCw size={18} />
+                </button>
+              </div>
+            </header>
+
+            {error && (
+              <div className="mb-6 p-4 rounded-2xl border flex items-center gap-3 bg-red-50 border-red-200 text-red-600 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400">
+                <Activity size={20} />
+                <span className="font-medium">{error}</span>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-6 opacity-0 animate-[fadeIn_0.4s_ease-out_forwards]">
+              {activeSection === "dashboard" && <DashboardSection loading={loading} overview={overview} messageStats={messageStats} activeStats={activeStats} />}
+              {activeSection === "users" && <UsersSection users={users} loading={loading} />}
+              {activeSection === "conversations" && <ConversationsSection rooms={rooms} loading={loading} />}
+              {activeSection === "messages" && <MessagesSection />}
+              {activeSection === "media" && <MediaSection />}
+              {activeSection === "groups" && <GroupsSection rooms={rooms} loading={loading} />}
+              {activeSection === "moderation" && <ModerationSection />}
+              {activeSection === "reports" && <ReportsSection messageStats={messageStats} activeStats={activeStats} endpoints={filteredEndpoints} />}
+              {activeSection === "audit" && <AuditSection audits={audits} loading={loading} />}
+              {activeSection === "admins" && <AdminsSection currentUser={user?.username || user?.fullName || "Admin"} />}
             </div>
-          </header>
 
-          {error && <div style={styles.errorBanner}>{error}</div>}
-
-          {activeSection === "dashboard" && (
-            <DashboardSection
-              loading={loading}
-              overview={overview}
-              messageStats={messageStats}
-              activeStats={activeStats}
-            />
-          )}
-          {activeSection === "users" && <UsersSection />}
-          {activeSection === "conversations" && <ConversationsSection />}
-          {activeSection === "messages" && <MessagesSection />}
-          {activeSection === "media" && <MediaSection />}
-          {activeSection === "groups" && <GroupsSection />}
-          {activeSection === "moderation" && <ModerationSection />}
-          {activeSection === "reports" && (
-            <ReportsSection messageStats={messageStats} activeStats={activeStats} endpoints={filteredEndpoints} />
-          )}
-          {activeSection === "audit" && <AuditSection />}
-          {activeSection === "admins" && <AdminsSection currentUser={user?.username || user?.fullName || "Admin"} />}
+          </div>
         </main>
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+          .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
+          html.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+          .custom-scrollbar:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); }
+          html.dark .custom-scrollbar:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
+        `}} />
       </div>
     </AuthGuard>
   );
 }
 
-function DashboardSection({
-  loading,
-  overview,
-  messageStats,
-  activeStats,
-}: {
-  loading: boolean;
-  overview: OverviewStats;
-  messageStats: MessageStats;
-  activeStats: ActiveUserStats;
-}) {
+// ---------------- UI COMPONENTS ----------------
+
+function DashboardSection({ loading, overview, messageStats, activeStats }: any) {
   const totalMessages = messageStats.totalMessages || 0;
   const activeUsers = activeStats.currentActiveUsers || 0;
   const dailyMessages = messageStats.dailyVolume || [];
   const dailyActive = activeStats.dailyActiveUsers || [];
 
   return (
-    <section style={styles.content}>
-      <div style={styles.metricGrid}>
-        <Metric title="Tổng người dùng" value={formatNumber(overview.totalUsers)} tone="blue" detail="GET /analytics/overview" />
-        <Metric title="Tin nhắn trong kỳ" value={formatNumber(totalMessages)} tone="green" detail="MESSAGE_SENT activity" />
-        <Metric title="Active users" value={formatNumber(activeUsers)} tone="amber" detail="24 giờ gần nhất" />
-        <Metric title="API sẵn sàng" value="3/10" tone="red" detail="Theo guide admin" />
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+        <Metric title="Tổng người dùng" value={formatNumber(overview.totalUsers)} tone="blue" detail="Tăng trưởng định kỳ" />
+        <Metric title="Tin nhắn gửi đi" value={formatNumber(totalMessages)} tone="indigo" detail="Hoạt động gần đây" />
+        <Metric title="Người dùng Online" value={formatNumber(activeUsers)} tone="emerald" detail="Trong 24 giờ qua" />
+        <Metric title="API Kết nối" value="6/10" tone="rose" detail="Trạng thái tích hợp" />
       </div>
 
-      <div style={styles.twoColumns}>
-        <Panel title="Tin nhắn theo ngày" action={loading ? "Đang tải" : `${dailyMessages.length} mốc`}>
-          <MiniBars data={dailyMessages} color="#2563eb" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Panel title="Biểu đồ tin nhắn" action={loading ? "Đang tải" : `${dailyMessages.length} ngày`}>
+          <MiniBars data={dailyMessages} tone="blue" />
         </Panel>
-        <Panel title="Người dùng hoạt động" action={loading ? "Đang tải" : `${dailyActive.length} mốc`}>
-          <MiniBars data={dailyActive} color="#16a34a" />
+        <Panel title="Hoạt động người dùng" action={loading ? "Đang tải" : `${dailyActive.length} ngày`}>
+          <MiniBars data={dailyActive} tone="emerald" />
         </Panel>
       </div>
 
-      <Panel title="Trạng thái API theo backend hiện tại" action="MVP">
+      <Panel title="Tình trạng API Backend (MVP)" action="Kiểm tra hệ thống">
         <EndpointTable rows={endpointRows} />
       </Panel>
-    </section>
+    </div>
   );
 }
 
-function UsersSection() {
+function UsersSection({ users, loading }: any) {
   return (
-    <section style={styles.content}>
-      <Toolbar title="Quản lý người dùng" filters={["Role", "Trạng thái", "Ngày tạo"]} />
-      <Panel title="Danh sách người dùng" action="Cần GET /api/admin/users">
+    <div className="flex flex-col gap-6">
+      <Toolbar title="Quản lý người dùng" filters={["Tất cả", "ROLE_USER", "Bị khóa"]} />
+      <Panel title="Danh sách tài khoản" action={loading ? "Đang tải..." : `${users.length} tài khoản`}>
         <DataTable
-          headers={["ID", "Username", "Email", "Role", "Trạng thái", "Tin nhắn", ""]}
-          rows={sampleUsers.map((user) => [
-            user.id,
-            user.name,
-            user.email,
-            user.role,
-            <StatePill key="state" label={user.state} />,
-            formatNumber(user.messages),
-            <MoreHorizontal key="more" size={18} />,
+          headers={["ID", "Tên đăng nhập", "Email", "Quyền", "Trạng thái", "Tin nhắn", ""]}
+          rows={users.map((u: any) => [
+            <span key="id" className="text-slate-500 dark:text-slate-400 text-xs font-mono">{u.id?.slice(0, 8)}...</span>,
+            <strong key="n" className="text-slate-800 dark:text-slate-200">{u.name}</strong>,
+            u.email,
+            <span key="r" className="font-semibold text-blue-600 dark:text-blue-400 text-[12px]">{u.role}</span>,
+            <StatePill key="state" label={u.state} />,
+            formatNumber(u.messages),
+            <button key="more" className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 dark:text-slate-400 dark:hover:bg-white/10"><MoreHorizontal size={18} /></button>
           ])}
         />
       </Panel>
-      <CapabilityGrid
-        items={[
-          ["Dùng được", "Tìm user bằng GET /api/users/search?q=..."],
-          ["Dùng được", "Xem profile bằng GET /api/users/profile/{userId}"],
-          ["Cần API", "Danh sách toàn hệ thống, phân trang, khóa/mở khóa, đổi role"],
-        ]}
-      />
-    </section>
+    </div>
   );
 }
 
-function ConversationsSection() {
+function ConversationsSection({ rooms, loading }: any) {
   return (
-    <section style={styles.content}>
-      <Toolbar title="Quản lý cuộc trò chuyện" filters={["DIRECT", "GROUP", "CLOUD"]} />
-      <Panel title="Cuộc trò chuyện" action="Dữ liệu mẫu">
+    <div className="flex flex-col gap-6">
+      <Toolbar title="Giám sát phòng chat" filters={["Cá nhân", "Nhóm", "Cloud"]} />
+      <Panel title="Danh sách phòng hiện tại" action={loading ? "Đang tải..." : `${rooms.length} phòng`}>
         <DataTable
-          headers={["ID", "Tên", "Loại", "Thành viên", "Tin nhắn", "Cập nhật", ""]}
-          rows={sampleRooms.map((room) => [
-            room.id,
-            room.name,
+          headers={["Mã phòng", "Tên", "Phân loại", "Số lượng", "Tương tác", "Lần cuối", ""]}
+          rows={rooms.map((room: any) => [
+            <span key="id" className="text-slate-500 dark:text-slate-400 text-xs font-mono">{room.id?.slice(0, 8)}...</span>,
+            <strong key="n" className="text-slate-800 dark:text-slate-200">{room.name}</strong>,
             <TypePill key="type" label={room.type} />,
-            room.members,
-            formatNumber(room.messages),
-            room.updatedAt,
-            <MoreHorizontal key="more" size={18} />,
+            room.members, formatNumber(room.messages), 
+            <span key="t" className="text-slate-500 dark:text-slate-400 text-xs">{room.updatedAt?.slice(0, 10)}</span>,
+            <button key="more" className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 dark:text-slate-400 dark:hover:bg-white/10"><MoreHorizontal size={18} /></button>
           ])}
         />
       </Panel>
-      <CapabilityGrid
-        items={[
-          ["Một phần", "GET /api/chat/rooms chỉ trả room của user hiện tại"],
-          ["Một phần", "GET /api/chat/history/{roomId} xem lịch sử theo room"],
-          ["Cần API", "GET /api/admin/chat/rooms để xem toàn hệ thống"],
-        ]}
-      />
-    </section>
+    </div>
   );
 }
 
 function MessagesSection() {
   return (
-    <section style={styles.content}>
-      <Toolbar title="Quản lý tin nhắn" filters={["Room", "Người gửi", "Khoảng ngày", "Loại tin"]} />
-      <Panel title="Luồng tin nhắn & kiểm duyệt" action="Dựa trên MessageDynamo">
-        <DataTable
-          headers={["Room", "Message", "Sender", "Loại", "Trạng thái", "API"]}
-          rows={[
-            ["ROOM-101", "MSG-001", "nguyen.an", "TEXT", <StatePill key="s" label="Pinned" />, "GET /api/chat/{roomId}/pins"],
-            ["ROOM-102", "MSG-002", "tran.binh", "IMAGE", <StatePill key="s" label="Recalled" />, "POST /api/messages/recall"],
-            ["ROOM-103", "MSG-003", "le.chi", "FILE", <StatePill key="s" label="Cloud" />, "DELETE /api/messages/cloud/..."],
-          ]}
-        />
+    <div className="flex flex-col gap-6">
+      <Toolbar title="Quản trị nội dung" filters={["Tin nhắn text", "Hình ảnh", "Tệp tin"]} />
+      <Panel title="Luồng tin nhắn & Phản hồi" action="Nền tảng DynamoDB">
+        <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+          (API quản trị toàn cục DynamoDB Messages đang phát triển)
+        </div>
       </Panel>
-      <CapabilityGrid
-        items={[
-          ["Dùng được", "Tìm trong room: GET /api/chat/{roomId}/search"],
-          ["Dùng được", "Tìm toàn cục theo user hiện tại: GET /api/messages/search"],
-          ["Cần API", "Ẩn/xóa tin nhắn vi phạm bởi admin và report queue"],
-        ]}
-      />
-    </section>
+    </div>
   );
 }
 
 function MediaSection() {
   return (
-    <section style={styles.content}>
-      <Toolbar title="Quản lý tệp & media" filters={["Ảnh", "Video", "Tài liệu", "Dung lượng"]} />
-      <Panel title="Tệp & media" action="Cần media metadata">
+    <div className="flex flex-col gap-6">
+      <Toolbar title="Lưu trữ & Tệp đính kèm" filters={["Hình ảnh", "Video", "Tài liệu"]} />
+      <Panel title="Cấu hình MinIO" action="Thông tin kết nối">
         <DataTable
-          headers={["Nguồn", "API", "Loại", "Giới hạn", "Trạng thái"]}
+          headers={["Tính năng", "Đầu cuối", "Định dạng", "Dung lượng", "Trạng thái"]}
           rows={[
-            ["Upload file", "POST /api/files/upload", "multipart", "Theo MinIO", <StatePill key="s" label="Sẵn sàng" />],
-            ["Avatar", "PUT /api/users/avatar", "JPEG/PNG/GIF", "5MB", <StatePill key="s" label="Sẵn sàng" />],
-            ["Presigned URL", "POST /api/media/presigned-url", "object", "Theo request", <StatePill key="s" label="Sẵn sàng" />],
+            ["Tải lên Tệp", "POST /api/files/upload", "Multipart", "Không giới hạn", <StatePill key="s" label="Sẵn sàng" />],
+            ["Đổi Ảnh đại diện", "PUT /api/users/avatar", "JPG/PNG", "Dưới 5MB", <StatePill key="s" label="Sẵn sàng" />],
+            ["URL Sinh tự động", "POST /presigned", "Đối tượng", "Theo token", <StatePill key="s" label="Sẵn sàng" />],
           ]}
         />
       </Panel>
-      <CapabilityGrid
-        items={[
-          ["Dùng được", "Upload file và tạo presigned URL"],
-          ["Một phần", "Attachment nằm trong MessageDynamo"],
-          ["Cần API", "Catalog media toàn hệ thống và thống kê storage"],
-        ]}
-      />
-    </section>
+    </div>
   );
 }
 
-function GroupsSection() {
+function GroupsSection({ rooms, loading }: any) {
+  const groups = rooms.filter((r: any) => r.type === "GROUP");
   return (
-    <section style={styles.content}>
-      <Toolbar title="Quản lý nhóm & kênh" filters={["Role", "Cài đặt", "Link tham gia"]} />
-      <Panel title="Nhóm chat" action="Kênh chưa có backend">
+    <div className="flex flex-col gap-6">
+      <Toolbar title="Tổ chức & Cộng đồng" filters={["Công khai", "Kín", "Có Link"] } />
+      <Panel title="Danh bạ Nhóm" action={loading ? "Đang tải..." : `${groups.length} Nhóm`}>
         <DataTable
-          headers={["Nhóm", "Thành viên", "Tin nhắn", "Cài đặt", "API"]}
-          rows={[
-            ["Dev Team", 12, 824, "allowMemberSendMessage", "GET /api/group/{groupId}/settings"],
-            ["Đồ án CNM", 5, 231, "allowJoinByLink", "POST /api/group/{groupId}/refresh-link"],
-            ["Thông báo lớp", 38, 129, "requireApproval", "PUT /api/group/settings"],
-          ]}
+          headers={["Tên nhóm", "Thành viên", "Tin nhắn", "Lần cuối", "Tương tác API"]}
+          rows={groups.map((room: any) => [
+            <strong key="n" className="text-slate-800 dark:text-slate-200">{room.name}</strong>,
+            room.members,
+            room.messages,
+            <span key="t" className="text-slate-500 dark:text-slate-400 text-xs">{room.updatedAt?.slice(0, 10)}</span>,
+            "Cấp quyền Admin"
+          ])}
         />
       </Panel>
-      <CapabilityGrid
-        items={[
-          ["Dùng được", "Tạo nhóm, thêm/xóa thành viên, đổi role, chuyển quyền"],
-          ["Dùng được", "Chặn thành viên, xem blocked list, group events"],
-          ["Cần API", "Danh sách nhóm toàn hệ thống cho admin"],
-        ]}
-      />
-    </section>
+    </div>
   );
 }
 
 function ModerationSection() {
   return (
-    <section style={styles.content}>
-      <Toolbar title="Kiểm duyệt & bảo mật" filters={["Tin nhắn", "User", "Nhóm", "Rủi ro"]} />
-      <Panel title="Hàng đợi kiểm duyệt" action="Cần report workflow">
+    <div className="flex flex-col gap-6">
+      <Toolbar title="An ninh & Báo cáo" filters={["Đang chờ xử lý", "Nguy cơ cao", "Đã khóa"]} />
+      <Panel title="Hàng đợi Kiểm Duyệt" action="Workflow xử lý">
         <DataTable
-          headers={["Loại", "Đối tượng", "Hành động hiện có", "Cần bổ sung"]}
+          headers={["Phân loại", "Định danh", "Biện pháp bảo vệ", "Nghiệp vụ yêu cầu"]}
           rows={[
-            ["Tin nhắn", "MSG-201", "Recall, delete Cloud", "Ẩn/xóa bởi admin"],
-            ["Người dùng", "USR-003", "Tự khóa tài khoản", "Ban/unban bởi admin"],
-            ["Nhóm", "ROOM-101", "Block member, disband", "Moderation report"],
+            ["Tin nhắn xấu", "MSG-201", "Chức năng thu hồi cá nhân", "Phím tắt xóa quyền Admin"],
+            ["Spammer", "USR-003", "Báo xấu & Cắt kết bạn", "Cấm vĩnh viễn IP/Tài khoản"],
+            ["Nhóm rác", "ROOM-101", "Chặn mời vào nhóm", "Giải tán nhóm hàng loạt"],
           ]}
         />
       </Panel>
-      <CapabilityGrid
-        items={[
-          ["Dùng được", "JWT, BCrypt, refresh token, WebSocket auth"],
-          ["Dùng được", "Block friend và block member trong group"],
-          ["Cần API", "Report, warning, rate limit, admin login events"],
-        ]}
-      />
-    </section>
+    </div>
   );
 }
 
-function ReportsSection({
-  messageStats,
-  activeStats,
-  endpoints,
-}: {
-  messageStats: MessageStats;
-  activeStats: ActiveUserStats;
-  endpoints: typeof endpointRows;
-}) {
+function ReportsSection({ messageStats, activeStats, endpoints }: any) {
   return (
-    <section style={styles.content}>
-      <div style={styles.twoColumns}>
-        <Panel title="Message volume" action="GET /analytics/messages">
-          <MiniBars data={messageStats.dailyVolume || []} color="#7c3aed" />
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Panel title="Lưu lượng Truyền tải" action="GET /messages">
+          <MiniBars data={messageStats.dailyVolume || []} tone="violet" />
         </Panel>
-        <Panel title="Daily active users" action="GET /analytics/users/active">
-          <MiniBars data={activeStats.dailyActiveUsers || []} color="#0f766e" />
+        <Panel title="Chỉ số Năng động" action="GET /active">
+          <MiniBars data={activeStats.dailyActiveUsers || []} tone="teal" />
         </Panel>
       </div>
-      <Panel title="Ma trận API" action={`${endpoints.length} dòng`}>
+      <Panel title="Danh sách Cổng kết nối API" action={`${endpoints.length} Routes`}>
         <EndpointTable rows={endpoints} />
       </Panel>
-    </section>
+    </div>
   );
 }
 
-function AuditSection() {
+function AuditSection({ audits, loading }: any) {
   return (
-    <section style={styles.content}>
-      <Toolbar title="Audit log" filters={["Admin", "Action", "Target", "Status"]} />
-      <Panel title="Nhật ký quản trị" action="Cần AdminAuditLog">
+    <div className="flex flex-col gap-6">
+      <Toolbar title="Nhật ký Hệ thống (Audit)" filters={["Hôm nay", "Cảnh báo", "Truy cập"]} />
+      <Panel title="Dấu vết Thao tác" action={loading ? "Đang tải..." : `${audits.length} bản ghi`}>
         <DataTable
-          headers={["Thời gian", "Actor", "Action", "Target", "Trạng thái"]}
-          rows={sampleAudit.map((row) => [row.time, row.actor, row.action, row.target, <StatePill key="s" label={row.status} />])}
+          headers={["Thời điểm", "Thực thi bởi", "Hành động", "Mục tiêu", "Hậu quả"]}
+          rows={audits.map((row: any, i: number) => [
+            <span key="t" className="text-slate-500 dark:text-slate-400 text-[12px]">{row.time?.slice(0, 19).replace('T', ' ')}</span>,
+            <span key="actor" className="font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">{row.actor}</span>, 
+            <span key="act" className="font-semibold text-slate-800 dark:text-slate-200">{row.action}</span>,
+            <code key="tgt" className="px-2 py-0.5 rounded text-[12px] bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border dark:border-slate-700">{row.target}</code>, 
+            <StatePill key="s" label={row.status} />
+          ])}
         />
       </Panel>
-      <CapabilityGrid
-        items={[
-          ["Một phần", "UserActivity đang ghi activityType, details, timestamp"],
-          ["Cần API", "AdminAuditLog với beforeData, afterData, IP, user agent"],
-          ["Cần API", "Export audit log CSV/JSON"],
-        ]}
-      />
-    </section>
+    </div>
   );
 }
 
 function AdminsSection({ currentUser }: { currentUser: string }) {
-  return (
-    <section style={styles.content}>
-      <Toolbar title="Quản lý admin & quyền hạn" filters={["ROLE_USER", "ROLE_MODERATOR", "ROLE_ADMIN"]} />
-      <Panel title="Role hiện có" action={currentUser}>
-        <DataTable
-          headers={["Role", "Phạm vi", "Trạng thái backend"]}
-          rows={[
-            ["ROLE_USER", "Chat, friend, group, post, story", <StatePill key="s" label="Sẵn sàng" />],
-            ["ROLE_MODERATOR", "Dành cho kiểm duyệt sau này", <StatePill key="s" label="Một phần" />],
-            ["ROLE_ADMIN", "Quản trị tổng quát", <StatePill key="s" label="Cần /api/admin" />],
-          ]}
-        />
-      </Panel>
-      <CapabilityGrid
-        items={[
-          ["Dùng được", "Role lưu trong bảng roles và user_roles"],
-          ["Cần API", "Danh sách admin, cấp/thu hồi role"],
-          ["Cần API", "Permission chi tiết và audit cho hành động nhạy cảm"],
-        ]}
-      />
-    </section>
-  );
-}
+  const [phone, setPhone] = useState("");
+  const [role, setRole] = useState("ROLE_ADMIN");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-function Metric({ title, value, detail, tone }: { title: string; value: string; detail: string; tone: "blue" | "green" | "amber" | "red" }) {
-  const colors = {
-    blue: ["#eff6ff", "#1d4ed8"],
-    green: ["#ecfdf5", "#047857"],
-    amber: ["#fffbeb", "#b45309"],
-    red: ["#fef2f2", "#b91c1c"],
-  }[tone];
+  const handleGrantRole = async () => {
+    if (!phone) {
+      setMessage({ type: "error", text: "Vui lòng nhập số điện thoại" });
+      return;
+    }
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await api.post("/admin/grant-role", { phone, role });
+      setMessage({ type: "success", text: res.data?.message || "Cấp quyền thành công" });
+      setPhone("");
+    } catch (err: any) {
+      setMessage({ type: "error", text: err?.response?.data?.message || err?.message || "Lỗi khi cấp quyền" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div style={styles.metric}>
-      <div style={{ ...styles.metricIcon, background: colors[0], color: colors[1] }}>
-        <Activity size={18} />
+    <div className="flex flex-col gap-6">
+      <Toolbar title="Cấu hình Phân Quyền" filters={["Tất cả", "ROLE_ADMIN"]} />
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Panel title="Danh sách Vai trò Hệ thống" action={`Bạn là: ${currentUser}`}>
+          <DataTable
+            headers={["Định danh Quyền", "Quyền hạn", "Triển khai"]}
+            rows={[
+              [<strong key="1" className="text-slate-800 dark:text-slate-200">ROLE_USER</strong>, "Giao tiếp, kết bạn, tham gia nhóm", <StatePill key="s" label="Hoàn tất" />],
+              [<strong key="2" className="text-slate-800 dark:text-slate-200">ROLE_MODERATOR</strong>, "Hỗ trợ Kiểm duyệt nội dung", <StatePill key="s" label="Một phần" />],
+              [<strong key="3" className="text-slate-800 dark:text-slate-200">ROLE_ADMIN</strong>, "Quyền năng tối thượng", <StatePill key="s" label="Hoàn tất" />],
+            ]}
+          />
+        </Panel>
+
+        <Panel title="Cấp quyền truy cập (API)" action="Mới">
+          <div className="p-6">
+            <p className="text-sm text-slate-500 mb-6 dark:text-slate-400">
+              Chỉ những tài khoản mang quyền <strong>ROLE_ADMIN</strong> mới có thể thấy trang quản trị này và sử dụng các tính năng đặc quyền.
+            </p>
+            
+            {message && (
+              <div className={`mb-4 p-3 rounded-xl border text-sm font-medium flex items-center gap-2 ${message.type === 'success' ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400' : 'bg-red-50 border-red-200 text-red-600 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400'}`}>
+                {message.type === 'success' ? <CheckCircle2 size={16} /> : <Activity size={16} />}
+                {message.text}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1.5 text-slate-700 dark:text-slate-300">Số điện thoại người dùng</label>
+                <input 
+                  type="text" 
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="VD: 0352359401"
+                  className="w-full h-11 px-4 rounded-xl border bg-slate-50 border-slate-200 text-sm focus:border-blue-500 outline-none transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1.5 text-slate-700 dark:text-slate-300">Chọn Quyền</label>
+                <select 
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full h-11 px-4 rounded-xl border bg-slate-50 border-slate-200 text-sm focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                >
+                  <option value="ROLE_ADMIN">ROLE_ADMIN (Toàn quyền)</option>
+                  <option value="ROLE_MODERATOR">ROLE_MODERATOR (Sắp ra mắt)</option>
+                </select>
+              </div>
+
+              <button 
+                type="button" 
+                onClick={handleGrantRole}
+                disabled={loading}
+                className="mt-2 h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-md shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? "Đang xử lý..." : "Cấp Quyền Ngay"}
+              </button>
+            </div>
+          </div>
+        </Panel>
       </div>
-      <div style={styles.metricTitle}>{title}</div>
-      <div style={styles.metricValue}>{value}</div>
-      <div style={styles.metricDetail}>{detail}</div>
     </div>
   );
 }
 
-function Panel({ title, action, children }: { title: string; action?: string; children: React.ReactNode }) {
+// ---------------- UI COMPONENTS ----------------
+
+function Metric({ title, value, detail, tone }: any) {
+  const tones = {
+    blue: "from-blue-50 to-white text-blue-600 border-blue-100 dark:from-blue-900/30 dark:to-blue-800/10 dark:text-blue-400 dark:border-blue-800/50",
+    indigo: "from-indigo-50 to-white text-indigo-600 border-indigo-100 dark:from-indigo-900/30 dark:to-indigo-800/10 dark:text-indigo-400 dark:border-indigo-800/50",
+    emerald: "from-emerald-50 to-white text-emerald-600 border-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/10 dark:text-emerald-400 dark:border-emerald-800/50",
+    rose: "from-rose-50 to-white text-rose-600 border-rose-100 dark:from-rose-900/30 dark:to-rose-800/10 dark:text-rose-400 dark:border-rose-800/50",
+  }[tone as "blue" | "indigo" | "emerald" | "rose"];
+
   return (
-    <div style={styles.panel}>
-      <div style={styles.panelHeader}>
-        <h2 style={styles.panelTitle}>{title}</h2>
-        {action && <span style={styles.panelAction}>{action}</span>}
+    <div className={`p-6 rounded-3xl border bg-gradient-to-br shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${tones} dark:bg-[#1e293b]/50 dark:backdrop-blur-sm`}>
+      <div className="flex justify-between items-start mb-4">
+        <h3 className="text-[14px] font-semibold text-slate-600 dark:text-slate-300">{title}</h3>
+        <div className="p-2 rounded-xl bg-white/20 backdrop-blur-sm border border-white/10 shadow-sm text-current">
+          <Activity size={18} />
+        </div>
       </div>
-      {children}
+      <div className="text-4xl font-extrabold tracking-tight mb-2 text-slate-900 dark:text-white">{value}</div>
+      <div className="text-[13px] font-medium text-slate-500 dark:text-slate-400">{detail}</div>
     </div>
   );
 }
 
-function Toolbar({ title, filters }: { title: string; filters: string[] }) {
+function Panel({ title, action, children }: any) {
   return (
-    <div style={styles.toolbar}>
-      <h2 style={styles.toolbarTitle}>{title}</h2>
-      <div style={styles.filterGroup}>
-        {filters.map((filter) => (
-          <button key={filter} type="button" style={styles.filterButton}>
-            <Filter size={14} />
+    <div className="rounded-3xl border shadow-sm overflow-hidden transition-colors duration-300 bg-white border-slate-200 dark:bg-[#1e293b]/80 dark:border-slate-700/80 dark:backdrop-blur-xl">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50 dark:border-slate-700/80 dark:bg-slate-800/50">
+        <h2 className="text-[16px] font-bold text-slate-800 dark:text-slate-200">{title}</h2>
+        {action && <span className="text-[13px] font-medium px-3 py-1 rounded-full bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">{action}</span>}
+      </div>
+      <div className="p-1">{children}</div>
+    </div>
+  );
+}
+
+function Toolbar({ title, filters }: any) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl border shadow-sm bg-white border-slate-200 dark:bg-[#1e293b]/80 dark:border-slate-700/80 dark:backdrop-blur-xl">
+      <h2 className="text-[18px] font-bold text-slate-900 dark:text-white">{title}</h2>
+      <div className="flex flex-wrap gap-2.5">
+        {filters.map((filter: string) => (
+          <button key={filter} type="button" className="inline-flex items-center gap-2 h-9 px-4 rounded-xl border text-[13px] font-semibold transition-all duration-200 hover:shadow-md bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:border-slate-500">
+            <Filter size={14} className="opacity-70" />
             {filter}
           </button>
         ))}
@@ -573,17 +572,25 @@ function Toolbar({ title, filters }: { title: string; filters: string[] }) {
   );
 }
 
-function MiniBars({ data, color }: { data: DailyPoint[]; color: string }) {
+function MiniBars({ data, tone }: any) {
   const normalized = data.length ? data : [{ date: "N/A", count: 0 }];
-  const max = Math.max(...normalized.map((point) => Number(point.count) || 0), 1);
+  const max = Math.max(...normalized.map((p: any) => Number(p.count) || 0), 1);
+  
+  const bgColors = {
+    blue: "bg-blue-500",
+    emerald: "bg-emerald-500",
+    violet: "bg-violet-500",
+    teal: "bg-teal-500",
+  }[tone as "blue" | "emerald" | "violet" | "teal"];
+
   return (
-    <div style={styles.chart}>
-      {normalized.slice(-14).map((point, index) => {
-        const height = Math.max(8, Math.round(((Number(point.count) || 0) / max) * 150));
+    <div className="flex items-end h-[240px] gap-2.5 p-6 overflow-x-auto custom-scrollbar">
+      {normalized.slice(-14).map((point: any, index: number) => {
+        const height = Math.max(12, Math.round(((Number(point.count) || 0) / max) * 160));
         return (
-          <div key={`${point.date}-${index}`} style={styles.barColumn} title={`${point.date}: ${point.count}`}>
-            <div style={{ ...styles.bar, height, background: color }} />
-            <span style={styles.barLabel}>{String(point.date).slice(5, 10)}</span>
+          <div key={`${point.date}-${index}`} className="flex-1 min-w-[28px] flex flex-col items-center justify-end gap-3 group relative cursor-pointer" title={`${point.date}: ${point.count}`}>
+            <div className={`w-full rounded-t-md opacity-80 group-hover:opacity-100 transition-all duration-300 group-hover:-translate-y-1 ${bgColors}`} style={{ height }} />
+            <span className="text-[11px] font-medium whitespace-nowrap text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200">{String(point.date).slice(5, 10)}</span>
           </div>
         );
       })}
@@ -591,39 +598,43 @@ function MiniBars({ data, color }: { data: DailyPoint[]; color: string }) {
   );
 }
 
-function EndpointTable({ rows }: { rows: typeof endpointRows }) {
+function EndpointTable({ rows }: any) {
   return (
     <DataTable
-      headers={["Module", "Endpoint", "Trạng thái", "Ghi chú"]}
-      rows={rows.map((row) => {
+      headers={["Module", "Cổng kết nối (API)", "Đánh giá", "Mô tả"]}
+      rows={rows.map((row: any) => {
         const meta = statusMeta(row.status);
         return [
-          row.module,
-          <code key="endpoint" style={styles.code}>{row.endpoint}</code>,
-          <span key="status" style={{ ...styles.status, color: meta.color, background: meta.bg }}>{meta.label}</span>,
-          row.note,
+          <span key="mod" className="font-semibold text-slate-800 dark:text-slate-200">{row.module}</span>,
+          <code key="end" className="font-mono text-[12px] px-2 py-1 rounded-md bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{row.endpoint}</code>,
+          <span key="st" className={`inline-flex items-center h-6 px-3 rounded-full text-[12px] font-bold border ${meta.className}`}>{meta.label}</span>,
+          <span key="nt" className="text-[13px] text-slate-500 dark:text-slate-400">{row.note}</span>,
         ];
       })}
     />
   );
 }
 
-function DataTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
+function DataTable({ headers, rows }: any) {
   return (
-    <div style={styles.tableWrap}>
-      <table style={styles.table}>
+    <div className="overflow-x-auto w-full pb-2">
+      <table className="w-full text-left border-collapse whitespace-nowrap">
         <thead>
           <tr>
-            {headers.map((header) => (
-              <th key={header} style={styles.th}>{header}</th>
+            {headers.map((header: string, i: number) => (
+              <th key={header + i} className="py-4 px-6 text-[13px] font-bold uppercase tracking-wider border-b text-slate-500 border-slate-100 bg-slate-50/50 dark:text-slate-400 dark:border-slate-700/80 dark:bg-slate-800/30">
+                {header}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
-            <tr key={index} style={styles.tr}>
+          {rows.map((row: React.ReactNode[], index: number) => (
+            <tr key={index} className="transition-colors duration-200 border-b last:border-b-0 border-slate-50 hover:bg-slate-50 dark:border-slate-700/50 dark:hover:bg-slate-700/20">
               {row.map((cell, cellIndex) => (
-                <td key={cellIndex} style={styles.td}>{cell}</td>
+                <td key={cellIndex} className="py-3.5 px-6 text-[14px] font-medium text-slate-700 dark:text-slate-200">
+                  {cell}
+                </td>
               ))}
             </tr>
           ))}
@@ -633,230 +644,50 @@ function DataTable({ headers, rows }: { headers: string[]; rows: React.ReactNode
   );
 }
 
-function CapabilityGrid({ items }: { items: [string, string][] }) {
+function CapabilityGrid({ items }: any) {
   return (
-    <div style={styles.capabilityGrid}>
-      {items.map(([label, text]) => (
-        <div key={`${label}-${text}`} style={styles.capability}>
-          <CheckCircle2 size={16} />
-          <strong>{label}</strong>
-          <span>{text}</span>
-        </div>
-      ))}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {items.map(([label, text]: string[], index: number) => {
+        const isReady = label.includes("Đã") || label.includes("Sẵn sàng") || label.includes("Hoạt động") || label.includes("Toàn diện");
+        const dotColor = isReady ? "bg-green-500" : "bg-amber-500";
+        return (
+          <div key={index} className="flex items-start gap-3 p-4 rounded-2xl border transition-all duration-300 hover:shadow-md bg-white border-slate-200 hover:border-slate-300 dark:bg-[#1e293b]/60 dark:border-slate-700/80 dark:hover:bg-[#1e293b]">
+            <div className="mt-1 rounded-full p-0.5 border-2 border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-800">
+               <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
+            </div>
+            <div>
+              <div className="text-[14px] font-bold mb-0.5 text-slate-800 dark:text-slate-200">{label}</div>
+              <div className="text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">{text}</div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   );
 }
 
 function StatePill({ label }: { label: string }) {
+  if (!label) return null;
   const lower = label.toLowerCase();
-  const bg = lower.includes("cần") || lower.includes("locked") ? "#fee2e2" : lower.includes("một") ? "#fef3c7" : "#dcfce7";
-  const color = lower.includes("cần") || lower.includes("locked") ? "#b91c1c" : lower.includes("một") ? "#a16207" : "#15803d";
-  return <span style={{ ...styles.status, background: bg, color }}>{label}</span>;
+  const isErr = lower.includes("cần") || lower.includes("locked") || lower.includes("bị") || lower.includes("chưa");
+  const isWarn = lower.includes("một") || lower.includes("chờ") || lower.includes("đang");
+  
+  let styles = "bg-green-100 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400";
+  
+  if (isErr) {
+    styles = "bg-rose-100 border-rose-200 text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400";
+  } else if (isWarn) {
+    styles = "bg-amber-100 border-amber-200 text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400";
+  }
+
+  return <span className={`inline-flex items-center h-6 px-3 rounded-full text-[12px] font-bold border ${styles}`}>{label}</span>;
 }
 
 function TypePill({ label }: { label: string }) {
-  const bg = label === "GROUP" ? "#dbeafe" : label === "CLOUD" ? "#f3e8ff" : "#e0f2fe";
-  const color = label === "GROUP" ? "#1d4ed8" : label === "CLOUD" ? "#7e22ce" : "#0369a1";
-  return <span style={{ ...styles.status, background: bg, color }}>{label}</span>;
+  const styles = label === "GROUP" 
+    ? "bg-blue-100 border-blue-200 text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/30 dark:text-blue-400" 
+    : label === "CLOUD" 
+      ? "bg-purple-100 border-purple-200 text-purple-700 dark:bg-purple-500/15 dark:border-purple-500/30 dark:text-purple-400" 
+      : "bg-sky-100 border-sky-200 text-sky-700 dark:bg-sky-500/15 dark:border-sky-500/30 dark:text-sky-400";
+  return <span className={`inline-flex items-center h-6 px-3 rounded-full text-[12px] font-bold border tracking-wider ${styles}`}>{label}</span>;
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  shell: {
-    height: "100vh",
-    width: "100vw",
-    display: "flex",
-    background: "#f6f7fb",
-    color: "#111827",
-    overflow: "hidden",
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  },
-  sidebar: {
-    width: 248,
-    minWidth: 248,
-    height: "100vh",
-    background: "#0f172a",
-    color: "#e5e7eb",
-    padding: 16,
-    display: "flex",
-    flexDirection: "column",
-    gap: 16,
-  },
-  brandButton: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#fff",
-    height: 48,
-    borderRadius: 8,
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "0 12px",
-    cursor: "pointer",
-  },
-  brandText: { fontWeight: 700, fontSize: 15 },
-  nav: { display: "flex", flexDirection: "column", gap: 4 },
-  navButton: {
-    height: 40,
-    border: "none",
-    borderRadius: 8,
-    background: "transparent",
-    color: "#cbd5e1",
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "0 10px",
-    cursor: "pointer",
-    fontSize: 14,
-    textAlign: "left",
-  },
-  navButtonActive: { background: "#2563eb", color: "#fff" },
-  main: {
-    flex: 1,
-    height: "100vh",
-    overflow: "auto",
-    padding: 24,
-  },
-  header: {
-    minHeight: 72,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 16,
-    alignItems: "center",
-    marginBottom: 18,
-  },
-  kicker: { color: "#64748b", fontSize: 13, marginBottom: 4 },
-  title: { margin: 0, fontSize: 28, lineHeight: 1.15, letterSpacing: 0, color: "#0f172a" },
-  headerActions: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  searchBox: {
-    height: 38,
-    minWidth: 280,
-    border: "1px solid #dbe2ea",
-    borderRadius: 8,
-    background: "#fff",
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "0 10px",
-    color: "#64748b",
-  },
-  searchInput: {
-    border: "none",
-    outline: "none",
-    minWidth: 0,
-    flex: 1,
-    fontSize: 14,
-    color: "#111827",
-    background: "transparent",
-  },
-  select: {
-    height: 38,
-    borderRadius: 8,
-    border: "1px solid #dbe2ea",
-    background: "#fff",
-    color: "#111827",
-    padding: "0 10px",
-  },
-  iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
-    border: "1px solid #dbe2ea",
-    background: "#fff",
-    color: "#111827",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-  },
-  errorBanner: {
-    marginBottom: 16,
-    border: "1px solid #fecaca",
-    background: "#fef2f2",
-    color: "#991b1b",
-    borderRadius: 8,
-    padding: "10px 12px",
-    fontSize: 14,
-  },
-  content: { display: "flex", flexDirection: "column", gap: 16 },
-  metricGrid: { display: "grid", gridTemplateColumns: "repeat(4, minmax(160px, 1fr))", gap: 14 },
-  metric: {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    padding: 16,
-    minHeight: 132,
-    boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
-  },
-  metricIcon: { width: 34, height: 34, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" },
-  metricTitle: { marginTop: 12, fontSize: 13, color: "#64748b" },
-  metricValue: { marginTop: 6, fontSize: 26, fontWeight: 750, color: "#0f172a", letterSpacing: 0 },
-  metricDetail: { marginTop: 4, fontSize: 12, color: "#94a3b8" },
-  twoColumns: { display: "grid", gridTemplateColumns: "repeat(2, minmax(240px, 1fr))", gap: 16 },
-  panel: {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
-    overflow: "hidden",
-  },
-  panelHeader: {
-    height: 48,
-    borderBottom: "1px solid #eef2f7",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 14px",
-    gap: 12,
-  },
-  panelTitle: { margin: 0, fontSize: 15, color: "#111827", fontWeight: 700 },
-  panelAction: { color: "#64748b", fontSize: 12, whiteSpace: "nowrap" },
-  chart: { height: 220, display: "flex", alignItems: "flex-end", gap: 8, padding: "18px 14px 12px", overflowX: "auto" },
-  barColumn: { flex: "1 0 22px", minWidth: 22, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 8 },
-  bar: { width: "100%", borderRadius: "5px 5px 2px 2px", minHeight: 8 },
-  barLabel: { fontSize: 11, color: "#94a3b8" },
-  tableWrap: { overflowX: "auto" },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
-  th: { textAlign: "left", color: "#64748b", fontWeight: 650, background: "#f8fafc", padding: "10px 12px", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" },
-  tr: { borderBottom: "1px solid #eef2f7" },
-  td: { padding: "11px 12px", color: "#1f2937", whiteSpace: "nowrap", verticalAlign: "middle" },
-  code: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: 12, color: "#334155" },
-  status: { display: "inline-flex", alignItems: "center", height: 24, borderRadius: 999, padding: "0 9px", fontSize: 12, fontWeight: 650 },
-  toolbar: {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    padding: 12,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  toolbarTitle: { margin: 0, fontSize: 16, color: "#0f172a" },
-  filterGroup: { display: "flex", gap: 8, flexWrap: "wrap" },
-  filterButton: {
-    height: 32,
-    borderRadius: 8,
-    border: "1px solid #dbe2ea",
-    background: "#fff",
-    color: "#334155",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "0 10px",
-    cursor: "pointer",
-    fontSize: 13,
-  },
-  capabilityGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(180px, 1fr))", gap: 12 },
-  capability: {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    padding: 12,
-    display: "grid",
-    gridTemplateColumns: "18px auto",
-    columnGap: 8,
-    rowGap: 4,
-    color: "#475569",
-    fontSize: 13,
-  },
-};

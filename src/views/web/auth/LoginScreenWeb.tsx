@@ -70,6 +70,7 @@ export default function LoginScreenWeb() {
                 username: profile.username,
                 fullName: profile.displayName || profile.username,
                 avatarUrl: profile.avatarUrl || undefined,
+                roles: profile.roles || [],
             });
         } catch {
             // non-critical
@@ -373,6 +374,7 @@ function PasswordLoginForm({ onSwitchToQr }: { onSwitchToQr: () => void }) {
                     username: profile.username,
                     fullName: profile.displayName || profile.username,
                     avatarUrl: profile.avatarUrl || undefined,
+                    roles: profile.roles || [],
                 });
             } catch { /* non-critical */ }
             router.replace("/(tabs)");

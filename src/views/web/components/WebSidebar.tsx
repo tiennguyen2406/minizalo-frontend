@@ -230,13 +230,15 @@ export default function WebSidebar() {
           />
         ))}
 
-        <NavItem
-          label="Admin"
-          icon={iconAdmin}
-          active={pathname.startsWith("/admin")}
-          activeBg={ACTIVE_BG}
-          onClick={() => router.push("/admin" as any)}
-        />
+        {profile?.roles?.includes("ROLE_ADMIN") && (
+          <NavItem
+            label="Admin"
+            icon={iconAdmin}
+            active={pathname.startsWith("/admin")}
+            activeBg={ACTIVE_BG}
+            onClick={() => router.push("/admin" as any)}
+          />
+        )}
 
         <NavItem
           label="Cài đặt"
