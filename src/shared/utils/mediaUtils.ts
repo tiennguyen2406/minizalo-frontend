@@ -12,7 +12,7 @@ export const getImageUrl = (url: string | null | undefined): string => {
 
     // --- 1. Xử lý đường dẫn tương đối (ví dụ: minizalo-bucket/files/...) ---
     if (!finalUrl.startsWith("http") && !finalUrl.startsWith("file://") && !finalUrl.startsWith("data:")) {
-        const apiFullUrl = process.env?.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:8080/api";
+        const apiFullUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:8080/api";
         
         // Cố gắng suy luận URL MinIO: thay thế port 8080 bằng 9000 nếu có
         let minioBase = apiFullUrl.replace("/api", "").replace(":8080", ":9000");

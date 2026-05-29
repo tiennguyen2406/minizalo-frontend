@@ -17,7 +17,7 @@ const COLORS = {
 };
 
 const rawBase =
-    typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
+    process.env.EXPO_PUBLIC_API_URL
         ? process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "")
         : "http://localhost:8080/api";
 const API_BASE = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
