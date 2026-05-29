@@ -39,6 +39,7 @@ import useImagePicker from "@/shared/hooks/useImagePicker";
 import MediaStorageScreen from "../screens/MediaStorageScreen";
 import GroupSettingsScreen from "../screens/GroupSettingsScreen";
 import GroupMembersScreen from "../screens/GroupMembersScreen";
+import ReportAbuseModal from "@/shared/components/ReportAbuseModal";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -417,6 +418,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     const [videoThumbByResolvedUrl, setVideoThumbByResolvedUrl] = useState<Record<string, string>>({});
     const [savingVisual, setSavingVisual] = useState<"avatar" | "wallpaper" | null>(null);
     const [showDescriptionModal, setShowDescriptionModal] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
     const [descriptionDraft, setDescriptionDraft] = useState("");
     const [savingDescription, setSavingDescription] = useState(false);
     const avatarPicker = useImagePicker({ folder: "groups/avatars/", aspect: [1, 1], allowsEditing: true });
@@ -1209,6 +1211,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     icon="alert-circle-outline"
                     label="Báo xấu"
                     showChevron={false}
+                    onPress={() => setShowReportModal(true)}
                 />
                 <TouchableOpacity
                     activeOpacity={0.7}
@@ -1584,6 +1587,17 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     />
                 </Animated.View>
             )}
+
+            <ReportAbuseModal
+                visible={showReportModal}
+                onClose={() => setShowReportModal(false)}
+                targetType="GROUP"
+                targetId={roomId}
+                subjectLabel={group?.groupName || "Nhóm"}
+                onSuccess={() =>
+                    Alert.alert("Đã gửi báo cáo", "Yêu cầu của bạn đã được chuyển tới bộ phận kiểm duyệt.")
+                }
+            />
 
             {/* ── Add Member Modal ── */}
             <AddMemberModal

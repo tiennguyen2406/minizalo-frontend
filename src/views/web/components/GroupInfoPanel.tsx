@@ -13,6 +13,7 @@ import { Message } from '@/shared/types';
 import MediaGalleryViewer, { type MediaGalleryItem } from './MediaGalleryViewer';
 import { getImageUrl } from '@/shared/utils/mediaUtils';
 import { isImageAttachment, isVideoAttachment } from '@/shared/utils/messageAttachments';
+import ReportAbuseModal from '@/shared/components/ReportAbuseModal';
 
 // ── Mute Duration Modal ─────────────────────────────────────────────────
 const MUTE_OPTIONS = [
@@ -281,6 +282,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
     const [showRenameModal, setShowRenameModal] = useState(false);
     const [isClearHistoryModalOpen, setIsClearHistoryModalOpen] = useState(false);
     const [isLeaveGroupModalOpen, setIsLeaveGroupModalOpen] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
     const [pickSuccessorLeaveOpen, setPickSuccessorLeaveOpen] = useState(false);
     const [leaveSuccessorUserId, setLeaveSuccessorUserId] = useState<string | null>(null);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -999,7 +1001,11 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
 
             {/* Danger zone */}
             <div className="py-2 border-t border-[color:var(--border-primary)] mt-1">
-                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors text-left">
+                <button
+                    type="button"
+                    onClick={() => setShowReportModal(true)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors text-left"
+                >
                     <Icon.Alert />
                     <span className="text-sm text-[color:var(--text-secondary)]">Báo xấu</span>
                 </button>
@@ -1022,6 +1028,14 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             </div>
 
             {/* Modals */}
+            <ReportAbuseModal
+                visible={showReportModal}
+                onClose={() => setShowReportModal(false)}
+                targetType="GROUP"
+                targetId={roomId}
+                subjectLabel={group?.groupName || 'Nhóm'}
+                onSuccess={() => showToast('Đã gửi báo cáo. Đội ngũ kiểm duyệt sẽ xem xét.')}
+            />
             <ConfirmModal
                 isOpen={isClearHistoryModalOpen}
                 onClose={() => setIsClearHistoryModalOpen(false)}

@@ -43,6 +43,7 @@ import {
     formatMegabytesFromBytes,
     type CloudStorageBreakdown,
 } from "@/shared/utils/cloudStorageAggregate";
+import ReportAbuseModal from "@/shared/components/ReportAbuseModal";
 
 const getImageUrl = (url: string) => {
     if (!url) return url;
@@ -141,6 +142,7 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
     const [cloudReloadNonce, setCloudReloadNonce] = useState(0);
     const [cloudPreviewOpen, setCloudPreviewOpen] = useState(false);
     const [cloudPreviewIndex, setCloudPreviewIndex] = useState(0);
+    const [showReportModal, setShowReportModal] = useState(false);
 
     const cloudPreviewItems = useMemo(
         () => [
@@ -1310,6 +1312,24 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
 
                 {/* Group 5: Danger */}
                 <Section>
+                    {type === "DIRECT" && partnerId ? (
+                        <OptionRow
+                            icon="alert-circle-outline"
+                            label="Báo xấu"
+                            color="#64748b"
+                            first
+                            onPress={() => setShowReportModal(true)}
+                        />
+                    ) : null}
+                    {type === "GROUP" ? (
+                        <OptionRow
+                            icon="alert-circle-outline"
+                            label="Báo xấu"
+                            color="#64748b"
+                            first
+                            onPress={() => setShowReportModal(true)}
+                        />
+                    ) : null}
                     <OptionRow
                         icon="trash-outline"
                         label="Xóa lịch sử trò chuyện"
@@ -1694,6 +1714,20 @@ export default function ChatOptionsScreen({ roomId, name, avatarUrl, partnerId, 
                     </View>
                 </Animated.View>
             )}
+
+            {(type === "DIRECT" && partnerId) || type === "GROUP" ? (
+                <ReportAbuseModal
+                    visible={showReportModal}
+                    onClose={() => setShowReportModal(false)}
+                    targetType={type === "GROUP" ? "GROUP" : "USER"}
+                    targetId={type === "GROUP" ? roomId : partnerId!}
+                    subjectLabel={displayName}
+                    contextDetails={type === "DIRECT" ? `roomId: ${roomId}` : undefined}
+                    onSuccess={() =>
+                        Alert.alert("Đã gửi báo cáo", "Yêu cầu của bạn đã được chuyển tới bộ phận kiểm duyệt.")
+                    }
+                />
+            ) : null}
 
         </View>
     );
