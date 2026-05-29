@@ -8,6 +8,7 @@
     "ios": "npx expo run:ios",
     "web": "npx expo start --web",
     "web:clean": "npx expo start --web --clear",
+    "build": "npx expo export -p web",
     "lint": "npx expo lint",
     "postinstall": "node scripts/patch-expo-modules-core.js"
   },
