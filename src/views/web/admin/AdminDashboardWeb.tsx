@@ -77,6 +77,7 @@ export default function AdminDashboardWeb() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [range, setRange] = useState("30");
+  const [selectedRoomId, setSelectedRoomId] = useState("");
 
   const sinceIso = useMemo(() => {
     const date = new Date();
@@ -217,8 +218,8 @@ export default function AdminDashboardWeb() {
             <div className="flex flex-col gap-6 opacity-0 animate-[fadeIn_0.4s_ease-out_forwards]">
               {activeSection === "dashboard" && <DashboardSection loading={loading} overview={overview} messageStats={messageStats} activeStats={activeStats} />}
               {activeSection === "users" && <UsersSection users={users} loading={loading} />}
-              {activeSection === "conversations" && <ConversationsSection rooms={rooms} loading={loading} />}
-              {activeSection === "messages" && <MessagesSection />}
+              {activeSection === "conversations" && <ConversationsSection rooms={rooms} loading={loading} setActiveSection={setActiveSection} setSelectedRoomId={setSelectedRoomId} />}
+              {activeSection === "messages" && <MessagesSection roomId={selectedRoomId} setRoomId={setSelectedRoomId} />}
               {activeSection === "media" && <MediaSection />}
               {activeSection === "groups" && <GroupsSection rooms={rooms} loading={loading} />}
               {activeSection === "moderation" && <ModerationSection />}
@@ -298,7 +299,7 @@ function UsersSection({ users, loading }: any) {
   );
 }
 
-function ConversationsSection({ rooms, loading }: any) {
+function ConversationsSection({ rooms, loading, setActiveSection, setSelectedRoomId }: any) {
   return (
     <div className="flex flex-col gap-6">
       <Toolbar title="Giám sát phòng chat" filters={["Cá nhân", "Nhóm", "Cloud"]} />
@@ -311,7 +312,17 @@ function ConversationsSection({ rooms, loading }: any) {
             <TypePill key="type" label={room.type} />,
             room.members, formatNumber(room.messages), 
             <span key="t" className="text-slate-500 dark:text-slate-400 text-xs">{room.updatedAt?.slice(0, 10)}</span>,
-            <button key="more" className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 dark:text-slate-400 dark:hover:bg-white/10"><MoreHorizontal size={18} /></button>
+            <button 
+              key="more" 
+              onClick={() => {
+                setSelectedRoomId(room.id);
+                setActiveSection("messages");
+              }}
+              title="Xem tin nhắn"
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 dark:text-slate-400 dark:hover:bg-white/10"
+            >
+              <MoreHorizontal size={18} />
+            </button>
           ])}
         />
       </Panel>
@@ -319,14 +330,81 @@ function ConversationsSection({ rooms, loading }: any) {
   );
 }
 
-function MessagesSection() {
+function MessagesSection({ roomId, setRoomId }: any) {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [inputRoom, setInputRoom] = useState(roomId || "");
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchMessages = async (targetId: string) => {
+    if (!targetId.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get(`/admin/messages/${targetId}`);
+      setMessages(res.data || []);
+      setRoomId(targetId);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Không tìm thấy phòng hoặc lỗi máy chủ");
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (roomId) {
+      setInputRoom(roomId);
+      void fetchMessages(roomId);
+    }
+  }, [roomId]);
+
   return (
     <div className="flex flex-col gap-6">
       <Toolbar title="Quản trị nội dung" filters={["Tin nhắn text", "Hình ảnh", "Tệp tin"]} />
-      <Panel title="Luồng tin nhắn & Phản hồi" action="Nền tảng DynamoDB">
-        <div className="p-8 text-center text-slate-500 dark:text-slate-400">
-          (API quản trị toàn cục DynamoDB Messages đang phát triển)
+      
+      <div className="flex items-center gap-3">
+        <input 
+          type="text" 
+          value={inputRoom}
+          onChange={(e) => setInputRoom(e.target.value)}
+          placeholder="Nhập Room ID để xem tin nhắn..."
+          className="flex-1 h-11 px-4 rounded-xl border bg-white border-slate-200 text-[14px] shadow-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:bg-[#1e293b] dark:border-slate-700 dark:text-white"
+        />
+        <button 
+          onClick={() => fetchMessages(inputRoom)}
+          disabled={loading}
+          className="h-11 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-[14px] transition-colors shadow-sm shadow-blue-500/20 disabled:opacity-50"
+        >
+          {loading ? "Đang tìm..." : "Tìm kiếm"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="p-4 rounded-xl bg-red-50 text-red-600 border border-red-200 text-[14px] dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400">
+          {error}
         </div>
+      )}
+
+      <Panel title={`Luồng tin nhắn (Phòng: ${roomId || "Trống"})`} action="Nền tảng DynamoDB">
+        {messages.length === 0 && !loading && !error && (
+          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+            Hãy nhập Room ID để tải danh sách tin nhắn.
+          </div>
+        )}
+        
+        {messages.length > 0 && (
+          <DataTable
+            headers={["Mã TN", "Người gửi", "Loại", "Nội dung", "Thời gian"]}
+            rows={messages.map((msg: any) => [
+              <span key="id" className="text-slate-500 dark:text-slate-400 text-xs font-mono">{msg.messageId?.slice(0, 8)}...</span>,
+              <strong key="sender" className="text-slate-800 dark:text-slate-200">{msg.senderName || msg.senderId}</strong>,
+              <TypePill key="type" label={msg.type} />,
+              <div key="content" className="max-w-xs truncate" title={msg.content}>{msg.content || "(Đính kèm/File)"}</div>,
+              <span key="time" className="text-slate-500 dark:text-slate-400 text-xs">{msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ""}</span>
+            ])}
+          />
+        )}
       </Panel>
     </div>
   );
