@@ -5,6 +5,7 @@ export interface User {
     avatarUrl?: string; // Optional as it might not be in all responses
     /** Mô tả doanh nghiệp — hiển thị nhãn Business + panel thông tin. */
     businessDescription?: string | null;
+    roles?: string[];
 }
 
 export interface ChatMessageRequest {

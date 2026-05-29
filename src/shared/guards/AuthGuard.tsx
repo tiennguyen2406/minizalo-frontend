@@ -11,6 +11,7 @@ interface AuthGuardProps {
     children: ReactNode;
     loginPath?: string;
     homePath?: string;
+    allowedRoles?: string[];
 }
 
 /**
@@ -23,6 +24,7 @@ export function AuthGuard({
     children,
     loginPath = "/(auth)/login",
     homePath = "/(tabs)",
+    allowedRoles,
 }: AuthGuardProps) {
     const { accessToken, refreshToken, isHydrated, refreshAuth, clear, user, setUser } = useAuthStore();
     const [isValidating, setIsValidating] = useState(false);
@@ -71,6 +73,7 @@ export function AuthGuard({
                                 username: profile.username,
                                 fullName: profile.displayName || profile.username,
                                 avatarUrl: profile.avatarUrl || undefined,
+                                roles: profile.roles || [],
                             });
                         } catch {
                             // Profile fetch failed but auth is still valid
@@ -93,6 +96,7 @@ export function AuthGuard({
                                     username: profile.username,
                                     fullName: profile.displayName || profile.username,
                                     avatarUrl: profile.avatarUrl || undefined,
+                                    roles: profile.roles || [],
                                 });
                             } catch {
                                 // Profile fetch failed but auth is still valid
@@ -128,6 +132,14 @@ export function AuthGuard({
     if (mode === "requireAuth") {
         if (!accessToken || isTokenValid === false) {
             return <Redirect href={loginPath as any} />;
+        }
+        if (allowedRoles && allowedRoles.length > 0) {
+            const userRoles = user?.roles || [];
+            const hasRole = allowedRoles.some(role => userRoles.includes(role));
+            if (!hasRole) {
+                // Not authorized
+                return <Redirect href={homePath as any} />;
+            }
         }
     }
 
