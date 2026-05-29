@@ -1,51 +1,58 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StatusBar, StyleSheet } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { useRouter } from "expo-router";
-import { COLORS } from "../styles";
+import { useThemeColors } from "@/shared/theme/colors";
 
 export default function LoginScreen() {
     const router = useRouter();
+    const colors = useThemeColors();
 
     return (
-        <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
-            <View style={styles.content}>
-                {/* Logo */}
-                <Text style={styles.logo}>MiniZalo</Text>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.isDark ? "light" : "dark"} />
+            <SafeAreaView style={{ flex: 1 }}>
+                <View style={styles.content}>
+                    {/* Logo */}
+                    <Text style={[styles.logo, { color: colors.primary }]}>MiniZalo</Text>
 
-                {/* Buttons */}
-                <View style={styles.buttonContainer}>
-                    <TouchableOpacity
-                        style={styles.loginButton}
-                        activeOpacity={0.8}
-                        onPress={() => router.push("/(auth)/login-form")}
-                    >
-                        <Text style={styles.loginButtonText}>ĐĂNG NHẬP</Text>
-                    </TouchableOpacity>
+                    {/* Buttons */}
+                    <View style={styles.buttonContainer}>
+                        <TouchableOpacity
+                            style={[styles.loginButton, { backgroundColor: colors.primary }]}
+                            activeOpacity={0.8}
+                            onPress={() => router.push("/(auth)/login-form")}
+                        >
+                            <Text style={styles.loginButtonText}>ĐĂNG NHẬP</Text>
+                        </TouchableOpacity>
 
+                        <TouchableOpacity
+                            style={[styles.registerButton, { backgroundColor: colors.searchBg }]}
+                            activeOpacity={0.8}
+                            onPress={() => router.push("/(auth)/register-form")}
+                        >
+                            <Text style={[styles.registerButtonText, { color: colors.text }]}>ĐĂNG KÝ</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Forgot Password */}
                     <TouchableOpacity
-                        style={styles.registerButton}
-                        activeOpacity={0.8}
-                        onPress={() => router.push("/(auth)/register-form")}
+                        style={styles.forgotContainer}
+                        onPress={() => router.push("/(auth)/forgot-password")}
                     >
-                        <Text style={styles.registerButtonText}>ĐĂNG KÝ</Text>
+                        <Text style={[styles.forgotText, { color: colors.textSecondary }]}>Quên mật khẩu?</Text>
                     </TouchableOpacity>
                 </View>
-
-                {/* Forgot Password */}
-                <TouchableOpacity style={styles.forgotContainer}>
-                    <Text style={styles.forgotText}>Quên mật khẩu</Text>
-                </TouchableOpacity>
-            </View>
-        </SafeAreaView>
+            </SafeAreaView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.white,
+        backgroundColor: "#fff",
     },
     content: {
         flex: 1,
@@ -56,7 +63,7 @@ const styles = StyleSheet.create({
     logo: {
         fontSize: 48,
         fontWeight: "bold",
-        color: COLORS.primary,
+        color: "#0068FF",
         marginBottom: 80,
     },
     buttonContainer: {
@@ -64,14 +71,14 @@ const styles = StyleSheet.create({
         maxWidth: 280,
     },
     loginButton: {
-        backgroundColor: COLORS.primary,
+        backgroundColor: "#0068FF",
         borderRadius: 25,
         paddingVertical: 14,
         alignItems: "center",
         marginBottom: 16,
     },
     loginButtonText: {
-        color: COLORS.white,
+        color: "#fff",
         fontWeight: "bold",
         fontSize: 14,
     },
@@ -82,7 +89,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     registerButtonText: {
-        color: COLORS.text,
+        color: "#333",
         fontWeight: "bold",
         fontSize: 14,
     },
@@ -90,7 +97,7 @@ const styles = StyleSheet.create({
         marginTop: 24,
     },
     forgotText: {
-        color: COLORS.textSecondary,
+        color: "#666",
         fontSize: 14,
     },
 });

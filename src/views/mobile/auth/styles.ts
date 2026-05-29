@@ -1,21 +1,18 @@
 import { StyleSheet, Platform, StatusBar } from "react-native";
+import { ThemeColors } from "@/shared/theme/colors";
 
-// Màu chính của Zalo
+// Màu chính của Zalo (cho các hằng số không đổi)
 export const COLORS = {
     primary: "#0068FF",
     primaryDisabled: "#88b4ff",
     white: "#fff",
-    text: "#333",
-    textSecondary: "#666",
-    placeholder: "#888",
-    border: "#e0e0e0",
 };
 
 // Styles chung cho các form auth
-export const authStyles = StyleSheet.create({
+export const createAuthStyles = (colors: ThemeColors) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.white,
+        backgroundColor: colors.background,
     },
     header: {
         paddingBottom: 20,
@@ -29,12 +26,12 @@ export const authStyles = StyleSheet.create({
     },
     backButtonText: {
         fontSize: 24,
-        color: COLORS.text,
+        color: colors.text,
     },
     content: {
-        flex: 1,
         paddingHorizontal: 24,
-        backgroundColor: COLORS.white,
+        paddingBottom: 40,
+        backgroundColor: colors.background,
     },
     titleContainer: {
         alignItems: "center",
@@ -44,13 +41,13 @@ export const authStyles = StyleSheet.create({
     titleText: {
         fontSize: 28,
         fontWeight: "bold",
-        color: COLORS.primary,
+        color: colors.primary,
         textAlign: "center",
         lineHeight: 30,
     },
     inputContainer: {
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+        borderBottomColor: colors.border,
         marginBottom: 16,
         flexDirection: "row",
         alignItems: "center",
@@ -59,13 +56,13 @@ export const authStyles = StyleSheet.create({
         flex: 1,
         paddingVertical: 12,
         fontSize: 16,
-        color: COLORS.text,
+        color: colors.text,
     },
     eyeIcon: {
         padding: 8,
     },
     submitButton: {
-        backgroundColor: COLORS.primary,
+        backgroundColor: colors.primary,
         borderRadius: 25,
         paddingVertical: 14,
         alignItems: "center",
@@ -75,7 +72,7 @@ export const authStyles = StyleSheet.create({
         backgroundColor: COLORS.primaryDisabled,
     },
     submitButtonText: {
-        color: COLORS.white,
+        color: "#fff",
         fontSize: 16,
         fontWeight: "600",
     },
@@ -84,7 +81,7 @@ export const authStyles = StyleSheet.create({
         marginTop: 20,
     },
     linkText: {
-        color: COLORS.textSecondary,
+        color: colors.textSecondary,
         fontSize: 14,
     },
 });

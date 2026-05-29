@@ -1,32 +1,31 @@
 import axios from "axios";
-
-// MediaController không có tiền tố /api, nên cần base URL là root backend
-const rawBase =
-    typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
-        ? process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "")
-        : "http://localhost:8080/api";
-
-// Nếu cấu hình là .../api thì bỏ /api đi để gọi /media/...
-const ROOT_BASE_URL = rawBase.endsWith("/api") ? rawBase.slice(0, -4) : rawBase;
-
-const api = axios.create({
-    baseURL: ROOT_BASE_URL,
-    headers: {
-        "Content-Type": "application/json",
-    },
-});
+import { api } from "@/shared/services/apiClient";
 
 export const mediaService = {
     /**
      * Lấy presigned URL để upload file (PUT) trực tiếp lên MinIO.
      * Trả về chính URL BE trả về (có query ký số).
      */
-    async getPresignedUrl(folder: string, fileName: string): Promise<string> {
-        const { data } = await api.post<string>("/media/presigned-url", {
+    async getPresignedUrl(folder: string, fileName: string, contentType: string): Promise<string> {
+        const { data } = await api.post<{ url: string }>("/media/presigned-url", {
             folder,
             fileName,
+            contentType,
         });
-        return data;
+        return data.url;
+    },
+    /**
+     * Upload file (Blob/File) trực tiếp lên một pre-signed URL bằng method PUT.
+     */
+    async uploadFile(presignedUrl: string, blob: Blob | File, contentType?: string): Promise<void> {
+        // Sử dụng axios.put trực tiếp để tránh các interceptors của instance 'api'
+        await axios.put(presignedUrl, blob, {
+            headers: {
+                "Content-Type": contentType,
+            },
+            // Quan trọng: Ngăn axios tự thêm charset hoặc transform dữ liệu
+            transformRequest: [(data) => data],
+        });
     },
 };
 

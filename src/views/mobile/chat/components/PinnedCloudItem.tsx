@@ -1,22 +1,57 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useThemeColors } from "@/shared/theme/colors";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 export const PinnedCloudItem = () => {
+    const colors = useThemeColors();
+    const router = useRouter();
+    const rooms = useChatStore((s) => s.rooms);
+    const cloudRoom = useMemo(
+        () => rooms.find((r) => r.type === "CLOUD"),
+        [rooms],
+    );
     return (
-        <TouchableOpacity className="flex-row items-center bg-[#1a1a1a] px-4 py-2.5 border-b border-[#333]">
-            <View className="relative mr-3" >
-                <View className="w-[52px] h-[52px] rounded-full bg-[#1e3a5f] items-center justify-center overflow-hidden">
+        <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+                if (!cloudRoom?.id) return;
+                router.push(
+                    `/chat/${cloudRoom.id}?name=${encodeURIComponent("Cloud của tôi")}&type=CLOUD&isStranger=false`,
+                );
+            }}
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: colors.background,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                borderBottomWidth: 0.5,
+                borderBottomColor: colors.border,
+            }}
+        >
+            <View style={{ position: 'relative', marginRight: 12 }}>
+                <View style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 26,
+                    backgroundColor: '#162447',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                }}>
                     <Ionicons name="cloud-outline" size={28} color="#4da6ff" />
                 </View>
             </View>
 
-            <View className="flex-1 justify-center h-[52px]">
-                <View className="flex-row justify-between items-center">
-                    <Text className="text-[16px] font-normal text-white">Cloud của tôi</Text>
+            <View style={{ flex: 1, justifyContent: 'center', height: 52 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 16, color: colors.text }}>Cloud của tôi</Text>
                 </View>
-                <View className="flex-row items-center mt-0.5">
-                    <Text className="text-[14px] text-blue-400" numberOfLines={1}>Cuộc trò chuyện này đang được ghim</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                    <Text style={{ fontSize: 14, color: colors.primary }} numberOfLines={1}>Cuộc trò chuyện này đang được ghim</Text>
                 </View>
             </View>
         </TouchableOpacity>

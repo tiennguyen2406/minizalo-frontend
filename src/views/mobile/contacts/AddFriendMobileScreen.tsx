@@ -1,14 +1,15 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, TextInput, Alert, Modal, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { PROFILE_COLORS } from "../profile/styles";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useUserStore } from "@/shared/store/userStore";
 import { searchService } from "@/shared/services/searchService";
 import type { UserProfile } from "@/shared/services/types";
+import { useThemeColors } from "@/shared/theme/colors";
 
 export default function AddFriendMobileScreen() {
     const router = useRouter();
@@ -19,6 +20,7 @@ export default function AddFriendMobileScreen() {
     const [resultUser, setResultUser] = useState<UserProfile | null>(null);
     const { sendRequest, friends, sentRequests } = useFriendStore();
     const { profile } = useUserStore();
+    const colors = useThemeColors();
 
     const currentUserId = profile?.id ?? null;
 
@@ -120,57 +122,67 @@ export default function AddFriendMobileScreen() {
         }
         try {
             await sendRequest(userId);
-            Alert.alert("Thành công", "Đã gửi lời mời kết bạn.");
+            Alert.alert("Thành công", "Đã gửi lời mời kết bạn.", [
+                {
+                    text: "OK",
+                    onPress: () => router.replace("/(tabs)"),
+                },
+            ]);
         } catch {
             Alert.alert("Lỗi", "Gửi lời mời kết bạn thất bại.");
         }
     };
 
     return (
-        <SafeAreaView
-            style={{ flex: 1, backgroundColor: PROFILE_COLORS.background }}
-            edges={["top"]}
-        >
-            {/* Header Thêm bạn */}
-            <View
-                style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
-                }}
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
+            <SafeAreaView
+                style={{ backgroundColor: colors.headerBg }}
+                edges={["top"]}
             >
-                <TouchableOpacity
-                    onPress={() => router.replace("/(tabs)/contacts")}
-                    style={{ padding: 4, marginRight: 8 }}
-                    activeOpacity={0.8}
-                >
-                    <Ionicons
-                        name="chevron-back"
-                        size={22}
-                        color={PROFILE_COLORS.text}
-                    />
-                </TouchableOpacity>
-                <Text
+                {/* Header Thêm bạn */}
+                <View
                     style={{
-                        color: PROFILE_COLORS.text,
-                        fontSize: 16,
-                        fontWeight: "600",
+                        height: 52,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 16,
+                        borderBottomWidth: colors.headerBg.startsWith("#0") ? 0 : 0.5,
+                        borderBottomColor: colors.border,
+                        backgroundColor: colors.headerBg,
                     }}
                 >
-                    Thêm bạn
-                </Text>
-            </View>
+                    <TouchableOpacity
+                        onPress={() => router.back()}
+                        style={{ padding: 4, marginRight: 8 }}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons
+                            name="chevron-back"
+                            size={22}
+                            color={colors.headerText}
+                        />
+                    </TouchableOpacity>
+                    <Text
+                        style={{
+                            color: colors.headerText,
+                            fontSize: 18,
+                            fontWeight: "600",
+                        }}
+                    >
+                        Thêm bạn
+                    </Text>
+                </View>
+            </SafeAreaView>
 
-            {/* Nội dung: chỉ cho tìm bằng số điện thoại */}
-            <View
-                style={{
-                    paddingHorizontal: 16,
-                    paddingTop: 12,
-                }}
-            >
+            <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Nội dung: chỉ cho tìm bằng số điện thoại */}
+                <View
+                    style={{
+                        paddingHorizontal: 16,
+                        paddingTop: 12,
+                    }}
+                >
                 {/* Hàng chọn mã quốc gia + nhập SĐT */}
                 <View
                     style={{
@@ -189,13 +201,13 @@ export default function AddFriendMobileScreen() {
                             paddingVertical: 8,
                             borderRadius: 999,
                             borderWidth: 1,
-                            borderColor: "#3f3f46",
+                            borderColor: colors.border,
                             marginRight: 8,
                         }}
                     >
                         <Text
                             style={{
-                                color: PROFILE_COLORS.text,
+                                color: colors.text,
                                 fontSize: 14,
                                 marginRight: 4,
                             }}
@@ -205,7 +217,7 @@ export default function AddFriendMobileScreen() {
                         <Ionicons
                             name="chevron-down"
                             size={16}
-                            color={PROFILE_COLORS.textSecondary}
+                            color={colors.textSecondary}
                         />
                     </TouchableOpacity>
 
@@ -215,7 +227,7 @@ export default function AddFriendMobileScreen() {
                             flexDirection: "row",
                             alignItems: "center",
                             borderRadius: 999,
-                            backgroundColor: "#2c2c2e",
+                            backgroundColor: colors.searchBg,
                             paddingHorizontal: 12,
                             paddingVertical: 6,
                         }}
@@ -225,10 +237,10 @@ export default function AddFriendMobileScreen() {
                             onChangeText={setPhone}
                             keyboardType="phone-pad"
                             placeholder="Nhập số điện thoại"
-                            placeholderTextColor={PROFILE_COLORS.textSecondary}
+                            placeholderTextColor={colors.textSecondary}
                             style={{
                                 flex: 1,
-                                color: PROFILE_COLORS.text,
+                                color: colors.text,
                                 fontSize: 14,
                                 paddingVertical: 0,
                             }}
@@ -244,7 +256,7 @@ export default function AddFriendMobileScreen() {
                             paddingHorizontal: 12,
                             paddingVertical: 8,
                             borderRadius: 999,
-                            backgroundColor: PROFILE_COLORS.primary,
+                            backgroundColor: colors.primary,
                             opacity: searching ? 0.7 : 1,
                         }}
                     >
@@ -266,7 +278,7 @@ export default function AddFriendMobileScreen() {
                         style={{
                             marginTop: 16,
                             borderRadius: 16,
-                            backgroundColor: "#111827",
+                            backgroundColor: colors.card,
                             padding: 16,
                         }}
                     >
@@ -282,7 +294,7 @@ export default function AddFriendMobileScreen() {
                                     width: 56,
                                     height: 56,
                                     borderRadius: 28,
-                                    backgroundColor: "#1f2937",
+                                    backgroundColor: colors.avatarBg,
                                     alignItems: "center",
                                     justifyContent: "center",
                                     marginRight: 12,
@@ -290,7 +302,7 @@ export default function AddFriendMobileScreen() {
                             >
                                 <Text
                                     style={{
-                                        color: PROFILE_COLORS.text,
+                                        color: colors.text,
                                         fontSize: 24,
                                         fontWeight: "600",
                                     }}
@@ -305,7 +317,7 @@ export default function AddFriendMobileScreen() {
                             <View style={{ flex: 1 }}>
                                 <Text
                                     style={{
-                                        color: PROFILE_COLORS.text,
+                                        color: colors.text,
                                         fontSize: 16,
                                         fontWeight: "600",
                                     }}
@@ -317,7 +329,7 @@ export default function AddFriendMobileScreen() {
                                 {resultUser.phone ? (
                                     <Text
                                         style={{
-                                            color: PROFILE_COLORS.textSecondary,
+                                            color: colors.textSecondary,
                                             fontSize: 13,
                                             marginTop: 2,
                                         }}
@@ -342,13 +354,13 @@ export default function AddFriendMobileScreen() {
                                     marginRight: 8,
                                     paddingVertical: 10,
                                     borderRadius: 999,
-                                    backgroundColor: "#1f2937",
+                                    backgroundColor: colors.searchBg,
                                     alignItems: "center",
                                 }}
                             >
                                 <Text
                                     style={{
-                                        color: PROFILE_COLORS.text,
+                                        color: colors.text,
                                         fontSize: 14,
                                         fontWeight: "500",
                                     }}
@@ -370,15 +382,15 @@ export default function AddFriendMobileScreen() {
                                     marginLeft: 8,
                                     paddingVertical: 10,
                                     borderRadius: 999,
-                                    backgroundColor: PROFILE_COLORS.primary,
+                                    backgroundColor: colors.primary,
                                     alignItems: "center",
                                     opacity:
                                         currentUserId &&
-                                        (currentUserId === resultUser.id ||
-                                            friendIdSet.has(resultUser.id) ||
-                                            pendingRequestIdSet.has(
-                                                resultUser.id
-                                            ))
+                                            (currentUserId === resultUser.id ||
+                                                friendIdSet.has(resultUser.id) ||
+                                                pendingRequestIdSet.has(
+                                                    resultUser.id
+                                                ))
                                             ? 0.6
                                             : 1,
                                 }}
@@ -393,10 +405,10 @@ export default function AddFriendMobileScreen() {
                                     {currentUserId && currentUserId === resultUser.id
                                         ? "Bạn"
                                         : friendIdSet.has(resultUser.id)
-                                        ? "Đã là bạn"
-                                        : pendingRequestIdSet.has(resultUser.id)
-                                        ? "Đã gửi"
-                                        : "Kết bạn"}
+                                            ? "Đã là bạn"
+                                            : pendingRequestIdSet.has(resultUser.id)
+                                                ? "Đã gửi"
+                                                : "Kết bạn"}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -424,13 +436,13 @@ export default function AddFriendMobileScreen() {
                             width: "80%",
                             maxWidth: 360,
                             borderRadius: 16,
-                            backgroundColor: "#18181b",
+                            backgroundColor: colors.card,
                             paddingVertical: 12,
                         }}
                     >
                         <Text
                             style={{
-                                color: PROFILE_COLORS.text,
+                                color: colors.text,
                                 fontSize: 16,
                                 fontWeight: "600",
                                 textAlign: "center",
@@ -465,7 +477,7 @@ export default function AddFriendMobileScreen() {
                                 >
                                     <Text
                                         style={{
-                                            color: PROFILE_COLORS.text,
+                                            color: colors.text,
                                             fontSize: 15,
                                             fontWeight: "500",
                                             marginRight: 8,
@@ -475,7 +487,7 @@ export default function AddFriendMobileScreen() {
                                     </Text>
                                     <Text
                                         style={{
-                                            color: PROFILE_COLORS.textSecondary,
+                                            color: colors.textSecondary,
                                             fontSize: 14,
                                         }}
                                     >
@@ -496,7 +508,7 @@ export default function AddFriendMobileScreen() {
                         >
                             <Text
                                 style={{
-                                    color: PROFILE_COLORS.textSecondary,
+                                    color: colors.textSecondary,
                                     fontSize: 14,
                                 }}
                             >
@@ -506,7 +518,7 @@ export default function AddFriendMobileScreen() {
                     </View>
                 </View>
             </Modal>
-        </SafeAreaView>
+            </ScrollView>
+        </View>
     );
 }
-

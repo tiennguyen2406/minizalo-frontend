@@ -1,8 +1,14 @@
-import React, { useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUserStore } from "@/shared/store/userStore";
 import { useAuthStore } from "@/shared/store/authStore";
+import { usePostStore } from "@/shared/store/postStore";
 import { useAvatarUpload } from "@/shared/hooks/useAvatarUpload";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
+import userService from "@/shared/services/userService";
+import type { UserProfile } from "@/shared/services/types";
+import EditProfileView from "@/views/web/profile/EditProfileView";
 
 const MONTHS = "tháng 01,tháng 02,tháng 03,tháng 04,tháng 05,tháng 06,tháng 07,tháng 08,tháng 09,tháng 10,tháng 11,tháng 12".split(",");
 
@@ -33,21 +39,60 @@ const iconCamera = (
     </svg>
 );
 
-export default function AccountInfoView() {
+export default function AccountInfoView({ onClose: onCloseProp }: { onClose?: () => void } = {}) {
     const router = useRouter();
+    const params = useLocalSearchParams<{ userId?: string }>();
     const { profile, loading, error, fetchProfile } = useUserStore();
+    const posts = usePostStore((s) => s.posts);
+    const fetchPostFeed = usePostStore((s) => s.fetchFeed);
     const isHydrated = useAuthStore((s) => s.isHydrated);
     const accessToken = useAuthStore((s) => s.accessToken);
     const hasToken = !!accessToken;
     const { preview, uploading, error: avatarError, selectFile, upload, hasToken: hasAuth } = useAvatarUpload();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const coverInputRef = useRef<HTMLInputElement>(null);
+    const [coverPreview, setCoverPreview] = useState<string | null>(null);
+    const [coverUploading, setCoverUploading] = useState(false);
+    const [coverError, setCoverError] = useState<string | null>(null);
+    const [coverHover, setCoverHover] = useState(false);
+    const [showEdit, setShowEdit] = useState(false);
+    const [otherProfile, setOtherProfile] = useState<UserProfile | null>(null);
+    const [otherLoading, setOtherLoading] = useState(false);
+    const [otherError, setOtherError] = useState<string | null>(null);
+    const targetUserId = typeof params.userId === "string" ? params.userId : "";
+    const isOtherProfile = !!targetUserId && targetUserId !== profile?.id;
 
     // Chỉ gọi API sau khi auth đã rehydrate từ storage (tránh 401 do token chưa kịp có)
     useEffect(() => {
         if (isHydrated && hasToken) fetchProfile();
     }, [isHydrated, hasToken, fetchProfile]);
 
-    const onClose = () => router.replace("/(tabs)");
+    useEffect(() => {
+        void fetchPostFeed({ silent: true });
+    }, [fetchPostFeed]);
+
+    useEffect(() => {
+        if (!isHydrated || !hasToken || !isOtherProfile) return;
+        let cancelled = false;
+        setOtherLoading(true);
+        setOtherError(null);
+        userService
+            .getUserProfile(targetUserId)
+            .then((data) => {
+                if (!cancelled) setOtherProfile(data);
+            })
+            .catch(() => {
+                if (!cancelled) setOtherError("Không tải được thông tin người dùng.");
+            })
+            .finally(() => {
+                if (!cancelled) setOtherLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [isHydrated, hasToken, isOtherProfile, targetUserId]);
+
+    const onClose = onCloseProp ?? (() => router.replace("/(tabs)"));
 
     const onAvatarClick = () => fileInputRef.current?.click();
     const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -59,12 +104,56 @@ export default function AccountInfoView() {
         e.target.value = "";
     };
 
+    const onCoverClick = () => coverInputRef.current?.click();
+    const onCoverFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+            setCoverError("Vui lòng chọn file ảnh (JPEG, PNG, GIF).");
+            e.target.value = "";
+            return;
+        }
+        setCoverError(null);
+        const url = URL.createObjectURL(file);
+        setCoverPreview(url);
+        if (hasAuth) {
+            setCoverUploading(true);
+            try {
+                const userService = (await import("@/shared/services/userService")).default;
+                const updatedProfile = await userService.uploadCoverPhoto(file);
+                useUserStore.getState().setProfile(updatedProfile);
+                setCoverPreview(null);
+            } catch (err: unknown) {
+                const msg = (err as { response?: { data?: string } })?.response?.data ?? "Tải ảnh bìa thất bại.";
+                setCoverError(typeof msg === "string" ? msg : "Tải ảnh bìa thất bại.");
+            } finally {
+                setCoverUploading(false);
+            }
+        }
+        e.target.value = "";
+    };
+
     // Khi đã đăng nhập: chỉ dùng profile từ API (userStore), không dùng data ảo
-    const displayProfile = profile ?? null;
+    const displayProfile = isOtherProfile ? otherProfile : profile ?? null;
     const avatarUrl = preview || displayProfile?.avatarUrl || null;
     const displayName = displayProfile?.displayName || displayProfile?.username || "Người dùng";
+    const displayUserId = params.userId || displayProfile?.id || "";
+    const postMedia = useMemo(() => {
+        if (!displayUserId) return [];
+        return posts
+            .filter((post) => post.userId === displayUserId)
+            .flatMap((post) => {
+                const items = Array.isArray(post.mediaItems) && post.mediaItems.length > 0
+                    ? post.mediaItems
+                    : post.mediaUrl
+                        ? [{ id: post.id, mediaUrl: post.mediaUrl, mediaType: post.mediaType, sortOrder: 0 }]
+                        : [];
+                return items.filter((item) => item.mediaUrl && (item.mediaType === "IMAGE" || item.mediaType === "VIDEO"));
+            });
+    }, [posts, displayUserId]);
 
     return (
+        <>
         <div
             role="dialog"
             aria-label="Thông tin tài khoản"
@@ -83,7 +172,7 @@ export default function AccountInfoView() {
             <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                    backgroundColor: "#fff",
+                    backgroundColor: "var(--bg-primary)",
                     borderRadius: 20,
                     maxWidth: 640,
                     width: "100%",
@@ -99,10 +188,10 @@ export default function AccountInfoView() {
                         alignItems: "center",
                         justifyContent: "space-between",
                         padding: "20px 28px",
-                        borderBottom: "1px solid #eee",
+                        borderBottom: "1px solid var(--border-primary)",
                     }}
                 >
-                    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: "#333" }}>
+                    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: "var(--text-primary)" }}>
                         Thông tin tài khoản
                     </h2>
                     <button
@@ -113,7 +202,7 @@ export default function AccountInfoView() {
                             background: "none",
                             cursor: "pointer",
                             padding: 4,
-                            color: "#666",
+                            color: "var(--text-secondary)",
                         }}
                     >
                         {iconClose}
@@ -122,19 +211,19 @@ export default function AccountInfoView() {
 
                 {/* Đợi auth rehydrate từ storage (tránh 401 do token chưa kịp có) */}
                 {!isHydrated && (
-                    <div style={{ padding: 40, textAlign: "center", color: "#666", fontSize: 16 }}>
+                    <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontSize: 16 }}>
                         Đang tải...
                     </div>
                 )}
                 {/* Loading / Error */}
-                {isHydrated && loading && !displayProfile && (
-                    <div style={{ padding: 40, textAlign: "center", color: "#666", fontSize: 16 }}>
+                {isHydrated && (loading || otherLoading) && !displayProfile && (
+                    <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontSize: 16 }}>
                         Đang tải thông tin tài khoản...
                     </div>
                 )}
-                {isHydrated && error && !displayProfile && (
+                {isHydrated && (error || otherError) && !displayProfile && (
                     <div style={{ padding: 28, textAlign: "center" }}>
-                        <p style={{ color: "#e53935", marginBottom: 16, fontSize: 16 }}>{error}</p>
+                        <p style={{ color: "var(--danger)", marginBottom: 16, fontSize: 16 }}>{otherError || error}</p>
                         <button
                             type="button"
                             onClick={() => fetchProfile()}
@@ -142,8 +231,8 @@ export default function AccountInfoView() {
                                 padding: "10px 20px",
                                 borderRadius: 10,
                                 border: "none",
-                                backgroundColor: "#0068FF",
-                                color: "#fff",
+                                backgroundColor: "var(--accent)",
+                                color: "var(--text-inverse)",
                                 fontSize: 16,
                                 fontWeight: 500,
                                 cursor: "pointer",
@@ -157,195 +246,296 @@ export default function AccountInfoView() {
                 {/* Nội dung chỉ hiển thị khi đã có profile từ API */}
                 {displayProfile && (
                     <>
-                {/* Banner */}
-                <div
-                    style={{
-                        height: 160,
-                        background: "linear-gradient(135deg, #0068FF 0%, #00C6FF 100%)",
-                        borderRadius: "0 0 0 0",
-                    }}
-                />
-
-                {/* Avatar + Name */}
-                <div style={{ padding: "0 28px 20px", marginTop: -60 }}>
-                    <div style={{ display: "flex", alignItems: "flex-end", gap: 20 }}>
+                        {/* Banner - click to update cover photo */}
                         <div
+                            onClick={isOtherProfile ? undefined : onCoverClick}
+                            onMouseEnter={() => setCoverHover(true)}
+                            onMouseLeave={() => setCoverHover(false)}
                             style={{
+                                height: 160,
+                                background: (coverPreview || displayProfile?.coverPhotoUrl)
+                                    ? `url(${coverPreview || displayProfile?.coverPhotoUrl}) center/cover no-repeat`
+                                    : "linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)",
+                                borderRadius: "0 0 0 0",
+                                cursor: isOtherProfile ? "default" : coverUploading ? "wait" : "pointer",
                                 position: "relative",
-                                width: 120,
-                                height: 120,
-                                borderRadius: "50%",
-                                overflow: "hidden",
-                                border: "4px solid #fff",
-                                boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
-                                flexShrink: 0,
+                                transition: "filter 0.2s ease",
                             }}
                         >
-                            {avatarUrl ? (
-                                <img
-                                    src={avatarUrl}
-                                    alt="Avatar"
-                                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                />
-                            ) : (
-                                <div
-                                    style={{
-                                        width: "100%",
-                                        height: "100%",
-                                        backgroundColor: "#e0e0e0",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        color: "#666",
-                                        fontSize: 40,
-                                        fontWeight: 600,
-                                    }}
-                                >
-                                    {(displayName && displayName.charAt(0).toUpperCase()) || "?"}
-                                </div>
-                            )}
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/jpeg,image/png,image/gif"
-                                style={{ display: "none" }}
-                                onChange={onFileChange}
-                            />
-                            <button
-                                type="button"
-                                onClick={onAvatarClick}
-                                disabled={uploading}
+                            {/* Hover overlay */}
+                            <div
                                 style={{
                                     position: "absolute",
-                                    right: 0,
-                                    bottom: 0,
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: "50%",
-                                    border: "3px solid #fff",
-                                    backgroundColor: "#0068FF",
-                                    color: "#fff",
-                                    cursor: uploading ? "wait" : "pointer",
+                                    inset: 0,
+                                    backgroundColor: !isOtherProfile && coverHover ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
+                                    transition: "background-color 0.2s ease",
+                                    borderRadius: "inherit",
                                 }}
                             >
-                                {iconCamera}
-                            </button>
-                        </div>
-                        <div style={{ flex: 1, paddingBottom: 10 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                <span style={{ fontSize: 26, fontWeight: 600, color: "#333" }}>
-                                    {displayName}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => router.push("/(tabs)/account-edit")}
+                                <div
                                     style={{
-                                        border: "none",
-                                        background: "none",
-                                        cursor: "pointer",
-                                        padding: 4,
-                                        color: "#0068FF",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        color: "var(--text-inverse)",
+                                        fontSize: 14,
+                                        fontWeight: 500,
+                                        opacity: !isOtherProfile && coverHover ? 1 : 0,
+                                        transition: "opacity 0.2s ease",
+                                        pointerEvents: "none",
                                     }}
                                 >
-                                    {iconPencil}
-                                </button>
+                                    {coverUploading ? (
+                                        <span>Đang tải lên...</span>
+                                    ) : (
+                                        <>
+                                            {iconCamera}
+                                            <span>Cập nhật ảnh bìa</span>
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                            {(avatarError || error) && (
-                                <div style={{ fontSize: 14, color: "#e53935", marginTop: 6 }}>
-                                    {avatarError || error}
+                            <input
+                                ref={coverInputRef}
+                                type="file"
+                                accept="image/jpeg,image/png,image/gif"
+                                style={{ display: "none" }}
+                                onChange={onCoverFileChange}
+                            />
+                        </div>
+                        {coverError && (
+                            <div style={{ padding: "6px 28px", fontSize: 14, color: "var(--danger)" }}>
+                                {coverError}
+                            </div>
+                        )}
+
+                        {/* Avatar + Name */}
+                        <div style={{ padding: "0 28px 20px", marginTop: -60 }}>
+                            <div style={{ display: "flex", alignItems: "flex-end", gap: 20 }}>
+                                <div
+                                    style={{
+                                        position: "relative",
+                                        width: 120,
+                                        height: 120,
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: "100%",
+                                            height: "100%",
+                                            borderRadius: "50%",
+                                            overflow: "hidden",
+                                            border: "4px solid var(--bg-primary)",
+                                            boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+                                        }}
+                                    >
+                                        {avatarUrl ? (
+                                            <img
+                                                src={avatarUrl}
+                                                alt="Avatar"
+                                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                            />
+                                        ) : (
+                                            <div
+                                                style={{
+                                                    width: "100%",
+                                                    height: "100%",
+                                                    backgroundColor: "var(--border-primary)",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    color: "var(--text-secondary)",
+                                                    fontSize: 40,
+                                                    fontWeight: 600,
+                                                }}
+                                            >
+                                                {(displayName && displayName.charAt(0).toUpperCase()) || "?"}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/gif"
+                                        style={{ display: "none" }}
+                                        onChange={onFileChange}
+                                    />
+                                    {!isOtherProfile && (
+                                    <button
+                                        type="button"
+                                        onClick={onAvatarClick}
+                                        disabled={uploading}
+                                        style={{
+                                            position: "absolute",
+                                            right: 0,
+                                            bottom: 0,
+                                            width: 40,
+                                            height: 40,
+                                            borderRadius: "50%",
+                                            border: "3px solid var(--bg-primary)",
+                                            backgroundColor: "var(--accent)",
+                                            color: "var(--text-inverse)",
+                                            cursor: uploading ? "wait" : "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            zIndex: 2,
+                                            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                                        }}
+                                    >
+                                        {iconCamera}
+                                    </button>
+                                    )}
+                                </div>
+                                <div style={{ flex: 1, paddingBottom: 10 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                        <span style={{ fontSize: 26, fontWeight: 600, color: "var(--text-primary)" }}>
+                                            {displayName}
+                                        </span>
+                                        {!isOtherProfile && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); setShowEdit(true); }}
+                                            style={{
+                                                border: "none",
+                                                background: "none",
+                                                cursor: "pointer",
+                                                padding: 4,
+                                                color: "var(--accent)",
+                                            }}
+                                        >
+                                            {iconPencil}
+                                        </button>
+                                        )}
+                                    </div>
+                                    {(avatarError || error) && (
+                                        <div style={{ fontSize: 14, color: "var(--danger)", marginTop: 6 }}>
+                                            {avatarError || error}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Thông tin kinh doanh */}
+                        <div
+                            style={{
+                                margin: "0 28px 20px",
+                                padding: 20,
+                                backgroundColor: "var(--bg-secondary)",
+                                borderRadius: 14,
+                            }}
+                        >
+                            <div style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 10 }}>Mô tả</div>
+                            <a
+                                href={displayProfile?.businessDescription || "#"}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                    fontSize: 16,
+                                    color: "var(--accent)",
+                                    textDecoration: "none",
+                                    wordBreak: "break-all",
+                                }}
+                            >
+                                {displayProfile?.businessDescription || "Chưa cập nhật"}
+                            </a>
+                        </div>
+
+                        {/* Thông tin cá nhân */}
+                        <div
+                            style={{
+                                margin: "0 28px 24px",
+                                padding: 20,
+                                backgroundColor: "var(--bg-secondary)",
+                                borderRadius: 14,
+                            }}
+                        >
+                            <div style={{ fontSize: 16, color: "var(--text-primary)", marginBottom: 14 }}>
+                                <strong>Giới tính:</strong> {displayProfile?.gender || "Chưa cập nhật"}
+                            </div>
+                            <div style={{ fontSize: 16, color: "var(--text-primary)", marginBottom: 14 }}>
+                                <strong>Ngày sinh:</strong> {formatDate(displayProfile?.dateOfBirth) || "Chưa cập nhật"}
+                            </div>
+                            <div style={{ fontSize: 16, color: "var(--text-primary)", marginBottom: 10 }}>
+                                <strong>Điện thoại:</strong> {displayProfile?.phone || "Chưa cập nhật"}
+                            </div>
+                            <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 0 }}>
+                                Chỉ bạn bè có lưu số của bạn trong danh bạ mới xem được số này.
+                            </div>
+                        </div>
+
+                        <div
+                            style={{
+                                margin: "0 28px 24px",
+                                padding: 20,
+                                backgroundColor: "var(--bg-secondary)",
+                                borderRadius: 14,
+                            }}
+                        >
+                            <h3 style={{ margin: "0 0 14px", fontSize: 18, color: "var(--text-primary)" }}>Hình ảnh</h3>
+                            {postMedia.length > 0 ? (
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                                    {postMedia.map((item) => {
+                                        const uri = getImageUrl(item.mediaUrl);
+                                        return (
+                                            <div key={item.id} style={{ aspectRatio: "1 / 1", borderRadius: 10, overflow: "hidden", backgroundColor: "#000" }}>
+                                                {item.mediaType === "VIDEO" ? (
+                                                    <video src={uri} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                ) : (
+                                                    <img src={uri} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div style={{ padding: "28px 0", textAlign: "center", color: "var(--text-secondary)", fontSize: 15 }}>
+                                    Chưa có ảnh nào được chia sẻ
                                 </div>
                             )}
                         </div>
-                    </div>
-                </div>
 
-                {/* Thông tin kinh doanh */}
-                <div
-                    style={{
-                        margin: "0 28px 20px",
-                        padding: 20,
-                        backgroundColor: "#f5f5f5",
-                        borderRadius: 14,
-                    }}
-                >
-                    <div style={{ fontSize: 16, color: "#666", marginBottom: 10 }}>Mô tả</div>
-                    <a
-                        href={displayProfile?.businessDescription || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                            fontSize: 16,
-                            color: "#0068FF",
-                            textDecoration: "none",
-                            wordBreak: "break-all",
-                        }}
-                    >
-                        {displayProfile?.businessDescription || "Chưa cập nhật"}
-                    </a>
-                    <div style={{ marginTop: 16 }}>
-                        <button
-                            type="button"
-                            onClick={() => router.push("/(tabs)/account-edit")}
+                        {!isOtherProfile && (
+                        <div
                             style={{
-                                padding: "10px 20px",
-                                borderRadius: 10,
-                                border: "none",
-                                backgroundColor: "#0068FF",
-                                color: "#fff",
-                                fontSize: 16,
-                                fontWeight: 500,
-                                cursor: "pointer",
+                                margin: "0 28px 28px",
+                                display: "flex",
+                                justifyContent: "center",
                             }}
                         >
-                            Cập nhật
-                        </button>
-                    </div>
-                </div>
-
-                {/* Thông tin cá nhân */}
-                <div
-                    style={{
-                        margin: "0 28px 24px",
-                        padding: 20,
-                        backgroundColor: "#f5f5f5",
-                        borderRadius: 14,
-                    }}
-                >
-                    <div style={{ fontSize: 16, color: "#333", marginBottom: 14 }}>
-                        <strong>Giới tính:</strong> {displayProfile?.gender || "Chưa cập nhật"}
-                    </div>
-                    <div style={{ fontSize: 16, color: "#333", marginBottom: 14 }}>
-                        <strong>Ngày sinh:</strong> {formatDate(displayProfile?.dateOfBirth) || "Chưa cập nhật"}
-                    </div>
-                    <div style={{ fontSize: 16, color: "#333", marginBottom: 10 }}>
-                        <strong>Điện thoại:</strong> {displayProfile?.phone || "Chưa cập nhật"}
-                    </div>
-                    <div style={{ fontSize: 14, color: "#666", marginBottom: 16 }}>
-                        Chỉ bạn bè có lưu số của bạn trong danh bạ mới xem được số này.
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => router.push("/(tabs)/account-edit")}
-                        style={{
-                            padding: "10px 20px",
-                            borderRadius: 10,
-                            border: "none",
-                            backgroundColor: "#0068FF",
-                            color: "#fff",
-                            fontSize: 16,
-                            fontWeight: 500,
-                            cursor: "pointer",
-                        }}
-                    >
-                        Cập nhật
-                    </button>
-                </div>
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setShowEdit(true); }}
+                                style={{
+                                    padding: "12px 32px",
+                                    borderRadius: 10,
+                                    border: "none",
+                                    backgroundColor: "var(--accent)",
+                                    color: "var(--text-inverse)",
+                                    fontSize: 16,
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                    minWidth: 200,
+                                }}
+                            >
+                                Cập nhật
+                            </button>
+                        </div>
+                        )}
                     </>
                 )}
             </div>
         </div>
+
+        {showEdit && createPortal(
+            <EditProfileView onClose={() => { setShowEdit(false); fetchProfile(); }} />,
+            document.body
+        )}
+        </>
     );
 }

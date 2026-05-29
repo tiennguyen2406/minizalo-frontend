@@ -1,235 +1,553 @@
 import "zmp-ui/zaui.css";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { Button, Input } from "zmp-ui";
 import authService from "@/shared/services/authService";
+import OtpInput from "./OtpInput";
 
 const COLORS = {
-    primary: "#0068FF",
-    white: "#fff",
-    text: "#333",
-    textSecondary: "#666",
-    border: "#e0e0e0",
+  primary: "#0068FF",
+  white: "#fff",
+  text: "#333",
+  textSecondary: "#666",
+  border: "#e0e0e0",
 };
 
+type Step = "form" | "otp";
+type OtpChannel = "SMS" | "EMAIL";
+
 export default function RegisterFormWeb() {
-    const router = useRouter();
-    const [name, setName] = useState("");
-    const [phone, setPhone] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+  const router = useRouter();
+  const [step, setStep] = useState<Step>("form");
+  const [otpChannel, setOtpChannel] = useState<OtpChannel>("SMS");
 
-    const handleRegister = async () => {
-        setError("");
-        if (!name.trim()) {
-            setError("Vui lòng nhập tên");
-            return;
-        }
-        if (!phone.trim()) {
-            setError("Vui lòng nhập số điện thoại");
-            return;
-        }
-        if (!/^[0-9]{10,11}$/.test(phone)) {
-            setError("Số điện thoại phải có 10-11 chữ số");
-            return;
-        }
-        if (!email.trim()) {
-            setError("Vui lòng nhập email");
-            return;
-        }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            setError("Email không hợp lệ");
-            return;
-        }
-        if (!password) {
-            setError("Vui lòng nhập mật khẩu");
-            return;
-        }
-        if (password.length < 6) {
-            setError("Mật khẩu phải có ít nhất 6 ký tự");
-            return;
-        }
-        if (password !== confirmPassword) {
-            setError("Mật khẩu nhập lại không khớp");
-            return;
-        }
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-        setLoading(true);
-        try {
-            await authService.signup({
-                name: name.trim(),
-                phone: phone.trim(),
-                email: email.trim(),
-                password,
-            });
-            router.replace("/(auth)/login-form");
-        } catch (err: any) {
-            const message =
-                err.response?.data?.message ||
-                "Đăng ký thất bại. Vui lòng thử lại.";
-            setError(message);
-        } finally {
-            setLoading(false);
-        }
+  const [otp, setOtp] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [nameError, setNameError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [otpCooldown, setOtpCooldown] = useState(60);
+
+  useEffect(() => {
+    // Ép nền trắng tuyệt đối cho web để không lộ mảng xám từ layout/host app.
+    if (typeof document === "undefined") return;
+    const prevBodyBg = document.body.style.backgroundColor;
+    const prevHtmlBg = document.documentElement.style.backgroundColor;
+    const prevBodyMargin = document.body.style.margin;
+
+    document.documentElement.style.backgroundColor = COLORS.white;
+    document.body.style.backgroundColor = COLORS.white;
+    document.body.style.margin = "0";
+
+    return () => {
+      document.body.style.backgroundColor = prevBodyBg;
+      document.documentElement.style.backgroundColor = prevHtmlBg;
+      document.body.style.margin = prevBodyMargin;
     };
+  }, []);
 
-    return (
-        <div
-            style={{
-                minHeight: "100vh",
-                backgroundColor: COLORS.white,
-                padding: 24,
+  const getNameError = useCallback((raw: string): string => {
+    const trimmedName = raw.trim();
+    if (!trimmedName) return "Vui lòng nhập tên";
+    if (trimmedName.length < 2 || trimmedName.length > 40)
+      return "Tên phải từ 2-40 ký tự";
+    if (!/^[\p{L} ]+$/u.test(trimmedName)) {
+      return "Tên chỉ được chứa chữ cái và khoảng trắng, không chứa số hay ký tự đặc biệt";
+    }
+    return "";
+  }, []);
+
+  const getPhoneError = useCallback((raw: string): string => {
+    const v = raw.trim();
+    if (!v) return "Vui lòng nhập số điện thoại";
+    if (!/^[0-9]+$/.test(v)) return "Số điện thoại chỉ được chứa chữ số";
+    if (v.length !== 10) return "Số điện thoại phải đủ 10 chữ số";
+    if (!/^(03|05|07|08|09)/.test(v))
+      return "Số điện thoại phải bắt đầu bằng 03, 05, 07, 08 hoặc 09";
+    return "";
+  }, []);
+
+  const getEmailError = useCallback((raw: string): string => {
+    const v = raw.trim();
+    if (!v) return "Vui lòng nhập email";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Email không hợp lệ";
+    return "";
+  }, []);
+
+  const getPasswordError = useCallback((raw: string): string => {
+    if (!raw) return "Vui lòng nhập mật khẩu";
+    if (raw.length < 6 || raw.length > 32) return "Mật khẩu phải từ 6-32 ký tự";
+    if (/\s/.test(raw)) return "Mật khẩu không được chứa khoảng trắng";
+    if (!/[A-Z]/.test(raw)) return "Mật khẩu phải chứa ít nhất 1 chữ hoa";
+    if (!/[a-z]/.test(raw)) return "Mật khẩu phải chứa ít nhất 1 chữ thường";
+    if (!/[0-9]/.test(raw)) return "Mật khẩu phải chứa ít nhất 1 chữ số";
+    return "";
+  }, []);
+
+  const getConfirmPasswordError = useCallback(
+    (pwd: string, confirm: string): string => {
+      if (!confirm) return "Vui lòng nhập lại mật khẩu";
+      if (pwd !== confirm) return "Mật khẩu nhập lại không khớp";
+      return "";
+    },
+    [],
+  );
+
+  const validateForm = useCallback((): boolean => {
+    let isValid = true;
+
+    const nameErr = getNameError(name);
+    setNameError(nameErr);
+    if (nameErr) isValid = false;
+
+    const phoneErr = getPhoneError(phone);
+    setPhoneError(phoneErr);
+    if (phoneErr) isValid = false;
+
+    const emailErr = getEmailError(email);
+    setEmailError(emailErr);
+    if (emailErr) isValid = false;
+
+    const pwdErr = getPasswordError(password);
+    setPasswordError(pwdErr);
+    if (pwdErr) isValid = false;
+
+    const confirmErr = getConfirmPasswordError(password, confirmPassword);
+    setConfirmPasswordError(confirmErr);
+    if (confirmErr) isValid = false;
+
+    return isValid;
+  }, [
+    name,
+    phone,
+    email,
+    password,
+    confirmPassword,
+    getNameError,
+    getPhoneError,
+    getEmailError,
+    getPasswordError,
+    getConfirmPasswordError,
+  ]);
+
+  const handleSendOtp = useCallback(async () => {
+    setOtpError("");
+    if (!validateForm()) return;
+
+    setLoading(true);
+    try {
+      await authService.sendOtp(phone.trim(), otpChannel, email.trim());
+      setStep("otp");
+      setOtpCooldown(60);
+    } catch (err: any) {
+      setOtpError(
+        err.response?.data?.message || "Gửi mã OTP thất bại. Vui lòng thử lại.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [phone, email, otpChannel, validateForm]);
+
+  const handleResendOtp = useCallback(async () => {
+    try {
+      await authService.sendOtp(phone.trim(), otpChannel, email.trim());
+      setOtpCooldown(60);
+      setOtpError("");
+    } catch (err: any) {
+      setOtpError(err.response?.data?.message || "Gửi lại mã OTP thất bại.");
+    }
+  }, [phone, email, otpChannel]);
+
+  const handleVerifyAndRegister = useCallback(async () => {
+    setOtpError("");
+    if (otp.length < 6) {
+      setOtpError("Vui lòng nhập đủ 6 số OTP");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await authService.verifyOtp(phone.trim(), otp);
+      setVerificationToken(result.verificationToken);
+
+      await authService.signup({
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        password,
+        verificationToken: result.verificationToken,
+      });
+      router.replace("/(auth)/login-form");
+    } catch (err: any) {
+      setOtpError(
+        err.response?.data?.message || "Xác thực thất bại. Vui lòng thử lại.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [otp, phone, name, email, password, router]);
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        width: "100%",
+        margin: 0,
+        backgroundColor: COLORS.white,
+        boxSizing: "border-box",
+        colorScheme: "light",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 440,
+          margin: "0 auto",
+          width: "100%",
+          padding: "16px 24px 48px",
+          boxSizing: "border-box",
+          backgroundColor: COLORS.white,
+        }}
+      >
+        <div style={{ paddingTop: 4, paddingBottom: 8 }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (step === "otp") {
+                setStep("form");
+                setOtp("");
+                setNameError("");
+                setPhoneError("");
+                setEmailError("");
+                setPasswordError("");
+                setConfirmPasswordError("");
+                setOtpError("");
+              } else {
+                router.back();
+              }
             }}
-        >
-            <div
-                style={{
-                    paddingTop: 20,
-                    paddingBottom: 20,
-                }}
-            >
-                <button
-                    type="button"
-                    onClick={() => router.back()}
-                    style={{
-                        background: "none",
-                        border: "none",
-                        fontSize: 24,
-                        color: COLORS.text,
-                        cursor: "pointer",
-                        padding: "12px 16px",
-                    }}
-                >
-                    ←
-                </button>
-            </div>
-
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    marginTop: 32,
-                    marginBottom: 40,
-                }}
-            >
-                <h1
-                    style={{
-                        fontSize: 28,
-                        fontWeight: "bold",
-                        color: COLORS.primary,
-                        textAlign: "center",
-                        margin: 0,
-                    }}
-                >
-                    Đăng ký
-                </h1>
-            </div>
-
-            <div style={{ maxWidth: 400, margin: "0 auto" }}>
-                <div style={{ marginBottom: 16 }}>
-                    <Input
-                        placeholder="Tên"
-                        value={name}
-                        onChange={(e: any) => setName(e.target?.value ?? e)}
-                        disabled={loading}
-                        style={{
-                            borderBottom: `1px solid ${COLORS.border}`,
-                            padding: "12px 0",
-                            fontSize: 16,
-                        }}
-                    />
-                </div>
-                <div style={{ marginBottom: 16 }}>
-                    <Input
-                        placeholder="Số điện thoại"
-                        value={phone}
-                        onChange={(e: any) => setPhone(e.target?.value ?? e)}
-                        disabled={loading}
-                        style={{
-                            borderBottom: `1px solid ${COLORS.border}`,
-                            padding: "12px 0",
-                            fontSize: 16,
-                        }}
-                    />
-                </div>
-                <div style={{ marginBottom: 16 }}>
-                    <Input
-                        placeholder="Email"
-                        value={email}
-                        onChange={(e: any) => setEmail(e.target?.value ?? e)}
-                        disabled={loading}
-                        style={{
-                            borderBottom: `1px solid ${COLORS.border}`,
-                            padding: "12px 0",
-                            fontSize: 16,
-                        }}
-                    />
-                </div>
-                <div style={{ marginBottom: 16 }}>
-                    <Input
-                        type="password"
-                        placeholder="Mật khẩu"
-                        value={password}
-                        onChange={(e: any) => setPassword(e.target?.value ?? e)}
-                        disabled={loading}
-                        style={{
-                            borderBottom: `1px solid ${COLORS.border}`,
-                            padding: "12px 0",
-                            fontSize: 16,
-                        }}
-                    />
-                </div>
-                <div style={{ marginBottom: 16 }}>
-                    <Input
-                        type="password"
-                        placeholder="Nhập lại mật khẩu"
-                        value={confirmPassword}
-                        onChange={(e: any) =>
-                            setConfirmPassword(e.target?.value ?? e)
-                        }
-                        disabled={loading}
-                        style={{
-                            borderBottom: `1px solid ${COLORS.border}`,
-                            padding: "12px 0",
-                            fontSize: 16,
-                        }}
-                    />
-                </div>
-
-                {error ? (
-                    <p
-                        style={{
-                            color: "#d32f2f",
-                            fontSize: 14,
-                            marginBottom: 12,
-                        }}
-                    >
-                        {error}
-                    </p>
-                ) : null}
-
-                <Button
-                    fullWidth
-                    onClick={handleRegister}
-                    disabled={loading}
-                    style={{
-                        backgroundColor: loading ? "#88b4ff" : COLORS.primary,
-                        borderRadius: 25,
-                        padding: "14px 24px",
-                        color: COLORS.white,
-                        fontWeight: 600,
-                        fontSize: 16,
-                        border: "none",
-                        marginTop: 16,
-                        marginBottom: 40,
-                    }}
-                >
-                    {loading ? "Đang đăng ký..." : "Đăng ký"}
-                </Button>
-            </div>
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: 24,
+              color: COLORS.text,
+              cursor: "pointer",
+              padding: "8px 0",
+              marginLeft: -4,
+            }}
+          >
+            ←
+          </button>
         </div>
-    );
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            marginTop: 8,
+            marginBottom: 28,
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: "bold",
+              color: COLORS.primary,
+              textAlign: "center",
+              margin: 0,
+            }}
+          >
+            {step === "form" ? "Đăng ký" : "Xác thực OTP"}
+          </h1>
+          {step === "otp" && (
+            <p
+              style={{
+                color: COLORS.textSecondary,
+                fontSize: 14,
+                marginTop: 10,
+                marginBottom: 0,
+                textAlign: "center",
+                lineHeight: 1.5,
+                paddingLeft: 8,
+                paddingRight: 8,
+              }}
+            >
+              {otpChannel === "EMAIL"
+                ? `Mã xác thực đã được gửi đến email ${email.trim()}`
+                : `Mã xác thực đã được gửi đến số ${phone.trim()}`}
+            </p>
+          )}
+        </div>
+
+        <div style={{ width: "100%" }}>
+          {step === "form" ? (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  placeholder="Tên"
+                  value={name}
+                  onChange={(e: any) => {
+                    const v = e.target?.value ?? e;
+                    setName(v);
+                    setNameError(getNameError(v));
+                  }}
+                  disabled={loading}
+                  style={{
+                    borderBottom: `1px solid ${nameError ? "#d32f2f" : COLORS.border}`,
+                    padding: "12px 0",
+                    fontSize: 16,
+                    backgroundColor: COLORS.white,
+                    color: COLORS.text,
+                  }}
+                />
+                {nameError ? (
+                  <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                    {nameError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  placeholder="Số điện thoại"
+                  value={phone}
+                  onChange={(e: any) => {
+                    const v = e.target?.value ?? e;
+                    setPhone(v);
+                    setPhoneError(getPhoneError(v));
+                  }}
+                  disabled={loading}
+                  style={{
+                    borderBottom: `1px solid ${phoneError ? "#d32f2f" : COLORS.border}`,
+                    padding: "12px 0",
+                    fontSize: 16,
+                    backgroundColor: COLORS.white,
+                    color: COLORS.text,
+                  }}
+                />
+                {phoneError ? (
+                  <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                    {phoneError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e: any) => {
+                    const v = e.target?.value ?? e;
+                    setEmail(v);
+                    setEmailError(getEmailError(v));
+                  }}
+                  disabled={loading}
+                  style={{
+                    borderBottom: `1px solid ${emailError ? "#d32f2f" : COLORS.border}`,
+                    padding: "12px 0",
+                    fontSize: 16,
+                    backgroundColor: COLORS.white,
+                    color: COLORS.text,
+                  }}
+                />
+                {emailError ? (
+                  <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                    {emailError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  type="password"
+                  placeholder="Mật khẩu"
+                  value={password}
+                  onChange={(e: any) => {
+                    const v = e.target?.value ?? e;
+                    setPassword(v);
+                    setPasswordError(getPasswordError(v));
+                    setConfirmPasswordError(getConfirmPasswordError(v, confirmPassword));
+                  }}
+                  disabled={loading}
+                  style={{
+                    borderBottom: `1px solid ${passwordError ? "#d32f2f" : COLORS.border}`,
+                    padding: "12px 0",
+                    fontSize: 16,
+                    backgroundColor: COLORS.white,
+                    color: COLORS.text,
+                  }}
+                />
+                {passwordError ? (
+                  <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                    {passwordError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  type="password"
+                  placeholder="Nhập lại mật khẩu"
+                  value={confirmPassword}
+                  onChange={(e: any) => {
+                    const v = e.target?.value ?? e;
+                    setConfirmPassword(v);
+                    setConfirmPasswordError(getConfirmPasswordError(password, v));
+                  }}
+                  disabled={loading}
+                  style={{
+                    borderBottom: `1px solid ${confirmPasswordError ? "#d32f2f" : COLORS.border}`,
+                    padding: "12px 0",
+                    fontSize: 16,
+                    backgroundColor: COLORS.white,
+                    color: COLORS.text,
+                  }}
+                />
+                {confirmPasswordError ? (
+                  <p style={{ color: "#d32f2f", fontSize: 13, margin: "8px 0 0" }}>
+                    {confirmPasswordError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div
+                style={{
+                  marginTop: 8,
+                  marginBottom: 8,
+                  paddingTop: 22,
+                  borderTop: `1px solid ${COLORS.border}`,
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    margin: "0 0 12px",
+                    fontWeight: 500,
+                  }}
+                >
+                  Nhận mã OTP qua
+                </p>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    gap: 10,
+                    width: "100%",
+                    alignItems: "stretch",
+                  }}
+                >
+                  {(["SMS", "EMAIL"] as const).map((ch) => (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => setOtpChannel(ch)}
+                      disabled={loading}
+                      style={{
+                        flex: 1,
+                        minHeight: 44,
+                        padding: "10px 12px",
+                        borderRadius: 22,
+                        border: `2px solid ${otpChannel === ch ? COLORS.primary : COLORS.border}`,
+                        backgroundColor: otpChannel === ch ? COLORS.primary : COLORS.white,
+                        color: otpChannel === ch ? COLORS.white : COLORS.text,
+                        fontWeight: 600,
+                        fontSize: 14,
+                        cursor: loading ? "not-allowed" : "pointer",
+                        opacity: loading ? 0.7 : 1,
+                      }}
+                    >
+                      {ch === "SMS" ? "SMS" : "Email"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {otpError ? (
+                <p style={{ color: "#d32f2f", fontSize: 14, margin: "12px 0 0" }}>
+                  {otpError}
+                </p>
+              ) : null}
+
+              <Button
+                fullWidth
+                onClick={handleSendOtp}
+                disabled={loading}
+                style={{
+                  backgroundColor: loading ? "#88b4ff" : COLORS.primary,
+                  borderRadius: 25,
+                  padding: "14px 24px",
+                  color: COLORS.white,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  border: "none",
+                  marginTop: 20,
+                  marginBottom: 40,
+                }}
+              >
+                {loading ? "Đang gửi mã..." : "Tiếp tục"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <div style={{ marginTop: 16, marginBottom: 24 }}>
+                <OtpInput
+                  value={otp}
+                  onChange={(v) => {
+                    setOtp(v);
+                    setOtpError("");
+                  }}
+                  disabled={loading}
+                  onResend={handleResendOtp}
+                  cooldownSeconds={otpCooldown}
+                />
+              </div>
+
+              {otpError ? (
+                <p
+                  style={{
+                    color: "#d32f2f",
+                    fontSize: 14,
+                    marginBottom: 12,
+                    textAlign: "center",
+                  }}
+                >
+                  {otpError}
+                </p>
+              ) : null}
+
+              <Button
+                fullWidth
+                onClick={handleVerifyAndRegister}
+                disabled={loading || otp.length < 6}
+                style={{
+                  backgroundColor: loading || otp.length < 6 ? "#88b4ff" : COLORS.primary,
+                  borderRadius: 25,
+                  padding: "14px 24px",
+                  color: COLORS.white,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  border: "none",
+                  marginTop: 16,
+                  marginBottom: 40,
+                }}
+              >
+                {loading ? "Đang xác thực..." : "Xác nhận"}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

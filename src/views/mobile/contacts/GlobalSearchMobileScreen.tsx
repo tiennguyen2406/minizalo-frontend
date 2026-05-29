@@ -1,14 +1,10 @@
 import React from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { View, Text, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-// Import bình thường, nhưng dùng kiểu any để tránh lỗi typings khác biệt giữa phiên bản expo-router
-// đồng thời cho phép truyền prop autoFocus tuỳ chọn.
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-const SearchUsersMobile = require("./SearchUsersMobile")
-    .default as (props: { initialQuery?: string; autoFocus?: boolean }) => React.ReactElement;
-import { PROFILE_COLORS } from "../profile/styles";
+import { View, Keyboard } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
+import { useThemeColors } from "@/shared/theme/colors";
+import SearchUsersMobile from "./SearchUsersMobile";
 
 /**
  * Màn tìm kiếm người dùng chung cho mobile (dùng lại UI Thêm bạn hiện tại).
@@ -17,59 +13,42 @@ import { PROFILE_COLORS } from "../profile/styles";
  */
 export default function GlobalSearchMobileScreen() {
     const router = useRouter();
-    // Dùng require để tránh lỗi type khi dự án chưa khai báo hook useLocalSearchParams trong typings
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-    const { useLocalSearchParams } = require("expo-router") as {
-        useLocalSearchParams?: () => Record<string, unknown>;
+    const navigation = useNavigation();
+    const colors = useThemeColors();
+    const params = useLocalSearchParams() as { q?: string; from?: string; t?: number };
+    
+    const initialQuery = typeof params.q === "string" ? params.q : "";
+    const from = params.from || "contacts";
+
+    const handleBack = () => {
+        Keyboard.dismiss();
+        
+        // Bây giờ đã là Native Stack Screen, router.back() hoạt động cực kỳ ổn định
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            // Fallback an toàn về tab trước đó
+            const target = (from === "account" || from === "profile") 
+                ? "/(tabs)/account" 
+                : (from === "chat" || from === "index")
+                    ? "/(tabs)/"
+                    : "/(tabs)/contacts";
+            router.replace(target as any);
+        }
     };
-    const rawParams = useLocalSearchParams ? useLocalSearchParams() : {};
-    const initialQuery =
-        typeof (rawParams as { q?: unknown }).q === "string"
-            ? ((rawParams as { q?: string }).q as string)
-            : "";
 
     return (
-        <SafeAreaView
-            style={{ flex: 1, backgroundColor: PROFILE_COLORS.background }}
-            edges={["top"]}
-        >
-            {/* Header: nút quay lại + tiêu đề */}
-            <View
-                style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
-                }}
-            >
-                <TouchableOpacity
-                    onPress={() => router.replace("/(tabs)/contacts")}
-                    style={{ padding: 4, marginRight: 8 }}
-                    activeOpacity={0.8}
-                >
-                    <Ionicons
-                        name="chevron-back"
-                        size={22}
-                        color={PROFILE_COLORS.text}
-                    />
-                </TouchableOpacity>
-                <Text
-                    style={{
-                        color: PROFILE_COLORS.text,
-                        fontSize: 16,
-                        fontWeight: "600",
-                    }}
-                >
-                    Tìm kiếm
-                </Text>
-            </View>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
 
-            {/* Nội dung: dùng lại SearchUsersMobile với initialQuery.
-                Khi mở từ thanh tìm kiếm chính, initialQuery thường rỗng và ô search sẽ tự focus. */}
-            <SearchUsersMobile initialQuery={initialQuery} autoFocus />
-        </SafeAreaView>
+            {/* Nội dung: key theo from+t để mỗi lần mở từ giao diện chính ô tìm kiếm luôn rỗng. */}
+            <SearchUsersMobile
+                key={`search-${from}-${params.t ?? ""}`}
+                initialQuery={initialQuery}
+                autoFocus
+                onBack={handleBack}
+            />
+        </View>
     );
 }
 

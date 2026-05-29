@@ -7,33 +7,62 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Keyboard,
+    Pressable,
+    Image,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
+import { useRouter } from "expo-router";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { PROFILE_COLORS } from "../profile/styles";
+import { useThemeColors } from "@/shared/theme/colors";
 import { searchService } from "@/shared/services/searchService";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useUserStore } from "@/shared/store/userStore";
 import type { UserProfile } from "@/shared/services/types";
+import UserActionModal from "@/shared/components/UserActionModal";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 type SearchUsersMobileProps = {
     initialQuery?: string;
     autoFocus?: boolean;
+    onBack?: () => void;
 };
 
 export default function SearchUsersMobile({
     initialQuery = "",
     autoFocus = false,
+    onBack,
 }: SearchUsersMobileProps) {
+    const router = useRouter();
+    const navigation = useNavigation();
+    const colors = useThemeColors();
     const [query, setQuery] = useState(initialQuery);
     const [results, setResults] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { sendRequest, friends, sentRequests } = useFriendStore();
     const { profile } = useUserStore();
+    const { rooms, hiddenRooms } = useChatStore();
+
+    const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+    const [modalVisible, setModalVisible] = useState(false);
 
     const currentUserId = profile?.id ?? null;
     const inputRef = useRef<TextInput | null>(null);
+
+    const matchedRooms = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return [];
+        return rooms.filter((room) => {
+            const roomName = (room.name || "").toLowerCase();
+            const participantNames = (room.participants || [])
+                .map((p: any) => `${p.fullName || ""} ${p.username || ""}`)
+                .join(" ")
+                .toLowerCase();
+            return roomName.includes(q) || participantNames.includes(q);
+        });
+    }, [rooms, query]);
 
     const friendIdSet = useMemo(() => {
         const set = new Set<string>();
@@ -132,10 +161,10 @@ export default function SearchUsersMobile({
                 // nhỏ delay để đảm bảo navigation đã hoàn tất trước khi focus
                 const id = setTimeout(() => {
                     inputRef.current?.focus();
-                }, 50);
+                }, 80);
                 return () => clearTimeout(id);
             }
-            return () => {};
+            return () => { };
         }, [autoFocus])
     );
 
@@ -150,21 +179,26 @@ export default function SearchUsersMobile({
         const label = isSelf
             ? ""
             : alreadyFriend
-            ? "Đã là bạn"
-            : isRequested
-            ? "Đã gửi"
-            : "Kết bạn";
+                ? "Đã là bạn"
+                : isRequested
+                    ? "Đã gửi"
+                    : "Kết bạn";
 
         return (
-            <View
+            <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  setSelectedUser(item);
+                  setModalVisible(true);
+                }}
                 style={{
                     flexDirection: "row",
                     alignItems: "center",
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
-                    backgroundColor: PROFILE_COLORS.background,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.background,
                 }}
             >
                 <View
@@ -172,27 +206,35 @@ export default function SearchUsersMobile({
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: "#2f3134",
+                        backgroundColor: colors.searchBg,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
+                        overflow: "hidden",
                     }}
                 >
-                    <Text
-                        style={{
-                            color: PROFILE_COLORS.text,
-                            fontWeight: "600",
-                            fontSize: 16,
-                        }}
-                    >
-                        {initial}
-                    </Text>
+                    {item.avatarUrl ? (
+                        <Image
+                            source={{ uri: `${item.avatarUrl}?t=${Date.now()}` }}
+                            style={{ width: 40, height: 40 }}
+                        />
+                    ) : (
+                        <Text
+                            style={{
+                                color: colors.text,
+                                fontWeight: "600",
+                                fontSize: 16,
+                            }}
+                        >
+                            {initial}
+                        </Text>
+                    )}
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text
                         numberOfLines={1}
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 15,
                             fontWeight: "500",
                         }}
@@ -203,7 +245,7 @@ export default function SearchUsersMobile({
                         <Text
                             numberOfLines={1}
                             style={{
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 12,
                                 marginTop: 2,
                             }}
@@ -214,7 +256,7 @@ export default function SearchUsersMobile({
                         <Text
                             numberOfLines={1}
                             style={{
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 12,
                                 marginTop: 2,
                             }}
@@ -233,17 +275,17 @@ export default function SearchUsersMobile({
                             borderRadius: 999,
                             borderWidth: 1,
                             borderColor: disabled
-                                ? "#9ca3af"
-                                : PROFILE_COLORS.primary,
-                            backgroundColor: disabled ? "#262626" : "transparent",
+                                ? colors.border
+                                : colors.primary,
+                            backgroundColor: disabled ? colors.searchBg : "transparent",
                             marginLeft: 8,
                         }}
                     >
                         <Text
                             style={{
                                 color: disabled
-                                    ? "#9ca3af"
-                                    : PROFILE_COLORS.primary,
+                                    ? colors.textSecondary
+                                    : colors.primary,
                                 fontSize: 12,
                                 fontWeight: "500",
                             }}
@@ -252,6 +294,128 @@ export default function SearchUsersMobile({
                         </Text>
                     </TouchableOpacity>
                 )}
+            </TouchableOpacity>
+        );
+    };
+
+    const openRoom = (room: (typeof rooms)[number]) => {
+        const partner =
+            room.type === "PRIVATE"
+                ? room.participants?.find((p: any) => p.id !== currentUserId)
+                : null;
+        const isFriend = !!partner?.id && friendIdSet.has(partner.id);
+        const type =
+            room.type === "GROUP" ? "GROUP" : room.type === "CLOUD" ? "CLOUD" : "DIRECT";
+
+        router.push({
+            pathname: "/chat/[id]",
+            params: {
+                id: room.id,
+                name: room.name || partner?.fullName || partner?.username || "Người dùng",
+                type,
+                isStranger: room.type === "PRIVATE" ? (isFriend ? "false" : "true") : "false",
+                targetUserId: partner?.id || "",
+                receiverId: partner?.id || "",
+            },
+        } as any);
+    };
+
+    const renderRoomItem = (room: (typeof rooms)[number]) => {
+        const displayName = room.name || "Cuộc trò chuyện";
+        const initial = (displayName.charAt(0).toUpperCase() || "?").toUpperCase();
+        const isHidden = hiddenRooms.has(String(room.id));
+        const subtitle =
+            room.type === "GROUP"
+                ? "Nhóm"
+                : room.type === "CLOUD"
+                    ? "Cloud của tôi"
+                    : "Tin nhắn";
+
+        return (
+            <TouchableOpacity
+                key={room.id}
+                activeOpacity={0.8}
+                onPress={() => openRoom(room)}
+                style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderBottomWidth: 0.5,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.background,
+                }}
+            >
+                <View
+                    style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: colors.searchBg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 12,
+                        overflow: "hidden",
+                    }}
+                >
+                    {room.avatarUrl ? (
+                        <Image source={{ uri: room.avatarUrl }} style={{ width: 40, height: 40 }} />
+                    ) : (
+                        <Text style={{ color: colors.text, fontWeight: "600", fontSize: 16 }}>
+                            {initial}
+                        </Text>
+                    )}
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text
+                        numberOfLines={1}
+                        style={{ color: colors.text, fontSize: 15, fontWeight: "500" }}
+                    >
+                        {displayName}
+                    </Text>
+                    <Text
+                        numberOfLines={1}
+                        style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}
+                    >
+                        {isHidden ? `${subtitle} · Đang ẩn` : subtitle}
+                    </Text>
+                </View>
+                <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
+        );
+    };
+
+    const renderSearchHeader = () => {
+        if (!query.trim() || matchedRooms.length === 0) return null;
+        return (
+            <View>
+                <Text
+                    style={{
+                        color: colors.textSecondary,
+                        fontSize: 13,
+                        fontWeight: "600",
+                        paddingHorizontal: 16,
+                        paddingTop: 12,
+                        paddingBottom: 6,
+                    }}
+                >
+                    Cuộc trò chuyện
+                </Text>
+                {matchedRooms.map(renderRoomItem)}
+                {results.length > 0 ? (
+                    <Text
+                        style={{
+                            color: colors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: "600",
+                            paddingHorizontal: 16,
+                            paddingTop: 12,
+                            paddingBottom: 6,
+                        }}
+                    >
+                        Người dùng
+                    </Text>
+                ) : null}
             </View>
         );
     };
@@ -260,102 +424,109 @@ export default function SearchUsersMobile({
         <View
             style={{
                 flex: 1,
-                backgroundColor: PROFILE_COLORS.background,
+                backgroundColor: colors.background,
             }}
         >
-            {/* Header tìm kiếm */}
-            <View
-                style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                }}
-            >
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
+                {/* Header tìm kiếm */}
                 <View
                     style={{
-                        flex: 1,
+                        paddingHorizontal: 16,
+                        height: 52,
+                        borderBottomWidth: colors.headerBg.startsWith("#00") ? 0 : 0.5,
+                        borderBottomColor: colors.border,
                         flexDirection: "row",
                         alignItems: "center",
-                        borderRadius: 999,
-                        backgroundColor: "#2c2c2e",
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
+                        backgroundColor: colors.headerBg,
+                        gap: 12,
                     }}
                 >
-                    <Ionicons
-                        name="search"
-                        size={18}
-                        color={PROFILE_COLORS.textSecondary}
-                        style={{ marginRight: 6 }}
-                    />
+                    <Pressable
+                        onPress={() => {
+                            Keyboard.dismiss();
+                            try {
+                                if (onBack) {
+                                    onBack();
+                                } else {
+                                    router.back();
+                                }
+                            } catch (e) {
+                                router.replace("/(tabs)/");
+                            }
+                        }}
+                        style={({ pressed }) => ({
+                            padding: 12,
+                            opacity: pressed ? 0.5 : 1,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            zIndex: 999,
+                        })}
+                        hitSlop={50}
+                    >
+                        <Ionicons name="chevron-back" size={28} color={colors.headerText} />
+                    </Pressable>
+
+                    <View
+                        style={{
+                            flex: 1,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            borderRadius: 10,
+                            backgroundColor: colors.headerSearchBg,
+                            paddingHorizontal: 10,
+                            height: 36,
+                        }}
+                    >
+                        <Ionicons
+                            name="search"
+                            size={18}
+                            color={colors.headerIcon}
+                            style={{ marginRight: 6 }}
+                        />
                     <TextInput
                         ref={inputRef}
                         value={query}
                         onChangeText={setQuery}
                         placeholder="Nhập tên, số điện thoại hoặc email..."
-                        placeholderTextColor={PROFILE_COLORS.textSecondary}
+                        placeholderTextColor={colors.headerIcon}
                         style={{
                             flex: 1,
-                            color: PROFILE_COLORS.text,
-                            fontSize: 14,
+                            color: colors.headerText,
+                            fontSize: 15,
                             paddingVertical: 0,
                         }}
                         autoFocus={autoFocus}
                         onSubmitEditing={handleSubmit}
                         returnKeyType="search"
                     />
-                    {query ? (
-                        <TouchableOpacity
-                            onPress={() => setQuery("")}
-                            style={{ paddingLeft: 4 }}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name="close-circle"
-                                size={18}
-                                color={PROFILE_COLORS.textSecondary}
-                            />
-                        </TouchableOpacity>
-                    ) : null}
+                        {query ? (
+                            <TouchableOpacity
+                                onPress={() => setQuery("")}
+                                style={{ paddingLeft: 4 }}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons
+                                    name="close-circle"
+                                    size={18}
+                                    color={colors.headerIcon}
+                                />
+                            </TouchableOpacity>
+                        ) : null}
+                    </View>
                 </View>
-                <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={loading}
-                    style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        borderRadius: 999,
-                        backgroundColor: PROFILE_COLORS.primary,
-                        opacity: loading ? 0.7 : 1,
-                    }}
-                >
-                    <Text
-                        style={{
-                            color: "#fff",
-                            fontSize: 13,
-                            fontWeight: "600",
-                        }}
-                    >
-                        Tìm
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            </SafeAreaView>
 
             {error ? (
                 <View
                     style={{
                         paddingHorizontal: 16,
                         paddingVertical: 8,
-                        backgroundColor: "#7f1d1d",
+                        backgroundColor: colors.background === "#ffffff" ? "#fee2e2" : "#7f1d1d",
                     }}
                 >
                     <Text
                         style={{
-                            color: "#fee2e2",
+                            color: colors.background === "#ffffff" ? "#b91c1c" : "#fee2e2",
                             fontSize: 12,
                         }}
                     >
@@ -364,7 +535,7 @@ export default function SearchUsersMobile({
                 </View>
             ) : null}
 
-            {loading && results.length === 0 ? (
+            {loading && results.length === 0 && matchedRooms.length === 0 ? (
                 <View
                     style={{
                         flex: 1,
@@ -372,18 +543,18 @@ export default function SearchUsersMobile({
                         justifyContent: "center",
                     }}
                 >
-                    <ActivityIndicator color={PROFILE_COLORS.primary} />
+                    <ActivityIndicator color={colors.primary} />
                     <Text
                         style={{
                             marginTop: 8,
-                            color: PROFILE_COLORS.textSecondary,
+                            color: colors.textSecondary,
                             fontSize: 13,
                         }}
                     >
                         Đang tìm kiếm người dùng...
                     </Text>
                 </View>
-            ) : results.length === 0 ? (
+            ) : results.length === 0 && matchedRooms.length === 0 ? (
                 <View
                     style={{
                         flex: 1,
@@ -395,12 +566,12 @@ export default function SearchUsersMobile({
                     <Ionicons
                         name="person-add-outline"
                         size={40}
-                        color={PROFILE_COLORS.textSecondary}
+                        color={colors.textSecondary}
                     />
                     <Text
                         style={{
                             marginTop: 12,
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 16,
                             fontWeight: "500",
                             textAlign: "center",
@@ -414,9 +585,71 @@ export default function SearchUsersMobile({
                     data={results}
                     keyExtractor={(item) => item.id}
                     renderItem={renderItem}
+                    ListHeaderComponent={renderSearchHeader}
                     contentContainerStyle={{ paddingBottom: 24 }}
                 />
             )}
+
+            <UserActionModal 
+              visible={modalVisible}
+              user={selectedUser}
+              isFriend={selectedUser ? friendIdSet.has(selectedUser.id) : false}
+              isSentRequest={selectedUser ? pendingRequestIdSet.has(selectedUser.id) : false}
+              onClose={() => setModalVisible(false)}
+              onViewProfile={(u) => {
+                router.push({
+                    pathname: "/(tabs)/friend-profile",
+                    params: {
+                        userId: u.id,
+                        displayName: u.displayName || u.username,
+                        avatarUrl: u.avatarUrl || "",
+                        coverPhotoUrl: u.coverPhotoUrl || "",
+                        businessDescription: u.businessDescription || "",
+                        statusMessage: u.statusMessage || "",
+                        phone: u.phone || "",
+                    },
+                } as any);
+              }}
+              onMessage={(u) => {
+                // Đóng modal trước
+                setModalVisible(false);
+
+                // Tìm ID của người lạ/bạn trong danh bạ (u.id)
+                const isFriend = friendIdSet.has(u.id);
+                const existingRoom = rooms.find(r =>
+                    r.type === 'PRIVATE' &&
+                    r.participants.some(p => p.id === u.id)
+                );
+                
+                if (existingRoom) {
+                    router.push({
+                        pathname: "/chat/[id]",
+                        params: { 
+                            id: existingRoom.id,
+                            name: u.displayName || u.username,
+                            type: 'DIRECT',
+                            isStranger: isFriend ? "false" : "true",
+                            targetUserId: u.id // LUÔN TRUYỀN ID CỦA ĐỐI PHƯƠNG
+                        }
+                    } as any);
+                } else {
+                    router.push({
+                        pathname: "/chat/[id]",
+                        params: { 
+                            id: "new", 
+                            targetUserId: u.id,
+                            name: u.displayName || u.username,
+                            type: 'DIRECT',
+                            avatarUrl: u.avatarUrl || "",
+                            isStranger: isFriend ? "false" : "true"
+                        }
+                    } as any);
+                }
+              }}
+              onAddFriend={(u) => {
+                handleSendRequest(u.id);
+              }}
+            />
         </View>
     );
 }

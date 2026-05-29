@@ -45,10 +45,10 @@ export const authService = {
         return response.data;
     },
 
-    logout: async (accessToken: string): Promise<MessageResponse> => {
+    logout: async (accessToken: string, refreshToken?: string | null): Promise<MessageResponse> => {
         const response = await api.post<MessageResponse>(
             authPath("auth/logout"),
-            {},
+            refreshToken ? { refreshToken } : {},
             {
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
@@ -56,6 +56,48 @@ export const authService = {
             }
         );
         return response.data;
+    },
+
+    /** Đăng ký: luôn gửi kèm email để backend kiểm tra trùng SĐT/email. */
+    sendOtp: async (
+        phone: string,
+        channel: "SMS" | "EMAIL" = "SMS",
+        email: string = "",
+    ): Promise<void> => {
+        await api.post(authPath("auth/send-otp"), { phone, channel, email: email.trim() });
+    },
+
+    verifyOtp: async (phone: string, otp: string): Promise<{ verificationToken: string }> => {
+        const response = await api.post<{ verificationToken: string }>(authPath("auth/verify-otp"), { phone, otp });
+        return response.data;
+    },
+
+    forgotPasswordSendOtp: async (phone: string): Promise<void> => {
+        await api.post(authPath("auth/forgot-password/send-otp"), { phone });
+    },
+
+    resetPassword: async (phone: string, otp: string, newPassword: string, confirmPassword: string): Promise<void> => {
+        await api.post(authPath("auth/reset-password"), { phone, otp, newPassword, confirmPassword });
+    },
+
+    generateQrSession: async (): Promise<{ sessionId: string; expiresAt: string }> => {
+        const response = await api.get<{ sessionId: string; expiresAt: string }>(authPath("auth/qr-login/generate"));
+        return response.data;
+    },
+
+    getQrSessionStatus: async (sessionId: string): Promise<{ status: string; accessToken?: string; refreshToken?: string }> => {
+        const response = await api.get<{ status: string; accessToken?: string; refreshToken?: string }>(
+            authPath(`auth/qr-login/status/${sessionId}`)
+        );
+        return response.data;
+    },
+
+    confirmQrLogin: async (sessionId: string, accessToken: string): Promise<void> => {
+        await api.post(
+            authPath("auth/qr-login/confirm"),
+            { sessionId },
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
     },
 };
 

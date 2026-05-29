@@ -1,3 +1,106 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Light / Dark Theme CSS Variables ── */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f9fafb;
+    --bg-tertiary: #f3f4f6;
+    --bg-sidebar: #004A99;
+    --bg-sidebar-active: rgba(255, 255, 255, 0.18);
+    --bg-sidebar-hover: rgba(255, 255, 255, 0.1);
+    --bg-chat-header: #ffffff;
+    /** Vùng cuộn tin nhắn (đoạn chat) */
+    --bg-chat-messages: #ebecf0;
+    --bg-input: #ffffff;
+    --bg-hover: #f3f4f6;
+    --bg-message-own: #dbf5ff;
+    --bg-message-other: #ffffff;
+    --bg-modal: #ffffff;
+    --bg-modal-overlay: rgba(0, 0, 0, 0.5);
+
+    --text-primary: #111827;
+    --text-secondary: #374151;
+    --text-tertiary: #6b7280;
+    --text-muted: #9ca3af;
+    --text-inverse: #ffffff;
+
+    --border-primary: #e5e7eb;
+    --border-secondary: #f3f4f6;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.12);
+
+    --accent: #0068FF;
+    --accent-hover: #0054CC;
+    --danger: #ef4444;
+    --success: #22c55e;
+
+    color-scheme: light;
+}
+
+:root[data-theme="dark"],
+.dark {
+    --bg-primary: #1e1e2e;
+    --bg-secondary: #181825;
+    --bg-tertiary: #313244;
+    --bg-sidebar: #11111b;
+    --bg-sidebar-active: rgba(255, 255, 255, 0.12);
+    --bg-sidebar-hover: rgba(255, 255, 255, 0.06);
+    --bg-chat-header: #1e1e2e;
+    --bg-chat-messages: #181825;
+    --bg-input: #313244;
+    --bg-hover: #313244;
+    --bg-message-own: #1e3a5f;
+    --bg-message-other: #313244;
+    --bg-modal: #1e1e2e;
+    --bg-modal-overlay: rgba(0, 0, 0, 0.7);
+
+    --text-primary: #cdd6f4;
+    --text-secondary: #bac2de;
+    --text-tertiary: #a6adc8;
+    --text-muted: #6c7086;
+    --text-inverse: #ffffff;
+
+    --border-primary: #313244;
+    --border-secondary: #45475a;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.5);
+
+    --accent: #89b4fa;
+    --accent-hover: #74c7ec;
+    --danger: #f38ba8;
+    --success: #a6e3a1;
+
+    color-scheme: dark;
+}
+
+/* Smooth transition on theme switch */
+html {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+html[data-theme="dark"] body,
+html.dark body {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* Scrollbar dark mode */
+html.dark ::-webkit-scrollbar {
+    width: 8px;
+}
+html.dark ::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+html.dark ::-webkit-scrollbar-thumb {
+    background: var(--border-secondary);
+    border-radius: 4px;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}

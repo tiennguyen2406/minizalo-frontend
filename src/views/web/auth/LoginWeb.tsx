@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TextInput, TouchableOpacity, StatusBar } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 
 export default function LoginWeb() {
     const [phone, setPhone] = React.useState("");
@@ -16,11 +16,11 @@ export default function LoginWeb() {
             <StatusBar barStyle="light-content" backgroundColor="#0068FF" />
             <View className="flex-1 justify-center items-center px-5">
                 {/* Login Card */}
-                <View className="bg-white rounded-2xl p-10 w-full max-w-md shadow-lg">
+                <View className="bg-[color:var(--bg-primary)] rounded-2xl p-10 w-full max-w-md shadow-lg">
                     <Text className="text-zalo-blue-primary text-4xl font-bold mb-2 text-center">
                         MiniZalo
                     </Text>
-                    <Text className="text-gray-500 text-sm mb-8 text-center">
+                    <Text className="text-[color:var(--text-secondary)] text-sm mb-8 text-center">
                         Đăng nhập để tiếp tục
                     </Text>
 
@@ -30,7 +30,7 @@ export default function LoginWeb() {
                         value={phone}
                         onChangeText={setPhone}
                         keyboardType="phone-pad"
-                        className="border border-gray-300 rounded-lg px-4 py-3 mb-4 text-base"
+                        className="border border-[color:var(--border-secondary)] rounded-lg px-4 py-3 mb-4 text-base"
                         placeholderTextColor="#999"
                     />
 
@@ -40,7 +40,7 @@ export default function LoginWeb() {
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry
-                        className="border border-gray-300 rounded-lg px-4 py-3 mb-6 text-base"
+                        className="border border-[color:var(--border-secondary)] rounded-lg px-4 py-3 mb-6 text-base"
                         placeholderTextColor="#999"
                     />
 
@@ -55,7 +55,7 @@ export default function LoginWeb() {
 
                     {/* Register Link */}
                     <View className="mt-4 flex-row justify-center">
-                        <Text className="text-gray-500 text-sm">Chưa có tài khoản? </Text>
+                        <Text className="text-[color:var(--text-secondary)] text-sm">Chưa có tài khoản? </Text>
                         <TouchableOpacity>
                             <Text className="text-zalo-blue-primary font-semibold text-sm">Đăng ký ngay</Text>
                         </TouchableOpacity>

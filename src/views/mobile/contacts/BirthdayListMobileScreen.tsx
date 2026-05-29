@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo } from "react";
 import { View, Text, FlatList, TouchableOpacity, Image } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { PROFILE_COLORS } from "../profile/styles";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useUserStore } from "@/shared/store/userStore";
 import type { UserProfile } from "@/shared/services/types";
+import { useThemeColors } from "@/shared/theme/colors";
+
+import { getImageUrl } from "@/shared/utils/mediaUtils";
 
 type BirthdayItem = {
     user: UserProfile;
@@ -17,6 +20,7 @@ export default function BirthdayListMobileScreen() {
     const router = useRouter();
     const { friends, fetchFriends } = useFriendStore();
     const { profile } = useUserStore();
+    const colors = useThemeColors();
     const currentUserId = profile?.id ?? null;
 
     useEffect(() => {
@@ -26,10 +30,9 @@ export default function BirthdayListMobileScreen() {
         }
     }, [friends.length, fetchFriends]);
 
-    const upcomingBirthdays = useMemo<BirthdayItem[]>(() => {
+    const birthdaysThisYear = useMemo<BirthdayItem[]>(() => {
         const now = new Date();
         const currentYear = now.getFullYear();
-        const todayKey = now.getMonth() * 31 + now.getDate();
         const seen = new Set<string>();
         const list: BirthdayItem[] = [];
 
@@ -42,11 +45,8 @@ export default function BirthdayListMobileScreen() {
 
             // Đưa sinh nhật về năm hiện tại để dễ so sánh / sort
             const normalized = new Date(currentYear, d.getMonth(), d.getDate());
-            const key = normalized.getMonth() * 31 + normalized.getDate();
 
             // Chỉ lấy những ngày còn lại trong năm (>= hôm nay)
-            if (key < todayKey) return;
-
             seen.add(u.id);
             list.push({ user: u, date: normalized });
         });
@@ -74,7 +74,7 @@ export default function BirthdayListMobileScreen() {
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
+                    borderBottomColor: colors.border,
                 }}
             >
                 <View
@@ -82,7 +82,7 @@ export default function BirthdayListMobileScreen() {
                         width: 40,
                         height: 40,
                         borderRadius: 20,
-                        backgroundColor: "#27272f",
+                        backgroundColor: colors.searchBg,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
@@ -91,13 +91,13 @@ export default function BirthdayListMobileScreen() {
                 >
                     {item.user.avatarUrl ? (
                         <Image
-                            source={{ uri: item.user.avatarUrl }}
+                            source={{ uri: getImageUrl(item.user.avatarUrl) }}
                             style={{ width: 40, height: 40 }}
                         />
                     ) : (
                         <Text
                             style={{
-                                color: PROFILE_COLORS.text,
+                                color: colors.text,
                                 fontSize: 16,
                                 fontWeight: "600",
                             }}
@@ -109,7 +109,7 @@ export default function BirthdayListMobileScreen() {
                 <View style={{ flex: 1 }}>
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 15,
                             fontWeight: "500",
                         }}
@@ -119,7 +119,7 @@ export default function BirthdayListMobileScreen() {
                     </Text>
                     <Text
                         style={{
-                            color: PROFILE_COLORS.textSecondary,
+                            color: colors.textSecondary,
                             fontSize: 12,
                             marginTop: 2,
                         }}
@@ -136,7 +136,7 @@ export default function BirthdayListMobileScreen() {
                         height: 32,
                         borderRadius: 16,
                         borderWidth: 1,
-                        borderColor: "#1d4ed8",
+                        borderColor: colors.primary,
                         alignItems: "center",
                         justifyContent: "center",
                     }}
@@ -144,7 +144,7 @@ export default function BirthdayListMobileScreen() {
                     <Ionicons
                         name="chatbubble-ellipses-outline"
                         size={16}
-                        color="#1d4ed8"
+                        color={colors.primary}
                     />
                 </TouchableOpacity>
             </View>
@@ -153,34 +153,37 @@ export default function BirthdayListMobileScreen() {
 
     return (
         <SafeAreaView
-            style={{ flex: 1, backgroundColor: PROFILE_COLORS.background }}
+            style={{ flex: 1, backgroundColor: colors.headerBg }}
             edges={["top"]}
         >
+            <StatusBar style={colors.statusBar} />
             {/* Header giống Zalo: nút back + tiêu đề Sinh nhật */}
             <View
                 style={{
+                    height: 52,
                     flexDirection: "row",
                     alignItems: "center",
                     paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
+                    borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.headerBg,
                 }}
             >
                 <TouchableOpacity
-                    onPress={() => router.replace("/(tabs)/contacts")}
+                    onPress={() => router.back()}
                     style={{ paddingRight: 8, paddingVertical: 4 }}
                     activeOpacity={0.8}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                     <Ionicons
                         name="chevron-back"
-                        size={22}
-                        color={PROFILE_COLORS.text}
+                        size={26}
+                        color={colors.headerText}
                     />
                 </TouchableOpacity>
                 <Text
                     style={{
-                        color: PROFILE_COLORS.text,
+                        color: colors.headerText,
                         fontSize: 18,
                         fontWeight: "600",
                     }}
@@ -194,51 +197,54 @@ export default function BirthdayListMobileScreen() {
                     paddingHorizontal: 16,
                     paddingVertical: 10,
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#262626",
+                    borderBottomColor: colors.border,
+                    backgroundColor: colors.card,
                 }}
             >
                 <Text
                     style={{
-                        color: PROFILE_COLORS.text,
+                        color: colors.text,
                         fontSize: 14,
                         fontWeight: "600",
                     }}
                 >
-                    Sinh nhật sắp tới
+                    Sinh nhật trong năm
                 </Text>
             </View>
 
-            {upcomingBirthdays.length === 0 ? (
+            {birthdaysThisYear.length === 0 ? (
                 <View
                     style={{
                         flex: 1,
                         alignItems: "center",
                         justifyContent: "center",
                         paddingHorizontal: 32,
+                        backgroundColor: colors.background,
                     }}
                 >
                     <Ionicons
                         name="calendar-outline"
                         size={40}
-                        color={PROFILE_COLORS.textSecondary}
+                        color={colors.textSecondary}
                     />
                     <Text
                         style={{
                             marginTop: 12,
-                            color: PROFILE_COLORS.text,
+                            color: colors.text,
                             fontSize: 16,
                             fontWeight: "500",
                             textAlign: "center",
                         }}
                     >
-                        Chưa có sinh nhật nào sắp tới
+                        Chưa có sinh nhật bạn bè trong năm
                     </Text>
                 </View>
             ) : (
                 <FlatList
-                    data={upcomingBirthdays}
+                    data={birthdaysThisYear}
                     keyExtractor={(item) => item.user.id}
                     renderItem={renderItem}
+                    style={{ backgroundColor: colors.background }}
                     contentContainerStyle={{ paddingBottom: 24 }}
                 />
             )}

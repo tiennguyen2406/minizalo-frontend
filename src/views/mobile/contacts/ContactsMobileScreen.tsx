@@ -4,42 +4,92 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    Platform,
     FlatList,
     Animated,
+    Image,
+    ActivityIndicator,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
 import { Ionicons } from "@expo/vector-icons";
 import FriendsListMobile from "./FriendsListMobile";
-import { PROFILE_COLORS } from "../profile/styles";
+import PhonebookListMobile from "./PhonebookListMobile";
 import { useRouter } from "expo-router";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useUserStore } from "@/shared/store/userStore";
 import type { UserProfile } from "@/shared/services/types";
 import { useFocusEffect } from "@react-navigation/native";
 
-type TabKey = "friends" | "groups";
+import { useThemeColors } from "@/shared/theme/colors";
+import { groupService } from "@/shared/services/groupService";
+import type { GroupDetail } from "@/shared/types";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
+import { useChatStore } from "@/shared/store/useChatStore";
+
+type TabKey = "friends" | "groups" | "phonebook";
 
 const TABS: { key: TabKey; label: string }[] = [
     { key: "friends", label: "Bạn bè" },
     { key: "groups", label: "Nhóm" },
+    { key: "phonebook", label: "Danh bạ máy" },
 ];
 
 export default function ContactsMobileScreen() {
+    const colors = useThemeColors();
     const [activeTab, setActiveTab] = useState<TabKey>("friends");
     const [searchText, setSearchText] = useState("");
     const [showRequestBanner, setShowRequestBanner] = useState(false);
     const [newRequestsCount, setNewRequestsCount] = useState(0);
+    const [groups, setGroups] = useState<GroupDetail[]>([]);
+    const [groupsLoading, setGroupsLoading] = useState(false);
+    const [groupsError, setGroupsError] = useState<string | null>(null);
     const bannerTranslateY = useRef(new Animated.Value(-80)).current;
     const hideBannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { friends, requests, fetchRequests } = useFriendStore();
     const { profile } = useUserStore();
+    const upsertRoom = useChatStore((s) => s.upsertRoom);
     const currentUserId = profile?.id ?? null;
 
     // Lưu lại số lượng lời mời trước đó để phát hiện "lời mời mới"
     const lastRequestsCountRef = useRef<number>(requests.length);
+
+    const fetchGroups = useCallback(async () => {
+        setGroupsLoading(true);
+        setGroupsError(null);
+        try {
+            const data = await groupService.getUsersGroups();
+            setGroups(data.filter((group) => !group.disbanded));
+        } catch (error) {
+            console.error("Fetch groups error:", error);
+            setGroupsError("Không thể tải danh sách nhóm.");
+        } finally {
+            setGroupsLoading(false);
+        }
+    }, []);
+
+    const openGroupChat = useCallback((group: GroupDetail) => {
+        upsertRoom({
+            id: group.id,
+            name: group.groupName,
+            type: "GROUP",
+            avatarUrl: group.avatarUrl,
+            wallpaperUrl: group.wallpaperUrl,
+            description: group.description,
+            unreadCount: 0,
+            updatedAt: group.createdAt,
+            participants: group.members.map((member) => ({
+                id: member.userId,
+                username: member.username,
+                fullName: member.fullName || member.username,
+                avatarUrl: member.avatarUrl,
+            })),
+            disbanded: !!group.disbanded,
+        });
+        router.push(`/chat/${group.id}?name=${encodeURIComponent(group.groupName)}&type=GROUP`);
+    }, [router, upsertRoom]);
 
     const birthdayFriends = useMemo<UserProfile[]>(() => {
         const result: UserProfile[] = [];
@@ -70,19 +120,30 @@ export default function ContactsMobileScreen() {
             // Gọi lần đầu
             // eslint-disable-next-line @typescript-eslint/no-floating-promises
             fetchRequests();
+            if (activeTab === "groups") {
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                fetchGroups();
+            }
 
             const intervalId = setInterval(() => {
                 if (!isActive) return;
                 // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                fetchRequests();
+                fetchRequests({ silent: true });
             }, 5000); // 5s một lần; có thể giảm xuống 3s nếu cần nhanh hơn
 
             return () => {
                 isActive = false;
                 clearInterval(intervalId);
             };
-        }, [fetchRequests])
+        }, [activeTab, fetchGroups, fetchRequests])
     );
+
+    useEffect(() => {
+        if (activeTab === "groups") {
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+            fetchGroups();
+        }
+    }, [activeTab, fetchGroups]);
 
     // Hiển thị banner thông báo khi có thêm lời mời kết bạn mới
     useEffect(() => {
@@ -133,8 +194,105 @@ export default function ContactsMobileScreen() {
         };
     }, [requests.length, bannerTranslateY]);
 
+    const renderGroupsContent = () => {
+        if (groupsLoading && groups.length === 0) {
+            return (
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                    <ActivityIndicator color={colors.primary} />
+                    <Text style={{ marginTop: 8, color: colors.textSecondary, fontSize: 13 }}>
+                        Đang tải danh sách nhóm...
+                    </Text>
+                </View>
+            );
+        }
+        if (groupsError && groups.length === 0) {
+            return (
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={fetchGroups}
+                    style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}
+                >
+                    <Ionicons name="alert-circle-outline" size={40} color={colors.textSecondary} />
+                    <Text style={{ marginTop: 10, color: colors.text, fontSize: 15, textAlign: "center" }}>
+                        {groupsError}
+                    </Text>
+                    <Text style={{ marginTop: 4, color: colors.primary, fontSize: 13 }}>Chạm để thử lại</Text>
+                </TouchableOpacity>
+            );
+        }
+        if (groups.length === 0) {
+            return (
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+                    <Ionicons name="people-outline" size={42} color={colors.textSecondary} />
+                    <Text style={{ marginTop: 10, color: colors.text, fontSize: 15, fontWeight: "500", textAlign: "center" }}>
+                        Bạn chưa có nhóm nào
+                    </Text>
+                </View>
+            );
+        }
+        return (
+            <FlatList
+                data={groups}
+                keyExtractor={(item) => item.id}
+                refreshing={groupsLoading}
+                onRefresh={fetchGroups}
+                renderItem={({ item }) => {
+                    const avatarUri = getImageUrl(item.avatarUrl);
+                    const initial = (item.groupName || "N").charAt(0).toUpperCase();
+                    return (
+                        <TouchableOpacity
+                            activeOpacity={0.75}
+                            onPress={() => openGroupChat(item)}
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                paddingHorizontal: 16,
+                                paddingVertical: 12,
+                                backgroundColor: colors.background,
+                                borderBottomWidth: 0.5,
+                                borderBottomColor: colors.border,
+                            }}
+                        >
+                            <View
+                                style={{
+                                    width: 48,
+                                    height: 48,
+                                    borderRadius: 24,
+                                    backgroundColor: colors.avatarBg,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    marginRight: 12,
+                                    overflow: "hidden",
+                                }}
+                            >
+                                {avatarUri ? (
+                                    <Image source={{ uri: avatarUri }} style={{ width: 48, height: 48 }} />
+                                ) : (
+                                    <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
+                                        {initial}
+                                    </Text>
+                                )}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>
+                                    {item.groupName}
+                                </Text>
+                                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 3 }}>
+                                    {item.members.length} thành viên
+                                </Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                    );
+                }}
+                contentContainerStyle={{ paddingBottom: 24 }}
+            />
+        );
+    };
+
     const renderTabContent = () => {
-        switch (activeTab) {
+        if (activeTab === "groups") return renderGroupsContent();
+        switch (activeTab as TabKey) {
             case "friends":
                 // Danh sách bạn bè không bị ảnh hưởng bởi thanh tìm kiếm chính.
                 // Thanh tìm kiếm chỉ dùng để mở màn tìm kiếm riêng (contacts-search).
@@ -150,7 +308,7 @@ export default function ContactsMobileScreen() {
                     >
                         <Text
                             style={{
-                                color: PROFILE_COLORS.textSecondary,
+                                color: colors.textSecondary,
                                 fontSize: 14,
                             }}
                         >
@@ -158,107 +316,102 @@ export default function ContactsMobileScreen() {
                         </Text>
                     </View>
                 );
+            case "phonebook":
+                return <PhonebookListMobile />;
             default:
                 return null;
         }
     };
 
     return (
-        <SafeAreaView
-            style={{
-                flex: 1,
-                backgroundColor: PROFILE_COLORS.background,
-            }}
-            edges={["top"]}
-        >
-            {/* Banner thông báo lời mời kết bạn mới (đổ từ trên xuống, tự ẩn) */}
-            {showRequestBanner && (
-                <Animated.View
-                    style={{
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                        top: insets.top || 0,
-                        zIndex: 20,
-                        transform: [{ translateY: bannerTranslateY }],
-                    }}
-                >
-                    <View
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBar} />
+            <SafeAreaView style={{ backgroundColor: colors.headerBg }} edges={["top"]}>
+                {/* Banner thông báo lời mời kết bạn mới (đổ từ trên xuống, tự ẩn) */}
+                {showRequestBanner && (
+                    <Animated.View
                         style={{
-                            marginHorizontal: 12,
-                            paddingHorizontal: 12,
-                            paddingVertical: 10,
-                            borderRadius: 12,
-                            backgroundColor: "#1d4ed8",
-                            flexDirection: "row",
-                            alignItems: "center",
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            top: insets.top || 0,
+                            zIndex: 20,
+                            transform: [{ translateY: bannerTranslateY }],
                         }}
                     >
-                        <Ionicons
-                            name="notifications-outline"
-                            size={18}
-                            color="#fff"
-                            style={{ marginRight: 8 }}
-                        />
-                        <View style={{ flex: 1 }}>
-                            <Text
-                                style={{
-                                    color: "#fff",
-                                    fontSize: 13,
-                                    fontWeight: "600",
-                                }}
-                            >
-                                {newRequestsCount > 1
-                                    ? `Bạn có ${newRequestsCount} lời mời kết bạn mới`
-                                    : "Bạn có 1 lời mời kết bạn mới"}
-                            </Text>
-                            <Text
-                                style={{
-                                    color: "#e5e7eb",
-                                    fontSize: 12,
-                                    marginTop: 2,
-                                }}
-                            >
-                                Chạm để xem danh sách lời mời.
-                            </Text>
-                        </View>
-                        <TouchableOpacity
-                            onPress={() => {
-                                // Ẩn banner khi người dùng tự đóng, đồng thời mở màn Lời mời
-                                if (hideBannerTimeoutRef.current) {
-                                    clearTimeout(hideBannerTimeoutRef.current);
-                                    hideBannerTimeoutRef.current = null;
-                                }
-                                Animated.timing(bannerTranslateY, {
-                                    toValue: -80,
-                                    duration: 180,
-                                    useNativeDriver: true,
-                                }).start(() => {
-                                    setShowRequestBanner(false);
-                                });
-                                router.push("/(tabs)/contacts-requests");
+                        <View
+                            style={{
+                                marginHorizontal: 12,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                borderRadius: 12,
+                                backgroundColor: colors.primary,
+                                flexDirection: "row",
+                                alignItems: "center",
                             }}
-                            style={{ marginLeft: 8, padding: 4 }}
                         >
-                            <Ionicons name="chevron-forward" size={18} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-                </Animated.View>
-            )}
+                            <Ionicons
+                                name="notifications-outline"
+                                size={18}
+                                color="#fff"
+                                style={{ marginRight: 8 }}
+                            />
+                            <View style={{ flex: 1 }}>
+                                <Text
+                                    style={{
+                                        color: "#fff",
+                                        fontSize: 13,
+                                        fontWeight: "600",
+                                    }}
+                                >
+                                    {newRequestsCount > 1
+                                        ? `Bạn có ${newRequestsCount} lời mời kết bạn mới`
+                                        : "Bạn có 1 lời mời kết bạn mới"}
+                                </Text>
+                                <Text
+                                    style={{
+                                        color: "#e5e7eb",
+                                        fontSize: 12,
+                                        marginTop: 2,
+                                    }}
+                                >
+                                    Chạm để xem danh sách lời mời.
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    // Ẩn banner khi người dùng tự đóng, đồng thời mở màn Lời mời
+                                    if (hideBannerTimeoutRef.current) {
+                                        clearTimeout(hideBannerTimeoutRef.current);
+                                        hideBannerTimeoutRef.current = null;
+                                    }
+                                    Animated.timing(bannerTranslateY, {
+                                        toValue: -80,
+                                        duration: 180,
+                                        useNativeDriver: true,
+                                    }).start(() => {
+                                        setShowRequestBanner(false);
+                                    });
+                                    router.push("/(tabs)/contacts-requests");
+                                }}
+                                style={{ marginLeft: 8, padding: 4 }}
+                            >
+                                <Ionicons name="chevron-forward" size={18} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View>
+                )}
 
-            {/* Header: ô tìm kiếm + icon thêm bạn */}
-            <View
-                style={{
-                    paddingTop: Platform.OS === "android" ? 8 : 16,
-                    paddingBottom: 8,
-                    paddingHorizontal: 16,
-                    backgroundColor: PROFILE_COLORS.background,
-                }}
-            >
+                {/* Header: ô tìm kiếm + icon thêm bạn */}
                 <View
                     style={{
+                        height: 52,
                         flexDirection: "row",
                         alignItems: "center",
+                        paddingHorizontal: 16,
+                        backgroundColor: colors.headerBg,
+                        borderBottomWidth: colors.headerBg.startsWith("#0") ? 0 : 0.5,
+                        borderBottomColor: colors.border,
                         gap: 12,
                     }}
                 >
@@ -268,250 +421,177 @@ export default function ContactsMobileScreen() {
                             flexDirection: "row",
                             alignItems: "center",
                             borderRadius: 10,
-                            backgroundColor: "#2c2c2e",
+                            backgroundColor: colors.headerSearchBg,
                             paddingHorizontal: 10,
-                            paddingVertical: 8,
+                            height: 36,
                         }}
                     >
                         <Ionicons
                             name="search"
                             size={18}
-                            color={PROFILE_COLORS.textSecondary}
-                            style={{ marginRight: 6 }}
+                            color={colors.headerIcon}
                         />
                         <TextInput
+                            style={{
+                                flex: 1,
+                                fontSize: 15,
+                                color: colors.headerText,
+                                marginLeft: 8,
+                                paddingVertical: 0,
+                            }}
                             value={searchText}
                             onChangeText={setSearchText}
                             placeholder="Tìm kiếm"
-                            placeholderTextColor={PROFILE_COLORS.textSecondary}
-                            style={{
-                                flex: 1,
-                                color: PROFILE_COLORS.text,
-                                fontSize: 14,
-                                paddingVertical: 0,
-                            }}
+                            placeholderTextColor={colors.headerIcon}
                             showSoftInputOnFocus={false}
                             onFocus={() => {
-                                // Mở màn tìm kiếm chung và focus input bên đó
-                                router.push("/(tabs)/contacts-search");
-                                // Xóa text cũ để lần sau vào lại luôn sạch
                                 setSearchText("");
+                                router.push({
+                                    pathname: "/search",
+                                    params: { from: "contacts", t: Date.now() },
+                                });
                             }}
                         />
                         {searchText ? (
                             <TouchableOpacity
                                 onPress={() => setSearchText("")}
-                                style={{ paddingLeft: 6 }}
+                                style={{ paddingLeft: 4 }}
                                 activeOpacity={0.7}
                             >
                                 <Ionicons
                                     name="close-circle"
                                     size={18}
-                                    color={PROFILE_COLORS.textSecondary}
+                                    color={colors.headerIcon}
                                 />
                             </TouchableOpacity>
                         ) : null}
                     </View>
                     <TouchableOpacity
+                        style={{ padding: 4 }}
                         activeOpacity={0.8}
                         onPress={() => router.push("/(tabs)/contacts-add")}
-                        style={{
-                            padding: 6,
-                        }}
                     >
                         <Ionicons
                             name="person-add-outline"
-                            size={22}
-                            color={PROFILE_COLORS.text}
+                            size={24}
+                            color={colors.headerIcon}
                         />
                     </TouchableOpacity>
                 </View>
+            </SafeAreaView>
 
-                {/* Tabs nhỏ dưới header */}
-                <View
-                    style={{
-                        flexDirection: "row",
-                        marginTop: 12,
-                        borderRadius: 999,
-                        backgroundColor: "#1f1f21",
-                        padding: 2,
-                    }}
-                >
-                    {TABS.map((tab) => {
-                        const active = activeTab === tab.key;
-                        return (
-                            <TouchableOpacity
-                                key={tab.key}
-                                onPress={() => setActiveTab(tab.key)}
-                                activeOpacity={0.9}
+            {/* Tabs: Bạn bè / Nhóm */}
+            <View
+                style={{
+                    flexDirection: "row",
+                    backgroundColor: colors.card,
+                    borderBottomWidth: 0.5,
+                    borderBottomColor: colors.border,
+                }}
+            >
+                {TABS.map((tab) => {
+                    const active = activeTab === tab.key;
+                    return (
+                        <TouchableOpacity
+                            key={tab.key}
+                            onPress={() => setActiveTab(tab.key)}
+                            activeOpacity={0.9}
+                            style={{
+                                flex: 1,
+                                paddingVertical: 14,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                borderBottomWidth: active ? 2 : 0,
+                                borderBottomColor: active ? colors.primary : "transparent",
+                            }}
+                        >
+                            <Text
                                 style={{
-                                    flex: 1,
-                                    paddingVertical: 6,
-                                    borderRadius: 999,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    backgroundColor: active ? "#fff" : "transparent",
+                                    fontSize: 15,
+                                    fontWeight: active ? "600" : "500",
+                                    color: active ? colors.text : colors.textSecondary,
                                 }}
                             >
-                                <Text
-                                    style={{
-                                        fontSize: 13,
-                                        fontWeight: "500",
-                                        color: active ? "#111827" : PROFILE_COLORS.textSecondary,
-                                    }}
-                                >
-                                    {tab.label}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
+                                {tab.label}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
             </View>
 
-            {/* Khu vực hành động dưới tabs:
-               - Tab Bạn bè: Lời mời kết bạn + Sinh nhật
-               - Tab Nhóm: nút Tạo nhóm (chưa cần xử lý chức năng) */}
-            {activeTab === "friends" ? (
-                <View
-                    style={{
-                        paddingHorizontal: 16,
-                        paddingTop: 8,
-                        paddingBottom: 4,
-                        backgroundColor: PROFILE_COLORS.background,
-                    }}
-                >
-                    <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => router.push("/(tabs)/contacts-requests")}
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingVertical: 10,
-                        }}
-                    >
-                        <View
-                            style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 16,
-                                backgroundColor: "#1d4ed8",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                marginRight: 10,
-                            }}
-                        >
-                            <Ionicons
-                                name="person-add-outline"
-                                size={18}
-                                color="#fff"
-                            />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text
-                                style={{
-                                    color: PROFILE_COLORS.text,
-                                    fontSize: 14,
-                                    fontWeight: "500",
-                                }}
-                            >
-                                Lời mời kết bạn
-                            </Text>
-                            <Text
-                                style={{
-                                    color: PROFILE_COLORS.textSecondary,
-                                    fontSize: 12,
-                                    marginTop: 2,
-                                }}
-                            >
-                                {requests.length > 0
-                                    ? `${requests.length} lời mời đang chờ`
-                                    : "Xem các lời mời kết bạn của bạn"}
-                            </Text>
-                        </View>
-                        <Ionicons
-                            name="chevron-forward"
-                            size={18}
-                            color={PROFILE_COLORS.textSecondary}
-                        />
-                    </TouchableOpacity>
-
+            {/* Khu vực hành động dưới tabs (chỉ hiện với tab Bạn bè và Nhóm) */}
+            {activeTab === "friends" && (
+                <View>
                     <View
                         style={{
-                            height: 0.5,
-                            backgroundColor: "#27272a",
-                            marginVertical: 6,
-                        }}
-                    />
-
-                    <BirthdaySection birthdayFriends={birthdayFriends} />
-                </View>
-            ) : (
-                <View
-                    style={{
-                        paddingHorizontal: 16,
-                        paddingTop: 8,
-                        paddingBottom: 4,
-                        backgroundColor: PROFILE_COLORS.background,
-                    }}
-                >
-                    <TouchableOpacity
-                        activeOpacity={0.8}
-                        // Chưa xử lý điều hướng, chỉ làm UI
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingVertical: 10,
+                            paddingHorizontal: 16,
+                            paddingTop: 8,
+                            paddingBottom: 4,
+                            backgroundColor: colors.background,
                         }}
                     >
-                        <View
+                        <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => router.push("/(tabs)/contacts-requests")}
                             style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 16,
-                                backgroundColor: "#22c55e",
+                                flexDirection: "row",
                                 alignItems: "center",
-                                justifyContent: "center",
-                                marginRight: 10,
+                                paddingVertical: 12,
                             }}
                         >
-                            <Ionicons
-                                name="people-outline"
-                                size={18}
-                                color="#fff"
-                            />
+                            <View
+                                style={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 14,
+                                    backgroundColor: colors.primary,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    marginRight: 16,
+                                }}
+                            >
+                                <Ionicons name="people" size={22} color="#fff" />
+                            </View>
+                            <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
+                                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "400" }}>
+                                    Lời mời kết bạn
+                                </Text>
+                                {requests.length > 0 && (
+                                    <Text style={{ color: colors.textSecondary, fontSize: 16, marginLeft: 6 }}>
+                                        ({requests.length})
+                                    </Text>
+                                )}
+                            </View>
+                        </TouchableOpacity>
+                        <BirthdaySection birthdayFriends={birthdayFriends} />
+                    </View>
+                    <View style={{ height: 8, backgroundColor: colors.searchBg }} />
+                </View>
+            )}
+            {activeTab === "groups" && (
+                <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, backgroundColor: colors.background }}>
+                    <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => router.push("/(tabs)/create-group")}
+                        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10 }}
+                    >
+                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#22c55e", alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                            <Ionicons name="people-outline" size={18} color="#fff" />
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Text
-                                style={{
-                                    color: PROFILE_COLORS.text,
-                                    fontSize: 14,
-                                    fontWeight: "500",
-                                }}
-                            >
-                                Tạo nhóm
-                            </Text>
-                            <Text
-                                style={{
-                                    color: PROFILE_COLORS.textSecondary,
-                                    fontSize: 12,
-                                    marginTop: 2,
-                                }}
-                            >
+                            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "500" }}>Tạo nhóm</Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
                                 Tạo nhóm chat để trò chuyện cùng nhiều bạn bè
                             </Text>
                         </View>
-                        <Ionicons
-                            name="chevron-forward"
-                            size={18}
-                            color={PROFILE_COLORS.textSecondary}
-                        />
+                        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
             )}
 
             {/* Nội dung từng tab */}
             <View style={{ flex: 1 }}>{renderTabContent()}</View>
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -521,6 +601,7 @@ type BirthdaySectionProps = {
 
 function BirthdaySection({ birthdayFriends }: BirthdaySectionProps) {
     const router = useRouter();
+    const colors = useThemeColors();
 
     return (
         <View>
@@ -530,49 +611,37 @@ function BirthdaySection({ birthdayFriends }: BirthdaySectionProps) {
                 style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    paddingVertical: 10,
+                    paddingVertical: 12,
                 }}
             >
                 <View
                     style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        backgroundColor: "#0ea5e9",
+                        width: 40,
+                        height: 40,
+                        borderRadius: 14,
+                        backgroundColor: colors.primary,
                         alignItems: "center",
                         justifyContent: "center",
-                        marginRight: 10,
+                        marginRight: 16,
                     }}
                 >
                     <Ionicons
-                        name="calendar-outline"
-                        size={18}
+                        name="gift"
+                        size={22}
                         color="#fff"
                     />
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text
                         style={{
-                            color: PROFILE_COLORS.text,
-                            fontSize: 14,
-                            fontWeight: "500",
+                            color: colors.text,
+                            fontSize: 16,
+                            fontWeight: "400",
                         }}
                     >
                         Sinh nhật
                     </Text>
-                    <Text
-                        style={{
-                            color: PROFILE_COLORS.textSecondary,
-                            fontSize: 12,
-                            marginTop: 2,
-                        }}
-                    >
-                        {birthdayFriends.length > 0
-                            ? `${birthdayFriends.length} bạn có sinh nhật`
-                            : "Chưa có sinh nhật nào trong danh sách"}
-                    </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={PROFILE_COLORS.textSecondary} />
             </TouchableOpacity>
         </View>
     );

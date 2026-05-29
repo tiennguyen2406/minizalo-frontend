@@ -1,13 +1,17 @@
 import React, { useState } from "react";
-import { View, StatusBar, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useUserStore } from "@/shared/store/userStore";
-import { authStyles } from "../styles";
+import { createAuthStyles } from "../styles";
 import { AuthHeader, AuthTitle, AuthInput, AuthButton, AuthLink } from "../components";
+import { useThemeColors } from "@/shared/theme/colors";
 
 export default function LoginFormScreen() {
     const router = useRouter();
+    const colors = useThemeColors();
+    const authStyles = createAuthStyles(colors);
     const login = useAuthStore((s) => s.login);
     const [phone, setPhone] = useState("");
     const [password, setPassword] = useState("");
@@ -77,8 +81,6 @@ export default function LoginFormScreen() {
             // Set error for both fields to indicate login failure visually
             setPhoneError(" ");
             setPasswordError(message);
-            // Also show modal for clarity if needed, or just rely on inline error
-            // keeping modal for detailed message if it's long, or just setting passwordError
         } finally {
             setLoading(false);
         }
@@ -86,41 +88,51 @@ export default function LoginFormScreen() {
 
     return (
         <View style={authStyles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-            <AuthHeader onBack={() => router.back()} />
+            <StatusBar style={colors.isDark ? "light" : "dark"} />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={authStyles.content}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
             >
-                <AuthTitle title="Đăng nhập" />
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 60 }}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <AuthHeader onBack={() => router.back()} />
 
-                <AuthInput
-                    placeholder="Số điện thoại hoặc email"
-                    value={phone}
-                    onChangeText={(text) => { setPhone(text); setPhoneError(""); }}
-                    keyboardType="phone-pad"
-                    disabled={loading}
-                    error={phoneError}
-                />
+                    <View style={authStyles.content}>
+                        <AuthTitle title="Đăng nhập" />
 
-                <AuthInput
-                    placeholder="Mật khẩu"
-                    value={password}
-                    onChangeText={(text) => { setPassword(text); setPasswordError(""); }}
-                    isPassword
-                    disabled={loading}
-                    error={passwordError}
-                />
+                        <AuthInput
+                            placeholder="Số điện thoại hoặc email"
+                            value={phone}
+                            onChangeText={(text) => { setPhone(text); setPhoneError(""); }}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            disabled={loading}
+                            error={phoneError}
+                        />
 
-                <AuthButton
-                    title="Đăng nhập"
-                    onPress={handleLogin}
-                    loading={loading}
-                />
+                        <AuthInput
+                            placeholder="Mật khẩu"
+                            value={password}
+                            onChangeText={(text) => { setPassword(text); setPasswordError(""); }}
+                            isPassword
+                            disabled={loading}
+                            error={passwordError}
+                        />
 
-                <AuthLink text="Quên mật khẩu" />
+                        <AuthButton
+                            title="Đăng nhập"
+                            onPress={handleLogin}
+                            loading={loading}
+                        />
+
+                        <AuthLink text="Quên mật khẩu" />
+                    </View>
+                </ScrollView>
             </KeyboardAvoidingView>
 
             {/* Error Modal */}
@@ -130,13 +142,13 @@ export default function LoginFormScreen() {
                 animationType="fade"
                 onRequestClose={hideError}
             >
-                <View style={modalStyles.overlay}>
-                    <View style={modalStyles.container}>
+                <View style={[modalStyles.overlay]}>
+                    <View style={[modalStyles.container, { backgroundColor: colors.card }]}>
                         <View style={modalStyles.iconContainer}>
                             <Text style={modalStyles.icon}>⚠️</Text>
                         </View>
-                        <Text style={modalStyles.title}>{errorModal.title}</Text>
-                        <Text style={modalStyles.message}>{errorModal.message}</Text>
+                        <Text style={[modalStyles.title, { color: colors.text }]}>{errorModal.title}</Text>
+                        <Text style={[modalStyles.message, { color: colors.textSecondary }]}>{errorModal.message}</Text>
                         <TouchableOpacity style={modalStyles.button} onPress={hideError}>
                             <Text style={modalStyles.buttonText}>OK</Text>
                         </TouchableOpacity>

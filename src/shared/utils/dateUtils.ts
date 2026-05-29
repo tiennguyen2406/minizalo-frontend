@@ -1,24 +1,16 @@
 export function formatTime(isoString: string): string {
     if (!isoString) return "";
     const date = new Date(isoString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = diffMs / (1000 * 60 * 60);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
 
-    if (diffHours < 24) {
-        if (diffHours < 1) {
-            const diffMin = Math.round(diffMs / (1000 * 60));
-            if (diffMin < 1) return "Vừa xong";
-            return `${diffMin} phút`;
-        }
-        return `${Math.floor(diffHours)} giờ`;
+    if (date.toDateString() === today.toDateString()) {
+        // Today → show HH:mm (e.g. "17:31")
+        return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false });
+    } else if (date.toDateString() === yesterday.toDateString()) {
+        return "Hôm qua";
+    } else {
+        return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
     }
-
-    // Check if same week
-    const dayOfWeek = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
-    if (diffHours < 24 * 7) {
-        return dayOfWeek[date.getDay()];
-    }
-
-    return `${date.getDate()}/${date.getMonth() + 1}`;
 }

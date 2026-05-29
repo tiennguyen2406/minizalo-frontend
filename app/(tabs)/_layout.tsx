@@ -4,6 +4,8 @@ import { Tabs } from "expo-router/tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { AuthGuard } from "@/shared/guards/AuthGuard";
 import WebSidebar from "@/views/web/components/WebSidebar";
+import { useWebSocketManager } from "@/shared/hooks/useWebSocketManager";
+import { useThemeColors } from "@/shared/theme/colors";
 
 // Icon tab bar (mobile) - giống Zalo: Tin nhắn (chat), Danh bạ (people), Khám phá (grid), Tường nhà (newspaper), Cá nhân (person)
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -27,13 +29,17 @@ const TabIcon = ({
 
 export default function TabsLayout() {
     const isWeb = Platform.OS === "web";
+    const colors = useThemeColors();
+
+    // Quản lý WebSocket toàn cục — luôn active dù đang ở tab nào
+    useWebSocketManager();
 
     if (isWeb) {
         return (
             <AuthGuard mode="requireAuth">
-                <div style={{ display: "flex", minHeight: "100vh", width: "100%" }}>
+                <div style={{ display: "flex", height: "100vh", width: "100%", overflow: "hidden" }}>
                     <WebSidebar />
-                    <main style={{ flex: 1, minWidth: 0 }}>
+                    <main style={{ flex: 1, minWidth: 0, height: "100vh", overflow: "hidden" }}>
                         <Slot />
                     </main>
                 </div>
@@ -44,11 +50,20 @@ export default function TabsLayout() {
     return (
         <AuthGuard mode="requireAuth">
             <Tabs
+                backBehavior="history"
                 screenOptions={{
                     headerShown: false,
-                    tabBarActiveTintColor: "#0068FF",
-                    tabBarInactiveTintColor: "#8e8e93",
-                    tabBarStyle: { backgroundColor: "#0d0d0d", borderTopColor: "#2a2a2a" },
+                    tabBarActiveTintColor: colors.tabBarActive,
+                    tabBarInactiveTintColor: colors.tabBarInactive,
+                    tabBarStyle: {
+                        backgroundColor: colors.tabBarBg,
+                        borderTopColor: colors.tabBarBorder,
+                        borderTopWidth: 1,
+                        height: Platform.OS === "ios" ? 88 : 60,
+                        paddingBottom: Platform.OS === "ios" ? 30 : 10,
+                        elevation: 0, // Remove shadow on Android
+                        shadowOpacity: 0, // Remove shadow on iOS
+                    },
                     tabBarLabelStyle: { fontSize: 11 },
                     // Khi bàn phím ảo mở, ẩn thanh tab để tránh bị "đẩy" lên
                     tabBarHideOnKeyboard: true,
@@ -72,10 +87,11 @@ export default function TabsLayout() {
                         ),
                     }}
                 />
-                <Tabs.Screen name="contacts-search" options={{ href: null }} />
+
                 <Tabs.Screen
                     name="explore"
                     options={{
+                        href: null,
                         title: "Khám phá",
                         tabBarIcon: ({ color, focused }) => (
                             <TabIcon name="grid" focused={focused} color={color} />
@@ -112,6 +128,12 @@ export default function TabsLayout() {
                 <Tabs.Screen name="language" options={{ href: null }} />
                 <Tabs.Screen name="support" options={{ href: null }} />
                 <Tabs.Screen name="zalo-cloud" options={{ href: null }} />
+                <Tabs.Screen name="create-group" options={{ href: null }} />
+                <Tabs.Screen name="personal-profile" options={{ href: null }} />
+                <Tabs.Screen name="profile-settings" options={{ href: null }} />
+                <Tabs.Screen name="friend-profile" options={{ href: null, tabBarStyle: { display: "none" } }} />
+                <Tabs.Screen name="appearance" options={{ href: null }} />
+                <Tabs.Screen name="search-sources" options={{ href: null }} />
             </Tabs>
         </AuthGuard>
     );

@@ -1,61 +1,207 @@
 import React from "react";
-import { View, Text, Image, TouchableOpacity } from "react-native";
+import { View, Text, Image, TouchableOpacity, TextStyle } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useThemeColors } from "@/shared/theme/colors";
+
+function MessageLineWithHighlight({
+    message,
+    highlightQuery,
+    baseStyle,
+}: {
+    message: string;
+    highlightQuery?: string;
+    baseStyle: TextStyle;
+}) {
+    const q = highlightQuery?.trim();
+    if (!q) {
+        return (
+            <Text style={baseStyle} numberOfLines={1} ellipsizeMode="tail">
+                {message}
+            </Text>
+        );
+    }
+    const lower = message.toLowerCase();
+    const ql = q.toLowerCase();
+    const parts: React.ReactNode[] = [];
+    let start = 0;
+    let idx = lower.indexOf(ql, start);
+    let key = 0;
+    while (idx !== -1) {
+        if (idx > start) {
+            parts.push(message.slice(start, idx));
+        }
+        parts.push(
+            <Text key={`h-${key++}`} style={{ backgroundColor: "#fef08a" }}>
+                {message.slice(idx, idx + ql.length)}
+            </Text>,
+        );
+        start = idx + ql.length;
+        idx = lower.indexOf(ql, start);
+    }
+    if (start < message.length) {
+        parts.push(message.slice(start));
+    }
+    return (
+        <Text style={baseStyle} numberOfLines={1} ellipsizeMode="tail">
+            {parts}
+        </Text>
+    );
+}
 
 interface ChatItemProps {
-    avatar: any; // URL or local require
+    avatar?: any;
+    avatarComponent?: React.ReactNode; 
     name: string;
     message: string;
     time: string;
     unreadCount?: number;
-    isVerified?: boolean; // For the checkmark
+    isVerified?: boolean;
     isGroup?: boolean;
+    isPinned?: boolean;
+    isMuted?: boolean;
+    /** Tô vàng các đoạn khớp khi tìm kiếm tin nhắn */
+    highlightQuery?: string;
     onPress?: () => void;
+    onLongPress?: () => void;
 }
 
-export const ChatItem = ({ avatar, name, message, time, unreadCount, isVerified, onPress }: ChatItemProps) => {
+export const ChatItem = ({ avatar, avatarComponent, name, message, time, unreadCount, isVerified, onPress, onLongPress, isPinned, isMuted, highlightQuery }: ChatItemProps) => {
+    const colors = useThemeColors();
+    const hasUnread = !!(unreadCount && unreadCount > 0);
+    const badgeBg = isMuted ? '#9ca3af' : '#ef4444';
+
     return (
-        <TouchableOpacity onPress={onPress} className="flex-row items-center bg-[#1a1a1a] px-4 py-2.5 active:bg-[#2a2a2a]">
+        <TouchableOpacity
+            onPress={onPress}
+            onLongPress={onLongPress}
+            delayLongPress={250}
+            activeOpacity={0.7}
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: colors.background,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+            }}
+        >
             {/* Avatar Container */}
-            <View className="relative mr-3">
-                <Image source={avatar} className="w-[52px] h-[52px] rounded-full bg-gray-700" resizeMode="cover" />
+            <View style={{ position: 'relative', marginRight: 12 }}>
+                {avatarComponent ? (
+                    avatarComponent
+                ) : (
+                    <Image
+                        source={avatar}
+                        style={{
+                            width: 52,
+                            height: 52,
+                            borderRadius: 26,
+                            backgroundColor: colors.avatarBg,
+                        }}
+                        resizeMode="cover"
+                    />
+                )}
                 {isVerified && (
-                    <View className="absolute bottom-0 right-0 bg-[#1a1a1a] rounded-full p-[1.5px]">
-                        <View className="w-3 h-3 bg-[#1a1a1a] rounded-full items-center justify-center border border-gray-600">
-                            <Text className="text-[7px] font-bold text-yellow-500">v</Text>
+                    <View style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        right: 0,
+                        backgroundColor: colors.background,
+                        borderRadius: 999,
+                        padding: 1.5,
+                    }}>
+                        <View style={{
+                            width: 12,
+                            height: 12,
+                            backgroundColor: colors.background,
+                            borderRadius: 999,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderWidth: 1,
+                            borderColor: '#555',
+                        }}>
+                            <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#f1c40f' }}>v</Text>
                         </View>
                     </View>
+                )}
+                {hasUnread && (
+                    <View style={{
+                        position: 'absolute',
+                        top: -2,
+                        right: -2,
+                        width: 14,
+                        height: 14,
+                        borderRadius: 7,
+                        backgroundColor: badgeBg,
+                        borderWidth: 2,
+                        borderColor: colors.background,
+                    }} />
                 )}
             </View>
 
             {/* Content Container */}
-            <View className="flex-1 border-b border-[#333] pb-2.5 justify-center h-[60px]">
-                {/* Top Row: Name + Time */}
-                <View className="flex-row justify-between items-center mb-0.5">
-                    <View className="flex-row items-center flex-1 mr-2">
-                        <Text className="text-[16px] font-normal text-white" numberOfLines={1}>{name}</Text>
+            <View style={{
+                flex: 1,
+                borderBottomWidth: 0.5,
+                borderBottomColor: colors.border,
+                paddingBottom: 10,
+                justifyContent: 'center',
+                height: 60,
+            }}>
+                {/* Top Row: Name + indicators + Time */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                        <Text style={{ fontSize: 16, color: colors.text, fontWeight: hasUnread ? '700' : '400', flexShrink: 1 }} numberOfLines={1}>{name}</Text>
                         {isVerified && (
-                            <View className="ml-1 bg-yellow-400 rounded-full w-3 h-3 justify-center items-center">
-                                <Text className="text-[8px] text-white">✓</Text>
+                            <View style={{
+                                marginLeft: 4,
+                                backgroundColor: '#f1c40f',
+                                borderRadius: 999,
+                                width: 12,
+                                height: 12,
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                            }}>
+                                <Text style={{ fontSize: 8, color: 'white' }}>✓</Text>
                             </View>
                         )}
                     </View>
-                    <Text className="text-[12px] text-gray-400">{time}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        {isPinned && (
+                            <Ionicons name="pin" size={12} color="#60a5fa" />
+                        )}
+                        {isMuted && (
+                            <Ionicons name="volume-mute" size={13} color="#9ca3af" />
+                        )}
+                        <Text style={{ fontSize: 12, color: hasUnread ? '#6b7280' : '#7f8c8d', fontWeight: hasUnread ? '600' : '400' }}>{time}</Text>
+                    </View>
                 </View>
 
                 {/* Bottom Row: Message + Badge */}
-                <View className="flex-row justify-between items-center">
-                    <Text
-                        className={`text-[14px] flex-1 mr-4 ${unreadCount && unreadCount > 0 ? 'text-gray-200 font-bold' : 'text-gray-500'}`}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                    >
-                        {message}
-                    </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flex: 1, marginRight: 16 }}>
+                    <MessageLineWithHighlight
+                        message={message}
+                        highlightQuery={highlightQuery}
+                        baseStyle={{
+                            fontSize: 14,
+                            color: hasUnread ? colors.text : colors.textSecondary,
+                            fontWeight: hasUnread ? '700' : 'normal',
+                        }}
+                    />
+                    </View>
 
                     {unreadCount && unreadCount > 0 ? (
-                        <View className="bg-red-500 rounded-full min-w-[16px] h-[16px] items-center justify-center px-1">
-                            <Text className="text-white text-[10px] font-bold">
-                                {unreadCount > 5 ? '5+' : unreadCount}
+                        <View style={{
+                            backgroundColor: badgeBg,
+                            borderRadius: 999,
+                            minWidth: 20,
+                            height: 20,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            paddingHorizontal: 5,
+                        }}>
+                            <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>
+                                {unreadCount! > 99 ? '99+' : unreadCount}
                             </Text>
                         </View>
                     ) : null}
