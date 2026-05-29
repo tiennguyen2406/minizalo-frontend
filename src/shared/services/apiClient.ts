@@ -3,7 +3,7 @@ import { useAuthStore } from "@/shared/store/authStore";
 
 // Base URL: always ends with /api
 const rawBase =
-    typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
+    process.env.EXPO_PUBLIC_API_URL
         ? process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "")
         : "http://localhost:8080/api";
 export const API_BASE_URL = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;

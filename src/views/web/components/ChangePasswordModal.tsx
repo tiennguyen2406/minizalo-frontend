@@ -27,7 +27,7 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
     const accessToken = useAuthStore((s) => s.accessToken);
 
     const rawBase =
-        typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL
+        process.env.EXPO_PUBLIC_API_URL
             ? process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "")
             : "http://localhost:8080/api";
     const API_BASE_URL = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
