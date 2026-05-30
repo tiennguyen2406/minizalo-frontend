@@ -51,9 +51,9 @@ function getWebJoinBaseUrl(): string {
     ).replace(/\/$/, "");
 }
 
-function buildJoinConversationUrl(roomId: string): string {
+function buildJoinConversationUrl(joinLinkToken?: string): string {
     const b = getWebJoinBaseUrl();
-    return b ? `${b}/join/${encodeURIComponent(roomId)}` : "";
+    return b && joinLinkToken ? `${b}/join/${encodeURIComponent(joinLinkToken)}` : "";
 }
 
 const getImageUrl = (url: string) => {
@@ -760,7 +760,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     const avatarUri = group.avatarUrl ? getImageUrl(group.avatarUrl) : fallbackAvatarUri;
 
     const existingMemberIds = group.members.map((m) => m.userId);
-    const joinInviteUrl = buildJoinConversationUrl(roomId);
+    const joinInviteUrl = buildJoinConversationUrl(group?.settings?.joinLink);
     const isRoomPinned = pinnedRooms.has(String(roomId));
     const canOpenGroupSettings = canManageMembers;
 

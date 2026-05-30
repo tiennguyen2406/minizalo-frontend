@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useUserStore } from "@/shared/store/userStore";
 import { createAuthStyles } from "../styles";
@@ -10,6 +10,8 @@ import { useThemeColors } from "@/shared/theme/colors";
 
 export default function LoginFormScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const redirectTo = params.redirectTo as string;
     const colors = useThemeColors();
     const authStyles = createAuthStyles(colors);
     const login = useAuthStore((s) => s.login);
@@ -56,7 +58,11 @@ export default function LoginFormScreen() {
             });
             // Tải profile ngay sau đăng nhập để màn Cá nhân hiển thị đúng tên/avatar
             await useUserStore.getState().fetchProfile();
-            router.replace("/(tabs)");
+            if (redirectTo) {
+                router.replace(redirectTo as any);
+            } else {
+                router.replace("/(tabs)");
+            }
         } catch (error: any) {
             const serverMessage = error.response?.data?.message;
             let message = "Sai tên đăng nhập hoặc mật khẩu. Vui lòng thử lại.";

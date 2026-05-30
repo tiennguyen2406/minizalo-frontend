@@ -497,7 +497,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
         }
     }, [roomId, currentGroupDetail, descriptionDraft, setCurrentGroupDetail, showToast]);
 
-    const joinLink = `${window.location.origin}/join/${roomId}`;
+    const joinLink = `${window.location.origin}/join/${group?.settings?.joinLink || ""}`;
 
     const handleCopyLink = useCallback(() => {
         navigator.clipboard.writeText(joinLink);

@@ -1,6 +1,6 @@
 import "zmp-ui/zaui.css";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Button } from "zmp-ui";
 import { QRCodeSVG } from "qrcode.react";
 import { authService } from "@/shared/services/authService";
@@ -26,6 +26,8 @@ type Mode = "qr" | "password";
 
 export default function LoginScreenWeb() {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const redirectTo = params.redirectTo as string;
     const setTokens = useAuthStore((s) => s.setTokens);
     const setUser = useAuthStore((s) => s.setUser);
 
@@ -75,8 +77,12 @@ export default function LoginScreenWeb() {
         } catch {
             // non-critical
         }
-        router.replace("/(tabs)");
-    }, [closeEventSource, setTokens, setUser, router]);
+        if (redirectTo) {
+            router.replace(redirectTo as any);
+        } else {
+            router.replace("/(tabs)");
+        }
+    }, [closeEventSource, setTokens, setUser, router, redirectTo]);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -347,6 +353,8 @@ export default function LoginScreenWeb() {
 
 function PasswordLoginForm({ onSwitchToQr }: { onSwitchToQr: () => void }) {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const redirectTo = params.redirectTo as string;
     const login = useAuthStore((s) => s.login);
     const setUser = useAuthStore((s) => s.setUser);
     const [username, setUsername] = useState("");
@@ -377,7 +385,11 @@ function PasswordLoginForm({ onSwitchToQr }: { onSwitchToQr: () => void }) {
                     roles: profile.roles || [],
                 });
             } catch { /* non-critical */ }
-            router.replace("/(tabs)");
+            if (redirectTo) {
+                router.replace(redirectTo as any);
+            } else {
+                router.replace("/(tabs)");
+            }
         } catch (err: any) {
             setError(err.response?.data?.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
         } finally {
