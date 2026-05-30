@@ -769,7 +769,7 @@ const FileAttachmentCard: React.FC<{
 };
 
 const getAvatarUrl = (name: string, avatarUrl?: string) => {
-    if (avatarUrl) return avatarUrl;
+    if (avatarUrl) return getImageUrl(avatarUrl);
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4A90D9&color=fff&size=64`;
 };
 
@@ -866,7 +866,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const videoUrls = useMemo(() => getVideoAttachmentUrls(message), [message]);
 
     const attachment = message.attachments?.[0];
-    const effectiveFileUrl = message.fileUrl || attachment?.url;
+    const effectiveFileUrl = getImageUrl(message.fileUrl || attachment?.url);
     const effectiveFileName = message.fileName || attachment?.name || attachment?.filename;
     const effectiveFileSize = message.fileSize || attachment?.size;
     let effectiveType = message.type as string;

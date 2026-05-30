@@ -17,6 +17,7 @@ import { useUserStore } from "@/shared/store/userStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { showToast as toast } from "@/shared/utils/toast";
 import { chatService } from "@/shared/services/chatService";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
 
 type PrivacyMode = "ALL_FRIENDS" | "SPECIFIC" | "EXCLUDE";
 type OverlayItem = {
@@ -81,7 +82,7 @@ const getStoryDuration = (story: Story | null) => {
 };
 
 const getAvatarUrl = (name?: string | null, avatarUrl?: string | null) =>
-  avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "U")}&background=0D8BFF&color=fff`;
+  (avatarUrl ? getImageUrl(avatarUrl) : "") || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "U")}&background=0D8BFF&color=fff`;
 
 export default function StoryFeed() {
   const {
@@ -631,9 +632,9 @@ export default function StoryFeed() {
               {selectedStory.mediaType === "TEXT" || selectedStory.storyType === "STATUS" ? (
                 <div style={styles.textStoryView}>{selectedStory.caption}</div>
               ) : selectedStory.mediaType === "VIDEO" || selectedStory.storyType === "VIDEO" ? (
-                <video src={selectedStory.mediaUrl} autoPlay controls style={styles.storyMedia} />
+                <video src={getImageUrl(selectedStory.mediaUrl)} autoPlay controls style={styles.storyMedia} />
               ) : (
-                <img src={selectedStory.mediaUrl} alt="" style={styles.storyMedia} />
+                <img src={getImageUrl(selectedStory.mediaUrl)} alt="" style={styles.storyMedia} />
               )}
 
               {overlayItems.map((item) => {
