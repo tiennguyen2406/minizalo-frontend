@@ -1363,91 +1363,161 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
                         {message.isRecall ? (
                             <span className="text-sm italic opacity-80">{message.content}</span>
-                        ) : (imageUrls.length > 0 || videoUrls.length > 0) ? (
-                            <div className="flex flex-col gap-2">
-                                {imageUrls.length > 1 ? (
-                                    (() => {
-                                        const visibleCount = Math.min(imageUrls.length, MULTI_IMG_MAX);
-                                        const show = imageUrls.slice(0, visibleCount);
-                                        const extra = imageUrls.length - visibleCount;
-                                        return (
-                                            <div
-                                                className="max-w-[300px]"
-                                                style={multiImageGridStyle(visibleCount)}
-                                            >
-                                                {show.map((url, index) => (
+                        ) : (
+                            <div className="flex flex-col gap-2.5">
+                                {/* 1. Text Content / Link Preview */}
+                                {message.content && !isCallMessage && !isStoryReply && (
+                                    <span className="text-[15px] leading-relaxed pr-8 whitespace-pre-wrap">
+                                        {linkifyText(message.content || '')}
+                                        {(() => {
+                                            const u = extractFirstHttpUrl(message.content || '');
+                                            return u ? <LinkPreviewCard url={u} /> : null;
+                                        })()}
+                                    </span>
+                                )}
+
+                                {/* 2. Media Content (Images + Videos) */}
+                                {(imageUrls.length > 0 || videoUrls.length > 0) && (
+                                    <div className="flex flex-col gap-2">
+                                        {imageUrls.length > 1 ? (
+                                            (() => {
+                                                const visibleCount = Math.min(imageUrls.length, MULTI_IMG_MAX);
+                                                const show = imageUrls.slice(0, visibleCount);
+                                                const extra = imageUrls.length - visibleCount;
+                                                return (
                                                     <div
-                                                        key={`${message.id}-img-${index}`}
-                                                        className="relative overflow-hidden"
-                                                        style={
-                                                            visibleCount === 3 && index === 0
-                                                                ? { gridRow: '1 / 3' }
-                                                                : undefined
-                                                        }
+                                                        className="max-w-[300px]"
+                                                        style={multiImageGridStyle(visibleCount)}
                                                     >
-                                                        <LazyImage
-                                                            src={url}
-                                                            alt={`${effectiveFileName || 'Ảnh'} ${index + 1}`}
-                                                            style={multiImageCellStyle(visibleCount, index)}
-                                                            onClick={() => {
-                                                                if (openInChatGallery(url)) return;
-                                                                setImageLightbox({ urls: imageUrls, index });
-                                                            }}
-                                                            onLoad={index === 0 ? onImageLoad : undefined}
+                                                        {show.map((url, index) => (
+                                                            <div
+                                                                key={`${message.id}-img-${index}`}
+                                                                className="relative overflow-hidden"
+                                                                style={
+                                                                    visibleCount === 3 && index === 0
+                                                                        ? { gridRow: '1 / 3' }
+                                                                        : undefined
+                                                                }
+                                                            >
+                                                                <LazyImage
+                                                                    src={url}
+                                                                    alt={`${effectiveFileName || 'Ảnh'} ${index + 1}`}
+                                                                    style={multiImageCellStyle(visibleCount, index)}
+                                                                    onClick={() => {
+                                                                        if (openInChatGallery(url)) return;
+                                                                        setImageLightbox({ urls: imageUrls, index });
+                                                                    }}
+                                                                    onLoad={index === 0 ? onImageLoad : undefined}
+                                                                />
+                                                                {index === visibleCount - 1 && extra > 0 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-md cursor-pointer border-0 p-0"
+                                                                        aria-label={`Thêm ${extra} ảnh`}
+                                                                        onClick={() => {
+                                                                            if (openInChatGallery(imageUrls[visibleCount - 1] || url)) return;
+                                                                            setImageLightbox({
+                                                                                urls: imageUrls,
+                                                                                index: visibleCount - 1,
+                                                                            });
+                                                                        }}
+                                                                    >
+                                                                        <span className="text-white text-xl font-bold">
+                                                                            +{extra}
+                                                                        </span>
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })()
+                                        ) : null}
+                                        {imageUrls.length === 1 ? (
+                                            <div className="flex flex-col gap-1">
+                                                <LazyImage
+                                                    src={imageUrls[0]}
+                                                    alt={effectiveFileName || 'Ảnh'}
+                                                    style={{
+                                                        maxWidth: 280,
+                                                        maxHeight: 300,
+                                                        borderRadius: 8,
+                                                        objectFit: 'cover',
+                                                        cursor: 'pointer',
+                                                    }}
+                                                    onClick={() => {
+                                                        if (openInChatGallery(imageUrls[0])) return;
+                                                        setImageLightbox({
+                                                            urls: imageUrls,
+                                                            index: 0,
+                                                        });
+                                                    }}
+                                                    onLoad={onImageLoad}
+                                                />
+                                            </div>
+                                        ) : null}
+                                        {videoUrls.length > 0 ? (
+                                            <div className="flex flex-col gap-2">
+                                                {videoUrls.map((vurl, vi) => (
+                                                    <div key={`${message.id}-vid-${vi}`} className="relative inline-block max-w-[300px]">
+                                                        <video
+                                                            src={vurl}
+                                                            controls
+                                                            preload="metadata"
+                                                            className="max-w-[300px] max-h-[240px] rounded-lg bg-black"
                                                         />
-                                                        {index === visibleCount - 1 && extra > 0 && (
+                                                        {onOpenChatGallery && (
                                                             <button
                                                                 type="button"
-                                                                className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-md cursor-pointer border-0 p-0"
-                                                                aria-label={`Thêm ${extra} ảnh`}
-                                                                onClick={() => {
-                                                                    if (openInChatGallery(imageUrls[visibleCount - 1] || url)) return;
-                                                                    setImageLightbox({
-                                                                        urls: imageUrls,
-                                                                        index: visibleCount - 1,
-                                                                    });
+                                                                title="Xem trong toàn bộ cuộc trò chuyện"
+                                                                className="absolute top-1 right-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-sm text-white hover:bg-black/70"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    openInChatGallery(vurl);
                                                                 }}
                                                             >
-                                                                <span className="text-white text-xl font-bold">
-                                                                    +{extra}
-                                                                </span>
+                                                                ⤢
                                                             </button>
                                                         )}
                                                     </div>
                                                 ))}
                                             </div>
-                                        );
-                                    })()
-                                ) : null}
-                                {imageUrls.length === 1 ? (
-                                    <div className="flex flex-col gap-1">
-                                        <LazyImage
-                                            src={imageUrls[0]}
-                                            alt={effectiveFileName || 'Ảnh'}
-                                            style={{
-                                                maxWidth: 280,
-                                                maxHeight: 300,
-                                                borderRadius: 8,
-                                                objectFit: 'cover',
-                                                cursor: 'pointer',
-                                            }}
-                                            onClick={() => {
-                                                if (openInChatGallery(imageUrls[0])) return;
-                                                setImageLightbox({
-                                                    urls: imageUrls,
-                                                    index: 0,
-                                                });
-                                            }}
-                                            onLoad={onImageLoad}
-                                        />
+                                        ) : null}
                                     </div>
-                                ) : null}
-                                {videoUrls.length > 0 ? (
-                                    <div className="flex flex-col gap-2">
-                                        {videoUrls.map((vurl, vi) => (
-                                            <div key={`${message.id}-vid-${vi}`} className="relative inline-block max-w-[300px]">
+                                )}
+
+                                {/* 3. Standalone Fallback Media/Voice (Older messages with fileUrl but no attachments array) */}
+                                {imageUrls.length === 0 && videoUrls.length === 0 && effectiveFileUrl && (() => {
+                                    if (effectiveType === 'IMAGE') {
+                                        return (
+                                            <div className="flex flex-col gap-1">
+                                                <LazyImage
+                                                    src={effectiveFileUrl}
+                                                    alt={effectiveFileName || 'Ảnh'}
+                                                    style={{
+                                                        maxWidth: 280,
+                                                        maxHeight: 300,
+                                                        borderRadius: 8,
+                                                        objectFit: 'cover',
+                                                        cursor: 'pointer',
+                                                    }}
+                                                    onClick={() => {
+                                                        if (openInChatGallery(effectiveFileUrl)) return;
+                                                        setImageLightbox({
+                                                            urls: [effectiveFileUrl],
+                                                            index: 0,
+                                                        });
+                                                    }}
+                                                    onLoad={onImageLoad}
+                                                />
+                                            </div>
+                                        );
+                                    }
+                                    if (effectiveType === 'VIDEO') {
+                                        return (
+                                            <div className="relative inline-block max-w-[300px]">
                                                 <video
-                                                    src={vurl}
+                                                    src={effectiveFileUrl}
                                                     controls
                                                     preload="metadata"
                                                     className="max-w-[300px] max-h-[240px] rounded-lg bg-black"
@@ -1459,125 +1529,95 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                                         className="absolute top-1 right-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-sm text-white hover:bg-black/70"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            openInChatGallery(vurl);
+                                                            openInChatGallery(effectiveFileUrl);
                                                         }}
                                                     >
                                                         ⤢
                                                     </button>
                                                 )}
                                             </div>
-                                        ))}
-                                    </div>
-                                ) : null}
-                            </div>
-                        ) : effectiveType === 'IMAGE' && imageUrls.length === 0 && effectiveFileUrl ? (
-                            <div className="flex flex-col gap-1">
-                                <LazyImage
-                                    src={effectiveFileUrl}
-                                    alt={effectiveFileName || 'Ảnh'}
-                                    style={{
-                                        maxWidth: 280,
-                                        maxHeight: 300,
-                                        borderRadius: 8,
-                                        objectFit: 'cover',
-                                        cursor: 'pointer',
-                                    }}
-                                    onClick={() => {
-                                        if (openInChatGallery(effectiveFileUrl)) return;
-                                        setImageLightbox({
-                                            urls: [effectiveFileUrl],
-                                            index: 0,
-                                        });
-                                    }}
-                                    onLoad={onImageLoad}
-                                />
-                            </div>
-                        ) : effectiveType === 'VIDEO' && imageUrls.length === 0 && videoUrls.length === 0 && effectiveFileUrl ? (
-                            <div className="relative inline-block max-w-[300px]">
-                                <video
-                                    src={effectiveFileUrl}
-                                    controls
-                                    preload="metadata"
-                                    className="max-w-[300px] max-h-[240px] rounded-lg bg-black"
-                                />
-                                {onOpenChatGallery && (
-                                    <button
-                                        type="button"
-                                        title="Xem trong toàn bộ cuộc trò chuyện"
-                                        className="absolute top-1 right-1 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-sm text-white hover:bg-black/70"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            openInChatGallery(effectiveFileUrl);
-                                        }}
-                                    >
-                                        ⤢
-                                    </button>
-                                )}
-                            </div>
-                        ) : effectiveType === 'VOICE' && effectiveFileUrl ? (
-                            <VoicePlayer url={effectiveFileUrl} />
-                        ) : (effectiveType === 'FILE' || effectiveType === 'DOCUMENT') &&
-                            ((message.attachments && message.attachments.length > 0) || effectiveFileUrl) ? (
-                            <div className="flex flex-col gap-2">
-                                {message.attachments && message.attachments.length > 0 ? (
-                                    message.attachments.map((att: any, idx: number) => (
-                                        <FileAttachmentCard
-                                            key={idx}
-                                            attachment={att}
-                                            url={att.url}
-                                            fileName={att.name || att.filename || 'Tệp đính kèm'}
-                                            size={att.size}
-                                            createdAt={message.createdAt}
-                                            setDownloadsHelpOpen={setDownloadsHelpOpen}
-                                            setDownloadsHelpJustFetched={setDownloadsHelpJustFetched}
-                                        />
-                                    ))
-                                ) : (
-                                    // Fallback for older messages structure
-                                    effectiveFileUrl && (
-                                        <FileAttachmentCard
-                                            url={effectiveFileUrl}
-                                            fileName={fileDisplayName}
-                                            size={effectiveFileSize}
-                                            createdAt={message.createdAt}
-                                            setDownloadsHelpOpen={setDownloadsHelpOpen}
-                                            setDownloadsHelpJustFetched={setDownloadsHelpJustFetched}
-                                        />
-                                    )
-                                )}
-                            </div>
-                        ) : isStoryReply ? (
-                            <StoryReplyCard
-                                content={message.content!}
-                                isMine={isMine}
-                                time={new Date(message.createdAt).toLocaleTimeString('vi-VN', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                })}
-                            />
-                        ) : effectiveType === 'TEXT' || effectiveType === 'REPLY' || effectiveType === 'FORWARD' ? (
-                            <span className="text-[15px] leading-relaxed pr-8 whitespace-pre-wrap">
-                                {linkifyText(message.content || '')}
-                                {(() => {
-                                    const u = extractFirstHttpUrl(message.content || '');
-                                    return u ? <LinkPreviewCard url={u} /> : null;
+                                        );
+                                    }
+                                    if (effectiveType === 'VOICE') {
+                                        return <VoicePlayer url={effectiveFileUrl} />;
+                                    }
+                                    return null;
                                 })()}
-                            </span>
-                        ) : (effectiveType === 'CALL_VOICE' || effectiveType === 'CALL_VIDEO') ? (
-                            renderCallContent()
-                        ) : (
-                            <span className="text-[15px] italic opacity-80 pr-8">{message.content || '[Loại tin nhắn không hỗ trợ]'}</span>
+
+                                {/* 4. Standalone Voice Player */}
+                                {effectiveType === 'VOICE' && effectiveFileUrl && imageUrls.length === 0 && videoUrls.length === 0 && (
+                                    <VoicePlayer url={effectiveFileUrl} />
+                                )}
+
+                                {/* 5. File/Document attachments */}
+                                {(() => {
+                                    const filesToRender = (message.attachments || []).filter(
+                                        (att: any) => !imageUrls.includes(getImageUrl(att.url)) && !videoUrls.includes(getImageUrl(att.url))
+                                    );
+                                    
+                                    const showFallbackFile = filesToRender.length === 0 && effectiveFileUrl && (effectiveType === 'FILE' || effectiveType === 'DOCUMENT');
+
+                                    if (filesToRender.length > 0 || showFallbackFile) {
+                                        return (
+                                            <div className="flex flex-col gap-2">
+                                                {filesToRender.map((att: any, idx: number) => (
+                                                    <FileAttachmentCard
+                                                        key={idx}
+                                                        attachment={att}
+                                                        url={att.url}
+                                                        fileName={att.name || att.filename || 'Tệp đính kèm'}
+                                                        size={att.size}
+                                                        createdAt={message.createdAt}
+                                                        setDownloadsHelpOpen={setDownloadsHelpOpen}
+                                                        setDownloadsHelpJustFetched={setDownloadsHelpJustFetched}
+                                                    />
+                                                ))}
+                                                {showFallbackFile && (
+                                                    <FileAttachmentCard
+                                                        url={effectiveFileUrl}
+                                                        fileName={fileDisplayName}
+                                                        size={effectiveFileSize}
+                                                        createdAt={message.createdAt}
+                                                        setDownloadsHelpOpen={setDownloadsHelpOpen}
+                                                        setDownloadsHelpJustFetched={setDownloadsHelpJustFetched}
+                                                    />
+                                                )}
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+
+                                {/* 6. Story Reply */}
+                                {isStoryReply && (
+                                    <StoryReplyCard
+                                        content={message.content!}
+                                        isMine={isMine}
+                                        time={new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                        })}
+                                    />
+                                )}
+
+                                {/* 7. Call message */}
+                                {isCallMessage && renderCallContent()}
+                            </div>
                         )}
 
                         {/* Thời gian (tin file/story đã có giờ trong thẻ) */}
-                        {!filePresentation && !isStoryReply && (
-                            <span className="text-[11px] text-gray-400 mt-1.5 self-start leading-none">
-                                {new Date(message.createdAt).toLocaleTimeString('vi-VN', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                })}
-                            </span>
-                        )}
+                        {(() => {
+                            const isPureFile = !message.content && imageUrls.length === 0 && videoUrls.length === 0 &&
+                                ((message.attachments && message.attachments.length === 1) || (effectiveFileUrl && (effectiveType === 'FILE' || effectiveType === 'DOCUMENT')));
+                            return !isPureFile && !isStoryReply && (
+                                <span className="text-[11px] text-gray-400 mt-1.5 self-start leading-none">
+                                    {new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                    })}
+                                </span>
+                            );
+                        })()}
                     </div>
 
                     {/* Reactions Pill and Inline Like - Nằm đè lên viền Đáy Phải (Bottom-Right) */}
