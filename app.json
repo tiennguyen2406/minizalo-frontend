@@ -28,6 +28,7 @@
       "edgeToEdgeEnabled": false,
       "package": "com.sonnh03.MiniZalo_Frontend",
       "softwareKeyboardLayoutMode": "pan",
+      "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
