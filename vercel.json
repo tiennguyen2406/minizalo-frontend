@@ -1,13 +1,5 @@
 {
   "cleanUrls": true,
-  "redirects": [
-    {
-      "source": "/(.*)",
-      "has": [{ "type": "host", "value": "www.minizalo.click" }],
-      "destination": "https://minizalo.click/$1",
-      "permanent": true
-    }
-  ],
   "rewrites": [
     {
       "source": "/(.*)",
