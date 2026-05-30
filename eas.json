@@ -23,6 +23,12 @@
             },
             "ios": {
                 "simulator": true
+            },
+            "env": {
+                "EXPO_PUBLIC_API_URL": "http://13.214.56.94/api",
+                "EXPO_PUBLIC_SOCKET_URL": "ws://13.214.56.94/ws",
+                "EXPO_PUBLIC_API_KEY": "your-api-key-here",
+                "EXPO_PUBLIC_ENABLE_DEBUG": "false"
             }
         },
         "production": {
