@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuthStore } from "@/shared/store/authStore";
 import { groupService } from "@/shared/services/groupService";
@@ -53,14 +53,20 @@ export default function JoinRoute() {
                     description: group.description,
                 });
 
-                // Redirect to the newly joined group chat
-                router.replace({
-                    pathname: `/chat/${group.id}`,
-                    params: {
-                        name: group.groupName,
-                        type: "GROUP"
-                    }
-                });
+                if (Platform.OS === "web") {
+                    // On Web, use the main tabs layout with the sidebar, and set the active chat room in the store
+                    useChatStore.getState().setPendingOpenRoomId(group.id);
+                    router.replace("/(tabs)");
+                } else {
+                    // Redirect to the newly joined group chat
+                    router.replace({
+                        pathname: `/chat/${group.id}`,
+                        params: {
+                            name: group.groupName,
+                            type: "GROUP"
+                        }
+                    });
+                }
             } catch (err: any) {
                 console.error("Failed to join group by link:", err);
                 const message = err?.response?.data?.message || "Không thể tham gia nhóm. Link đã hết hạn hoặc không tồn tại.";
