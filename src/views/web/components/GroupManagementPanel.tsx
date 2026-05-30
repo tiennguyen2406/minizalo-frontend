@@ -433,10 +433,10 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                                 <div className="mt-3 p-3 bg-[color:var(--bg-hover)] rounded-lg border border-[color:var(--border-primary)]">
                                     <p className="text-xs text-[color:var(--text-secondary)] mb-1">Link tham gia nhóm:</p>
                                     <div className="bg-[color:var(--bg-primary)] px-3 py-2 border border-[color:var(--border-secondary)] rounded text-sm text-blue-600 font-mono break-all w-full">
-                                        <span className="select-text">{settings.joinLink}</span>
+                                        <span className="select-text">{window.location.origin}/join/{settings.joinLink}</span>
                                     </div>
                                     <div className="flex gap-2 mt-2">
-                                        <button className="flex-1 text-xs bg-[color:var(--bg-tertiary)] hover:bg-gray-300 py-1.5 rounded" onClick={() => navigator.clipboard.writeText(settings.joinLink)}>Copy Link</button>
+                                        <button className="flex-1 text-xs bg-[color:var(--bg-tertiary)] hover:bg-gray-300 py-1.5 rounded" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/join/${settings.joinLink}`)}>Copy Link</button>
                                         <button className="flex-1 text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 py-1.5 rounded" onClick={handleRefreshLink} disabled={loading}>Đổi Link</button>
                                     </div>
                                 </div>
