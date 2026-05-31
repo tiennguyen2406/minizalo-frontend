@@ -165,7 +165,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   // Call Store Actions
   const { initiateCall, initiateGroupCall } = useCallStore();
 
-  const messagesState = messages[roomId] || [];
+  const emptyArray = useMemo(() => [], []);
+  const messagesState = messages[roomId] || emptyArray;
 
   const fetchFriends = useFriendStore((s) => s.fetchFriends);
   const friends = useFriendStore((s) => s.friends);
