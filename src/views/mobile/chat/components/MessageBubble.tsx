@@ -15,6 +15,9 @@ import { isImageAttachment, isVideoAttachment } from "@/shared/utils/messageAtta
 import PollBubbleMobile from "./PollBubbleMobile";
 import AudioMessageItem from "./AudioMessageItem";
 import { getImageUrl } from "@/shared/utils/mediaUtils";
+import { useRouter } from "expo-router";
+import { groupService } from "@/shared/services/groupService";
+import { useChatStore } from "@/shared/store/useChatStore";
 
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -72,7 +75,7 @@ function formatFileSize(bytes: number): string {
     return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-const LinkableText = ({ text, style }: { text: string, style: any }) => {
+const LinkableText = ({ text, style, onUrlPress }: { text: string, style: any, onUrlPress?: (url: string) => void }) => {
     const URL_REGEX = /(https?:\/\/[^\s]+)/g;
     const parts = text.split(URL_REGEX);
     return (
@@ -83,7 +86,7 @@ const LinkableText = ({ text, style }: { text: string, style: any }) => {
                         <Text
                             key={i}
                             style={[style, { color: (style.color === "#fff" || style.color === "#ffffff") ? "#add8e6" : "#0066cc", textDecorationLine: "underline" }]}
-                            onPress={() => Linking.openURL(part)}
+                            onPress={() => onUrlPress ? onUrlPress(part) : Linking.openURL(part)}
                         >
                             {part}
                         </Text>
@@ -95,13 +98,13 @@ const LinkableText = ({ text, style }: { text: string, style: any }) => {
     );
 };
 
-const LinkPreview = ({ url, isMe }: { url: string, isMe: boolean }) => {
+const LinkPreview = ({ url, isMe, onUrlPress }: { url: string, isMe: boolean, onUrlPress?: (url: string) => void }) => {
     const colors = useThemeColors();
     const domain = url.replace(/https?:\/\//, "").split("/")[0];
 
     return (
         <TouchableOpacity
-            onPress={() => Linking.openURL(url)}
+            onPress={() => onUrlPress ? onUrlPress(url) : Linking.openURL(url)}
             activeOpacity={0.9}
             style={{
                 backgroundColor: isMe ? "rgba(255,255,255,0.15)" : (useThemeStore.getState().theme === 'dark' ? "#1c1c1e" : "#f0f0f0"),
@@ -395,6 +398,47 @@ export default function MessageBubble({
     const colors = useThemeColors();
     const theme = useThemeStore(s => s.theme);
     const senderName = message.senderName;
+    const router = useRouter();
+
+    const handleUrlPress = useCallback(async (url: string) => {
+        const joinMatch = url.match(/https?:\/\/[^\s\/]+\/join\/([a-zA-Z0-9-]+)/);
+        if (joinMatch) {
+            const joinToken = joinMatch[1];
+            try {
+                const group = await groupService.joinByLink(joinToken);
+                
+                const upsertRoom = useChatStore.getState().upsertRoom;
+                upsertRoom({
+                    id: group.id,
+                    name: group.groupName,
+                    type: "GROUP",
+                    avatarUrl: group.avatarUrl,
+                    wallpaperUrl: group.wallpaperUrl,
+                    description: group.description,
+                    unreadCount: 0,
+                    updatedAt: group.createdAt,
+                    participants: group.members.map((member) => ({
+                        id: member.userId,
+                        username: member.username,
+                        fullName: member.fullName || member.username,
+                        avatarUrl: member.avatarUrl,
+                    })),
+                    disbanded: !!group.disbanded,
+                });
+
+                router.push(`/chat/${group.id}?name=${encodeURIComponent(group.groupName)}&type=GROUP`);
+            } catch (err: any) {
+                console.error("Error joining group by link:", err);
+                const errMsg = err?.response?.data?.message || err?.message || "Không thể tham gia nhóm.";
+                Alert.alert("Lỗi", errMsg);
+            }
+        } else {
+            Linking.openURL(url).catch((err) => {
+                console.error("Failed to open URL:", err);
+                Alert.alert("Lỗi", "Không thể mở liên kết này.");
+            });
+        }
+    }, [router]);
     const isRecalled = message.recalled;
     const isError = message.isError;
     const time =
@@ -1401,6 +1445,7 @@ export default function MessageBubble({
                                             fontSize: 15,
                                             lineHeight: 22,
                                         }}
+                                        onUrlPress={handleUrlPress}
                                     />
                                 )}
                             </View>
@@ -1410,7 +1455,7 @@ export default function MessageBubble({
                         {/* Link Preview (Simple implementation) */}
                         {
                             !hideFilenameCaption && !isRecalled && hasText && message.content?.match(/https?:\/\/[^\s]+/) && (
-                                <LinkPreview url={message.content.match(/https?:\/\/[^\s]+/)?.[0] || ""} isMe={isMe} />
+                                <LinkPreview url={message.content.match(/https?:\/\/[^\s]+/)?.[0] || ""} isMe={isMe} onUrlPress={handleUrlPress} />
                             )
                         }
 
