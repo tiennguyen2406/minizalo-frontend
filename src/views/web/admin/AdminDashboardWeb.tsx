@@ -270,6 +270,14 @@ export default function AdminDashboardWeb() {
   }, [sinceIso]);
 
   useEffect(() => {
+    void loadUsers();
+  }, [debouncedQuery, userFilter]);
+
+  useEffect(() => {
+    void loadReports();
+  }, [moderationFilter]);
+
+  useEffect(() => {
     const handleAdminEvent = (msg: any) => {
       try {
         const payload = JSON.parse(String(msg.body || "{}"));
@@ -299,6 +307,59 @@ export default function AdminDashboardWeb() {
     };
   }, []);
 
+  const filteredRooms = useMemo(() => {
+    const type = ROOM_TYPE_MAP[roomFilter];
+    return rooms.filter((room) => {
+      if (type && room.type !== type) return false;
+      return matchesSearch(debouncedQuery, [room.id, room.name, room.type]);
+    });
+  }, [rooms, roomFilter, debouncedQuery]);
+
+  const filteredGroups = useMemo(() => {
+    return groups.filter((group) => {
+      if (groupFilter === "Có Link" && !group.name) return false;
+      if (groupFilter === "Công khai" && (group.members ?? 0) < 2) return false;
+      if (groupFilter === "Kín" && (group.members ?? 0) >= 50) return false;
+      return matchesSearch(debouncedQuery, [group.id, group.name, group.members, group.messages]);
+    });
+  }, [groups, groupFilter, debouncedQuery]);
+
+  const filteredAudits = useMemo(() => {
+    return audits.filter((row) => {
+      if (auditFilter !== "Tất cả" && row.action !== auditFilter) return false;
+      return matchesSearch(debouncedQuery, [row.action, row.target, row.targetType, row.time]);
+    });
+  }, [audits, auditFilter, debouncedQuery]);
+
+  const filteredAdmins = useMemo(() => {
+    return admins.filter((admin) => {
+      if (adminFilter === "ROLE_ADMIN" && admin.role !== "ROLE_ADMIN") return false;
+      return matchesSearch(debouncedQuery, [admin.name, admin.email, admin.phone, admin.id]);
+    });
+  }, [admins, adminFilter, debouncedQuery]);
+
+  const filteredTopRooms = useMemo(() => {
+    return topRooms.filter((room) => matchesSearch(debouncedQuery, [room.name, room.roomId, room.type]));
+  }, [topRooms, debouncedQuery]);
+
+  const filteredReportsList = useMemo(() => {
+    return reports.filter((r) => matchesSearch(debouncedQuery, [r.targetType, r.targetId, r.reason, r.details, r.reporter, r.status]));
+  }, [reports, debouncedQuery]);
+
+  const searchPlaceholder = {
+    dashboard: "Tìm phòng, user...",
+    users: "Tìm tên, email, SĐT...",
+    conversations: "Tìm tên phòng, mã phòng...",
+    messages: "Tìm nội dung tin nhắn...",
+    media: "Tìm endpoint, tính năng...",
+    groups: "Tìm tên nhóm...",
+    moderation: "Tìm báo cáo, người báo...",
+    reports: "Tìm API, module...",
+    audit: "Tìm hành động, mục tiêu...",
+    admins: "Tìm admin, email, SĐT...",
+    "ai-config": "Tìm cấu hình AI...",
+  }[activeSection] || "Tìm kiếm...";
+
   if (Platform.OS !== "web") return null;
 
   const filteredEndpoints = endpointRows.filter((row) => {
@@ -317,10 +378,10 @@ export default function AdminDashboardWeb() {
       homePath="/admin-login"
     >
       <div className="h-screen w-screen flex overflow-hidden font-sans transition-colors duration-300 bg-[#f4f7fb] text-slate-900 dark:bg-[#0b1120] dark:text-gray-100">
-        
+
         {/* Sidebar */}
         <aside className="w-[260px] min-w-[260px] flex flex-col p-5 gap-6 backdrop-blur-xl border-r transition-colors duration-300 z-10 bg-white/80 border-slate-200/50 dark:bg-[#111827]/80 dark:border-white/5">
-          <button 
+          <button
             className="flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-300 group bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 dark:from-blue-900/40 dark:to-blue-800/20 dark:border-blue-500/30 dark:hover:border-blue-400/50 dark:hover:from-blue-800/40"
           >
             <div className="p-1.5 rounded-lg bg-blue-600 text-white shadow-sm dark:bg-blue-500/20 dark:text-blue-400">
@@ -355,7 +416,7 @@ export default function AdminDashboardWeb() {
         {/* Main Content */}
         <main className="flex-1 h-screen overflow-y-auto relative">
           <div className="max-w-[1200px] mx-auto p-8 pb-24">
-            
+
             {/* Header Sticky */}
             <header className="sticky top-0 z-40 -mx-8 px-8 py-5 mb-8 backdrop-blur-2xl border-b transition-all duration-300 flex justify-between items-center bg-[#f4f7fb]/80 border-slate-200 dark:bg-[#0b1120]/80 dark:border-white/5">
               <div>
@@ -379,10 +440,10 @@ export default function AdminDashboardWeb() {
                     className="bg-transparent outline-none border-none text-[14px] w-48 transition-all focus:w-64 text-slate-900 placeholder-slate-400 dark:text-white dark:placeholder-slate-500"
                   />
                 </div>
-                
-                <select 
-                  value={range} 
-                  onChange={(event) => setRange(event.target.value)} 
+
+                <select
+                  value={range}
+                  onChange={(event) => setRange(event.target.value)}
                   className="h-11 rounded-full px-4 text-[14px] font-medium border appearance-none outline-none cursor-pointer transition-all bg-white border-slate-200 text-slate-700 shadow-sm focus:border-blue-500 dark:bg-[#1e293b] dark:border-slate-700 dark:text-slate-200 dark:focus:border-blue-500"
                   style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px', paddingRight: '36px' }}
                 >
@@ -390,7 +451,6 @@ export default function AdminDashboardWeb() {
                   <option value="30">30 ngày qua</option>
                   <option value="90">90 ngày qua</option>
                 </select>
-                
                 <button 
                   type="button" 
                   title="Làm mới" 
@@ -415,22 +475,32 @@ export default function AdminDashboardWeb() {
             )}
 
             <div className="flex flex-col gap-6 opacity-0 animate-[fadeIn_0.4s_ease-out_forwards]">
-              {activeSection === "dashboard" && <DashboardSection loading={loading} overview={overview} messageStats={messageStats} activeStats={activeStats} />}
-              {activeSection === "users" && <UsersSection users={users} loading={loading} />}
-              {activeSection === "conversations" && <ConversationsSection rooms={rooms} loading={loading} setActiveSection={setActiveSection} setSelectedRoomId={setSelectedRoomId} />}
-              {activeSection === "messages" && <MessagesSection roomId={selectedRoomId} setRoomId={setSelectedRoomId} />}
-              {activeSection === "media" && <MediaSection />}
-              {activeSection === "groups" && <GroupsSection rooms={rooms} loading={loading} />}
+              {activeSection === "dashboard" && <DashboardSection loading={loading} overview={overview} dashboardSummary={dashboardSummary} messageStats={messageStats} activeStats={activeStats} topRooms={filteredTopRooms} range={range} listResetKey={listResetKey} />}
+              {activeSection === "users" && <UsersSection users={users} loading={loading} activeFilter={userFilter} onFilterChange={setUserFilter} listResetKey={listResetKey} />}
+              {activeSection === "conversations" && <ConversationsSection rooms={filteredRooms} loading={loading} setActiveSection={setActiveSection} setSelectedRoomId={setSelectedRoomId} />}
+              {activeSection === "messages" && <MessagesSection roomId={selectedRoomId} setRoomId={setSelectedRoomId} searchQuery={debouncedQuery} typeFilter={messageFilter} onTypeFilterChange={setMessageFilter} />}
+              {activeSection === "media" && <MediaSection mediaStats={mediaStats} activeFilter={mediaFilter} onFilterChange={setMediaFilter} searchQuery={debouncedQuery} />}
+              {activeSection === "groups" && <GroupsSection groups={filteredGroups} loading={loading} onDisband={handleDisbandGroup} activeFilter={groupFilter} onFilterChange={setGroupFilter} listResetKey={listResetKey} />}
               {activeSection === "moderation" && <ModerationSection />}
-              {activeSection === "reports" && <ReportsSection messageStats={messageStats} activeStats={activeStats} endpoints={filteredEndpoints} />}
-              {activeSection === "audit" && <AuditSection audits={audits} loading={loading} />}
-              {activeSection === "admins" && <AdminsSection currentUser={user?.username || user?.fullName || "Admin"} />}
+              {activeSection === "reports" && <ReportsSection messageStats={messageStats} activeStats={activeStats} endpoints={filteredEndpoints} listResetKey={listResetKey} />}
+              {activeSection === "audit" && <AuditSection audits={filteredAudits} loading={loading} activeFilter={auditFilter} onFilterChange={setAuditFilter} listResetKey={listResetKey} />}
+              {activeSection === "admins" && (
+                <AdminsSection 
+                  currentUser={user?.username || user?.fullName || "Admin"} 
+                  admins={filteredAdmins}
+                  onRefresh={loadAnalytics}
+                  activeFilter={adminFilter}
+                  onFilterChange={setAdminFilter}
+                  listResetKey={listResetKey}
+                />
+              )}
               {activeSection === "ai-config" && <AiConfigSection />}
             </div>
 
           </div>
         </main>
-        <style dangerouslySetInnerHTML={{__html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
           .custom-scrollbar::-webkit-scrollbar { width: 4px; }
           .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -495,7 +565,7 @@ function DashboardSection({ loading, overview, dashboardSummary, messageStats, a
   );
 }
 
-function UsersSection({ users, loading }: any) {
+function UsersSection({ users, loading, activeFilter, onFilterChange, listResetKey }: any) {
   const router = useRouter();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   
@@ -532,57 +602,60 @@ function UsersSection({ users, loading }: any) {
     <div className="flex flex-col gap-6">
       <Toolbar title="Quản lý người dùng" filters={["Tất cả", "ROLE_USER", "Bị khóa"]} activeFilter={activeFilter} onFilterChange={onFilterChange} />
       <Panel title="Danh sách tài khoản" action={loading ? "Đang tải..." : `${users.length} tài khoản`}>
-        <DataTable
-          headers={["ID", "Tên đăng nhập", "Email", "Quyền", "Trạng thái", "Tin nhắn", "Hành động"]}
-          rows={users.map((u: any) => [
-            <IdCell key="id" value={u.id} />,
-            <strong key="n" className="text-slate-800 dark:text-slate-200">{u.name}</strong>,
-            u.email,
-            <span key="r" className="font-semibold text-blue-600 dark:text-blue-400 text-[12px]">{u.role}</span>,
-            <StatePill key="state" label={u.state} />,
-            formatNumber(u.messages),
-            <div key="actions" className="flex items-center gap-2 relative">
-              <button 
-                onClick={() => handleImpersonate(u.id)}
-                className="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-xs rounded-md font-medium transition-colors dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300"
-              >
-                Login As
-              </button>
-              <button 
-                onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
-                title="Tùy chọn"
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 dark:text-slate-400 dark:hover:bg-white/10"
-              >
-                <MoreHorizontal size={18} />
-              </button>
-              {openMenuId === u.id && (
-                <div className="absolute right-0 top-8 z-50 min-w-[168px] bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(u.id); toast.success(`Đã copy ID`); setOpenMenuId(null); }}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-left"
-                  >
-                    📋 Copy User ID
-                  </button>
-                  {u.state === "Locked" ? (
+        {users.length === 0 && !loading ? (
+          <div className="p-12 text-center text-slate-500">Không tìm thấy người dùng phù hợp.</div>
+        ) : (
+          <PaginatedDataTable
+            headers={["ID", "Tên đăng nhập", "Email", "Quyền", "Trạng thái", "Tin nhắn", "Hành động"]}
+            rows={users.map((u: any) => [
+              <IdCell key="id" value={u.id} />,
+              <strong key="n" className="text-slate-800 dark:text-slate-200">{u.name}</strong>,
+              u.email,
+              <span key="r" className="font-semibold text-blue-600 dark:text-blue-400 text-[12px]">{u.role}</span>,
+              <StatePill key="state" label={u.state} />,
+              formatNumber(u.messages),
+              <div key="actions" className="flex items-center gap-2 relative">
+                <button 
+                  onClick={() => handleImpersonate(u.id)}
+                  className="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-xs rounded-md font-medium transition-colors dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300"
+                >
+                  Login As
+                </button>
+                <button 
+                  onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
+                  title="Tùy chọn"
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 dark:text-slate-400 dark:hover:bg-white/10"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+                {openMenuId === u.id && (
+                  <div className="absolute right-0 top-8 z-50 min-w-[168px] bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <button
-                      onClick={() => handleLock(u.id, false)}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-green-600 dark:text-green-400 text-left"
+                      onClick={() => { navigator.clipboard.writeText(u.id); toast.success(`Đã copy ID`); setOpenMenuId(null); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-left"
                     >
-                      🔓 Mở khóa tài khoản
+                      📋 Copy User ID
                     </button>
-                  ) : (
-                    <button
-                      onClick={() => handleLock(u.id, true)}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400 text-left"
-                    >
-                      🔒 Khóa tài khoản
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ])}
-        />
+                    {u.state === "Locked" ? (
+                      <button
+                        onClick={() => handleLock(u.id, false)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-green-600 dark:text-green-400 text-left"
+                      >
+                        🔓 Mở khóa tài khoản
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleLock(u.id, true)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400 text-left"
+                      >
+                        🔒 Khóa tài khoản
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ])}
+          />
         )}
       </Panel>
     </div>
@@ -609,27 +682,30 @@ function ConversationsSection({ rooms, loading, setActiveSection, setSelectedRoo
         onFilterChange={setActiveFilter}
       />
       <Panel title="Danh sách phòng hiện tại" action={loading ? "Đang tải..." : `${filteredRooms.length} phòng`}>
-        <DataTable
-          headers={["Mã phòng", "Tên", "Phân loại", "Số lượng", "Tương tác", "Lần cuối", ""]}
-          rows={filteredRooms.map((room: any) => [
-            <span key="id" className="text-slate-500 dark:text-slate-400 text-xs font-mono">{room.id?.slice(0, 8)}...</span>,
-            <strong key="n" className="text-slate-800 dark:text-slate-200">{room.name}</strong>,
-            <TypePill key="type" label={room.type} />,
-            room.members, formatNumber(room.messages), 
-            <span key="t" className="text-slate-500 dark:text-slate-400 text-xs">{formatDateStr(room.updatedAt)}</span>,
-            <button 
-              key="more" 
-              onClick={() => {
-                setSelectedRoomId(room.id);
-                setActiveSection("messages");
-              }}
-              title="Xem tin nhắn"
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 dark:text-slate-400 dark:hover:bg-white/10"
-            >
-              <MoreHorizontal size={18} />
-            </button>
-          ])}
-        />
+        {filteredRooms.length === 0 && !loading ? (
+          <div className="p-12 text-center text-slate-500">Không tìm thấy phòng phù hợp.</div>
+        ) : (
+          <PaginatedDataTable
+            headers={["Mã phòng", "Tên", "Phân loại", "Số lượng", "Tương tác", "Lần cuối", ""]}
+            rows={filteredRooms.map((room: any) => [
+              <span key="id" className="text-slate-500 dark:text-slate-400 text-xs font-mono">{room.id?.slice(0, 8)}...</span>,
+              <strong key="n" className="text-slate-800 dark:text-slate-200">{room.name}</strong>,
+              <TypePill key="type" label={room.type} />,
+              room.members, formatNumber(room.messages), 
+              <span key="t" className="text-slate-500 dark:text-slate-400 text-xs">{formatDateStr(room.updatedAt)}</span>,
+              <button 
+                key="more" 
+                onClick={() => {
+                  setSelectedRoomId(room.id);
+                  setActiveSection("messages");
+                }}
+                title="Xem tin nhắn"
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 dark:text-slate-400 dark:hover:bg-white/10"
+              >
+                <MoreHorizontal size={18} />
+              </button>
+            ])}
+          />
         )}
       </Panel>
     </div>
@@ -642,7 +718,22 @@ function MessagesSection({ roomId, setRoomId, searchQuery, typeFilter, onTypeFil
   const [loading, setLoading] = useState(false);
   const [inputRoom, setInputRoom] = useState(roomId || "");
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState("Tất cả");
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+
+  const applyLocalFilters = (items: any[], q?: string, type?: string) => {
+    let result = items;
+    const types = type && type !== "Tất cả" ? MESSAGE_TYPE_MAP[type] : null;
+    if (types) {
+      result = result.filter((msg) => types.includes(String(msg.type || "").toUpperCase()));
+    }
+    if (q?.trim()) {
+      const keyword = q.trim().toLowerCase();
+      result = result.filter((msg) =>
+        matchesSearch(keyword, [msg.content, msg.senderName, msg.senderId, msg.messageId, msg.type])
+      );
+    }
+    return result;
+  };
 
   const fetchMessages = async (targetId: string, q?: string) => {
     if (!targetId.trim()) return;
@@ -709,10 +800,10 @@ function MessagesSection({ roomId, setRoomId, searchQuery, typeFilter, onTypeFil
   }, [roomId]);
 
   const filteredMessages = messages.filter((msg) => {
-    if (activeFilter === "Tất cả") return true;
-    if (activeFilter === "Tin nhắn text") return msg.type === "TEXT";
-    if (activeFilter === "Hình ảnh") return msg.type === "IMAGE";
-    if (activeFilter === "Tệp tin") return ["DOCUMENT", "FILE", "FOLDER"].includes(msg.type);
+    if (typeFilter === "Tất cả") return true;
+    if (typeFilter === "Tin nhắn text") return msg.type === "TEXT";
+    if (typeFilter === "Hình ảnh") return msg.type === "IMAGE";
+    if (typeFilter === "Tệp tin") return ["DOCUMENT", "FILE", "FOLDER"].includes(msg.type);
     return true;
   });
 
@@ -721,8 +812,8 @@ function MessagesSection({ roomId, setRoomId, searchQuery, typeFilter, onTypeFil
       <Toolbar 
         title="Quản trị nội dung" 
         filters={["Tất cả", "Tin nhắn text", "Hình ảnh", "Tệp tin"]} 
-        activeFilter={activeFilter}
-        onFilterChange={setActiveFilter}
+        activeFilter={typeFilter}
+        onFilterChange={onTypeFilterChange}
       />
       
       <div className="flex items-center gap-3">
@@ -755,7 +846,7 @@ function MessagesSection({ roomId, setRoomId, searchQuery, typeFilter, onTypeFil
         )}
         
         {filteredMessages.length > 0 && (
-          <DataTable
+          <PaginatedDataTable
             headers={["Mã TN", "Người gửi", "Loại", "Nội dung", "Thời gian"]}
             rows={filteredMessages.map((msg: any) => [
               <span key="id" className="text-slate-500 dark:text-slate-400 text-xs font-mono">{msg.messageId?.slice(0, 8)}...</span>,
@@ -792,16 +883,16 @@ function MediaSection({ mediaStats, activeFilter, onFilterChange, searchQuery }:
         {rows.length === 0 ? (
           <div className="p-12 text-center text-slate-500">Không có mục phù hợp bộ lọc.</div>
         ) : (
-        <PaginatedDataTable
-          resetKey={`media-${rows.length}-${activeFilter}-${searchQuery}`}
-          headers={["Tính năng", "Endpoint", "Trạng thái", "Ghi chú"]}
-          rows={rows.map((row) => [
-            row.label,
-            row.endpoint,
-            <StatePill key={`s-${row.label}`} label={row.status} />,
-            row.note,
-          ])}
-        />
+          <PaginatedDataTable
+            resetKey={`media-${rows.length}-${activeFilter}-${searchQuery}`}
+            headers={["Tính năng", "Endpoint", "Trạng thái", "Ghi chú"]}
+            rows={rows.map((row) => [
+              row.label,
+              row.endpoint,
+              <StatePill key={`s-${row.label}`} label={row.status} />,
+              row.note,
+            ])}
+          />
         )}
         {mediaStats.note && <p className="px-6 pb-4 text-sm text-slate-500">{mediaStats.note}</p>}
       </Panel>
@@ -825,7 +916,7 @@ function GroupsSection({ groups, loading, onDisband, activeFilter, onFilterChang
             room.members,
             room.messages,
             <span key="t" className="text-slate-500 dark:text-slate-400 text-xs">{formatDateStr(room.updatedAt)}</span>,
-            "Cấp quyền Admin"
+            <button key="d" type="button" onClick={() => void onDisband(room.id)} className="text-xs px-3 py-1 rounded-lg bg-rose-100 text-rose-700 font-bold">Giải tán</button>,
           ])}
         />
         )}
@@ -891,7 +982,7 @@ function ModerationSection() {
         {loading ? (
           <div className="p-6 text-center text-sm text-slate-500">Đang tải...</div>
         ) : (
-          <DataTable
+          <PaginatedDataTable
             headers={["Loại", "Ngày", "Chủ sở hữu", "Nội dung", "Lý do", "Hành động"]}
             rows={filteredFlags.map((item: any) => [
               <span key="type" className={`inline-flex items-center h-5 px-2 rounded text-[11px] font-bold ${
@@ -931,7 +1022,7 @@ function ModerationSection() {
   );
 }
 
-function ReportsSection({ messageStats, activeStats, endpoints }: any) {
+function ReportsSection({ messageStats, activeStats, endpoints, listResetKey }: any) {
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -1036,7 +1127,7 @@ function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterC
   return (
     <div className="flex flex-col gap-6">
       <Toolbar title="Cấu hình Phân Quyền" filters={["Tất cả", "ROLE_ADMIN"]} activeFilter={activeFilter} onFilterChange={onFilterChange} />
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Panel title="Danh sách Admin hiện tại" action={`${admins.length} admin`}>
           <PaginatedDataTable
@@ -1068,7 +1159,7 @@ function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterC
             <p className="text-sm text-slate-500 mb-6 dark:text-slate-400">
               Chỉ những tài khoản mang quyền <strong>ROLE_ADMIN</strong> mới có thể thấy trang quản trị này và sử dụng các tính năng đặc quyền.
             </p>
-            
+
             {message && (
               <div className={`mb-4 p-3 rounded-xl border text-sm font-medium flex items-center gap-2 ${message.type === 'success' ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400' : 'bg-red-50 border-red-200 text-red-600 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400'}`}>
                 {message.type === 'success' ? <CheckCircle2 size={16} /> : <Activity size={16} />}
@@ -1079,8 +1170,8 @@ function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterC
             <div className="flex flex-col gap-4">
               <div>
                 <label className="block text-sm font-semibold mb-1.5 text-slate-700 dark:text-slate-300">Số điện thoại người dùng</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="VD: 0352359401"
@@ -1090,7 +1181,7 @@ function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterC
 
               <div>
                 <label className="block text-sm font-semibold mb-1.5 text-slate-700 dark:text-slate-300">Chọn Quyền</label>
-                <select 
+                <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   className="w-full h-11 px-4 rounded-xl border bg-slate-50 border-slate-200 text-sm focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer dark:bg-slate-800 dark:border-slate-700 dark:text-white"
@@ -1100,8 +1191,8 @@ function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterC
                 </select>
               </div>
 
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={handleGrantRole}
                 disabled={loading}
                 className="mt-2 h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-md shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1160,15 +1251,14 @@ function Toolbar({ title, filters, activeFilter, onFilterChange }: any) {
         {filters.map((filter: string) => {
           const isActive = activeFilter === filter;
           return (
-            <button 
-              key={filter} 
-              type="button" 
-              onClick={() => onFilterChange && onFilterChange(filter)}
-              className={`inline-flex items-center gap-2 h-9 px-4 rounded-xl border text-[13px] font-semibold transition-all duration-200 hover:shadow-md ${
-                isActive 
-                  ? "bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-500/20 dark:border-blue-500 dark:text-blue-300"
+            <button
+              key={filter}
+              type="button"
+              onClick={() => onFilterChange?.(filter)}
+              className={`inline-flex items-center gap-2 h-9 px-4 rounded-xl border text-[13px] font-semibold transition-all duration-200 hover:shadow-md ${isActive
+                  ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20"
                   : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:border-slate-500"
-              }`}
+                }`}
             >
               <Filter size={14} className={isActive ? "opacity-100" : "opacity-70"} />
               {filter}
@@ -1183,7 +1273,7 @@ function Toolbar({ title, filters, activeFilter, onFilterChange }: any) {
 function MiniBars({ data, tone }: any) {
   const normalized = data.length ? data : [{ date: "N/A", count: 0 }];
   const max = Math.max(...normalized.map((p: any) => Number(p.count) || 0), 1);
-  
+
   const bgColors = {
     blue: "bg-blue-500",
     emerald: "bg-emerald-500",
@@ -1224,13 +1314,118 @@ function EndpointTable({ rows, resetKey }: { rows: any[]; resetKey?: string }) {
   );
 }
 
-function DataTable({ headers, rows, rowsPerPage = 10 }: any) {
-  const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.ceil(rows.length / rowsPerPage);
+function PaginatedDataTable({
+  headers,
+  rows,
+  resetKey,
+  columnClasses,
+}: {
+  headers: string[];
+  rows: React.ReactNode[][];
+  resetKey?: string | number;
+  columnClasses?: string[];
+}) {
+  const [page, setPage] = useState(1);
+  const totalItems = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
 
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const currentRows = rows.slice(startIndex, startIndex + rowsPerPage);
+  useEffect(() => {
+    setPage(1);
+  }, [resetKey]);
 
+  const safePage = Math.min(page, totalPages);
+  const paginatedRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  return (
+    <>
+      <DataTable headers={headers} rows={paginatedRows} columnClasses={columnClasses} />
+      <Pagination page={safePage} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
+    </>
+  );
+}
+
+function Pagination({
+  page,
+  totalPages,
+  totalItems,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+}) {
+  const start = totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const end = Math.min(page * PAGE_SIZE, totalItems);
+  const pageNumbers = buildPageNumbers(page, totalPages);
+
+  const pageButtons: React.ReactNode[] = [];
+  let prev = 0;
+  pageNumbers.forEach((pageNum) => {
+    if (prev && pageNum - prev > 1) {
+      pageButtons.push(
+        <span key={`ellipsis-${pageNum}`} className="px-1.5 text-slate-400 text-sm select-none">
+          …
+        </span>
+      );
+    }
+    const isActive = pageNum === page;
+    pageButtons.push(
+      <button
+        key={pageNum}
+        type="button"
+        onClick={() => onPageChange(pageNum)}
+        className={`min-w-[36px] h-9 px-2 rounded-lg text-sm font-semibold transition-colors ${
+          isActive
+            ? "bg-blue-600 text-white shadow-sm"
+            : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+        }`}
+      >
+        {pageNum}
+      </button>
+    );
+    prev = pageNum;
+  });
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-700/80 bg-slate-50/30 dark:bg-slate-800/30">
+      <span className="text-[13px] text-slate-500 dark:text-slate-400">
+        Hiển thị <strong className="text-slate-700 dark:text-slate-200">{start}–{end}</strong> / {totalItems} mục
+        <span className="mx-2 text-slate-300">·</span>
+        {PAGE_SIZE} mục/trang
+      </span>
+      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+        <button
+          type="button"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+          className="h-9 px-3 rounded-lg border text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200"
+        >
+          Trước
+        </button>
+        {pageButtons}
+        <button
+          type="button"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+          className="h-9 px-3 rounded-lg border text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200"
+        >
+          Sau
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DataTable({
+  headers,
+  rows,
+  columnClasses,
+}: {
+  headers: string[];
+  rows: React.ReactNode[][];
+  columnClasses?: string[];
+}) {
   return (
     <div className="overflow-visible w-full pb-2">
       <table className="w-full text-left border-collapse whitespace-nowrap">
@@ -1247,7 +1442,7 @@ function DataTable({ headers, rows, rowsPerPage = 10 }: any) {
           </tr>
         </thead>
         <tbody>
-          {currentRows.map((row: React.ReactNode[], index: number) => (
+          {rows.map((row: React.ReactNode[], index: number) => (
             <tr key={index} className="transition-colors duration-200 border-b last:border-b-0 border-slate-50 hover:bg-slate-50 dark:border-slate-700/50 dark:hover:bg-slate-700/20">
               {row.map((cell, cellIndex) => (
                 <td
@@ -1259,7 +1454,7 @@ function DataTable({ headers, rows, rowsPerPage = 10 }: any) {
               ))}
             </tr>
           ))}
-          {currentRows.length === 0 && (
+          {rows.length === 0 && (
             <tr>
               <td colSpan={headers.length} className="py-8 text-center text-slate-500 dark:text-slate-400">
                 Không có dữ liệu
@@ -1268,33 +1463,6 @@ function DataTable({ headers, rows, rowsPerPage = 10 }: any) {
           )}
         </tbody>
       </table>
-      
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-700/50">
-          <span className="text-sm text-slate-500 dark:text-slate-400">
-            Hiển thị {startIndex + 1} - {Math.min(startIndex + rowsPerPage, rows.length)} trong số {rows.length}
-          </span>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-50 text-sm font-medium transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              Trước
-            </button>
-            <span className="text-sm font-medium px-2">
-              Trang {currentPage} / {totalPages}
-            </span>
-            <button 
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-50 text-sm font-medium transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              Sau
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1308,7 +1476,7 @@ function CapabilityGrid({ items }: any) {
         return (
           <div key={index} className="flex items-start gap-3 p-4 rounded-2xl border transition-all duration-300 hover:shadow-md bg-white border-slate-200 hover:border-slate-300 dark:bg-[#1e293b]/60 dark:border-slate-700/80 dark:hover:bg-[#1e293b]">
             <div className="mt-1 rounded-full p-0.5 border-2 border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-800">
-               <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
+              <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
             </div>
             <div>
               <div className="text-[14px] font-bold mb-0.5 text-slate-800 dark:text-slate-200">{label}</div>
@@ -1326,9 +1494,9 @@ function StatePill({ label }: { label: string }) {
   const lower = label.toLowerCase();
   const isErr = lower.includes("cần") || lower.includes("locked") || lower.includes("bị") || lower.includes("chưa");
   const isWarn = lower.includes("một") || lower.includes("chờ") || lower.includes("đang");
-  
+
   let styles = "bg-green-100 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400";
-  
+
   if (isErr) {
     styles = "bg-rose-100 border-rose-200 text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400";
   } else if (isWarn) {
@@ -1339,10 +1507,10 @@ function StatePill({ label }: { label: string }) {
 }
 
 function TypePill({ label }: { label: string }) {
-  const styles = label === "GROUP" 
-    ? "bg-blue-100 border-blue-200 text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/30 dark:text-blue-400" 
-    : label === "CLOUD" 
-      ? "bg-purple-100 border-purple-200 text-purple-700 dark:bg-purple-500/15 dark:border-purple-500/30 dark:text-purple-400" 
+  const styles = label === "GROUP"
+    ? "bg-blue-100 border-blue-200 text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/30 dark:text-blue-400"
+    : label === "CLOUD"
+      ? "bg-purple-100 border-purple-200 text-purple-700 dark:bg-purple-500/15 dark:border-purple-500/30 dark:text-purple-400"
       : "bg-sky-100 border-sky-200 text-sky-700 dark:bg-sky-500/15 dark:border-sky-500/30 dark:text-sky-400";
   return <span className={`inline-flex items-center h-6 px-3 rounded-full text-[12px] font-bold border tracking-wider ${styles}`}>{label}</span>;
 }
