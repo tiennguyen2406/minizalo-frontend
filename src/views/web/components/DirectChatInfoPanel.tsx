@@ -16,6 +16,7 @@ import { Message } from '@/shared/types';
 import MediaGalleryViewer, { type MediaGalleryItem } from './MediaGalleryViewer';
 import { getImageUrl } from '@/shared/utils/mediaUtils';
 import { isImageAttachment, isVideoAttachment } from '@/shared/utils/messageAttachments';
+import ReportAbuseModal from '@/shared/components/ReportAbuseModal';
 
 // ── Mute Duration Modal ─────────────────────────────────────────────────────
 const MUTE_OPTIONS = [
@@ -237,6 +238,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
     const [showNicknameModal, setShowNicknameModal] = useState(false);
     const [isClearHistoryModalOpen, setIsClearHistoryModalOpen] = useState(false);
     const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
     const [businessDescExpanded, setBusinessDescExpanded] = useState(false);
 
     const isPinned = pinnedRooms.has(room.id);
@@ -830,7 +832,17 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
 
             {/* Danger zone */}
             <div className="py-2 border-t border-[color:var(--border-primary)] mt-1">
-                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors text-left">
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (!partner?.id) {
+                            setToast('Không xác định được người dùng để báo cáo.');
+                            return;
+                        }
+                        setShowReportModal(true);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--bg-hover)] transition-colors text-left"
+                >
                     <Icon.Alert />
                     <span className="text-sm text-[color:var(--text-secondary)]">Báo xấu</span>
                 </button>
@@ -864,6 +876,18 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                     avatarSrc={avatarSrc}
                     onClose={() => setShowNicknameModal(false)}
                     onConfirm={handleNicknameConfirm}
+                />
+            )}
+
+            {partner?.id && (
+                <ReportAbuseModal
+                    visible={showReportModal}
+                    onClose={() => setShowReportModal(false)}
+                    targetType="USER"
+                    targetId={partner.id}
+                    subjectLabel={displayName}
+                    contextDetails={`roomId: ${room.id}`}
+                    onSuccess={() => setToast('Đã gửi báo cáo. Đội ngũ kiểm duyệt sẽ xem xét.')}
                 />
             )}
 

@@ -20,6 +20,7 @@ import { Platform } from "react-native";
 import { useRouter } from "expo-router";
 import toast from "react-hot-toast";
 import { api } from "@/shared/services/apiClient";
+import { adminService } from "@/shared/services/adminService";
 import { AuthGuard } from "@/shared/guards/AuthGuard";
 import { useAuthStore } from "@/shared/store/authStore";
 
@@ -46,12 +47,16 @@ const sections: { id: AdminSectionId; label: string; icon: React.ComponentType<{
 ];
 
 const endpointRows: { module: string; endpoint: string; status: ApiStatus; note: string; }[] = [
-  { module: "Dashboard", endpoint: "GET /api/analytics/overview", status: "ready", note: "Tổng user" },
-  { module: "Dashboard", endpoint: "GET /api/analytics/messages", status: "ready", note: "Tin nhắn theo ngày" },
-  { module: "Dashboard", endpoint: "GET /api/analytics/users/active", status: "ready", note: "Active users" },
-  { module: "User", endpoint: "GET /api/admin/users", status: "ready", note: "Danh sách toàn hệ thống" },
+  { module: "Dashboard", endpoint: "GET /api/admin/dashboard/summary", status: "ready", note: "Tổng quan hệ thống" },
+  { module: "Dashboard", endpoint: "GET /api/admin/dashboard/storage", status: "ready", note: "MinIO / media" },
+  { module: "User", endpoint: "GET /api/admin/users", status: "ready", note: "Danh sách + phân trang" },
+  { module: "User", endpoint: "PATCH /api/admin/users/{id}/lock", status: "ready", note: "Khóa tài khoản" },
   { module: "Chat room", endpoint: "GET /api/admin/rooms", status: "ready", note: "Danh sách phòng" },
-  { module: "Audit", endpoint: "GET /api/admin/audit-logs", status: "ready", note: "Ghi log thao tác" },
+  { module: "Messages", endpoint: "DELETE /api/admin/messages/{roomId}/{id}", status: "ready", note: "Xóa tin nhắn" },
+  { module: "Groups", endpoint: "DELETE /api/admin/groups/{id}", status: "ready", note: "Giải tán nhóm" },
+  { module: "Moderation", endpoint: "GET /api/admin/moderation/reports", status: "ready", note: "Báo cáo vi phạm" },
+  { module: "Audit", endpoint: "GET /api/admin/audit-logs", status: "ready", note: "Admin audit log" },
+  { module: "Admin", endpoint: "GET /api/admin/admins", status: "ready", note: "Danh sách admin" },
 ];
 
 function formatNumber(value?: number) {
@@ -69,7 +74,71 @@ function formatDateStr(value?: string) {
 function statusMeta(status: ApiStatus) {
   if (status === "ready") return { label: "Sẵn sàng", className: "bg-green-100 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400" };
   if (status === "partial") return { label: "Một phần", className: "bg-amber-100 border-amber-200 text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400" };
-  return { label: "Thiếu API", className: "bg-rose-100 border-rose-200 text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400" };
+  return { label: "Thiếu API", className: "bg-rose-100 border-rose-200 text-rose-700 dark:bg-rose-500/10 dark:border-red-500/20 dark:text-rose-400" };
+}
+
+function normalizeSearch(value?: string) {
+  return (value || "").trim().toLowerCase();
+}
+
+function matchesSearch(query: string, fields: (string | number | undefined | null)[]) {
+  const keyword = normalizeSearch(query);
+  if (!keyword) return true;
+  return fields.some((field) => String(field ?? "").toLowerCase().includes(keyword));
+}
+
+const ROOM_TYPE_MAP: Record<string, string> = {
+  "Cá nhân": "DIRECT",
+  "Nhóm": "GROUP",
+  "Cloud": "CLOUD",
+};
+
+const MESSAGE_TYPE_MAP: Record<string, string[]> = {
+  "Tin nhắn text": ["TEXT"],
+  "Hình ảnh": ["IMAGE"],
+  "Tệp tin": ["FILE", "DOCUMENT", "VIDEO", "VOICE"],
+};
+
+const PAGE_SIZE = 10;
+
+function buildPageNumbers(current: number, total: number): number[] {
+  if (total <= 1) return [1];
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set<number>([1, total, current, current - 1, current + 1, current - 2, current + 2]);
+  return Array.from(pages)
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+}
+
+/** Hiển thị UUID đầy đủ (xuống dòng) + bấm để copy. */
+function IdCell({ value }: { value?: string | null }) {
+  const [copied, setCopied] = useState(false);
+  const id = value?.trim() || "";
+  if (!id) return <span className="text-slate-400 text-xs">—</span>;
+
+  const copyId = async () => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard không khả dụng */
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={() => void copyId()}
+      title={copied ? "Đã copy ID" : `${id} — bấm để copy`}
+      className="group block max-w-[11rem] sm:max-w-[13rem] text-left font-mono text-[11px] leading-[1.35] text-slate-600 break-all whitespace-normal hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400"
+    >
+      {id}
+      <span className="mt-0.5 block text-[10px] font-sans font-medium text-slate-400 group-hover:text-blue-500 dark:group-hover:text-blue-400">
+        {copied ? "Đã copy" : "Copy ID"}
+      </span>
+    </button>
+  );
 }
 
 export default function AdminDashboardWeb() {
@@ -77,16 +146,36 @@ export default function AdminDashboardWeb() {
   const user = useAuthStore((s) => s.user);
   const [activeSection, setActiveSection] = useState<AdminSectionId>("dashboard");
   const [overview, setOverview] = useState<OverviewStats>({});
+  const [dashboardSummary, setDashboardSummary] = useState<any>({});
   const [messageStats, setMessageStats] = useState<MessageStats>({});
   const [activeStats, setActiveStats] = useState<ActiveUserStats>({});
   const [users, setUsers] = useState<any[]>([]);
   const [rooms, setRooms] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [reports, setReports] = useState<any[]>([]);
   const [audits, setAudits] = useState<any[]>([]);
+  const [admins, setAdmins] = useState<any[]>([]);
+  const [mediaStats, setMediaStats] = useState<any>({});
+  const [topRooms, setTopRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [range, setRange] = useState("30");
   const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [userFilter, setUserFilter] = useState("Tất cả");
+  const [roomFilter, setRoomFilter] = useState("Tất cả");
+  const [messageFilter, setMessageFilter] = useState("Tất cả");
+  const [mediaFilter, setMediaFilter] = useState("Tất cả");
+  const [groupFilter, setGroupFilter] = useState("Tất cả");
+  const [moderationFilter, setModerationFilter] = useState("Tất cả");
+  const [auditFilter, setAuditFilter] = useState("Tất cả");
+  const [adminFilter, setAdminFilter] = useState("Tất cả");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const sinceIso = useMemo(() => {
     const date = new Date();
@@ -94,28 +183,85 @@ export default function AdminDashboardWeb() {
     return date.toISOString().slice(0, 19);
   }, [range]);
 
+  const loadUsers = async () => {
+    const locked = userFilter === "Bị khóa" ? true : undefined;
+    const role = userFilter === "ROLE_USER" || userFilter === "ROLE_ADMIN" ? userFilter : undefined;
+    const res = await adminService.getUsers({
+      q: debouncedQuery || undefined,
+      role,
+      locked,
+      page: 0,
+      size: 200,
+    }).catch(() => ({ data: { content: [] } }));
+    setUsers(res.data?.content || []);
+  };
+
+  const loadReports = async () => {
+    const status = moderationFilter !== "Tất cả" ? moderationFilter : undefined;
+    const res = await adminService.getReports({ status, page: 0, size: 100 }).catch(() => ({ data: { content: [] } }));
+    setReports(res.data?.content || []);
+  };
+
   const loadAnalytics = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [overviewRes, messagesRes, activeRes, usersRes, roomsRes, auditsRes] = await Promise.all([
+      const [summaryRes, overviewRes, messagesRes, activeRes, roomsRes, groupsRes, auditsRes, adminsRes, mediaRes, topRoomsRes] = await Promise.all([
+        adminService.getDashboardSummary().catch(() => ({ data: {} })),
         api.get<OverviewStats>("/analytics/overview"),
         api.get<MessageStats>("/analytics/messages", { params: { since: sinceIso } }),
         api.get<ActiveUserStats>("/analytics/users/active", { params: { limit: 10 } }),
-        api.get("/admin/users").catch(() => ({ data: [] })),
-        api.get("/admin/rooms").catch(() => ({ data: [] })),
-        api.get("/admin/audit-logs").catch(() => ({ data: [] })),
+        adminService.getRooms({ page: 0, size: 200 }).catch(() => ({ data: { content: [] } })),
+        adminService.getGroups({ page: 0, size: 200 }).catch(() => ({ data: { content: [] } })),
+        adminService.getAuditLogs({ page: 0, size: 100 }).catch(() => ({ data: { content: [] } })),
+        adminService.getAdmins().catch(() => ({ data: [] })),
+        adminService.getMediaStats().catch(() => ({ data: {} })),
+        adminService.getAnalyticsTopRooms(10).catch(() => ({ data: { topRooms: [] } })),
       ]);
+      setDashboardSummary(summaryRes.data || {});
       setOverview(overviewRes.data || {});
       setMessageStats(messagesRes.data || {});
       setActiveStats(activeRes.data || {});
-      setUsers(usersRes.data || []);
-      setRooms(roomsRes.data || []);
-      setAudits(auditsRes.data || []);
+      setRooms(roomsRes.data?.content || []);
+      setGroups(groupsRes.data?.content || []);
+      setAudits(auditsRes.data?.content || []);
+      setAdmins(adminsRes.data || []);
+      setMediaStats(mediaRes.data || {});
+      setTopRooms(topRoomsRes.data?.topRooms || []);
+      await Promise.all([loadUsers(), loadReports()]);
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || "Không tải được dữ liệu");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLockUser = async (userId: string, locked: boolean) => {
+    try {
+      if (locked) await adminService.unlockUser(userId);
+      else await adminService.lockUser(userId);
+      await loadAnalytics();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Không thể cập nhật trạng thái user");
+    }
+  };
+
+  const handleDisbandGroup = async (groupId: string) => {
+    if (!confirm("Giải tán nhóm này? Hành động không thể hoàn tác.")) return;
+    try {
+      await adminService.disbandGroup(groupId);
+      await loadAnalytics();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Không thể giải tán nhóm");
+    }
+  };
+
+  const handleResolveReport = async (reportId: string) => {
+    try {
+      await adminService.resolveReport(reportId, "Đã xử lý bởi admin");
+      await loadAnalytics();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Không thể xử lý báo cáo");
     }
   };
 
@@ -161,15 +307,20 @@ export default function AdminDashboardWeb() {
     return `${row.module} ${row.endpoint} ${row.note}`.toLowerCase().includes(keyword);
   });
 
+  const listResetKey = `${activeSection}-${debouncedQuery}-${userFilter}-${roomFilter}-${messageFilter}-${mediaFilter}-${groupFilter}-${moderationFilter}-${auditFilter}-${adminFilter}`;
+
   return (
-    <AuthGuard mode="requireAuth" allowedRoles={["ROLE_ADMIN"]}>
+    <AuthGuard
+      mode="requireAuth"
+      allowedRoles={["ROLE_ADMIN"]}
+      loginPath="/admin-login"
+      homePath="/admin-login"
+    >
       <div className="h-screen w-screen flex overflow-hidden font-sans transition-colors duration-300 bg-[#f4f7fb] text-slate-900 dark:bg-[#0b1120] dark:text-gray-100">
         
         {/* Sidebar */}
         <aside className="w-[260px] min-w-[260px] flex flex-col p-5 gap-6 backdrop-blur-xl border-r transition-colors duration-300 z-10 bg-white/80 border-slate-200/50 dark:bg-[#111827]/80 dark:border-white/5">
           <button 
-            type="button" 
-            onClick={() => router.push("/(tabs)")}
             className="flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-300 group bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 dark:from-blue-900/40 dark:to-blue-800/20 dark:border-blue-500/30 dark:hover:border-blue-400/50 dark:hover:from-blue-800/40"
           >
             <div className="p-1.5 rounded-lg bg-blue-600 text-white shadow-sm dark:bg-blue-500/20 dark:text-blue-400">
@@ -220,7 +371,11 @@ export default function AdminDashboardWeb() {
                   <input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Tìm kiếm..."
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && activeSection === "users") void loadUsers();
+                      if (event.key === "Enter" && activeSection === "moderation") void loadReports();
+                    }}
+                    placeholder={searchPlaceholder}
                     className="bg-transparent outline-none border-none text-[14px] w-48 transition-all focus:w-64 text-slate-900 placeholder-slate-400 dark:text-white dark:placeholder-slate-500"
                   />
                 </div>
@@ -291,19 +446,25 @@ export default function AdminDashboardWeb() {
 
 // ---------------- UI COMPONENTS ----------------
 
-function DashboardSection({ loading, overview, messageStats, activeStats }: any) {
-  const totalMessages = messageStats.totalMessages || 0;
-  const activeUsers = activeStats.currentActiveUsers || 0;
+function DashboardSection({ loading, overview, dashboardSummary, messageStats, activeStats, topRooms, range, listResetKey }: any) {
+  const totalMessages = messageStats.totalMessages || dashboardSummary.messagesLast30Days || 0;
+  const activeUsers = activeStats.currentActiveUsers || dashboardSummary.activeUsersLast24h || 0;
   const dailyMessages = messageStats.dailyVolume || [];
   const dailyActive = activeStats.dailyActiveUsers || [];
 
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-        <Metric title="Tổng người dùng" value={formatNumber(overview.totalUsers)} tone="blue" detail="Tăng trưởng định kỳ" />
-        <Metric title="Tin nhắn gửi đi" value={formatNumber(totalMessages)} tone="indigo" detail="Hoạt động gần đây" />
+        <Metric title="Tổng người dùng" value={formatNumber(dashboardSummary.totalUsers ?? overview.totalUsers)} tone="blue" detail="Toàn hệ thống" />
+        <Metric title="Tin nhắn" value={formatNumber(totalMessages)} tone="indigo" detail={`${range} ngày qua`} />
         <Metric title="Người dùng Online" value={formatNumber(activeUsers)} tone="emerald" detail="Trong 24 giờ qua" />
-        <Metric title="API Kết nối" value="6/10" tone="rose" detail="Trạng thái tích hợp" />
+        <Metric title="Tài khoản bị khóa" value={formatNumber(dashboardSummary.lockedUsers)} tone="rose" detail={`${formatNumber(dashboardSummary.pendingReports)} báo cáo chờ`} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <Metric title="Tổng phòng chat" value={formatNumber(dashboardSummary.totalRooms)} tone="blue" detail={`${formatNumber(dashboardSummary.totalGroups)} nhóm`} />
+        <Metric title="Chat cá nhân" value={formatNumber(dashboardSummary.totalDirectChats)} tone="indigo" detail="DIRECT" />
+        <Metric title="Zalo Cloud" value={formatNumber(dashboardSummary.totalCloudRooms)} tone="emerald" detail="CLOUD" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -315,8 +476,20 @@ function DashboardSection({ loading, overview, messageStats, activeStats }: any)
         </Panel>
       </div>
 
-      <Panel title="Tình trạng API Backend (MVP)" action="Kiểm tra hệ thống">
-        <EndpointTable rows={endpointRows} />
+      <Panel title="Top phòng chat hoạt động" action={`${topRooms.length} phòng`}>
+        <PaginatedDataTable
+          resetKey={`top-${listResetKey}-${topRooms.length}`}
+          headers={["Tên phòng", "Loại", "Tin nhắn"]}
+          rows={topRooms.map((room: any) => [
+            <strong key="n">{room.name || room.roomId?.slice(0, 8)}</strong>,
+            <TypePill key="t" label={room.type} />,
+            formatNumber(room.messages),
+          ])}
+        />
+      </Panel>
+
+      <Panel title="Tình trạng API Backend" action="Kiểm tra hệ thống">
+        <EndpointTable rows={endpointRows} resetKey="api-endpoints" />
       </Panel>
     </div>
   );
@@ -357,12 +530,12 @@ function UsersSection({ users, loading }: any) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Toolbar title="Quản lý người dùng" filters={["Tất cả", "ROLE_USER", "Bị khóa"]} />
+      <Toolbar title="Quản lý người dùng" filters={["Tất cả", "ROLE_USER", "Bị khóa"]} activeFilter={activeFilter} onFilterChange={onFilterChange} />
       <Panel title="Danh sách tài khoản" action={loading ? "Đang tải..." : `${users.length} tài khoản`}>
         <DataTable
           headers={["ID", "Tên đăng nhập", "Email", "Quyền", "Trạng thái", "Tin nhắn", "Hành động"]}
           rows={users.map((u: any) => [
-            <span key="id" className="text-slate-500 dark:text-slate-400 text-xs font-mono">{u.id?.slice(0, 8)}...</span>,
+            <IdCell key="id" value={u.id} />,
             <strong key="n" className="text-slate-800 dark:text-slate-200">{u.name}</strong>,
             u.email,
             <span key="r" className="font-semibold text-blue-600 dark:text-blue-400 text-[12px]">{u.role}</span>,
@@ -410,6 +583,7 @@ function UsersSection({ users, loading }: any) {
             </div>
           ])}
         />
+        )}
       </Panel>
     </div>
   );
@@ -456,31 +630,71 @@ function ConversationsSection({ rooms, loading, setActiveSection, setSelectedRoo
             </button>
           ])}
         />
+        )}
       </Panel>
     </div>
   );
 }
 
-function MessagesSection({ roomId, setRoomId }: any) {
+function MessagesSection({ roomId, setRoomId, searchQuery, typeFilter, onTypeFilterChange }: any) {
   const [messages, setMessages] = useState<any[]>([]);
+  const [allMessages, setAllMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputRoom, setInputRoom] = useState(roomId || "");
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState("Tất cả");
 
-  const fetchMessages = async (targetId: string) => {
+  const fetchMessages = async (targetId: string, q?: string) => {
     if (!targetId.trim()) return;
     setLoading(true);
     setError(null);
+    setActionMsg(null);
     try {
-      const res = await api.get(`/admin/messages/${targetId}`);
-      setMessages(res.data || []);
+      const res = q?.trim()
+        ? await adminService.searchMessages({ roomId: targetId, q: q.trim(), limit: 100 })
+        : await adminService.getMessages(targetId, 100);
+      const loaded = res.data?.messages || res.data || [];
+      setAllMessages(loaded);
+      setMessages(applyLocalFilters(loaded, searchQuery, typeFilter));
       setRoomId(targetId);
     } catch (err: any) {
       setError(err.response?.data?.message || "Không tìm thấy phòng hoặc lỗi máy chủ");
       setMessages([]);
+      setAllMessages([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setMessages(applyLocalFilters(allMessages, searchQuery, typeFilter));
+  }, [allMessages, searchQuery, typeFilter]);
+
+  useEffect(() => {
+    if (searchQuery && roomId && allMessages.length === 0) {
+      void fetchMessages(roomId, searchQuery);
+    }
+  }, [searchQuery]);
+
+  const handleHide = async (msg: any) => {
+    if (!roomId || !msg.messageId) return;
+    try {
+      await adminService.hideMessage(roomId, msg.messageId);
+      setActionMsg("Đã ẩn tin nhắn");
+      await fetchMessages(roomId, searchQuery);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Không thể ẩn tin nhắn");
+    }
+  };
+
+  const handleDelete = async (msg: any) => {
+    if (!roomId || !msg.messageId || !confirm("Xóa tin nhắn này?")) return;
+    try {
+      await adminService.deleteMessage(roomId, msg.messageId);
+      setActionMsg("Đã xóa tin nhắn");
+      await fetchMessages(roomId, searchQuery);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Không thể xóa tin nhắn");
     }
   };
 
@@ -516,29 +730,28 @@ function MessagesSection({ roomId, setRoomId }: any) {
           type="text" 
           value={inputRoom}
           onChange={(e) => setInputRoom(e.target.value)}
-          placeholder="Nhập Room ID để xem tin nhắn..."
-          className="flex-1 h-11 px-4 rounded-xl border bg-white border-slate-200 text-[14px] shadow-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:bg-[#1e293b] dark:border-slate-700 dark:text-white"
+          placeholder="Room ID..."
+          className="flex-1 min-w-[200px] h-11 px-4 rounded-xl border bg-white border-slate-200 text-[14px] shadow-sm focus:outline-none focus:border-blue-500 dark:bg-[#1e293b] dark:border-slate-700 dark:text-white"
         />
-        <button 
-          onClick={() => fetchMessages(inputRoom)}
+        <button
+          onClick={() => fetchMessages(inputRoom, searchQuery)}
           disabled={loading}
-          className="h-11 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-[14px] transition-colors shadow-sm shadow-blue-500/20 disabled:opacity-50"
+          className="h-11 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-[14px] disabled:opacity-50"
         >
-          {loading ? "Đang tìm..." : "Tìm kiếm"}
+          {loading ? "Đang tìm..." : "Tải tin nhắn"}
         </button>
       </div>
 
-      {error && (
-        <div className="p-4 rounded-xl bg-red-50 text-red-600 border border-red-200 text-[14px] dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400">
-          {error}
-        </div>
+      {searchQuery && (
+        <p className="text-sm text-slate-500">Đang lọc theo tìm kiếm header: <strong>{searchQuery}</strong></p>
       )}
 
-      <Panel title={`Luồng tin nhắn (Phòng: ${roomId || "Trống"})`} action="Nền tảng DynamoDB">
+      {error && <div className="p-4 rounded-xl bg-red-50 text-red-600 border border-red-200 text-[14px] dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400">{error}</div>}
+      {actionMsg && <div className="p-4 rounded-xl bg-green-50 text-green-700 border border-green-200 text-[14px]">{actionMsg}</div>}
+
+      <Panel title={`Luồng tin nhắn (Phòng: ${roomId || "Trống"})`} action={`${messages.length} tin`}>
         {messages.length === 0 && !loading && !error && (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
-            Hãy nhập Room ID để tải danh sách tin nhắn.
-          </div>
+          <div className="p-12 text-center text-slate-500 dark:text-slate-400">Hãy nhập Room ID để tải danh sách tin nhắn.</div>
         )}
         
         {filteredMessages.length > 0 && (
@@ -549,7 +762,11 @@ function MessagesSection({ roomId, setRoomId }: any) {
               <strong key="sender" className="text-slate-800 dark:text-slate-200">{msg.senderName || msg.senderId}</strong>,
               <TypePill key="type" label={msg.type} />,
               <div key="content" className="max-w-xs truncate" title={msg.content}>{msg.content || "(Đính kèm/File)"}</div>,
-              <span key="time" className="text-slate-500 dark:text-slate-400 text-xs">{msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ""}</span>
+              <span key="time" className="text-slate-500 text-xs">{msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ""}</span>,
+              <div key="actions" className="flex gap-2">
+                <button type="button" onClick={() => void handleHide(msg)} className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-800">Ẩn</button>
+                <button type="button" onClick={() => void handleDelete(msg)} className="text-xs px-2 py-1 rounded bg-rose-100 text-rose-800">Xóa</button>
+              </div>,
             ])}
           />
         )}
@@ -558,32 +775,51 @@ function MessagesSection({ roomId, setRoomId }: any) {
   );
 }
 
-function MediaSection() {
+function MediaSection({ mediaStats, activeFilter, onFilterChange, searchQuery }: any) {
+  const rows = [
+    { label: "Upload file", endpoint: mediaStats.uploadEndpoint || "POST /api/files/upload", status: "Sẵn sàng", note: "Multipart", category: "Tài liệu" },
+    { label: "Presigned URL", endpoint: mediaStats.presignedEndpoint || "POST /api/media/presigned-url", status: "Sẵn sàng", note: "MinIO", category: "Tài liệu" },
+    { label: "Avatar", endpoint: mediaStats.avatarEndpoint || "PUT /api/users/avatar", status: "Sẵn sàng", note: "JPG/PNG ≤5MB", category: "Hình ảnh" },
+  ].filter((row) => {
+    if (activeFilter !== "Tất cả" && row.category !== activeFilter) return false;
+    return matchesSearch(searchQuery, [row.label, row.endpoint, row.note, row.category]);
+  });
+
   return (
     <div className="flex flex-col gap-6">
-      <Toolbar title="Lưu trữ & Tệp đính kèm" filters={["Hình ảnh", "Video", "Tài liệu"]} />
-      <Panel title="Cấu hình MinIO" action="Thông tin kết nối">
-        <DataTable
-          headers={["Tính năng", "Đầu cuối", "Định dạng", "Dung lượng", "Trạng thái"]}
-          rows={[
-            ["Tải lên Tệp", "POST /api/files/upload", "Multipart", "Không giới hạn", <StatePill key="s" label="Sẵn sàng" />],
-            ["Đổi Ảnh đại diện", "PUT /api/users/avatar", "JPG/PNG", "Dưới 5MB", <StatePill key="s" label="Sẵn sàng" />],
-            ["URL Sinh tự động", "POST /presigned", "Đối tượng", "Theo token", <StatePill key="s" label="Sẵn sàng" />],
-          ]}
+      <Toolbar title="Lưu trữ & Tệp đính kèm" filters={["Tất cả", "Hình ảnh", "Video", "Tài liệu"]} activeFilter={activeFilter} onFilterChange={onFilterChange} />
+      <Panel title="Thống kê lưu trữ" action={mediaStats.status || "MinIO"}>
+        {rows.length === 0 ? (
+          <div className="p-12 text-center text-slate-500">Không có mục phù hợp bộ lọc.</div>
+        ) : (
+        <PaginatedDataTable
+          resetKey={`media-${rows.length}-${activeFilter}-${searchQuery}`}
+          headers={["Tính năng", "Endpoint", "Trạng thái", "Ghi chú"]}
+          rows={rows.map((row) => [
+            row.label,
+            row.endpoint,
+            <StatePill key={`s-${row.label}`} label={row.status} />,
+            row.note,
+          ])}
         />
+        )}
+        {mediaStats.note && <p className="px-6 pb-4 text-sm text-slate-500">{mediaStats.note}</p>}
       </Panel>
     </div>
   );
 }
 
-function GroupsSection({ rooms, loading }: any) {
-  const groups = rooms.filter((r: any) => r.type === "GROUP");
+function GroupsSection({ groups, loading, onDisband, activeFilter, onFilterChange, listResetKey }: any) {
   return (
     <div className="flex flex-col gap-6">
-      <Toolbar title="Tổ chức & Cộng đồng" filters={["Công khai", "Kín", "Có Link"] } />
+      <Toolbar title="Tổ chức & Cộng đồng" filters={["Tất cả", "Công khai", "Kín", "Có Link"]} activeFilter={activeFilter} onFilterChange={onFilterChange} />
       <Panel title="Danh bạ Nhóm" action={loading ? "Đang tải..." : `${groups.length} Nhóm`}>
-        <DataTable
-          headers={["Tên nhóm", "Thành viên", "Tin nhắn", "Lần cuối", "Tương tác API"]}
+        {groups.length === 0 && !loading ? (
+          <div className="p-12 text-center text-slate-500">Không tìm thấy nhóm phù hợp.</div>
+        ) : (
+        <PaginatedDataTable
+          resetKey={listResetKey}
+          headers={["Tên nhóm", "Thành viên", "Tin nhắn", "Lần cuối", "Thao tác"]}
           rows={groups.map((room: any) => [
             <strong key="n" className="text-slate-800 dark:text-slate-200">{room.name}</strong>,
             room.members,
@@ -592,6 +828,7 @@ function GroupsSection({ rooms, loading }: any) {
             "Cấp quyền Admin"
           ])}
         />
+        )}
       </Panel>
     </div>
   );
@@ -732,41 +969,46 @@ function ReportsSection({ messageStats, activeStats, endpoints }: any) {
         </div>
       </Panel>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Panel title="Lưu lượng Truyền tải" action="GET /messages">
+        <Panel title="Lưu lượng Truyền tải" action="GET /analytics/messages">
           <MiniBars data={messageStats.dailyVolume || []} tone="violet" />
         </Panel>
-        <Panel title="Chỉ số Năng động" action="GET /active">
+        <Panel title="Chỉ số Năng động" action="GET /analytics/users/active">
           <MiniBars data={activeStats.dailyActiveUsers || []} tone="teal" />
         </Panel>
       </div>
       <Panel title="Danh sách Cổng kết nối API" action={`${endpoints.length} Routes`}>
-        <EndpointTable rows={endpoints} />
+        <EndpointTable rows={endpoints} resetKey={`reports-api-${listResetKey}-${endpoints.length}`} />
       </Panel>
     </div>
   );
 }
 
-function AuditSection({ audits, loading }: any) {
+function AuditSection({ audits, loading, activeFilter, onFilterChange, listResetKey }: any) {
   return (
     <div className="flex flex-col gap-6">
-      <Toolbar title="Nhật ký Hệ thống (Audit)" filters={["Hôm nay", "Cảnh báo", "Truy cập"]} />
-      <Panel title="Dấu vết Thao tác" action={loading ? "Đang tải..." : `${audits.length} bản ghi`}>
-        <DataTable
-          headers={["Thời điểm", "Thực thi bởi", "Hành động", "Mục tiêu", "Hậu quả"]}
-          rows={audits.map((row: any, i: number) => [
-            <span key="t" className="text-slate-500 dark:text-slate-400 text-[12px]">{row.time?.slice(0, 19).replace('T', ' ')}</span>,
-            <span key="actor" className="font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">{row.actor}</span>, 
-            <span key="act" className="font-semibold text-slate-800 dark:text-slate-200">{row.action}</span>,
-            <code key="tgt" className="px-2 py-0.5 rounded text-[12px] bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border dark:border-slate-700">{row.target}</code>, 
-            <StatePill key="s" label={row.status} />
-          ])}
-        />
+      <Toolbar title="Nhật ký Admin (Audit)" filters={["Tất cả", "LOCK_USER", "UNLOCK_USER", "DELETE_MESSAGE", "GRANT_ROLE"]} activeFilter={activeFilter} onFilterChange={onFilterChange} />
+      <Panel title="Dấu vết Thao tác Admin" action={loading ? "Đang tải..." : `${audits.length} bản ghi`}>
+        {audits.length === 0 ? (
+          <div className="p-12 text-center text-slate-500">Chưa có audit log admin. Các thao tác khóa user, xóa tin, cấp quyền sẽ được ghi tại đây.</div>
+        ) : (
+          <PaginatedDataTable
+            resetKey={listResetKey}
+            headers={["Thời điểm", "Hành động", "Loại", "Mục tiêu", "Trạng thái"]}
+            rows={audits.map((row: any) => [
+              <span key="t" className="text-slate-500 text-[12px]">{row.time?.slice(0, 19).replace("T", " ")}</span>,
+              <span key="act" className="font-semibold text-blue-600">{row.action}</span>,
+              row.targetType || "—",
+              <code key="tgt" className="text-xs">{row.target?.slice(0, 16)}</code>,
+              <StatePill key="s" label={row.status} />,
+            ])}
+          />
+        )}
       </Panel>
     </div>
   );
 }
 
-function AdminsSection({ currentUser }: { currentUser: string }) {
+function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterChange, listResetKey }: { currentUser: string; admins: any[]; onRefresh: () => void; activeFilter: string; onFilterChange: (v: string) => void; listResetKey: string }) {
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("ROLE_ADMIN");
   const [loading, setLoading] = useState(false);
@@ -780,9 +1022,10 @@ function AdminsSection({ currentUser }: { currentUser: string }) {
     setLoading(true);
     setMessage(null);
     try {
-      const res = await api.post("/admin/grant-role", { phone, role });
+      const res = await adminService.grantRole(phone, role);
       setMessage({ type: "success", text: res.data?.message || "Cấp quyền thành công" });
       setPhone("");
+      onRefresh();
     } catch (err: any) {
       setMessage({ type: "error", text: err?.response?.data?.message || err?.message || "Lỗi khi cấp quyền" });
     } finally {
@@ -792,11 +1035,25 @@ function AdminsSection({ currentUser }: { currentUser: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Toolbar title="Cấu hình Phân Quyền" filters={["Tất cả", "ROLE_ADMIN"]} />
+      <Toolbar title="Cấu hình Phân Quyền" filters={["Tất cả", "ROLE_ADMIN"]} activeFilter={activeFilter} onFilterChange={onFilterChange} />
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Panel title="Danh sách Admin hiện tại" action={`${admins.length} admin`}>
+          <PaginatedDataTable
+            resetKey={listResetKey}
+            headers={["Tên", "Email", "SĐT", "Thao tác"]}
+            rows={admins.map((a: any) => [
+              <strong key="n">{a.name}</strong>,
+              a.email,
+              a.phone || "—",
+              <button key="r" type="button" onClick={async () => { try { await adminService.revokeAdmin(a.id); onRefresh(); } catch (e: any) { setMessage({ type: "error", text: e?.response?.data?.message || "Lỗi" }); } }} className="text-xs px-2 py-1 rounded bg-rose-100 text-rose-700">Thu hồi</button>,
+            ])}
+          />
+        </Panel>
+
         <Panel title="Danh sách Vai trò Hệ thống" action={`Bạn là: ${currentUser}`}>
-          <DataTable
+          <PaginatedDataTable
+            resetKey="roles-static"
             headers={["Định danh Quyền", "Quyền hạn", "Triển khai"]}
             rows={[
               [<strong key="1" className="text-slate-800 dark:text-slate-200">ROLE_USER</strong>, "Giao tiếp, kết bạn, tham gia nhóm", <StatePill key="s" label="Hoàn tất" />],
@@ -949,9 +1206,10 @@ function MiniBars({ data, tone }: any) {
   );
 }
 
-function EndpointTable({ rows }: any) {
+function EndpointTable({ rows, resetKey }: { rows: any[]; resetKey?: string }) {
   return (
-    <DataTable
+    <PaginatedDataTable
+      resetKey={resetKey}
       headers={["Module", "Cổng kết nối (API)", "Đánh giá", "Mô tả"]}
       rows={rows.map((row: any) => {
         const meta = statusMeta(row.status);
@@ -979,7 +1237,10 @@ function DataTable({ headers, rows, rowsPerPage = 10 }: any) {
         <thead>
           <tr>
             {headers.map((header: string, i: number) => (
-              <th key={header + i} className="py-4 px-6 text-[13px] font-bold uppercase tracking-wider border-b text-slate-500 border-slate-100 bg-slate-50/50 dark:text-slate-400 dark:border-slate-700/80 dark:bg-slate-800/30">
+              <th
+                key={header + i}
+                className={`py-4 px-6 text-[13px] font-bold uppercase tracking-wider border-b text-slate-500 border-slate-100 bg-slate-50/50 dark:text-slate-400 dark:border-slate-700/80 dark:bg-slate-800/30 ${columnClasses?.[i] ?? "whitespace-nowrap"}`}
+              >
                 {header}
               </th>
             ))}
@@ -989,7 +1250,10 @@ function DataTable({ headers, rows, rowsPerPage = 10 }: any) {
           {currentRows.map((row: React.ReactNode[], index: number) => (
             <tr key={index} className="transition-colors duration-200 border-b last:border-b-0 border-slate-50 hover:bg-slate-50 dark:border-slate-700/50 dark:hover:bg-slate-700/20">
               {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="py-3.5 px-6 text-[14px] font-medium text-slate-700 dark:text-slate-200">
+                <td
+                  key={cellIndex}
+                  className={`py-3.5 px-6 text-[14px] font-medium text-slate-700 dark:text-slate-200 ${columnClasses?.[cellIndex] ?? "whitespace-nowrap"}`}
+                >
                   {cell}
                 </td>
               ))}
