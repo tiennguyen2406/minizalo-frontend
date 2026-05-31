@@ -10,9 +10,20 @@ export const getImageUrl = (url: string | null | undefined): string => {
     
     let finalUrl = url.trim();
 
+    // --- 0. Special rewrite for AWS S3 bucket (production) ---
+    const bucketMatch = finalUrl.match(/(minizalo-bucket-nhomcodex-[a-zA-Z0-9-]+)/);
+    if (bucketMatch) {
+        const matchedBucket = bucketMatch[1];
+        const idx = finalUrl.indexOf(matchedBucket);
+        if (idx !== -1) {
+            const relativePath = finalUrl.substring(idx + matchedBucket.length).replace(/^\/+/, "");
+            return `https://s3.ap-southeast-1.amazonaws.com/${matchedBucket}/${relativePath}`;
+        }
+    }
+
     // --- 1. Xử lý đường dẫn tương đối (ví dụ: minizalo-bucket/files/...) ---
     if (!finalUrl.startsWith("http") && !finalUrl.startsWith("file://") && !finalUrl.startsWith("data:")) {
-        const apiFullUrl = process.env?.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:8080/api";
+        const apiFullUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "") || "http://localhost:8080/api";
         
         // Cố gắng suy luận URL MinIO: thay thế port 8080 bằng 9000 nếu có
         let minioBase = apiFullUrl.replace("/api", "").replace(":8080", ":9000");

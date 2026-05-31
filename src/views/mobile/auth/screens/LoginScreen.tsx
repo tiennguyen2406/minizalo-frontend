@@ -2,11 +2,13 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeView as SafeAreaView } from "@/shared/components/SafeView";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useThemeColors } from "@/shared/theme/colors";
 
 export default function LoginScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const redirectTo = params.redirectTo as string;
     const colors = useThemeColors();
 
     return (
@@ -22,7 +24,7 @@ export default function LoginScreen() {
                         <TouchableOpacity
                             style={[styles.loginButton, { backgroundColor: colors.primary }]}
                             activeOpacity={0.8}
-                            onPress={() => router.push("/(auth)/login-form")}
+                            onPress={() => router.push({ pathname: "/(auth)/login-form", params: { redirectTo } })}
                         >
                             <Text style={styles.loginButtonText}>ĐĂNG NHẬP</Text>
                         </TouchableOpacity>

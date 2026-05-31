@@ -40,6 +40,8 @@ export function isImageAttachment(a: AttachmentLike | null | undefined): boolean
     return /\.(jpe?g|png|gif|webp|bmp|heic|heif|avif)(\?[^#]*)?(#|$)/i.test(u);
 }
 
+import { getImageUrl } from './mediaUtils';
+
 /**
  * Mọi URL ảnh trong một tin (một tin có thể gửi nhiều ảnh trong `attachments`).
  */
@@ -50,7 +52,7 @@ export function getImageAttachmentUrls(message: Message): string[] {
         const u = a?.url?.trim();
         if (!u) continue;
         if (!isImageAttachment(a)) continue;
-        out.push(u);
+        out.push(getImageUrl(u));
     }
     const uniq = [...new Set(out)];
     if (uniq.length === 0 && message.fileUrl?.trim()) {
@@ -61,7 +63,7 @@ export function getImageAttachmentUrls(message: Message): string[] {
             mime0.startsWith('image/') ||
             /\.(jpe?g|png|gif|webp)(\?|$)/i.test(u)
         ) {
-            uniq.push(u);
+            uniq.push(getImageUrl(u));
         }
     }
     return uniq;
@@ -77,7 +79,7 @@ export function getVideoAttachmentUrls(message: Message): string[] {
         const u = a?.url?.trim();
         if (!u) continue;
         if (!isVideoAttachment(a)) continue;
-        out.push(u);
+        out.push(getImageUrl(u));
     }
     const uniq = [...new Set(out)];
     if (uniq.length === 0 && message.fileUrl?.trim()) {
@@ -88,7 +90,7 @@ export function getVideoAttachmentUrls(message: Message): string[] {
             mime0.startsWith('video/') ||
             (/\.(mp4|webm|mov|m4v|mkv)(\?|$)/i.test(u) && !mime0.startsWith('audio/'))
         ) {
-            uniq.push(u);
+            uniq.push(getImageUrl(u));
         }
     }
     return uniq;
@@ -104,7 +106,7 @@ export function getAudioAttachmentUrls(message: Message): string[] {
         const u = a?.url?.trim();
         if (!u) continue;
         if (!isAudioAttachment(a)) continue;
-        out.push(u);
+        out.push(getImageUrl(u));
     }
     const uniq = [...new Set(out)];
     if (uniq.length === 0 && message.fileUrl?.trim()) {
@@ -115,7 +117,7 @@ export function getAudioAttachmentUrls(message: Message): string[] {
             mime0.startsWith('audio/') ||
             (/\.(mp3|wav|ogg|m4a|aac|webm)(\?|$)/i.test(u) && (mime0.startsWith('audio/') || (message.type as string) === 'VOICE'))
         ) {
-            uniq.push(u);
+            uniq.push(getImageUrl(u));
         }
     }
     return uniq;

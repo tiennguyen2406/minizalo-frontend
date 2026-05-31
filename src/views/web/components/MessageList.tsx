@@ -3,7 +3,7 @@ import MessageBubble from './MessageBubble';
 import ImageGroupBubble from './ImageGroupBubble';
 import { Message, User } from '@/shared/types';
 
-import { getImageAttachmentUrls } from '@/shared/utils/messageAttachments';
+import { getImageAttachmentUrls, isImageAttachment, isVideoAttachment } from '@/shared/utils/messageAttachments';
 import { buildChatGalleryItems, findChatGalleryIndex, type ChatGalleryItem } from '@/shared/utils/chatGallery';
 import { getImageUrl } from '@/shared/utils/mediaUtils';
 import { dedupCallMessages } from '@/shared/utils/dedupCallMessages';
@@ -227,6 +227,17 @@ type RenderItem =
     | { type: 'system'; content: string; id: string };
 
 function getEffectiveType(msg: Message): string {
+    const raw = msg.attachments || [];
+    const hasNonMediaFiles = raw.some(a => {
+        const url = a?.url?.trim();
+        if (!url) return false;
+        return !isImageAttachment(a) && !isVideoAttachment(a);
+    });
+
+    if (hasNonMediaFiles) {
+        return 'FILE';
+    }
+
     if (getImageAttachmentUrls(msg).length > 0) return 'IMAGE';
     let type: string = msg.type;
     if ((type === 'TEXT' || !type) && msg.fileUrl && msg.attachments?.[0]) {

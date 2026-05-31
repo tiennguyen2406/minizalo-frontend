@@ -15,6 +15,7 @@ import { useFriendStore } from "@/shared/store/friendStore";
 import { splitRoomsMainAndStrangers } from "@/shared/utils/strangerChatRooms";
 import { getChatPreviewText } from "@/shared/utils/chatPreview";
 import friendCategoryService from "@/shared/services/friendCategoryService";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
 export default function ChatListScreen() {
     const router = useRouter();
     const { rooms, setRooms, mergeRooms, pinnedRooms, mutedRooms, hiddenRooms, togglePinRoom, toggleMuteRoom, deleteRoom } = useChatStore();
@@ -79,30 +80,7 @@ export default function ChatListScreen() {
         return ids;
     }, [friends]);
 
-    // Helper function to process image URLs (similar to ChatScreen)
-    const getImageUrl = (url: string) => {
-        if (!url) return url;
-
-        // Handle MinIO relative paths (e.g., "minizalo-bucket/files/...")
-        if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('file:')) {
-            const baseUrl = process.env.EXPO_PUBLIC_API_URL?.replace(':8080', ':9000') || '';
-            const minioBase = baseUrl.includes(':9000') ? baseUrl : `${baseUrl.split(':')[0]}:${baseUrl.split(':')[1]}:9000`;
-            return `${minioBase}/${url}`;
-        }
-
-        // Fix localhost/IP issues for external URLs
-        if (process.env.EXPO_PUBLIC_API_URL) {
-            const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
-            if (apiMatch && apiMatch[1]) {
-                const apiHost = apiMatch[1];
-                if (url.includes("localhost")) {
-                    return url.replace("localhost", apiHost);
-                }
-            }
-        }
-
-        return url;
-    };
+    // Using shared getImageUrl imported at the top
 
     const onRefresh = useCallback(() => {
         setRefreshing(true);

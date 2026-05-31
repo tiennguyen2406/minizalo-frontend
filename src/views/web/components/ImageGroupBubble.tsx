@@ -24,7 +24,7 @@ interface ImageGroupBubbleProps {
 const MAX_VISIBLE = 4;
 
 const getAvatarUrl = (name: string, avatarUrl?: string) => {
-    if (avatarUrl) return avatarUrl;
+    if (avatarUrl) return getImageUrl(avatarUrl);
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4A90D9&color=fff&size=64`;
 };
 
@@ -52,7 +52,7 @@ const ImageGroupBubble: React.FC<ImageGroupBubbleProps> = ({
 
     const imageUrls = messages.map((m) => {
         const attachment = m.attachments?.[0];
-        return m.fileUrl || attachment?.url || '';
+        return getImageUrl(m.fileUrl || attachment?.url || '');
     }).filter(Boolean);
 
     const count = imageUrls.length;
