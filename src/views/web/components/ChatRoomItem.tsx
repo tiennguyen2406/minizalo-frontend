@@ -4,6 +4,7 @@ import { ChatRoom } from '@/shared/types';
 import { useRouter } from 'expo-router';
 import { useThemeStore } from '@/shared/store/themeStore';
 import { useChatStore } from '@/shared/store/useChatStore';
+import { useAuthStore } from '@/shared/store/authStore';
 
 interface ChatRoomItemProps {
     room: ChatRoom;
@@ -55,6 +56,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
     const router = useRouter();
     const isDark = useThemeStore((s) => s.theme === 'dark');
     const isMuted = useChatStore((s) => s.mutedRooms.has(room.id));
+    const currentUserId = useAuthStore((s) => s.user?.id);
     const { togglePinRoom, toggleMuteRoom, markRoomAsUnread, deleteRoom } = useChatStore();
 
     const [showMenu, setShowMenu] = useState(false);
@@ -71,6 +73,30 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = React.memo(({ room, isActive, 
 
     const getLastMessagePreview = (): string => {
         if (!room.lastMessage) return 'Chưa có tin nhắn';
+
+        // Kiểm tra xem tin nhắn đã bị xóa phía tôi (localStorage)
+        if (currentUserId) {
+            try {
+                const raw = localStorage.getItem(`DELETED_MESSAGES_${currentUserId}`);
+                if (raw) {
+                    const deletedIds = JSON.parse(raw);
+                    if (Array.isArray(deletedIds) && deletedIds.includes(room.lastMessage.id)) {
+                        return 'Tin nhắn đã bị xóa';
+                    }
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        // Kiểm tra tin nhắn đã thu hồi
+        const isRecalledMsg = 
+            room.lastMessage.isRecall === true || 
+            room.lastMessage.recalled === true || 
+            String(room.lastMessage.content || '').trim() === '[Tin nhắn đã thu hồi]';
+            
+        if (isRecalledMsg) return '[Tin nhắn đã thu hồi]';
+
         const { content, type, senderName } = room.lastMessage;
 
         let text: string = 'Tin nhắn mới';

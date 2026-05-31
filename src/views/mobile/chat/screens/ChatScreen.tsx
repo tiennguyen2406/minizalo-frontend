@@ -161,7 +161,7 @@ export default function ChatScreen() {
     return String(t ?? "").toUpperCase();
   }, [type]);
 
-  const currentUserId = useUserStore((s) => s.profile?.id);
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const rooms = useChatStore((s) => s.rooms);
 
   /** Ưu tiên type từ store (CLOUD/GROUP) vì query `type` đôi khi không được truyền khi mở chat. */
@@ -271,19 +271,6 @@ export default function ChatScreen() {
       if (lastInitRoomIdRef.current !== activeRoomId) {
         lastInitRoomIdRef.current = String(activeRoomId);
 
-        if (room && (room.unreadCount || 0) < 10) {
-          useChatStore.getState().markRoomAsRead(String(activeRoomId));
-          if (messages.length > 0) {
-            const newest = messages[messages.length - 1];
-            if (newest && newest.messageId && newest.senderId !== currentUserId) {
-              webSocketService.sendReadReceipt({
-                roomId: String(activeRoomId),
-                messageId: newest.messageId,
-              });
-            }
-          }
-        }
-
         if (room && room.unreadCount && room.unreadCount >= 10) {
           setInitialUnreadCount(room.unreadCount);
           chatService.getOldestUnreadMessage(String(activeRoomId)).then(msg => {
@@ -294,7 +281,39 @@ export default function ChatScreen() {
     } else {
       lastInitRoomIdRef.current = null;
     }
-  }, [activeRoomId, messages.length, currentUserId, rooms]);
+  }, [activeRoomId, rooms]);
+
+  // Mark room as read and send read receipt for the newest message from others
+  useEffect(() => {
+    if (!activeRoomId) return;
+
+    // Always clear local unread count in store
+    useChatStore.getState().markRoomAsRead(activeRoomId);
+
+    if (messages.length === 0) return;
+
+    const uid = currentUserId || "";
+    
+    // Find the newest message from others (messages is sorted descending: newest first)
+    const newestOther = messages.find((m) => 
+      m.messageId &&
+      !m.messageId.startsWith("temp-") &&
+      m.senderId !== uid &&
+      m.senderId !== "system" &&
+      m.type !== "SYSTEM" &&
+      m.type !== "PIN_NOTIFICATION"
+    );
+
+    if (newestOther && newestOther.messageId) {
+      const readBy = newestOther.readBy || [];
+      if (!readBy.includes(uid)) {
+        webSocketService.sendReadReceipt({
+          roomId: activeRoomId,
+          messageId: newestOther.messageId,
+        });
+      }
+    }
+  }, [activeRoomId, messages, currentUserId]);
 
   // 2. Logic Timer 10 giây riêng biệt, đảm bảo bền bỉ không bị reset
   useEffect(() => {
@@ -389,7 +408,7 @@ export default function ChatScreen() {
   const onViewableItemsChangedHandler = useRef((info: { viewableItems: any[] }) => {
     if (!info.viewableItems || info.viewableItems.length === 0) return;
 
-    const uid = useUserStore.getState().profile?.id;
+    const uid = useAuthStore.getState().user?.id;
     if (!uid) return;
 
     let newestVisibleMsg: MessageDynamo | null = null;
@@ -1237,6 +1256,20 @@ export default function ChatScreen() {
               : m,
           ),
         );
+
+        // Also update room's lastMessage in store so the chat list updates immediately
+        const room = useChatStore.getState().rooms.find((r) => r.id === roomId);
+        if (room && room.lastMessage && room.lastMessage.id === payload.messageId) {
+          useChatStore.getState().upsertRoom({
+            ...room,
+            lastMessage: {
+              ...room.lastMessage,
+              isRecall: true,
+              recalled: true,
+              content: "[Tin nhắn đã thu hồi]",
+            },
+          });
+        }
       } catch (err) {
         // Error parsing recall WS message
       }

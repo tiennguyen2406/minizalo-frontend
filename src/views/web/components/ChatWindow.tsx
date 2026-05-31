@@ -339,30 +339,40 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
   
   // ─── Mark messages as read when focusing or receiving ─────────────────────
   useEffect(() => {
-    if (!roomId || messagesState.length === 0) return;
+    if (!roomId) return;
+    
+    // Always clear local unread count when focusing/opening the room
+    useChatStore.getState().markRoomAsRead(roomId);
 
-    // Lấy tin nhắn mới nhất
-    const newestMsg = messagesState[messagesState.length - 1]; // Web list is chronological (last is newest)
+    if (messagesState.length === 0) return;
+
     const uid = currentUserId || "";
     
-    if (
-      newestMsg && 
-      newestMsg.id && 
-      !newestMsg.id.startsWith("temp-") &&
-      newestMsg.senderId !== uid &&
-      newestMsg.senderId !== "system" &&
-      newestMsg.type !== "SYSTEM" &&
-      newestMsg.type !== "PIN_NOTIFICATION"
-    ) {
-      // Nếu chính mình chưa có trong danh sách readBy của tin này
-      const readBy = newestMsg.readBy || [];
+    // Find the newest message from others that is not system/temp (chronological order)
+    let newestOtherMsg = null;
+    for (let i = messagesState.length - 1; i >= 0; i--) {
+      const m = messagesState[i];
+      if (
+        m &&
+        m.id &&
+        !m.id.startsWith("temp-") &&
+        m.senderId !== uid &&
+        m.senderId !== "system" &&
+        m.type !== "SYSTEM" &&
+        m.type !== "PIN_NOTIFICATION"
+      ) {
+        newestOtherMsg = m;
+        break;
+      }
+    }
+
+    if (newestOtherMsg) {
+      const readBy = newestOtherMsg.readBy || [];
       if (!readBy.includes(uid)) {
         webSocketService.sendReadReceipt({
           roomId: roomId,
-          messageId: newestMsg.id,
+          messageId: newestOtherMsg.id,
         });
-        // Cập nhật store local
-        useChatStore.getState().markRoomAsRead(roomId);
       }
     }
   }, [roomId, messagesState, currentUserId]);
@@ -429,7 +439,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
           (a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
         );
-      const historyMessages = sorted.map((m) => mapDynamoToMessage(m, roomId));
+      
+      let deletedIds: string[] = [];
+      if (currentUserId) {
+        try {
+          const raw = localStorage.getItem(`DELETED_MESSAGES_${currentUserId}`);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              deletedIds = parsed;
+            }
+          }
+        } catch (e) {}
+      }
+
+      const historyMessages = sorted
+        .map((m) => mapDynamoToMessage(m, roomId))
+        .filter((m) => !deletedIds.includes(m.id));
+      
       const currentMsgs = useChatStore.getState().messages[roomId] || [];
       const liveMessages = currentMsgs.filter(
         (m) => typeof m.id !== "string" || !m.id.startsWith("temp-"),
@@ -438,15 +465,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       for (const liveMsg of liveMessages) {
         if (!merged.some((m) => m.id === liveMsg.id)) merged.push(liveMsg);
       }
-      merged.sort(
+      
+      const filteredMerged = merged.filter((m) => !deletedIds.includes(m.id));
+      filteredMerged.sort(
         (a, b) =>
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
-      setMessages(roomId, merged);
+      setMessages(roomId, filteredMerged);
     } catch (error) {
       console.error("Failed to fetch chat history", error);
     }
-  }, [roomId, setMessages]);
+  }, [roomId, setMessages, currentUserId]);
 
   const loadMoreHistory = useCallback(async () => {
     if (!roomId || loadingOlder || !historyHasMore || !historyLastKey) return;
@@ -469,15 +498,30 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       const current = useChatStore.getState().messages[roomId] || [];
       const ids = new Set(current.map((m) => m.id));
       const uniqueOlder = older.filter((m) => !ids.has(m.id));
-      if (uniqueOlder.length > 0) {
-        prependMessages(roomId, uniqueOlder);
+      
+      let deletedIds: string[] = [];
+      if (currentUserId) {
+        try {
+          const raw = localStorage.getItem(`DELETED_MESSAGES_${currentUserId}`);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              deletedIds = parsed;
+            }
+          }
+        } catch (e) {}
+      }
+      
+      const uniqueOlderFiltered = uniqueOlder.filter((m) => !deletedIds.includes(m.id));
+      if (uniqueOlderFiltered.length > 0) {
+        prependMessages(roomId, uniqueOlderFiltered);
       }
     } catch (e) {
       console.error("Failed to load older messages", e);
     } finally {
       setLoadingOlder(false);
     }
-  }, [roomId, historyLastKey, historyHasMore, loadingOlder, prependMessages]);
+  }, [roomId, historyLastKey, historyHasMore, loadingOlder, prependMessages, currentUserId]);
 
   const handleJumpToOldestUnread = useCallback(() => {
     // Trigger the jump signal — MessageList.handleJumpToUnread will
@@ -576,6 +620,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
               : m,
           );
           setMessages(roomId, newMsgs);
+
+          // Update room's lastMessage in store
+          const room = useChatStore.getState().rooms.find((r) => r.id === roomId);
+          if (room && room.lastMessage && room.lastMessage.id === recalledId) {
+            useChatStore.getState().upsertRoom({
+              ...room,
+              lastMessage: {
+                ...room.lastMessage,
+                isRecall: true,
+                recalled: true,
+                content: "[Tin nhắn đã thu hồi]",
+              },
+            });
+          }
         }
       } catch (err) {
         console.error("Error parsing recall WS message:", err);
@@ -1364,6 +1422,25 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
   const handleDeleteForMe = (messageId: string) => {
     if (!roomId) return;
+    if (currentUserId) {
+      try {
+        const key = `DELETED_MESSAGES_${currentUserId}`;
+        const raw = localStorage.getItem(key);
+        let deletedIds = [];
+        if (raw) {
+          deletedIds = JSON.parse(raw);
+          if (!Array.isArray(deletedIds)) {
+            deletedIds = [];
+          }
+        }
+        if (!deletedIds.includes(messageId)) {
+          deletedIds.push(messageId);
+          localStorage.setItem(key, JSON.stringify(deletedIds));
+        }
+      } catch (e) {
+        console.error("Failed to save deleted message to localStorage", e);
+      }
+    }
     const currentMsgs = useChatStore.getState().messages[roomId] || [];
     const newMsgs = currentMsgs.filter((m) => m.id !== messageId);
     setMessages(roomId, newMsgs);
