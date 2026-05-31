@@ -7,14 +7,14 @@ import { getDeviceType, getOrCreateDeviceId } from "@/shared/utils/deviceSession
 // ──── Web persistence helpers (localStorage) ────
 const WEB_STORAGE_KEY = "minizalo_auth";
 
-function saveToWebStorage(data: { accessToken: string | null; refreshToken: string | null; user: any }) {
+function saveToWebStorage(data: { accessToken: string | null; refreshToken: string | null; impersonatorToken?: string | null; impersonatorRefreshToken?: string | null; user: any }) {
     if (Platform.OS !== "web") return;
     try {
         localStorage.setItem(WEB_STORAGE_KEY, JSON.stringify(data));
     } catch { /* ignore */ }
 }
 
-function loadFromWebStorage(): { accessToken: string | null; refreshToken: string | null; user: any } | null {
+function loadFromWebStorage(): { accessToken: string | null; refreshToken: string | null; impersonatorToken?: string | null; impersonatorRefreshToken?: string | null; user: any } | null {
     if (Platform.OS !== "web") return null;
     try {
         const raw = localStorage.getItem(WEB_STORAGE_KEY);
@@ -36,9 +36,13 @@ const persisted = loadFromWebStorage();
 type AuthState = {
     accessToken: string | null;
     refreshToken: string | null;
+    impersonatorToken: string | null;
+    impersonatorRefreshToken: string | null;
     user: import('./../types').User | null;
     isHydrated: boolean;
-    setTokens: (accessToken: string, refreshToken: string) => void;
+    setTokens: (accessToken: string, refreshToken: string, keepImpersonator?: boolean) => void;
+    setImpersonatorTokens: (token: string, refresh: string) => void;
+    restoreImpersonator: () => void;
     setUser: (user: import('./../types').User) => void;
     login: (data: LoginRequest) => Promise<void>;
     logout: () => Promise<void>;
@@ -50,6 +54,8 @@ type AuthState = {
 export const useAuthStore = create<AuthState>()((set, get) => ({
     accessToken: persisted?.accessToken || null,
     refreshToken: persisted?.refreshToken || null,
+    impersonatorToken: persisted?.impersonatorToken || null,
+    impersonatorRefreshToken: persisted?.impersonatorRefreshToken || null,
     user: persisted?.user || null,
     isHydrated: true,
 
@@ -57,15 +63,35 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
     setUser: (user) => {
         set({ user });
-        const { accessToken, refreshToken } = get();
-        saveToWebStorage({ accessToken, refreshToken, user });
+        const { accessToken, refreshToken, impersonatorToken, impersonatorRefreshToken } = get();
+        saveToWebStorage({ accessToken, refreshToken, impersonatorToken, impersonatorRefreshToken, user } as any);
     },
 
-    setTokens: (accessToken, refreshToken) => {
-        set({ accessToken, refreshToken });
-        const { user } = get();
-        saveToWebStorage({ accessToken, refreshToken, user });
+    setTokens: (accessToken, refreshToken, keepImpersonator = false) => {
+        if (!keepImpersonator) {
+            set({ accessToken, refreshToken, impersonatorToken: null, impersonatorRefreshToken: null });
+        } else {
+            set({ accessToken, refreshToken });
+        }
+        const state = get();
+        saveToWebStorage({ accessToken: state.accessToken, refreshToken: state.refreshToken, impersonatorToken: state.impersonatorToken, impersonatorRefreshToken: state.impersonatorRefreshToken, user: state.user } as any);
         scheduleProactiveRefresh();
+    },
+
+    setImpersonatorTokens: (token, refresh) => {
+        set({ impersonatorToken: token, impersonatorRefreshToken: refresh });
+        const state = get();
+        saveToWebStorage({ accessToken: state.accessToken, refreshToken: state.refreshToken, impersonatorToken: state.impersonatorToken, impersonatorRefreshToken: state.impersonatorRefreshToken, user: state.user } as any);
+    },
+
+    restoreImpersonator: () => {
+        const { impersonatorToken, impersonatorRefreshToken } = get();
+        if (impersonatorToken && impersonatorRefreshToken) {
+            set({ accessToken: impersonatorToken, refreshToken: impersonatorRefreshToken, impersonatorToken: null, impersonatorRefreshToken: null });
+            const state = get();
+            saveToWebStorage({ accessToken: state.accessToken, refreshToken: state.refreshToken, impersonatorToken: null, impersonatorRefreshToken: null, user: state.user } as any);
+            scheduleProactiveRefresh();
+        }
     },
 
     login: async (data: LoginRequest) => {
@@ -95,7 +121,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         const { webSocketService } = await import('@/shared/services/WebSocketService');
         webSocketService.deactivate();
 
-        set({ accessToken: null, refreshToken: null, user: null });
+        set({ accessToken: null, refreshToken: null, impersonatorToken: null, impersonatorRefreshToken: null, user: null });
         clearWebStorage();
         cancelProactiveRefresh();
     },
@@ -110,11 +136,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
                 refreshToken: res.refreshToken,
             };
             set(newState);
-            saveToWebStorage({ ...newState, user: get().user });
+            const state = get();
+            saveToWebStorage({ ...newState, impersonatorToken: state.impersonatorToken, impersonatorRefreshToken: state.impersonatorRefreshToken, user: state.user } as any);
             scheduleProactiveRefresh();
             return true;
         } catch {
-            set({ accessToken: null, refreshToken: null });
+            set({ accessToken: null, refreshToken: null, impersonatorToken: null, impersonatorRefreshToken: null });
             clearWebStorage();
             cancelProactiveRefresh();
             return false;
@@ -122,7 +149,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     },
 
     clear: () => {
-        set({ accessToken: null, refreshToken: null, user: null });
+        set({ accessToken: null, refreshToken: null, impersonatorToken: null, impersonatorRefreshToken: null, user: null });
         clearWebStorage();
         cancelProactiveRefresh();
     },

@@ -17,6 +17,7 @@ import { useUserStore } from "@/shared/store/userStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { showToast as toast } from "@/shared/utils/toast";
 import { chatService } from "@/shared/services/chatService";
+import { api } from "@/shared/services/apiClient";
 import { getImageUrl } from "@/shared/utils/mediaUtils";
 
 type PrivacyMode = "ALL_FRIENDS" | "SPECIFIC" | "EXCLUDE";
@@ -112,6 +113,9 @@ export default function StoryFeed() {
   const [progress, setProgress] = useState(0);
   const [replyText, setReplyText] = useState("");
   const [isMenuOpen, setMenuOpen] = useState(false);
+  const [isReportModalOpen, setReportModalOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("INAPPROPRIATE");
+  const [isReporting, setReporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -290,6 +294,26 @@ export default function StoryFeed() {
     if (!selectedStory) return;
     await addReaction(selectedStory.userId, selectedStory.createdAt, type);
     toast.success("Đã thả cảm xúc.");
+  };
+
+  const handleReport = async () => {
+    if (!selectedStory) return;
+    setReporting(true);
+    try {
+      await api.post("/stories/report", {
+        storyUserId: selectedStory.userId,
+        storyId: selectedStory.createdAt,
+        reason: reportReason,
+        content: selectedStory.caption || "Story đa phương tiện",
+      });
+      toast.success("Đã gửi báo cáo thành công!");
+      setReportModalOpen(false);
+      setMenuOpen(false);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "Không thể gửi báo cáo.");
+    } finally {
+      setReporting(false);
+    }
   };
 
   const handleReply = async () => {
@@ -611,19 +635,31 @@ export default function StoryFeed() {
                 </div>
                 <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 12 }}>{formatStoryTime(selectedStory.createdAt)}</div>
               </div>
-              {isOwnStory && (
+              {isOwnStory ? (
+                <button type="button" title="Tùy chọn" style={styles.viewerIconButton} onClick={() => setMenuOpen((v) => !v)}>
+                  <MoreHorizontal size={22} />
+                </button>
+              ) : (
                 <button type="button" title="Tùy chọn" style={styles.viewerIconButton} onClick={() => setMenuOpen((v) => !v)}>
                   <MoreHorizontal size={22} />
                 </button>
               )}
               {isMenuOpen && (
                 <div style={styles.storyMenu}>
-                  <button type="button" style={styles.menuItem} onClick={() => void handlePrivacyUpdate("ALL_FRIENDS")}>Bạn bè Zalo</button>
-                  <button type="button" style={styles.menuItem} onClick={() => void handlePrivacyUpdate("SPECIFIC")}>Một số bạn bè</button>
-                  <button type="button" style={styles.menuItem} onClick={() => void handlePrivacyUpdate("EXCLUDE")}>Ngoại trừ...</button>
-                  <button type="button" style={{ ...styles.menuItem, color: "var(--danger)" }} onClick={handleDelete}>
-                    <Trash2 size={15} /> Xóa story
-                  </button>
+                  {isOwnStory ? (
+                    <>
+                      <button type="button" style={styles.menuItem} onClick={() => void handlePrivacyUpdate("ALL_FRIENDS")}>Bạn bè Zalo</button>
+                      <button type="button" style={styles.menuItem} onClick={() => void handlePrivacyUpdate("SPECIFIC")}>Một số bạn bè</button>
+                      <button type="button" style={styles.menuItem} onClick={() => void handlePrivacyUpdate("EXCLUDE")}>Ngoại trừ...</button>
+                      <button type="button" style={{ ...styles.menuItem, color: "var(--danger)" }} onClick={handleDelete}>
+                        <Trash2 size={15} /> Xóa story
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" style={{ ...styles.menuItem, color: "var(--danger)" }} onClick={() => { setMenuOpen(false); setReportModalOpen(true); }}>
+                      ⚠️ Báo cáo story
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -693,6 +729,37 @@ export default function StoryFeed() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {isReportModalOpen && selectedStory && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "var(--bg-modal)", borderRadius: 12, padding: 24, width: "min(420px, 94vw)", boxShadow: "var(--shadow-lg)", color: "var(--text-primary)" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Báo cáo Story</div>
+            <div style={{ fontSize: 13, color: "var(--text-tertiary)", marginBottom: 18 }}>Story của <strong>{selectedStory.displayName}</strong> sẽ được gửi đến Admin để kiểm tra.</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Lý do báo cáo</div>
+            {[
+              { value: "INAPPROPRIATE", label: "Nội dung không phù hợp" },
+              { value: "SPAM", label: "Spam / Quảng cáo" },
+              { value: "VIOLENCE", label: "Bạo lực / Nguy hiểm" },
+              { value: "FAKE", label: "Thông tin sai lệch" },
+              { value: "HARASSMENT", label: "Quấy rối / Săm sời" },
+            ].map((opt) => (
+              <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", cursor: "pointer", borderBottom: "1px solid var(--border-primary)" }}>
+                <input type="radio" name="reportReason" value={opt.value} checked={reportReason === opt.value} onChange={() => setReportReason(opt.value)} />
+                <span style={{ fontSize: 14 }}>{opt.label}</span>
+              </label>
+            ))}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+              <button type="button" style={styles.secondaryButton} onClick={() => { setReportModalOpen(false); setReportReason("INAPPROPRIATE"); }} disabled={isReporting}>
+                Hủy
+              </button>
+              <button type="button" style={{ ...styles.primaryButton, background: "#ef4444" }} onClick={() => void handleReport()} disabled={isReporting}>
+                {isReporting ? "Đang gửi..." : "Đồng ý báo cáo"}
+              </button>
             </div>
           </div>
         </div>
