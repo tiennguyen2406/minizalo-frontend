@@ -113,8 +113,8 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
     }, [friends]);
 
     const handleCreate = async () => {
-        if (selectedIds.length < 3) {
-            Alert.alert("Lỗi", "Vui lòng chọn ít nhất 3 thành viên.");
+        if (selectedIds.length < 2) {
+            Alert.alert("Lỗi", "Vui lòng chọn ít nhất 2 thành viên.");
             return;
         }
         const finalName = groupName.trim() ? groupName.trim() : buildDefaultGroupName(selectedIds);
@@ -221,7 +221,7 @@ export default function CreateGroupScreen({ preSelectedIds, onClose }: CreateGro
 
     const canCreate =
         !isSubmitting &&
-        selectedIds.length >= 3;
+        selectedIds.length >= 2;
 
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>

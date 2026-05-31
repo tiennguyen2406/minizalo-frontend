@@ -1619,7 +1619,7 @@ export default function ChatScreen() {
         (await import("@/shared/store/authStore")).useAuthStore.getState()
           .accessToken ?? "";
       const rawBase =
-        process.env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ||
+        process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ||
         "http://localhost:8080/api";
       const apiBase = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
 
@@ -1788,7 +1788,7 @@ export default function ChatScreen() {
         (await import("@/shared/store/authStore")).useAuthStore.getState()
           .accessToken ?? "";
       const rawBase =
-        process.env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ||
+        process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ||
         "http://localhost:8080/api";
       const apiBase = rawBase.endsWith("/api") ? rawBase : `${rawBase}/api`;
 

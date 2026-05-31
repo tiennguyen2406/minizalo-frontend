@@ -23,6 +23,12 @@
             },
             "ios": {
                 "simulator": true
+            },
+            "env": {
+                "EXPO_PUBLIC_API_URL": "https://api.minizalo.click/api",
+                "EXPO_PUBLIC_SOCKET_URL": "wss://api.minizalo.click/ws",
+                "EXPO_PUBLIC_API_KEY": "your-api-key-here",
+                "EXPO_PUBLIC_ENABLE_DEBUG": "false"
             }
         },
         "production": {

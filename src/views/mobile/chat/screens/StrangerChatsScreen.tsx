@@ -11,6 +11,7 @@ import type { FriendResponseDto } from "@/shared/services/types";
 import { ChatItem } from "@/views/mobile/chat/components/ChatItem";
 import { formatTime } from "@/shared/utils/dateUtils";
 import { getChatPreviewText } from "@/shared/utils/chatPreview";
+import { getImageUrl } from "@/shared/utils/mediaUtils";
 
 /** Đối tượng là "bạn" trong một FriendResponseDto so với user đăng nhập */
 function partnerUserId(f: FriendResponseDto, currentUserId: string | undefined): string {
@@ -25,29 +26,6 @@ export default function StrangerChatsScreen() {
     const { rooms } = useChatStore();
     const { friends } = useFriendStore();
     const currentUserId = useAuthStore.getState().user?.id;
-    const getImageUrl = (url: string | undefined | null) => {
-        if (!url) return null;
-
-        // Handle MinIO relative paths (e.g., "minizalo-bucket/files/...")
-        if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('file:')) {
-            const baseUrl = process.env.EXPO_PUBLIC_API_URL?.replace(':8080', ':9000') || '';
-            const minioBase = baseUrl.includes(':9000') ? baseUrl : `${baseUrl.split(':')[0]}:${baseUrl.split(':')[1]}:9000`;
-            return `${minioBase}/${url}`;
-        }
-
-        // Fix localhost/IP issues for external URLs
-        if (process.env.EXPO_PUBLIC_API_URL) {
-            const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
-            if (apiMatch && apiMatch[1]) {
-                const apiHost = apiMatch[1];
-                if (url.includes("localhost")) {
-                    return url.replace("localhost", apiHost);
-                }
-            }
-        }
-
-        return url;
-    };
 
     const friendIdSet = new Set(friends.map((f) => partnerUserId(f, currentUserId)));
 

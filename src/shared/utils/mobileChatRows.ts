@@ -1,4 +1,5 @@
 import type { MessageDynamo } from '@/shared/services/chatService';
+import { isImageAttachment } from '@/shared/utils/messageAttachments';
 
 /** Giống web MessageList: gom các tin IMAGE liên tiếp (web gửi từng file một). */
 export const MOBILE_IMAGE_GROUP_THRESHOLD_MS = 60_000;
@@ -19,9 +20,10 @@ export function isSingleBurstImageMessage(m: MessageDynamo): boolean {
     if (isRecallOrPinNotification(m)) return false;
     const t = (m.type || '').toUpperCase();
     if (t !== 'IMAGE') return false;
-    const imgs = (m.attachments || []).filter(
-        (a) => a.type?.startsWith('image') || a.type === 'IMAGE',
-    );
+    const attachments = m.attachments || [];
+    const hasNonImage = attachments.some((a) => !isImageAttachment(a));
+    if (hasNonImage) return false;
+    const imgs = attachments.filter((a) => isImageAttachment(a));
     return imgs.length >= 1;
 }
 

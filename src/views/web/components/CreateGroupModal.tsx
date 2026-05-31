@@ -62,7 +62,7 @@ const CreateGroupModal: React.FC = () => {
     };
 
     const handleCreate = async () => {
-        if (selectedIds.length < 3) { setError('Vui lòng chọn ít nhất 3 thành viên.'); return; }
+        if (selectedIds.length < 2) { setError('Vui lòng chọn ít nhất 2 thành viên.'); return; }
         const finalName = groupName.trim() ? groupName.trim() : buildDefaultGroupName(selectedIds);
         setIsSubmitting(true);
         setError('');
@@ -225,12 +225,12 @@ const CreateGroupModal: React.FC = () => {
                     </button>
                     <button
                         onClick={handleCreate}
-                        disabled={isSubmitting || selectedIds.length < 3}
+                        disabled={isSubmitting || selectedIds.length < 2}
                         className="px-5 py-2 text-sm rounded-lg font-medium transition-colors"
                         style={{
-                            backgroundColor: (isSubmitting || selectedIds.length < 3) ? '#93c5fd' : '#0068FF',
+                            backgroundColor: (isSubmitting || selectedIds.length < 2) ? '#93c5fd' : '#0068FF',
                             color: '#fff',
-                            cursor: (isSubmitting || selectedIds.length < 3) ? 'not-allowed' : 'pointer',
+                            cursor: (isSubmitting || selectedIds.length < 2) ? 'not-allowed' : 'pointer',
                         }}
                     >
                         {isSubmitting ? 'Đang tạo...' : 'Tạo nhóm'}

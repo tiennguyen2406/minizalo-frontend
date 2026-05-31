@@ -1,6 +1,6 @@
 import "zmp-ui/zaui.css";
 import React, { useState } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Button, Input } from "zmp-ui";
 import { useAuthStore } from "@/shared/store/authStore";
 import { userService } from "@/shared/services/userService";
@@ -15,6 +15,8 @@ const COLORS = {
 
 export default function LoginFormWeb() {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const redirectTo = params.redirectTo as string;
     const login = useAuthStore((s) => s.login);
     const setUser = useAuthStore((s) => s.setUser);
     const [username, setUsername] = useState("");
@@ -55,7 +57,11 @@ export default function LoginFormWeb() {
                 console.warn('Failed to fetch user profile after login:', profileErr);
             }
 
-            router.replace("/(tabs)");
+            if (redirectTo) {
+                router.replace(redirectTo as any);
+            } else {
+                router.replace("/(tabs)");
+            }
         } catch (err: any) {
             const message =
                 err.response?.data?.message ||
