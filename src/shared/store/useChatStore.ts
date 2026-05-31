@@ -394,6 +394,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     markRoomAsRead: (roomId) => set((state) => {
         const id = String(roomId);
+        const room = state.rooms.find((r) => String(r.id) === id);
+        if (!room || room.unreadCount === 0) {
+            return {};
+        }
         // Cập nhật ngay lập tức count về 0 trong danh sách rooms
         const newRooms = state.rooms.map((r) =>
             String(r.id) === id ? { ...r, unreadCount: 0 } : r
