@@ -50,7 +50,7 @@ interface AuthInputProps extends TextInputProps {
     isPassword?: boolean; // Flag to enable password toggle
 }
 
-export const AuthInput: React.FC<AuthInputProps> = ({ disabled, error, isPassword, ...props }) => {
+export const AuthInput: React.FC<AuthInputProps> = ({ disabled, error, isPassword, autoCapitalize, autoCorrect, ...props }) => {
     const colors = useThemeColors();
     const authStyles = createAuthStyles(colors);
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -71,6 +71,8 @@ export const AuthInput: React.FC<AuthInputProps> = ({ disabled, error, isPasswor
                     placeholderTextColor={colors.textSecondary}
                     editable={!disabled}
                     secureTextEntry={secureTextEntry}
+                    autoCapitalize={isPassword ? "none" : autoCapitalize}
+                    autoCorrect={isPassword ? false : autoCorrect}
                     {...props}
                 />
                 {isPassword && (
