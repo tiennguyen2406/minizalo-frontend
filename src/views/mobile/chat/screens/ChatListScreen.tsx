@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { View, FlatList, ActivityIndicator, Text, RefreshControl, Animated, AppState, Alert, TouchableOpacity, Modal, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ChatListHeader } from "../components/ChatListHeader";
 import { PinnedCloudItem } from "../components/PinnedCloudItem";
 import { ChatItem } from "../components/ChatItem";
@@ -31,6 +32,7 @@ export default function ChatListScreen() {
     const [actionRoom, setActionRoom] = useState<(typeof rooms)[number] | null>(null);
     const [showMuteDuration, setShowMuteDuration] = useState(false);
     const [selectedMuteDuration, setSelectedMuteDuration] = useState<string>("1h");
+    const [deletedMsgIds, setDeletedMsgIds] = useState<Set<string>>(new Set());
 
     const displayRooms = useMemo(() => {
         let result: typeof rooms;
@@ -199,6 +201,29 @@ export default function ChatListScreen() {
             void fetchFriends().finally(() => setFriendsListReady(true));
             void fetchBestFriendAssignments();
 
+            // Load deleted message IDs from AsyncStorage
+            if (currentUserId) {
+                AsyncStorage.getItem(`DELETED_MESSAGES_${currentUserId}`)
+                    .then((raw) => {
+                        if (raw) {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) {
+                                setDeletedMsgIds(new Set(parsed));
+                            } else {
+                                setDeletedMsgIds(new Set());
+                            }
+                        } else {
+                            setDeletedMsgIds(new Set());
+                        }
+                    })
+                    .catch((err) => {
+                        console.log("Error loading deleted message IDs:", err);
+                        setDeletedMsgIds(new Set());
+                    });
+            } else {
+                setDeletedMsgIds(new Set());
+            }
+
             // Xóa currentRoomId khi ở màn hình danh sách
             useChatStore.getState().setCurrentRoom(null);
 
@@ -207,7 +232,7 @@ export default function ChatListScreen() {
             }, 10000);
 
             return () => clearInterval(interval);
-        }, [fetchFriends, fetchBestFriendAssignments])
+        }, [fetchFriends, fetchBestFriendAssignments, currentUserId])
     );
 
     // Xử lý khi quay lại app từ nền (để xóa trễ push noti)
@@ -228,7 +253,9 @@ export default function ChatListScreen() {
         let lastMsg = "Chưa có tin nhắn";
         if (item.lastMessage) {
             const lm = item.lastMessage;
-            if (lm.recalled || lm.content === '[Tin nhắn đã thu hồi]') {
+            if (deletedMsgIds.has(lm.id)) {
+                lastMsg = "Tin nhắn đã bị xóa";
+            } else if (lm.recalled || lm.content === '[Tin nhắn đã thu hồi]') {
                 lastMsg = '[Tin nhắn đã thu hồi]';
             } else if (lm.content && lm.content.trim().startsWith('{') && lm.content.includes('"callType":')) {
                 try {
