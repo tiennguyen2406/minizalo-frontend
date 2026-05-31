@@ -307,21 +307,18 @@ export default function AdminDashboardWeb() {
     return reports.filter((r) => matchesSearch(debouncedQuery, [r.targetType, r.targetId, r.reason, r.details, r.reporter, r.status]));
   }, [reports, debouncedQuery]);
 
-  const searchPlaceholder = useMemo(() => {
-    const map: Record<AdminSectionId, string> = {
-      dashboard: "Tìm phòng, user...",
-      users: "Tìm tên, email, SĐT...",
-      conversations: "Tìm tên phòng, mã phòng...",
-      messages: "Tìm nội dung tin nhắn...",
-      media: "Tìm endpoint, tính năng...",
-      groups: "Tìm tên nhóm...",
-      moderation: "Tìm báo cáo, người báo...",
-      reports: "Tìm API, module...",
-      audit: "Tìm hành động, mục tiêu...",
-      admins: "Tìm admin, email, SĐT...",
-    };
-    return map[activeSection];
-  }, [activeSection]);
+  const searchPlaceholder = {
+    dashboard: "Tìm phòng, user...",
+    users: "Tìm tên, email, SĐT...",
+    conversations: "Tìm tên phòng, mã phòng...",
+    messages: "Tìm nội dung tin nhắn...",
+    media: "Tìm endpoint, tính năng...",
+    groups: "Tìm tên nhóm...",
+    moderation: "Tìm báo cáo, người báo...",
+    reports: "Tìm API, module...",
+    audit: "Tìm hành động, mục tiêu...",
+    admins: "Tìm admin, email, SĐT...",
+  }[activeSection] || "Tìm kiếm...";
 
   if (Platform.OS !== "web") return null;
 
@@ -341,10 +338,10 @@ export default function AdminDashboardWeb() {
       homePath="/admin-login"
     >
       <div className="h-screen w-screen flex overflow-hidden font-sans transition-colors duration-300 bg-[#f4f7fb] text-slate-900 dark:bg-[#0b1120] dark:text-gray-100">
-        
+
         {/* Sidebar */}
         <aside className="w-[260px] min-w-[260px] flex flex-col p-5 gap-6 backdrop-blur-xl border-r transition-colors duration-300 z-10 bg-white/80 border-slate-200/50 dark:bg-[#111827]/80 dark:border-white/5">
-          <button 
+          <button
             className="flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-300 group bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 dark:from-blue-900/40 dark:to-blue-800/20 dark:border-blue-500/30 dark:hover:border-blue-400/50 dark:hover:from-blue-800/40"
           >
             <div className="p-1.5 rounded-lg bg-blue-600 text-white shadow-sm dark:bg-blue-500/20 dark:text-blue-400">
@@ -379,7 +376,7 @@ export default function AdminDashboardWeb() {
         {/* Main Content */}
         <main className="flex-1 h-screen overflow-y-auto relative">
           <div className="max-w-[1200px] mx-auto p-8 pb-24">
-            
+
             {/* Header Sticky */}
             <header className="sticky top-0 z-40 -mx-8 px-8 py-5 mb-8 backdrop-blur-2xl border-b transition-all duration-300 flex justify-between items-center bg-[#f4f7fb]/80 border-slate-200 dark:bg-[#0b1120]/80 dark:border-white/5">
               <div>
@@ -403,10 +400,10 @@ export default function AdminDashboardWeb() {
                     className="bg-transparent outline-none border-none text-[14px] w-48 transition-all focus:w-64 text-slate-900 placeholder-slate-400 dark:text-white dark:placeholder-slate-500"
                   />
                 </div>
-                
-                <select 
-                  value={range} 
-                  onChange={(event) => setRange(event.target.value)} 
+
+                <select
+                  value={range}
+                  onChange={(event) => setRange(event.target.value)}
                   className="h-11 rounded-full px-4 text-[14px] font-medium border appearance-none outline-none cursor-pointer transition-all bg-white border-slate-200 text-slate-700 shadow-sm focus:border-blue-500 dark:bg-[#1e293b] dark:border-slate-700 dark:text-slate-200 dark:focus:border-blue-500"
                   style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px', paddingRight: '36px' }}
                 >
@@ -414,10 +411,10 @@ export default function AdminDashboardWeb() {
                   <option value="30">30 ngày qua</option>
                   <option value="90">90 ngày qua</option>
                 </select>
-                
-                <button 
-                  type="button" 
-                  title="Làm mới" 
+
+                <button
+                  type="button"
+                  title="Làm mới"
                   onClick={loadAnalytics}
                   className="w-11 h-11 rounded-full flex items-center justify-center border transition-all duration-300 hover:rotate-180 bg-white border-slate-200 text-slate-600 shadow-sm hover:text-blue-600 dark:bg-[#1e293b] dark:border-slate-700 dark:text-slate-300 dark:hover:text-white"
                 >
@@ -448,7 +445,8 @@ export default function AdminDashboardWeb() {
 
           </div>
         </main>
-        <style dangerouslySetInnerHTML={{__html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
           .custom-scrollbar::-webkit-scrollbar { width: 4px; }
           .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -521,27 +519,27 @@ function UsersSection({ users, loading, onToggleLock, activeFilter, onFilterChan
         {users.length === 0 && !loading ? (
           <div className="p-12 text-center text-slate-500">Không tìm thấy người dùng phù hợp.</div>
         ) : (
-        <PaginatedDataTable
-          resetKey={listResetKey}
-          columnClasses={["align-top min-w-[8.5rem]"]}
-          headers={["ID", "Tên đăng nhập", "Email", "Quyền", "Trạng thái", "Tin nhắn", "Thao tác"]}
-          rows={users.map((u: any) => [
-            <IdCell key="id" value={u.id} />,
-            <strong key="n" className="text-slate-800 dark:text-slate-200">{u.name}</strong>,
-            u.email,
-            <span key="r" className="font-semibold text-blue-600 dark:text-blue-400 text-[12px]">{u.role}</span>,
-            <StatePill key="state" label={u.state} />,
-            formatNumber(u.messages),
-            <button
-              key="lock"
-              type="button"
-              onClick={() => void onToggleLock(u.id, u.state === "Locked")}
-              className={`px-3 py-1 rounded-lg text-xs font-bold ${u.state === "Locked" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}
-            >
-              {u.state === "Locked" ? "Mở khóa" : "Khóa"}
-            </button>,
-          ])}
-        />
+          <PaginatedDataTable
+            resetKey={listResetKey}
+            columnClasses={["align-top min-w-[8.5rem]"]}
+            headers={["ID", "Tên đăng nhập", "Email", "Quyền", "Trạng thái", "Tin nhắn", "Thao tác"]}
+            rows={users.map((u: any) => [
+              <IdCell key="id" value={u.id} />,
+              <strong key="n" className="text-slate-800 dark:text-slate-200">{u.name}</strong>,
+              u.email,
+              <span key="r" className="font-semibold text-blue-600 dark:text-blue-400 text-[12px]">{u.role}</span>,
+              <StatePill key="state" label={u.state} />,
+              formatNumber(u.messages),
+              <button
+                key="lock"
+                type="button"
+                onClick={() => void onToggleLock(u.id, u.state === "Locked")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold ${u.state === "Locked" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}
+              >
+                {u.state === "Locked" ? "Mở khóa" : "Khóa"}
+              </button>,
+            ])}
+          />
         )}
       </Panel>
     </div>
@@ -556,29 +554,29 @@ function ConversationsSection({ rooms, loading, setActiveSection, setSelectedRoo
         {rooms.length === 0 && !loading ? (
           <div className="p-12 text-center text-slate-500">Không tìm thấy phòng phù hợp.</div>
         ) : (
-        <PaginatedDataTable
-          resetKey={listResetKey}
-          columnClasses={["align-top min-w-[8.5rem]"]}
-          headers={["Mã phòng", "Tên", "Phân loại", "Số lượng", "Tương tác", "Lần cuối", ""]}
-          rows={rooms.map((room: any) => [
-            <IdCell key="id" value={room.id} />,
-            <strong key="n" className="text-slate-800 dark:text-slate-200">{room.name}</strong>,
-            <TypePill key="type" label={room.type} />,
-            room.members, formatNumber(room.messages), 
-            <span key="t" className="text-slate-500 dark:text-slate-400 text-xs">{room.updatedAt?.slice(0, 10)}</span>,
-            <button 
-              key="more" 
-              onClick={() => {
-                setSelectedRoomId(room.id);
-                setActiveSection("messages");
-              }}
-              title="Xem tin nhắn"
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 dark:text-slate-400 dark:hover:bg-white/10"
-            >
-              <MoreHorizontal size={18} />
-            </button>
-          ])}
-        />
+          <PaginatedDataTable
+            resetKey={listResetKey}
+            columnClasses={["align-top min-w-[8.5rem]"]}
+            headers={["Mã phòng", "Tên", "Phân loại", "Số lượng", "Tương tác", "Lần cuối", ""]}
+            rows={rooms.map((room: any) => [
+              <IdCell key="id" value={room.id} />,
+              <strong key="n" className="text-slate-800 dark:text-slate-200">{room.name}</strong>,
+              <TypePill key="type" label={room.type} />,
+              room.members, formatNumber(room.messages),
+              <span key="t" className="text-slate-500 dark:text-slate-400 text-xs">{room.updatedAt?.slice(0, 10)}</span>,
+              <button
+                key="more"
+                onClick={() => {
+                  setSelectedRoomId(room.id);
+                  setActiveSection("messages");
+                }}
+                title="Xem tin nhắn"
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 dark:text-slate-400 dark:hover:bg-white/10"
+              >
+                <MoreHorizontal size={18} />
+              </button>
+            ])}
+          />
         )}
       </Panel>
     </div>
@@ -740,16 +738,16 @@ function MediaSection({ mediaStats, activeFilter, onFilterChange, searchQuery }:
         {rows.length === 0 ? (
           <div className="p-12 text-center text-slate-500">Không có mục phù hợp bộ lọc.</div>
         ) : (
-        <PaginatedDataTable
-          resetKey={`media-${rows.length}-${activeFilter}-${searchQuery}`}
-          headers={["Tính năng", "Endpoint", "Trạng thái", "Ghi chú"]}
-          rows={rows.map((row) => [
-            row.label,
-            row.endpoint,
-            <StatePill key={`s-${row.label}`} label={row.status} />,
-            row.note,
-          ])}
-        />
+          <PaginatedDataTable
+            resetKey={`media-${rows.length}-${activeFilter}-${searchQuery}`}
+            headers={["Tính năng", "Endpoint", "Trạng thái", "Ghi chú"]}
+            rows={rows.map((row) => [
+              row.label,
+              row.endpoint,
+              <StatePill key={`s-${row.label}`} label={row.status} />,
+              row.note,
+            ])}
+          />
         )}
         {mediaStats.note && <p className="px-6 pb-4 text-sm text-slate-500">{mediaStats.note}</p>}
       </Panel>
@@ -765,17 +763,17 @@ function GroupsSection({ groups, loading, onDisband, activeFilter, onFilterChang
         {groups.length === 0 && !loading ? (
           <div className="p-12 text-center text-slate-500">Không tìm thấy nhóm phù hợp.</div>
         ) : (
-        <PaginatedDataTable
-          resetKey={listResetKey}
-          headers={["Tên nhóm", "Thành viên", "Tin nhắn", "Lần cuối", "Thao tác"]}
-          rows={groups.map((room: any) => [
-            <strong key="n" className="text-slate-800 dark:text-slate-200">{room.name}</strong>,
-            room.members,
-            room.messages,
-            <span key="t" className="text-slate-500 text-xs">{room.updatedAt?.slice(0, 10)}</span>,
-            <button key="d" type="button" onClick={() => void onDisband(room.id)} className="text-xs px-3 py-1 rounded-lg bg-rose-100 text-rose-700 font-bold">Giải tán</button>,
-          ])}
-        />
+          <PaginatedDataTable
+            resetKey={listResetKey}
+            headers={["Tên nhóm", "Thành viên", "Tin nhắn", "Lần cuối", "Thao tác"]}
+            rows={groups.map((room: any) => [
+              <strong key="n" className="text-slate-800 dark:text-slate-200">{room.name}</strong>,
+              room.members,
+              room.messages,
+              <span key="t" className="text-slate-500 text-xs">{room.updatedAt?.slice(0, 10)}</span>,
+              <button key="d" type="button" onClick={() => void onDisband(room.id)} className="text-xs px-3 py-1 rounded-lg bg-rose-100 text-rose-700 font-bold">Giải tán</button>,
+            ])}
+          />
         )}
       </Panel>
     </div>
@@ -886,7 +884,7 @@ function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterC
   return (
     <div className="flex flex-col gap-6">
       <Toolbar title="Cấu hình Phân Quyền" filters={["Tất cả", "ROLE_ADMIN"]} activeFilter={activeFilter} onFilterChange={onFilterChange} />
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Panel title="Danh sách Admin hiện tại" action={`${admins.length} admin`}>
           <PaginatedDataTable
@@ -918,7 +916,7 @@ function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterC
             <p className="text-sm text-slate-500 mb-6 dark:text-slate-400">
               Chỉ những tài khoản mang quyền <strong>ROLE_ADMIN</strong> mới có thể thấy trang quản trị này và sử dụng các tính năng đặc quyền.
             </p>
-            
+
             {message && (
               <div className={`mb-4 p-3 rounded-xl border text-sm font-medium flex items-center gap-2 ${message.type === 'success' ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400' : 'bg-red-50 border-red-200 text-red-600 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400'}`}>
                 {message.type === 'success' ? <CheckCircle2 size={16} /> : <Activity size={16} />}
@@ -929,8 +927,8 @@ function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterC
             <div className="flex flex-col gap-4">
               <div>
                 <label className="block text-sm font-semibold mb-1.5 text-slate-700 dark:text-slate-300">Số điện thoại người dùng</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="VD: 0352359401"
@@ -940,7 +938,7 @@ function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterC
 
               <div>
                 <label className="block text-sm font-semibold mb-1.5 text-slate-700 dark:text-slate-300">Chọn Quyền</label>
-                <select 
+                <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   className="w-full h-11 px-4 rounded-xl border bg-slate-50 border-slate-200 text-sm focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer dark:bg-slate-800 dark:border-slate-700 dark:text-white"
@@ -950,8 +948,8 @@ function AdminsSection({ currentUser, admins, onRefresh, activeFilter, onFilterC
                 </select>
               </div>
 
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={handleGrantRole}
                 disabled={loading}
                 className="mt-2 h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-md shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1010,20 +1008,20 @@ function Toolbar({ title, filters, activeFilter, onFilterChange }: { title: stri
         {filters.map((filter: string) => {
           const isActive = (activeFilter || "Tất cả") === filter;
           return (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => onFilterChange?.(filter)}
-            className={`inline-flex items-center gap-2 h-9 px-4 rounded-xl border text-[13px] font-semibold transition-all duration-200 hover:shadow-md ${
-              isActive
-                ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20"
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:border-slate-500"
-            }`}
-          >
-            <Filter size={14} className={isActive ? "opacity-100" : "opacity-70"} />
-            {filter}
-          </button>
-        );})}
+            <button
+              key={filter}
+              type="button"
+              onClick={() => onFilterChange?.(filter)}
+              className={`inline-flex items-center gap-2 h-9 px-4 rounded-xl border text-[13px] font-semibold transition-all duration-200 hover:shadow-md ${isActive
+                  ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20"
+                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:border-slate-500"
+                }`}
+            >
+              <Filter size={14} className={isActive ? "opacity-100" : "opacity-70"} />
+              {filter}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -1032,7 +1030,7 @@ function Toolbar({ title, filters, activeFilter, onFilterChange }: { title: stri
 function MiniBars({ data, tone }: any) {
   const normalized = data.length ? data : [{ date: "N/A", count: 0 }];
   const max = Math.max(...normalized.map((p: any) => Number(p.count) || 0), 1);
-  
+
   const bgColors = {
     blue: "bg-blue-500",
     emerald: "bg-emerald-500",
@@ -1134,11 +1132,10 @@ function Pagination({
         key={pageNum}
         type="button"
         onClick={() => onPageChange(pageNum)}
-        className={`min-w-[36px] h-9 px-2 rounded-lg text-sm font-semibold transition-colors ${
-          isActive
+        className={`min-w-[36px] h-9 px-2 rounded-lg text-sm font-semibold transition-colors ${isActive
             ? "bg-blue-600 text-white shadow-sm"
             : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
-        }`}
+          }`}
       >
         {pageNum}
       </button>
@@ -1228,7 +1225,7 @@ function CapabilityGrid({ items }: any) {
         return (
           <div key={index} className="flex items-start gap-3 p-4 rounded-2xl border transition-all duration-300 hover:shadow-md bg-white border-slate-200 hover:border-slate-300 dark:bg-[#1e293b]/60 dark:border-slate-700/80 dark:hover:bg-[#1e293b]">
             <div className="mt-1 rounded-full p-0.5 border-2 border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-800">
-               <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
+              <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
             </div>
             <div>
               <div className="text-[14px] font-bold mb-0.5 text-slate-800 dark:text-slate-200">{label}</div>
@@ -1246,9 +1243,9 @@ function StatePill({ label }: { label: string }) {
   const lower = label.toLowerCase();
   const isErr = lower.includes("cần") || lower.includes("locked") || lower.includes("bị") || lower.includes("chưa");
   const isWarn = lower.includes("một") || lower.includes("chờ") || lower.includes("đang");
-  
+
   let styles = "bg-green-100 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400";
-  
+
   if (isErr) {
     styles = "bg-rose-100 border-rose-200 text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400";
   } else if (isWarn) {
@@ -1259,10 +1256,10 @@ function StatePill({ label }: { label: string }) {
 }
 
 function TypePill({ label }: { label: string }) {
-  const styles = label === "GROUP" 
-    ? "bg-blue-100 border-blue-200 text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/30 dark:text-blue-400" 
-    : label === "CLOUD" 
-      ? "bg-purple-100 border-purple-200 text-purple-700 dark:bg-purple-500/15 dark:border-purple-500/30 dark:text-purple-400" 
+  const styles = label === "GROUP"
+    ? "bg-blue-100 border-blue-200 text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/30 dark:text-blue-400"
+    : label === "CLOUD"
+      ? "bg-purple-100 border-purple-200 text-purple-700 dark:bg-purple-500/15 dark:border-purple-500/30 dark:text-purple-400"
       : "bg-sky-100 border-sky-200 text-sky-700 dark:bg-sky-500/15 dark:border-sky-500/30 dark:text-sky-400";
   return <span className={`inline-flex items-center h-6 px-3 rounded-full text-[12px] font-bold border tracking-wider ${styles}`}>{label}</span>;
 }
