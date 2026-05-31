@@ -1,11 +1,13 @@
-import { Platform } from "react-native";
-import { Slot } from "expo-router";
+import { Platform, View, Text, TouchableOpacity } from "react-native";
+import { Slot, useRouter } from "expo-router";
 import { Tabs } from "expo-router/tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { AuthGuard } from "@/shared/guards/AuthGuard";
 import WebSidebar from "@/views/web/components/WebSidebar";
 import { useWebSocketManager } from "@/shared/hooks/useWebSocketManager";
 import { useThemeColors } from "@/shared/theme/colors";
+import { useAuthStore } from "@/shared/store/authStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Icon tab bar (mobile) - giống Zalo: Tin nhắn (chat), Danh bạ (people), Khám phá (grid), Tường nhà (newspaper), Cá nhân (person)
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -30,16 +32,50 @@ const TabIcon = ({
 export default function TabsLayout() {
     const isWeb = Platform.OS === "web";
     const colors = useThemeColors();
+    const insets = useSafeAreaInsets();
+    const router = useRouter();
+
+    const impersonatorToken = useAuthStore(state => state.impersonatorToken);
+    const restoreImpersonator = useAuthStore(state => state.restoreImpersonator);
 
     // Quản lý WebSocket toàn cục — luôn active dù đang ở tab nào
     useWebSocketManager();
+
+    const renderImpersonatorBanner = () => {
+        if (!impersonatorToken || !isWeb) return null;
+        return (
+            <View style={{ position: "absolute", top: 24, left: 0, right: 0, alignItems: "center", zIndex: 9999, pointerEvents: "box-none" }}>
+                <View style={{
+                    backgroundColor: "#ef4444", padding: 8, paddingHorizontal: 14, borderRadius: 30,
+                    flexDirection: "row", alignItems: "center", gap: 12,
+                    shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8,
+                    pointerEvents: "auto"
+                }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Ionicons name="warning" size={18} color="#fff" />
+                        <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Đang mạo danh</Text>
+                    </View>
+                    <TouchableOpacity
+                        style={{ backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}
+                        onPress={() => {
+                            restoreImpersonator();
+                            router.replace("/admin");
+                        }}
+                    >
+                        <Text style={{ color: "#ef4444", fontWeight: "700", fontSize: 12 }}>Thoát</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    };
 
     if (isWeb) {
         return (
             <AuthGuard mode="requireAuth">
                 <div style={{ display: "flex", height: "100vh", width: "100%", overflow: "hidden" }}>
                     <WebSidebar />
-                    <main style={{ flex: 1, minWidth: 0, height: "100vh", overflow: "hidden" }}>
+                    <main style={{ flex: 1, minWidth: 0, height: "100vh", overflow: "hidden", position: "relative" }}>
+                        {renderImpersonatorBanner()}
                         <Slot />
                     </main>
                 </div>

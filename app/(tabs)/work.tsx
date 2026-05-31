@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { api } from "@/shared/services/apiClient";
 import {
     View, Text, Platform, TextInput, TouchableOpacity, Pressable, ScrollView,
     Image, ActivityIndicator, Modal, Dimensions, Animated, PanResponder,
@@ -1725,6 +1726,29 @@ export default function WorkScreen() {
     const viewerAudioRef = useRef<any>(null);
     const [keyboardH, setKeyboardH] = useState(0);
     const viewShotRef = useRef<any>(null); // ref để chụp story composite
+    
+    // -- Report state --
+    const [reportingStory, setReportingStory] = useState<any>(null);
+    const [reportReason, setReportReason] = useState("");
+
+    const submitReportStory = async () => {
+        if (!reportingStory) return;
+        try {
+            await api.post('/stories/report', { 
+                storyUserId: reportingStory.userId,
+                storyId: reportingStory.createdAt || reportingStory.postedAt || reportingStory.id,
+                reason: reportReason || "Khác",
+                content: reportingStory.caption || "Story vi phạm"
+            });
+            showToastMsg("Báo cáo thành công");
+        } catch (error) {
+            console.error("Report story error:", error);
+            showToastMsg("Có lỗi xảy ra khi báo cáo");
+        } finally {
+            setReportingStory(null);
+            setReportReason("");
+        }
+    };
 
     useEffect(() => {
         const showSub = Keyboard.addListener("keyboardDidShow", (e) => setKeyboardH(e.endCoordinates.height));
@@ -2061,6 +2085,8 @@ export default function WorkScreen() {
 
     // isImageReady dùng cho prefetch logic — không dùng làm guard overlay nữa
 
+
+
     // ── Tối ưu 3: Pre-fetch ảnh của Story tiếp theo để hiện tức thì ──
     useEffect(() => {
         if (!selectedStory) return;
@@ -2142,12 +2168,12 @@ export default function WorkScreen() {
     // Pause progress và nhạc khi mở menu
     useEffect(() => {
         // Xử lý pause/resume progress
-        if (showStoryMenu) {
+        if (showStoryMenu || !!reportingStory) {
             setIsPaused(true);
         } else {
             setIsPaused(false);
         }
-    }, [showStoryMenu]);
+    }, [showStoryMenu, reportingStory]);
 
     // Xử lý audio riêng — dừng/phát nhạc theo isPaused
     useEffect(() => {
@@ -3867,9 +3893,7 @@ export default function WorkScreen() {
                         onDownload={handleDownloadStory}
                         onReport={() => {
                             handleCloseMenu();
-                            setTimeout(() => {
-                                showToastMsg("Đã gửi báo cáo");
-                            }, 300);
+                            setReportingStory(selectedStory);
                         }}
                         bottomInset={insets.bottom}
                         colors={colors}
@@ -3991,6 +4015,37 @@ export default function WorkScreen() {
                                 bottomInset={insets.bottom}
                                 colors={colors}
                             />
+                        </View>
+                    )}
+
+                    {/* Sheet Báo cáo Story (Dùng View thay vì Modal để tránh lỗi đè Modal) */}
+                    {!!reportingStory && (
+                        <View style={[StyleSheet.absoluteFillObject, { zIndex: 130 }]} pointerEvents="box-none">
+                            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+                                <TouchableOpacity style={{ flex: 1 }} onPress={() => setReportingStory(null)} activeOpacity={1} />
+                                <View style={{ backgroundColor: colors.background, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 24, paddingBottom: insets.bottom + 24 }}>
+                                    <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text, marginBottom: 8 }}>Báo cáo Story</Text>
+                                    <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 16 }}>Story này sẽ được gửi đến Quản trị viên để kiểm tra.</Text>
+
+                                    {["Hình ảnh phản cảm", "Ngôn từ thù ghét", "Spam", "Quấy rối", "Khác"].map((r) => (
+                                        <TouchableOpacity key={r} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12 }} onPress={() => setReportReason(r)}>
+                                            <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: reportReason === r ? "#0068FF" : colors.border, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                                                {reportReason === r && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#0068FF" }} />}
+                                            </View>
+                                            <Text style={{ fontSize: 15, color: colors.text }}>{r}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+
+                                    <View style={{ flexDirection: "row", gap: 12, marginTop: 24 }}>
+                                        <TouchableOpacity style={{ flex: 1, height: 44, borderRadius: 8, backgroundColor: colors.card, alignItems: "center", justifyContent: "center" }} onPress={() => setReportingStory(null)}>
+                                            <Text style={{ fontWeight: "600", color: colors.text }}>Hủy</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={{ flex: 1, height: 44, borderRadius: 8, backgroundColor: "#ef4444", alignItems: "center", justifyContent: "center" }} onPress={submitReportStory}>
+                                            <Text style={{ fontWeight: "600", color: "#fff" }}>Gửi Báo Cáo</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </View>
                         </View>
                     )}
                 </View>
