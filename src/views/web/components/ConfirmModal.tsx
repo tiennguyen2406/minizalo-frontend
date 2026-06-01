@@ -27,7 +27,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center"
-            style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+            style={{ backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 1000 }}
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}

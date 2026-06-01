@@ -110,6 +110,7 @@ export function mapChatRoomResponseToFrontend(room: ChatRoomResponse): ChatRoom 
         unreadCount: room.unreadCount ?? 0,
         updatedAt,
         participants,
+        hasInteracted: !!room.hasInteracted,
         disbanded: !!room.disbanded,
     };
     if (room.lastMessage) {

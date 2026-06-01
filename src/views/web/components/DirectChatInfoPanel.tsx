@@ -3,6 +3,7 @@ import { CollapsibleSection, ActionButton, ActionButtonRow, ToggleSwitch } from 
 import { useGroupStore } from '@/shared/store/useGroupStore';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { useFriendStore } from '@/shared/store/friendStore';
+import { useAuthStore } from '@/shared/store/authStore';
 import { usePostStore } from '@/shared/store/postStore';
 import { ChatRoom } from '@/shared/types';
 import ConfirmModal from './ConfirmModal';
@@ -213,7 +214,8 @@ interface DirectChatInfoPanelProps {
 
 const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose, partner }) => {
     const { openCreateGroup } = useGroupStore();
-    const { blockUser, removeFriend } = useFriendStore();
+    const currentUserId = useAuthStore((s) => s.user?.id);
+    const { blockUser, removeFriend, friends, requests, sentRequests, sendRequest } = useFriendStore();
     const posts = usePostStore((s) => s.posts);
     const fetchPostFeed = usePostStore((s) => s.fetchFeed);
     const { pinnedRooms, togglePinRoom, mutedRooms, toggleMuteRoom, hiddenRooms, toggleHiddenRoom, upsertRoom } = useChatStore();
@@ -238,6 +240,7 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
     const [showNicknameModal, setShowNicknameModal] = useState(false);
     const [isClearHistoryModalOpen, setIsClearHistoryModalOpen] = useState(false);
     const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+    const [isDeleteFriendModalOpen, setIsDeleteFriendModalOpen] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
     const [businessDescExpanded, setBusinessDescExpanded] = useState(false);
 
@@ -245,6 +248,34 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
     const isHidden = hiddenRooms.has(String(room.id));
     const displayName = nickname || partner?.fullName || partner?.username || room.name || 'Người dùng';
     const realName = partner?.fullName || partner?.username || room.name || 'Người dùng';
+
+    const friendStatus = useMemo(() => {
+        if (!profileModal?.id || !currentUserId) return 'NONE';
+        const targetId = profileModal.id;
+        const isFriend = friends.some((f) => {
+            if (f.status !== 'ACCEPTED') return false;
+            const a = String(f.user.id);
+            const b = String(f.friend.id);
+            const me = String(currentUserId);
+            const pid = String(targetId);
+            return (a === me && b === pid) || (b === me && a === pid);
+        });
+        if (isFriend) return 'FRIEND';
+
+        const isIncoming = requests.some((r) => {
+            const id = r.user?.id ?? r.friend?.id;
+            return id != null && String(id) === String(targetId);
+        });
+        if (isIncoming) return 'INCOMING';
+
+        const isSent = sentRequests.some((r) => {
+            const id = r.friend?.id ?? (r as any).friendId ?? r.user?.id;
+            return id != null && String(id) === String(targetId);
+        });
+        if (isSent) return 'SENT';
+
+        return 'NONE';
+    }, [friends, requests, sentRequests, profileModal?.id, currentUserId]);
     const avatarSrc = partner?.avatarUrl ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(realName)}&background=4f46e5&color=fff&bold=true&size=128`;
 
@@ -407,18 +438,35 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
         }
     }, [blockUser, profileModal, showToast]);
 
-    const handleRemoveProfileFriend = useCallback(async () => {
+    const handleRemoveProfileFriend = useCallback(() => {
+        setIsDeleteFriendModalOpen(true);
+    }, []);
+
+    const handleSendFriendRequest = useCallback(async () => {
         if (!profileModal?.id) return;
-        const label = profileModal.displayName || profileModal.username || 'người này';
-        if (!window.confirm(`Xóa ${label} khỏi danh sách bạn bè?`)) return;
         try {
-            await removeFriend(profileModal.id);
-            setProfileModal(null);
-            showToast('Đã xóa khỏi danh sách bạn bè');
+            await sendRequest(profileModal.id);
+            showToast('Đã gửi lời mời kết bạn');
         } catch {
-            showToast('Không thể xóa bạn bè lúc này');
+            showToast('Gửi lời mời kết bạn thất bại');
         }
-    }, [profileModal, removeFriend, showToast]);
+    }, [profileModal?.id, sendRequest, showToast]);
+
+    const handleAcceptFriendRequest = useCallback(async () => {
+        if (!profileModal?.id) return;
+        const incoming = requests.find((r) => {
+            const id = r.user?.id ?? r.friend?.id;
+            return id != null && String(id) === String(profileModal.id);
+        });
+        if (!incoming) return;
+        try {
+            const { acceptRequest } = useFriendStore.getState();
+            await acceptRequest(incoming.id);
+            showToast('Đã đồng ý kết bạn');
+        } catch {
+            showToast('Chấp nhận lời mời thất bại');
+        }
+    }, [profileModal?.id, requests, showToast]);
 
     const allMediaItems = useMemo(
         () => [...allMessages].reverse().flatMap(getPanelMediaItems),
@@ -1037,14 +1085,52 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                                     <Icon.Block />
                                     <span>Chặn liên hệ này</span>
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={handleRemoveProfileFriend}
-                                    className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-hover)]"
-                                >
-                                    <Icon.Trash />
-                                    <span>Xóa khỏi danh sách bạn bè</span>
-                                </button>
+                                {friendStatus === 'FRIEND' && (
+                                    <button
+                                        type="button"
+                                        onClick={handleRemoveProfileFriend}
+                                        className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-hover)]"
+                                    >
+                                        <Icon.Trash />
+                                        <span>Xóa khỏi danh sách bạn bè</span>
+                                    </button>
+                                )}
+                                {friendStatus === 'NONE' && (
+                                    <button
+                                        type="button"
+                                        onClick={handleSendFriendRequest}
+                                        className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-blue-600 transition-colors hover:bg-[color:var(--bg-hover)]"
+                                    >
+                                        <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v9m-4.5-4.5h9M3 20a6 6 0 0112 0v1H3v-1zM12 9a4 4 0 11-8 0 4 4 0 018 0z" />
+                                        </svg>
+                                        <span>Kết bạn</span>
+                                    </button>
+                                )}
+                                {friendStatus === 'SENT' && (
+                                    <button
+                                        type="button"
+                                        disabled
+                                        className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-gray-400 cursor-default"
+                                    >
+                                        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span>Đã gửi lời mời kết bạn</span>
+                                    </button>
+                                )}
+                                {friendStatus === 'INCOMING' && (
+                                    <button
+                                        type="button"
+                                        onClick={handleAcceptFriendRequest}
+                                        className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-green-600 transition-colors hover:bg-[color:var(--bg-hover)]"
+                                    >
+                                        <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span>Chấp nhận lời mời kết bạn</span>
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1071,6 +1157,24 @@ const DirectChatInfoPanel: React.FC<DirectChatInfoPanelProps> = ({ room, onClose
                 title="Xác nhận"
                 message="Toàn bộ nội dung trò chuyện sẽ bị xóa vĩnh viễn. Bạn có chắc chắn muốn xóa?"
                 confirmText="Xóa"
+                isDanger={true}
+            />
+            <ConfirmModal
+                isOpen={isDeleteFriendModalOpen}
+                onClose={() => setIsDeleteFriendModalOpen(false)}
+                onConfirm={async () => {
+                    if (profileModal?.id) {
+                        try {
+                            await removeFriend(profileModal.id);
+                            showToast('Đã xóa khỏi danh sách bạn bè');
+                        } catch {
+                            showToast('Không thể xóa bạn bè lúc này');
+                        }
+                    }
+                }}
+                title="Xác nhận xóa bạn"
+                message={`Bạn có chắc chắn muốn xóa "${profileModal?.displayName || profileModal?.username || displayName}" khỏi danh sách bạn bè?`}
+                confirmText="Xóa bạn"
                 isDanger={true}
             />
 

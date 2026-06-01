@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useFriendStore } from "@/shared/store/friendStore";
@@ -36,19 +36,24 @@ export default function FriendRequestsScreen({
   currentUserId,
 }: FriendRequestsScreenProps) {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"received" | "sent">("received");
   const {
     requests,
+    sentRequests,
     loading,
     error,
     fetchRequests,
+    fetchSentRequests,
     acceptRequest,
     rejectRequest,
+    cancelSentRequest,
     clearError,
   } = useFriendStore();
 
   useEffect(() => {
     fetchRequests();
-  }, [fetchRequests]);
+    fetchSentRequests();
+  }, [fetchRequests, fetchSentRequests]);
 
   const handleAccept = async (id: string) => {
     try {
@@ -69,7 +74,13 @@ export default function FriendRequestsScreen({
     }
   };
 
-  const count = requests.length;
+  const handleCancel = async (id: string) => {
+    try {
+      await cancelSentRequest(id);
+    } catch {
+      // lỗi đã lưu trong store
+    }
+  };
 
   return (
     <div
@@ -120,15 +131,47 @@ export default function FriendRequestsScreen({
 
       <div
         style={{
-          padding: "10px 16px 8px",
-          fontSize: 15,
-          fontWeight: 600,
-          color: "var(--text-primary, #333)",
+          display: "flex",
           borderBottom: "1px solid #dde1e6",
           backgroundColor: "var(--bg-primary, #f7f9fb)",
         }}
       >
-        Lời mời đã nhận ({count})
+        <button
+          type="button"
+          onClick={() => setActiveTab("received")}
+          style={{
+            flex: 1,
+            padding: "12px 16px",
+            fontSize: 15,
+            fontWeight: 600,
+            color: activeTab === "received" ? "#0068ff" : "var(--text-secondary, #666)",
+            border: "none",
+            backgroundColor: "transparent",
+            borderBottom: activeTab === "received" ? "2px solid #0068ff" : "2px solid transparent",
+            cursor: "pointer",
+            textAlign: "center",
+          }}
+        >
+          Lời mời đã nhận ({requests.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("sent")}
+          style={{
+            flex: 1,
+            padding: "12px 16px",
+            fontSize: 15,
+            fontWeight: 600,
+            color: activeTab === "sent" ? "#0068ff" : "var(--text-secondary, #666)",
+            border: "none",
+            backgroundColor: "transparent",
+            borderBottom: activeTab === "sent" ? "2px solid #0068ff" : "2px solid transparent",
+            cursor: "pointer",
+            textAlign: "center",
+          }}
+        >
+          Lời mời đã gửi ({sentRequests.length})
+        </button>
       </div>
 
       {error && (
@@ -161,175 +204,314 @@ export default function FriendRequestsScreen({
       )}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px 24px" }}>
-        {requests.length === 0 && !loading && (
-          <div
-            style={{
-              padding: 32,
-              textAlign: "center",
-              color: "var(--text-secondary, #666)",
-              fontSize: 14,
-            }}
-          >
-            Hiện chưa có lời mời kết bạn nào.
-          </div>
-        )}
-        {requests.map((item) => {
-          const user = getSenderProfile(item, currentUserId);
-          const initial =
-            (user.displayName || user.username || "?").charAt(0).toUpperCase() ||
-            "?";
-          const displayName = user.displayName || user.username || "Người dùng";
-          const intro =
-            item.inviteMessage?.trim() ||
-            "Xin chào! Mình muốn được kết bạn với bạn.";
-          const meta = `${formatInviteTime(item.createdAt)} — ${inviteSourceLabel(item.inviteSource)}`;
-
-          return (
-            <div
-              key={item.id}
-              style={{
-                backgroundColor: "var(--bg-primary, #fff)",
-                borderRadius: 12,
-                boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                padding: 16,
-                marginBottom: 14,
-              }}
-            >
-              <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-                <div
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: "50%",
-                    overflow: "hidden",
-                    backgroundColor: "var(--bg-tertiary, #e3e7ed)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 700,
-                    color: "#344767",
-                    flexShrink: 0,
-                  }}
-                >
-                  {user.avatarUrl ? (
-                    <img
-                      src={user.avatarUrl}
-                      alt=""
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  ) : (
-                    initial
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                      gap: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 700,
-                        color: "var(--text-primary, #111)",
-                      }}
-                    >
-                      {displayName}
-                    </div>
-                    <span
-                      title="Từ trò chuyện"
-                      style={{
-                        flexShrink: 0,
-                        color: "var(--text-secondary, #9ca3af)",
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      <svg
-                        width="22"
-                        height="22"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                      >
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                        <path d="M12 8v4M10 10h4" />
-                      </svg>
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "var(--text-secondary, #6b7280)",
-                      marginTop: 4,
-                    }}
-                  >
-                    {meta}
-                  </div>
-                </div>
-              </div>
-
+        {activeTab === "received" ? (
+          <>
+            {requests.length === 0 && !loading && (
               <div
                 style={{
-                  backgroundColor: "var(--bg-secondary, #f3f4f6)",
-                  borderRadius: 8,
-                  padding: "12px 14px",
+                  padding: 32,
+                  textAlign: "center",
+                  color: "var(--text-secondary, #666)",
                   fontSize: 14,
-                  color: "var(--text-primary, #374151)",
-                  lineHeight: 1.45,
-                  marginBottom: 14,
                 }}
               >
-                {intro}
+                Hiện chưa có lời mời kết bạn nào.
               </div>
+            )}
+            {requests.map((item) => {
+              const user = getSenderProfile(item, currentUserId);
+              const initial =
+                (user.displayName || user.username || "?").charAt(0).toUpperCase() ||
+                "?";
+              const displayName = user.displayName || user.username || "Người dùng";
+              const intro =
+                item.inviteMessage?.trim() ||
+                "Xin chào! Mình muốn được kết bạn với bạn.";
+              const meta = `${formatInviteTime(item.createdAt)} — ${inviteSourceLabel(item.inviteSource)}`;
 
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => handleReject(item.id)}
+              return (
+                <div
+                  key={item.id}
                   style={{
-                    flex: 1,
-                    padding: "11px 16px",
-                    borderRadius: 8,
-                    border: "none",
-                    backgroundColor: "var(--bg-tertiary, #e5e7eb)",
-                    color: "var(--text-primary, #374151)",
-                    fontSize: 15,
-                    fontWeight: 600,
-                    cursor: "pointer",
+                    backgroundColor: "var(--bg-primary, #fff)",
+                    borderRadius: 12,
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                    padding: 16,
+                    marginBottom: 14,
                   }}
                 >
-                  Từ chối
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAccept(item.id)}
-                  style={{
-                    flex: 1,
-                    padding: "11px 16px",
-                    borderRadius: 8,
-                    border: "1px solid #b3d4ff",
-                    backgroundColor: "#e8f2ff",
-                    color: "#0068ff",
-                    fontSize: 15,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Đồng ý
-                </button>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: "50%",
+                        overflow: "hidden",
+                        backgroundColor: "var(--bg-tertiary, #e3e7ed)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 700,
+                        color: "#344767",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {user.avatarUrl ? (
+                        <img
+                          src={user.avatarUrl}
+                          alt=""
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      ) : (
+                        initial
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: 8,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 16,
+                            fontWeight: 700,
+                            color: "var(--text-primary, #111)",
+                          }}
+                        >
+                          {displayName}
+                        </div>
+                        <span
+                          title="Từ trò chuyện"
+                          style={{
+                            flexShrink: 0,
+                            color: "var(--text-secondary, #9ca3af)",
+                            display: "flex",
+                            alignItems: "center",
+                          }}
+                        >
+                          <svg
+                            width="22"
+                            height="22"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                          >
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            <path d="M12 8v4M10 10h4" />
+                          </svg>
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "var(--text-secondary, #6b7280)",
+                          marginTop: 4,
+                        }}
+                      >
+                        {meta}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      backgroundColor: "var(--bg-secondary, #f3f4f6)",
+                      borderRadius: 8,
+                      padding: "12px 14px",
+                      fontSize: 14,
+                      color: "var(--text-primary, #374151)",
+                      lineHeight: 1.45,
+                      marginBottom: 14,
+                    }}
+                  >
+                    {intro}
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleReject(item.id)}
+                      style={{
+                        flex: 1,
+                        padding: "11px 16px",
+                        borderRadius: 8,
+                        border: "none",
+                        backgroundColor: "var(--bg-tertiary, #e5e7eb)",
+                        color: "var(--text-primary, #374151)",
+                        fontSize: 15,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Từ chối
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAccept(item.id)}
+                      style={{
+                        flex: 1,
+                        padding: "11px 16px",
+                        borderRadius: 8,
+                        border: "1px solid #b3d4ff",
+                        backgroundColor: "#e8f2ff",
+                        color: "#0068ff",
+                        fontSize: 15,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Đồng ý
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            {sentRequests.length === 0 && !loading && (
+              <div
+                style={{
+                  padding: 32,
+                  textAlign: "center",
+                  color: "var(--text-secondary, #666)",
+                  fontSize: 14,
+                }}
+              >
+                Hiện chưa có lời mời kết bạn nào đã gửi.
               </div>
-            </div>
-          );
-        })}
+            )}
+            {sentRequests.map((item) => {
+              const user = getSenderProfile(item, currentUserId);
+              const initial =
+                (user.displayName || user.username || "?").charAt(0).toUpperCase() ||
+                "?";
+              const displayName = user.displayName || user.username || "Người dùng";
+              const intro =
+                item.inviteMessage?.trim() ||
+                "Xin chào! Mình muốn được kết bạn với bạn.";
+              const meta = `${formatInviteTime(item.createdAt)} — ${inviteSourceLabel(item.inviteSource)}`;
+
+              return (
+                <div
+                  key={item.id}
+                  style={{
+                    backgroundColor: "var(--bg-primary, #fff)",
+                    borderRadius: 12,
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                    padding: 16,
+                    marginBottom: 14,
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: "50%",
+                        overflow: "hidden",
+                        backgroundColor: "var(--bg-tertiary, #e3e7ed)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 700,
+                        color: "#344767",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {user.avatarUrl ? (
+                        <img
+                          src={user.avatarUrl}
+                          alt=""
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      ) : (
+                        initial
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: 8,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 16,
+                            fontWeight: 700,
+                            color: "var(--text-primary, #111)",
+                          }}
+                        >
+                          {displayName}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "var(--text-secondary, #6b7280)",
+                          marginTop: 4,
+                        }}
+                      >
+                        {meta}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      backgroundColor: "var(--bg-secondary, #f3f4f6)",
+                      borderRadius: 8,
+                      padding: "12px 14px",
+                      fontSize: 14,
+                      color: "var(--text-primary, #374151)",
+                      lineHeight: 1.45,
+                      marginBottom: 14,
+                    }}
+                  >
+                    {intro}
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleCancel(item.id)}
+                      style={{
+                        flex: 1,
+                        padding: "11px 16px",
+                        borderRadius: 8,
+                        border: "1px solid #fecaca",
+                        backgroundColor: "#fef2f2",
+                        color: "#ef4444",
+                        fontSize: 15,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        textAlign: "center",
+                      }}
+                    >
+                      Thu hồi lời mời
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
     </div>
   );

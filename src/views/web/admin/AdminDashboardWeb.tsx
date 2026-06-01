@@ -7,6 +7,7 @@ import {
   FileText,
   Filter,
   Lock,
+  LogOut,
   MessageSquare,
   MoreHorizontal,
   RefreshCw,
@@ -23,6 +24,7 @@ import { api } from "@/shared/services/apiClient";
 import { adminService } from "@/shared/services/adminService";
 import { AuthGuard } from "@/shared/guards/AuthGuard";
 import { useAuthStore } from "@/shared/store/authStore";
+import ConfirmModal from "../components/ConfirmModal";
 
 type DailyPoint = { date: string; count: number; };
 type OverviewStats = { totalUsers?: number; since?: string; };
@@ -144,6 +146,7 @@ function IdCell({ value }: { value?: string | null }) {
 export default function AdminDashboardWeb() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const [activeSection, setActiveSection] = useState<AdminSectionId>("dashboard");
   const [overview, setOverview] = useState<OverviewStats>({});
   const [dashboardSummary, setDashboardSummary] = useState<any>({});
@@ -171,6 +174,52 @@ export default function AdminDashboardWeb() {
   const [moderationFilter, setModerationFilter] = useState("Tất cả");
   const [auditFilter, setAuditFilter] = useState("Tất cả");
   const [adminFilter, setAdminFilter] = useState("Tất cả");
+
+  // State for global custom ConfirmModal
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDanger?: boolean;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (opts: {
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDanger?: boolean;
+    onConfirm: () => void | Promise<void>;
+  }) => {
+    setConfirmModal({
+      isOpen: true,
+      title: opts.title,
+      message: opts.message,
+      confirmText: opts.confirmText,
+      cancelText: opts.cancelText,
+      isDanger: opts.isDanger,
+      onConfirm: () => {
+        void opts.onConfirm();
+      },
+    });
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.push("/admin-login");
+    } catch {
+      toast.error("Đăng xuất thất bại");
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 300);
@@ -247,13 +296,22 @@ export default function AdminDashboardWeb() {
   };
 
   const handleDisbandGroup = async (groupId: string) => {
-    if (!confirm("Giải tán nhóm này? Hành động không thể hoàn tác.")) return;
-    try {
-      await adminService.disbandGroup(groupId);
-      await loadAnalytics();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Không thể giải tán nhóm");
-    }
+    showConfirm({
+      title: "Giải tán nhóm",
+      message: "Giải tán nhóm này? Hành động không thể hoàn tác.",
+      confirmText: "Giải tán",
+      cancelText: "Hủy",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await adminService.disbandGroup(groupId);
+          toast.success("Giải tán nhóm thành công!");
+          await loadAnalytics();
+        } catch (err: any) {
+          setError(err?.response?.data?.message || "Không thể giải tán nhóm");
+        }
+      }
+    });
   };
 
   const handleResolveReport = async (reportId: string) => {
@@ -382,6 +440,7 @@ export default function AdminDashboardWeb() {
         {/* Sidebar */}
         <aside className="w-[260px] min-w-[260px] flex flex-col p-5 gap-6 backdrop-blur-xl border-r transition-colors duration-300 z-10 bg-white/80 border-slate-200/50 dark:bg-[#111827]/80 dark:border-white/5">
           <button
+            onClick={() => router.push("/(tabs)")}
             className="flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-300 group bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 dark:from-blue-900/40 dark:to-blue-800/20 dark:border-blue-500/30 dark:hover:border-blue-400/50 dark:hover:from-blue-800/40"
           >
             <div className="p-1.5 rounded-lg bg-blue-600 text-white shadow-sm dark:bg-blue-500/20 dark:text-blue-400">
@@ -410,6 +469,15 @@ export default function AdminDashboardWeb() {
                 </button>
               );
             })}
+            <div className="my-2 border-t border-slate-200/50 dark:border-white/5" />
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-all duration-300 text-[14px] font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20 w-full text-left"
+            >
+              <LogOut size={18} strokeWidth={2} />
+              <span>Đăng xuất</span>
+            </button>
           </nav>
         </aside>
 
@@ -476,7 +544,7 @@ export default function AdminDashboardWeb() {
 
             <div className="flex flex-col gap-6 opacity-0 animate-[fadeIn_0.4s_ease-out_forwards]">
               {activeSection === "dashboard" && <DashboardSection loading={loading} overview={overview} dashboardSummary={dashboardSummary} messageStats={messageStats} activeStats={activeStats} topRooms={filteredTopRooms} range={range} listResetKey={listResetKey} />}
-              {activeSection === "users" && <UsersSection users={users} loading={loading} activeFilter={userFilter} onFilterChange={setUserFilter} listResetKey={listResetKey} />}
+              {activeSection === "users" && <UsersSection users={users} loading={loading} activeFilter={userFilter} onFilterChange={setUserFilter} listResetKey={listResetKey} showConfirm={showConfirm} />}
               {activeSection === "conversations" && <ConversationsSection rooms={filteredRooms} loading={loading} setActiveSection={setActiveSection} setSelectedRoomId={setSelectedRoomId} />}
               {activeSection === "messages" && <MessagesSection roomId={selectedRoomId} setRoomId={setSelectedRoomId} searchQuery={debouncedQuery} typeFilter={messageFilter} onTypeFilterChange={setMessageFilter} />}
               {activeSection === "media" && <MediaSection mediaStats={mediaStats} activeFilter={mediaFilter} onFilterChange={setMediaFilter} searchQuery={debouncedQuery} />}
@@ -510,6 +578,16 @@ export default function AdminDashboardWeb() {
           html.dark .custom-scrollbar:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
         `}} />
       </div>
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        isDanger={confirmModal.isDanger}
+      />
     </AuthGuard>
   );
 }
@@ -565,37 +643,53 @@ function DashboardSection({ loading, overview, dashboardSummary, messageStats, a
   );
 }
 
-function UsersSection({ users, loading, activeFilter, onFilterChange, listResetKey }: any) {
+function UsersSection({ users, loading, activeFilter, onFilterChange, listResetKey, showConfirm }: any) {
   const router = useRouter();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   
   const handleImpersonate = async (userId: string) => {
-    if (!confirm("Đăng nhập dưới quyền người dùng này?")) return;
-    try {
-      const res = await api.post(`/auth/impersonate/${userId}`);
-      const { accessToken, refreshToken } = res.data;
-      
-      const authState = useAuthStore.getState();
-      authState.setImpersonatorTokens(authState.accessToken!, authState.refreshToken!);
-      authState.setTokens(accessToken, refreshToken, true);
-      
-      toast.success("Chuyển quyền thành công!");
-      router.push("/(tabs)");
-    } catch (e) {
-      toast.error("Lỗi khi chuyển quyền");
-    }
+    showConfirm({
+      title: "Chuyển quyền đăng nhập",
+      message: "Đăng nhập dưới quyền người dùng này?",
+      confirmText: "Đồng ý",
+      cancelText: "Hủy",
+      isDanger: false,
+      onConfirm: async () => {
+        try {
+          const res = await api.post(`/auth/impersonate/${userId}`);
+          const { accessToken, refreshToken } = res.data;
+          
+          const authState = useAuthStore.getState();
+          authState.setImpersonatorTokens(authState.accessToken!, authState.refreshToken!);
+          authState.setTokens(accessToken, refreshToken, true);
+          
+          toast.success("Chuyển quyền thành công!");
+          router.push("/(tabs)");
+        } catch (e) {
+          toast.error("Lỗi khi chuyển quyền");
+        }
+      }
+    });
   };
 
   const handleLock = async (userId: string, lock: boolean) => {
     const action = lock ? "khóa" : "mở khóa";
-    if (!confirm(`Xác nhận ${action} tài khoản này?`)) return;
-    try {
-      await api.put(`/admin/users/${userId}/${lock ? "lock" : "unlock"}`);
-      toast.success(`Đã ${action} tài khoản!`);
-      setOpenMenuId(null);
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || `Không thể ${action}`);
-    }
+    showConfirm({
+      title: lock ? "Khóa tài khoản" : "Mở khóa tài khoản",
+      message: `Xác nhận ${action} tài khoản này?`,
+      confirmText: lock ? "Khóa" : "Mở khóa",
+      cancelText: "Hủy",
+      isDanger: lock,
+      onConfirm: async () => {
+        try {
+          await api.put(`/admin/users/${userId}/${lock ? "lock" : "unlock"}`);
+          toast.success(`Đã ${action} tài khoản!`);
+          setOpenMenuId(null);
+        } catch (e: any) {
+          toast.error(e?.response?.data?.message || `Không thể ${action}`);
+        }
+      }
+    });
   };
 
   return (

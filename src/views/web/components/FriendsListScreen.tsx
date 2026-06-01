@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { usePostStore } from "@/shared/store/postStore";
+import { useAuthStore } from "@/shared/store/authStore";
 import { useThemeStore } from "@/shared/store/themeStore";
 import friendCategoryService from "@/shared/services/friendCategoryService";
 import type { FriendResponseDto } from "@/shared/services/types";
@@ -38,7 +39,12 @@ export default function FriendsListScreen({
     removeFriend,
     blockUser,
     clearError,
+    requests,
+    sentRequests,
+    sendRequest,
+    acceptRequest,
   } = useFriendStore();
+
   const isDark = useThemeStore((s) => s.theme === "dark");
   const posts = usePostStore((s) => s.posts);
   const fetchPostFeed = usePostStore((s) => s.fetchFeed);
@@ -84,6 +90,65 @@ export default function FriendsListScreen({
   >({});
   const [toast, setToast] = useState<string | null>(null);
   const toastTimeoutRef = useRef<number | null>(null);
+
+  const friendStatus = useMemo(() => {
+    if (!viewingProfile?.id) return "NONE";
+    const targetId = viewingProfile.id;
+    const resolvedUserId = currentUserId || useAuthStore.getState().user?.id;
+    if (!resolvedUserId) return "NONE";
+    
+    // 1. Check if accepted friend
+    const isFriend = friends.some((f) => {
+      if (f.status !== "ACCEPTED") return false;
+      const a = String(f.user.id);
+      const b = String(f.friend.id);
+      const me = String(resolvedUserId);
+      const pid = String(targetId);
+      return (a === me && b === pid) || (b === me && a === pid);
+    });
+    if (isFriend) return "FRIEND";
+
+    // 2. Check if we received a request from them
+    const isIncoming = requests.some((r) => {
+      const id = r.user?.id ?? r.friend?.id;
+      return id != null && String(id) === String(targetId);
+    });
+    if (isIncoming) return "INCOMING";
+
+    // 3. Check if we sent a request to them
+    const isSent = sentRequests.some((r) => {
+      const id = r.friend?.id ?? (r as any).friendId ?? r.user?.id;
+      return id != null && String(id) === String(targetId);
+    });
+    if (isSent) return "SENT";
+
+    return "NONE";
+  }, [friends, requests, sentRequests, viewingProfile?.id, currentUserId]);
+
+  const handleSendFriendRequest = async () => {
+    if (!viewingProfile?.id) return;
+    try {
+      await sendRequest(viewingProfile.id);
+      setToast("Đã gửi lời mời kết bạn");
+    } catch {
+      setToast("Gửi lời mời kết bạn thất bại");
+    }
+  };
+
+  const handleAcceptFriendRequest = async () => {
+    if (!viewingProfile?.id) return;
+    const incoming = requests.find((r) => {
+      const id = r.user?.id ?? r.friend?.id;
+      return id != null && String(id) === String(viewingProfile.id);
+    });
+    if (!incoming) return;
+    try {
+      await acceptRequest(incoming.id);
+      setToast("Đã đồng ý kết bạn");
+    } catch {
+      setToast("Chấp nhận lời mời thất bại");
+    }
+  };
 
   useEffect(() => {
     void fetchPostFeed({ silent: true });
@@ -189,6 +254,9 @@ export default function FriendsListScreen({
     try {
       await removeFriend(confirmDelete.friendId);
       setConfirmDelete(null);
+      if (viewingProfile && viewingProfile.id === confirmDelete.friendId) {
+        setViewingProfile(null);
+      }
     } catch {
       // lỗi đã được lưu trong store
     }
@@ -2189,57 +2257,178 @@ export default function FriendsListScreen({
                   Chặn liên hệ này
                 </button>
 
-                <button
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "12px 16px",
-                    background: "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--text-primary)",
-                    fontSize: 14,
-                    textAlign: "left",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = isDark
-                      ? "var(--bg-hover)"
-                      : "#f9fafb")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = "transparent")
-                  }
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Xóa ${viewingProfile.displayName || viewingProfile.username} khỏi danh sách bạn bè?`,
-                      )
-                    ) {
-                      setViewingProfile(null);
-                      removeFriend(viewingProfile.id);
+                {friendStatus === "FRIEND" && (
+                  <button
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px 16px",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--text-primary)",
+                      fontSize: 14,
+                      textAlign: "left",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor = isDark
+                        ? "var(--bg-hover)"
+                        : "#f9fafb")
                     }
-                  }}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{ color: "var(--text-secondary)" }}
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = "transparent")
+                    }
+                    onClick={() => {
+                      handleRemoveClick(
+                        viewingProfile.id,
+                        viewingProfile.displayName || viewingProfile.username
+                      );
+                    }}
                   >
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                  </svg>
-                  Xóa khỏi danh sách bạn bè
-                </button>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      <line x1="10" y1="11" x2="10" y2="17"></line>
+                      <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                    Xóa khỏi danh sách bạn bè
+                  </button>
+                )}
+
+                {friendStatus === "NONE" && (
+                  <button
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px 16px",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#0068FF",
+                      fontSize: 14,
+                      textAlign: "left",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor = isDark
+                        ? "var(--bg-hover)"
+                        : "#f9fafb")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = "transparent")
+                    }
+                    onClick={handleSendFriendRequest}
+                  >
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ color: "#0068FF" }}
+                    >
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="8.5" cy="7" r="4" />
+                      <line x1="20" y1="8" x2="20" y2="14" />
+                      <line x1="23" y1="11" x2="17" y2="11" />
+                    </svg>
+                    Kết bạn
+                  </button>
+                )}
+
+                {friendStatus === "SENT" && (
+                  <button
+                    disabled
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px 16px",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "default",
+                      color: "var(--text-tertiary)",
+                      fontSize: 14,
+                      textAlign: "left",
+                    }}
+                  >
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                      <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                    Đã gửi lời mời kết bạn
+                  </button>
+                )}
+
+                {friendStatus === "INCOMING" && (
+                  <button
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px 16px",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#10b981",
+                      fontSize: 14,
+                      textAlign: "left",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor = isDark
+                        ? "var(--bg-hover)"
+                        : "#f9fafb")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = "transparent")
+                    }
+                    onClick={handleAcceptFriendRequest}
+                  >
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ color: "#10b981" }}
+                    >
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                      <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                    Chấp nhận lời mời kết bạn
+                  </button>
+                )}
               </div>
             </div>
           </div>
