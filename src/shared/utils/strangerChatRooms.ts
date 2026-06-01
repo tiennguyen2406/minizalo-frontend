@@ -67,7 +67,7 @@ export function splitRoomsMainAndStrangers(
     const mainRooms: ChatRoom[] = [];
     const strangerRooms: ChatRoom[] = [];
     for (const r of rooms) {
-        if (isStrangerPrivateRoom(r, currentUserId, friends) && !hasExistingConversation(r)) {
+        if (isStrangerPrivateRoom(r, currentUserId, friends) && !r.hasInteracted) {
             strangerRooms.push(r);
         } else {
             mainRooms.push(r);

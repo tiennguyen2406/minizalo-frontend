@@ -1,4 +1,9 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
+import { useRouter } from "expo-router";
+import { useAuthStore } from "@/shared/store/authStore";
+import { useGroupStore } from "@/shared/store/useGroupStore";
+import { useFriendStore } from "@/shared/store/friendStore";
+import { userService } from "@/shared/services/userService";
 import { useUserStore } from "@/shared/store/userStore";
 import {
     PRIVACY_AUDIENCE_OPTIONS,
@@ -7,6 +12,7 @@ import {
 import type { PrivacyAudience } from "@/shared/services/types";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { showToast as toast } from '@/shared/utils/toast';
+import ConfirmModal from "./ConfirmModal";
 
 const iconClose = (
     <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -18,9 +24,47 @@ const iconClose = (
 
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
+    const router = useRouter();
+    const logout = useAuthStore((s) => s.logout);
     const [activeTab, setActiveTab] = useState("privacy");
     const { profile, updateProfile, fetchProfile } = useUserStore();
     const rooms = useChatStore((s) => s.rooms);
+
+    const [password, setPassword] = useState("");
+    const [passwordError, setPasswordError] = useState("");
+    const [locking, setLocking] = useState(false);
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+    const handleLockAccount = () => {
+        setPasswordError("");
+        if (!password) {
+            setPasswordError("Vui lòng nhập mật khẩu để xác nhận");
+            return;
+        }
+        setIsConfirmOpen(true);
+    };
+
+    const handleConfirmLock = async () => {
+        setLocking(true);
+        try {
+            await userService.lockAccount(password);
+            await logout();
+            useUserStore.getState().clear();
+            useChatStore.getState().clear();
+            useGroupStore.getState().clear();
+            useFriendStore.getState().clear();
+            
+            toast.success("Khóa tài khoản thành công!");
+            onClose();
+            router.replace("/(auth)/login");
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || "Không thể khóa tài khoản. Vui lòng thử lại.";
+            setPasswordError(msg);
+            toast.error(msg);
+        } finally {
+            setLocking(false);
+        }
+    };
 
     useEffect(() => {
         void fetchProfile();
@@ -55,6 +99,11 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+        )},
+        { id: "account_security", label: "Tài khoản và bảo mật", icon: (
+            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
         )},
         { id: "sync", label: "Đồng bộ tin nhắn", icon: (
@@ -475,10 +524,90 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                                 </div>
                             </div>
                         )}
-
+                        {activeTab === "account_security" && (
+                            <div>
+                                <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--border-primary, #e5e7eb)", backgroundColor: "var(--bg-secondary, #f9fafb)" }}>
+                                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-secondary, #4b5563)" }}>
+                                        Tài khoản và bảo mật
+                                    </h3>
+                                </div>
+                                <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+                                    <div
+                                        style={{
+                                            border: "1px solid #fee2e2",
+                                            borderRadius: 8,
+                                            padding: 16,
+                                            backgroundColor: "var(--bg-primary, #ffffff)",
+                                        }}
+                                    >
+                                        <h4 style={{ color: "#dc2626", fontSize: 16, fontWeight: 600, margin: "0 0 8px" }}>
+                                            Khóa tài khoản
+                                        </h4>
+                                        <p style={{ color: "var(--text-muted, #6b7280)", fontSize: 13, lineHeight: "18px", margin: "0 0 16px" }}>
+                                            Hành động này sẽ đăng xuất bạn khỏi tất cả thiết bị và chặn đăng nhập lại cho đến khi tài khoản được mở khóa.
+                                        </p>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 400 }}>
+                                            <input
+                                                type="password"
+                                                placeholder="Nhập mật khẩu để xác nhận"
+                                                value={password}
+                                                onChange={(e) => {
+                                                    setPassword(e.target.value);
+                                                    setPasswordError("");
+                                                }}
+                                                disabled={locking}
+                                                style={{
+                                                    padding: "10px 12px",
+                                                    borderRadius: 8,
+                                                    border: passwordError ? "1px solid #dc2626" : "1px solid var(--border-primary, #e5e7eb)",
+                                                    backgroundColor: "var(--bg-primary, #ffffff)",
+                                                    color: "var(--text-primary, #111)",
+                                                    fontSize: 14,
+                                                    outline: "none",
+                                                }}
+                                            />
+                                            {passwordError && (
+                                                <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 500 }}>
+                                                    {passwordError}
+                                                </div>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={handleLockAccount}
+                                                disabled={locking}
+                                                style={{
+                                                    alignSelf: "flex-start",
+                                                    padding: "10px 16px",
+                                                    borderRadius: 8,
+                                                    border: "none",
+                                                    backgroundColor: locking ? "#d1d5db" : "#dc2626",
+                                                    color: "#fff",
+                                                    fontWeight: 700,
+                                                    cursor: locking ? "wait" : "pointer",
+                                                    fontSize: 14,
+                                                    transition: "background-color 0.2s",
+                                                }}
+                                            >
+                                                {locking ? "Đang khóa..." : "Khóa tài khoản"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
+            <ConfirmModal
+                isOpen={isConfirmOpen}
+                onClose={() => setIsConfirmOpen(false)}
+                onConfirm={handleConfirmLock}
+                title="Khóa tài khoản"
+                message="Sau khi khóa, bạn sẽ bị đăng xuất trên tất cả thiết bị và không thể đăng nhập lại cho đến khi được hỗ trợ mở khóa. Bạn có chắc chắn không?"
+                confirmText="Khóa tài khoản"
+                cancelText="Hủy"
+                isDanger={true}
+            />
         </div>
     );
 }

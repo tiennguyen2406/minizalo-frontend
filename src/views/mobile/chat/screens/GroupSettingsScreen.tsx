@@ -235,20 +235,6 @@ export default function GroupSettingsScreen({
             setMembersState(updated.members);
             Alert.alert("Thành công", "Đã bổ nhiệm phó nhóm.");
             setPickerVisible(false);
-            try {
-                const u = useAuthStore.getState().user;
-                const me =
-                    u?.fullName?.trim() ||
-                    (u as any)?.displayName?.trim?.() ||
-                    u?.username?.trim() ||
-                    "Ai đó";
-                const target = membersState.find((m) => String(m.userId) === String(targetUserId));
-                const targetName = target?.fullName?.trim() || target?.username?.trim() || "một thành viên";
-                webSocketService.activate();
-                webSocketService.sendChatMessage(groupId, `${me} đã phong ${targetName} làm phó nhóm.`, "SYSTEM");
-            } catch {
-                /* ignore */
-            }
             // Refetch from server to keep role/owner state in sync.
             try {
                 const fresh = await groupService.getGroupDetails(groupId);
@@ -298,20 +284,6 @@ export default function GroupSettingsScreen({
             await groupService.blockMember(groupId, targetUserId);
             Alert.alert("Thành công", "Đã chặn thành viên khỏi nhóm.");
             setPickerVisible(false);
-            try {
-                const u = useAuthStore.getState().user;
-                const me =
-                    u?.fullName?.trim() ||
-                    (u as any)?.displayName?.trim?.() ||
-                    u?.username?.trim() ||
-                    "Ai đó";
-                const target = membersState.find((m) => String(m.userId) === String(targetUserId));
-                const targetName = target?.fullName?.trim() || target?.username?.trim() || "một thành viên";
-                webSocketService.activate();
-                webSocketService.sendChatMessage(groupId, `${me} đã chặn ${targetName} khỏi nhóm.`, "SYSTEM");
-            } catch {
-                /* ignore */
-            }
             await fetchBlocked();
             try {
                 const fresh = await groupService.getGroupDetails(groupId);
@@ -332,20 +304,6 @@ export default function GroupSettingsScreen({
         try {
             await groupService.unblockMember(groupId, targetUserId);
             setBlockedMembers((prev) => (prev || []).filter((x) => x.userId !== targetUserId));
-            try {
-                const u = useAuthStore.getState().user;
-                const me =
-                    u?.fullName?.trim() ||
-                    (u as any)?.displayName?.trim?.() ||
-                    u?.username?.trim() ||
-                    "Ai đó";
-                const target = blockedMembers?.find((m) => String(m.userId) === String(targetUserId));
-                const targetName = target?.displayName?.trim() || target?.username?.trim() || "một thành viên";
-                webSocketService.activate();
-                webSocketService.sendChatMessage(groupId, `${me} đã bỏ chặn ${targetName}.`, "SYSTEM");
-            } catch {
-                /* ignore */
-            }
             try {
                 const fresh = await groupService.getGroupDetails(groupId);
                 setMembersState(fresh.members);

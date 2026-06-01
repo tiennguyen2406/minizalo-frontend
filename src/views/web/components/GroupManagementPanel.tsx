@@ -225,14 +225,9 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
         setPickerBusy(true);
         try {
             if (pickerMode === 'ADD_ADMIN') {
-                const targetMember = currentGroupDetail.members.find((m) => m.userId === pickerSelected);
-                const targetName = targetMember?.fullName || targetMember?.username || 'Thành viên';
-                const actorName = user?.fullName || user?.username || 'Một quản trị viên';
-
                 await groupService.changeRole(currentGroupDetail.id, pickerSelected, 'ADMIN');
                 const refreshed = await groupService.getGroupDetails(currentGroupDetail.id);
                 updateCurrentGroupDetail(refreshed);
-                pushSystemMessage(`${actorName} đã phong ${targetName} làm phó nhóm.`);
                 showToast('Đã bổ nhiệm phó nhóm');
             } else if (pickerMode === 'TRANSFER_OWNER') {
                 await groupService.transferOwnership(currentGroupDetail.id, pickerSelected);
@@ -240,10 +235,6 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                 updateCurrentGroupDetail(refreshed);
                 showToast('Đã chuyển quyền trưởng nhóm');
             } else if (pickerMode === 'BLOCK') {
-                const targetMember = currentGroupDetail.members.find((m) => m.userId === pickerSelected);
-                const targetName = targetMember?.fullName || targetMember?.username || 'Thành viên';
-                const actorName = user?.fullName || user?.username || 'Một quản trị viên';
-
                 await groupService.blockMember(currentGroupDetail.id, pickerSelected);
                 // Refresh blocked list + group detail (backend may remove member)
                 const [blocked, refreshed] = await Promise.all([
@@ -252,8 +243,6 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
                 ]);
                 setBlockedMembers(blocked);
                 updateCurrentGroupDetail(refreshed);
-
-                pushSystemMessage(`${actorName} đã chặn ${targetName} khỏi nhóm.`);
                 showToast('Đã chặn khỏi nhóm');
             }
             setPickerOpen(false);
