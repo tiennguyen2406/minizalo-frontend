@@ -270,6 +270,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     }
   }, []);
 
+  const handleSelectSearchMessage = useCallback((message: MessageDynamo) => {
+    if (!roomId || !message?.messageId) return;
+
+    const selected = mapDynamoToMessage(message, roomId);
+    const current = useChatStore.getState().messages[roomId] || [];
+    const exists = current.some((m) => String(m.id) === String(selected.id));
+
+    if (!exists) {
+      const merged = [...current, selected].sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+      setMessages(roomId, merged);
+    }
+
+    useChatStore.getState().setHighlightedMessageId(selected.id);
+  }, [roomId, setMessages]);
+
   const blockedUsers = useFriendStore((s) => s.blockedUsers);
   const blockSignal = useFriendStore((s) => s.blockSignal);
   const isBlockedByYouLocal =
@@ -460,7 +478,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       
       const currentMsgs = useChatStore.getState().messages[roomId] || [];
       const liveMessages = currentMsgs.filter(
-        (m) => typeof m.id !== "string" || !m.id.startsWith("temp-"),
+        (m) => typeof m.id === "string" && m.id.startsWith("temp-"),
       );
       const merged = [...historyMessages];
       for (const liveMsg of liveMessages) {
@@ -698,6 +716,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     webSocketService.subscribe(pinTopic, (stompMessage) => {
       try {
         const payload = JSON.parse(stompMessage.body);
+        if (payload?.error) {
+          if (payload.actorId && currentUserId && String(payload.actorId) !== String(currentUserId)) {
+            return;
+          }
+          setPermToast(payload.message || "Không thể ghim tin nhắn.");
+          fetchHistory();
+          return;
+        }
+
         const messageId = payload.messageId;
         if (messageId) {
           const currentMsgs = useChatStore.getState().messages[roomId] || [];
@@ -714,7 +741,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
     // Realtime group settings updates (permissions)
     const settingsTopic = `/topic/chat/${roomId}/settings`;
-    webSocketService.subscribe(settingsTopic, (stompMessage) => {
+    const onSettingsChanged = (stompMessage: { body: string }) => {
       try {
         const payload = JSON.parse(String(stompMessage.body || "{}"));
         console.debug("[WS settings]", roomId, payload);
@@ -733,7 +760,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       } catch (err) {
         console.error("Error parsing settings WS message:", err);
       }
-    });
+    };
+    webSocketService.subscribe(settingsTopic, onSettingsChanged);
     
     // Clear typing state when switching rooms
     setTypingUsers({});
@@ -889,7 +917,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
       webSocketService.unsubscribe(recallTopic);
       webSocketService.unsubscribe(reactionTopic);
       webSocketService.unsubscribe(pinTopic);
-      webSocketService.unsubscribe(settingsTopic);
+      webSocketService.unsubscribe(settingsTopic, onSettingsChanged);
       if (isGroupRoom) webSocketService.unsubscribe(groupEventsTopic, onGroupEvent);
       webSocketService.unsubscribe(typingTopic, onTypingEvent);
       if (typingTopicActual) webSocketService.unsubscribe(typingTopicActual, onTypingEvent);
@@ -973,9 +1001,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
     groupPerm?.settings?.allowMemberSendMessage !== false;
   const allowMemberCreatePoll =
     groupPerm?.settings?.allowMemberCreatePoll !== false;
+  const allowMemberPin = groupPerm?.settings?.allowMemberPin !== false;
   const canSendMessage =
     !isGroupRoom || allowMemberSendMessage || isOwnerOrAdmin;
   const canCreatePoll = !isGroupRoom || allowMemberCreatePoll || isOwnerOrAdmin;
+  const canPinMessage = !isGroupRoom || allowMemberPin || isOwnerOrAdmin;
 
   // Auto-refresh block status when blockedUsers changes (block/unblock from any screen)
   useEffect(() => {
@@ -1379,6 +1409,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
 
   const handleTogglePin = (messageId: string, currentPinStatus: boolean) => {
     if (!roomId) return;
+    if (!canPinMessage) {
+      setPermToast("Chỉ trưởng nhóm và phó nhóm được ghim tin nhắn.");
+      return;
+    }
 
     // Lấy loại tin nhắn để backend biết hiển thị đúng trong thông báo ghim
     const currentMsgs = useChatStore.getState().messages[roomId] || [];
@@ -1893,6 +1927,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ roomId }) => {
           roomId={roomId}
           roomName={roomName}
           participants={currentRoom.participants || []}
+          onSelectMessage={handleSelectSearchMessage}
           onClose={() => setSearchOpen(false)}
         />
       )}

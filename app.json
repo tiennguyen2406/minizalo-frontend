@@ -34,7 +34,9 @@
         "android.permission.CAMERA",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_CONNECT"
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ]
     },
     "web": {

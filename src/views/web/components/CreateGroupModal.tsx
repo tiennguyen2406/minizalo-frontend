@@ -3,6 +3,7 @@ import { useGroupStore } from '@/shared/store/useGroupStore';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { groupService } from '@/shared/services/groupService';
 import { friendService } from '@/shared/services/friendService';
+import { MessageService } from '@/shared/services/MessageService';
 
 interface Friend {
     id: string;
@@ -23,8 +24,22 @@ const CreateGroupModal: React.FC = () => {
     const [error, setError] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string>('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     useEffect(() => {
         if (!isCreateGroupOpen) return;
+        // Reset state TRƯỚC khi fetch để tránh state cũ
+        setFriends([]);
+        setGroupName('');
+        setSelectedIds(Array.isArray(createGroupPreselectedIds) ? [...new Set(createGroupPreselectedIds.filter(Boolean))] : []);
+        setSearchQuery('');
+        setError('');
+        setSelectedFile(null);
+        setPreviewUrl('');
+        setTimeout(() => inputRef.current?.focus(), 100);
+        // Fetch bạn bè sau khi reset
         friendService.getFriends().then((data) => {
             const mapped: Friend[] = (data as any[]).map((f) => ({
                 id: f.friend?.id || f.id || '',
@@ -34,11 +49,6 @@ const CreateGroupModal: React.FC = () => {
             })).filter((f) => !!f.id);
             setFriends(mapped);
         }).catch(console.error);
-        setGroupName('');
-        setSelectedIds(Array.isArray(createGroupPreselectedIds) ? [...new Set(createGroupPreselectedIds.filter(Boolean))] : []);
-        setSearchQuery('');
-        setError('');
-        setTimeout(() => inputRef.current?.focus(), 100);
     }, [isCreateGroupOpen, createGroupPreselectedIds]);
 
     const filteredFriends = friends.filter((f) => {
@@ -58,21 +68,60 @@ const CreateGroupModal: React.FC = () => {
             .map((f) => (f as Friend).fullName || (f as Friend).username)
             .filter(Boolean);
         if (names.length === 0) return 'Nhóm mới';
-        return names.join(', ');
+        const result = names.join(', ');
+        // Đảm bảo tên nhóm luôn >= 3 ký tự
+        return result.length >= 3 ? result : 'Nhóm ' + result;
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setSelectedFile(file);
+            const url = URL.createObjectURL(file);
+            setPreviewUrl(url);
+        }
+    };
+
+    const triggerFileInput = () => {
+        fileInputRef.current?.click();
     };
 
     const handleCreate = async () => {
         if (selectedIds.length < 2) { setError('Vui lòng chọn ít nhất 2 thành viên.'); return; }
-        const finalName = groupName.trim() ? groupName.trim() : buildDefaultGroupName(selectedIds);
+        let finalName = groupName.trim() ? groupName.trim() : buildDefaultGroupName(selectedIds);
+        // Đảm bảo tên nhóm >= 3 ký tự (backend validation)
+        if (finalName.length < 3) finalName = 'Nhóm ' + finalName;
         setIsSubmitting(true);
         setError('');
         try {
+            let uploadedAvatarUrl = '';
+            if (selectedFile) {
+                try {
+                    const uploadRes = await MessageService.uploadFile(selectedFile);
+                    uploadedAvatarUrl = uploadRes.fileUrl;
+                } catch (uploadErr) {
+                    console.error("Tải ảnh đại diện nhóm thất bại:", uploadErr);
+                }
+            }
+
             const newGroup = await groupService.createGroup(finalName, selectedIds);
+            
+            let finalAvatarUrl = newGroup.avatarUrl;
+            if (uploadedAvatarUrl) {
+                try {
+                    const updatedGroup = await groupService.updateGroupAvatar(newGroup.id, uploadedAvatarUrl);
+                    finalAvatarUrl = updatedGroup.avatarUrl;
+                } catch (avatarErr) {
+                    console.error("Cập nhật ảnh đại diện nhóm thất bại:", avatarErr);
+                }
+            }
+
             upsertRoom({
                 id: newGroup.id,
                 name: newGroup.groupName,
                 type: 'GROUP',
                 unreadCount: 0,
+                avatarUrl: finalAvatarUrl,
                 participants: newGroup.members.map((m) => ({
                     id: m.userId, username: m.username, fullName: m.username, avatarUrl: m.avatarUrl,
                 })),
@@ -115,11 +164,25 @@ const CreateGroupModal: React.FC = () => {
                 {/* ── Tên nhóm row ── */}
                 <div className="flex items-center gap-3 px-5 py-3 border-b border-[color:var(--border-primary)]">
                     {/* Camera / avatar nhóm placeholder */}
-                    <div className="w-11 h-11 shrink-0 rounded-full bg-[color:var(--bg-secondary)] flex items-center justify-center text-gray-400 cursor-pointer hover:bg-[color:var(--bg-tertiary)] transition-colors">
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-                        </svg>
+                    <div 
+                        onClick={triggerFileInput}
+                        className="w-11 h-11 shrink-0 rounded-full bg-[color:var(--bg-secondary)] flex items-center justify-center text-gray-400 cursor-pointer hover:bg-[color:var(--bg-tertiary)] transition-colors overflow-hidden relative"
+                    >
+                        {previewUrl ? (
+                            <img src={previewUrl} alt="Group Avatar Preview" className="w-full h-full object-cover" />
+                        ) : (
+                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                            </svg>
+                        )}
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleFileChange} 
+                            accept="image/*" 
+                            className="hidden" 
+                        />
                     </div>
                     {/* Input tên nhóm */}
                     <div className="flex-1 border-b-2 border-blue-500">

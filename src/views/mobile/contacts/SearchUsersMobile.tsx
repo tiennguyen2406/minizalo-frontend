@@ -17,9 +17,12 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
 import { searchService } from "@/shared/services/searchService";
+import { groupService } from "@/shared/services/groupService";
+import { chatService } from "@/shared/services/chatService";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useUserStore } from "@/shared/store/userStore";
 import type { UserProfile } from "@/shared/services/types";
+import type { GroupDetail } from "@/shared/types";
 import UserActionModal from "@/shared/components/UserActionModal";
 import { useChatStore } from "@/shared/store/useChatStore";
 
@@ -48,6 +51,12 @@ export default function SearchUsersMobile({
     const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
 
+    // Danh sách tất cả nhóm từ API (bao gồm cả nhóm đã ẩn)
+    const [allApiGroups, setAllApiGroups] = useState<GroupDetail[]>([]);
+    useEffect(() => {
+        groupService.getUsersGroups().then(setAllApiGroups).catch(() => {});
+    }, []);
+
     const currentUserId = profile?.id ?? null;
     const inputRef = useRef<TextInput | null>(null);
 
@@ -63,6 +72,16 @@ export default function SearchUsersMobile({
             return roomName.includes(q) || participantNames.includes(q);
         });
     }, [rooms, query]);
+
+    // Nhóm ẩn: user là thành viên nhưng đã xóa khỏi danh sách (không có trong store)
+    const matchedHiddenGroups = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return [];
+        const roomIds = new Set(rooms.map((r) => r.id));
+        return allApiGroups.filter(
+            (g) => (g.groupName ?? "").toLowerCase().includes(q) && !roomIds.has(g.id)
+        );
+    }, [allApiGroups, rooms, query]);
 
     const friendIdSet = useMemo(() => {
         const set = new Set<string>();
@@ -320,6 +339,43 @@ export default function SearchUsersMobile({
         } as any);
     };
 
+    /** Mở lại nhóm đã ẩn: restore trên backend rồi navigate */
+    const openHiddenGroup = async (group: GroupDetail) => {
+        try {
+            await chatService.restoreRoom(group.id);
+            // Thêm nhóm vào store ngay
+            useChatStore.getState().upsertRoom({
+                id: group.id,
+                name: group.groupName,
+                type: "GROUP",
+                unreadCount: 0,
+                avatarUrl: group.avatarUrl,
+                participants: (group.members || []).map((m) => ({
+                    id: m.userId,
+                    username: m.username,
+                    fullName: m.fullName || m.username,
+                    avatarUrl: m.avatarUrl,
+                })),
+                updatedAt: group.createdAt,
+            });
+            // Refresh danh sách nhóm
+            groupService.getUsersGroups().then(setAllApiGroups).catch(() => {});
+        } catch (e) {
+            console.error("Restore group failed", e);
+        }
+        router.push({
+            pathname: "/chat/[id]",
+            params: {
+                id: group.id,
+                name: group.groupName,
+                type: "GROUP",
+                isStranger: "false",
+                targetUserId: "",
+                receiverId: "",
+            },
+        } as any);
+    };
+
     const renderRoomItem = (room: (typeof rooms)[number]) => {
         const displayName = room.name || "Cuộc trò chuyện";
         const initial = (displayName.charAt(0).toUpperCase() || "?").toUpperCase();
@@ -386,22 +442,88 @@ export default function SearchUsersMobile({
     };
 
     const renderSearchHeader = () => {
-        if (!query.trim() || matchedRooms.length === 0) return null;
+        if (!query.trim() || (matchedRooms.length === 0 && matchedHiddenGroups.length === 0)) return null;
         return (
             <View>
-                <Text
-                    style={{
-                        color: colors.textSecondary,
-                        fontSize: 13,
-                        fontWeight: "600",
-                        paddingHorizontal: 16,
-                        paddingTop: 12,
-                        paddingBottom: 6,
-                    }}
-                >
-                    Cuộc trò chuyện
-                </Text>
-                {matchedRooms.map(renderRoomItem)}
+                {matchedRooms.length > 0 && (
+                    <>
+                        <Text
+                            style={{
+                                color: colors.textSecondary,
+                                fontSize: 13,
+                                fontWeight: "600",
+                                paddingHorizontal: 16,
+                                paddingTop: 12,
+                                paddingBottom: 6,
+                            }}
+                        >
+                            Cuộc trò chuyện
+                        </Text>
+                        {matchedRooms.map(renderRoomItem)}
+                    </>
+                )}
+                {matchedHiddenGroups.length > 0 && (
+                    <>
+                        <Text
+                            style={{
+                                color: "#f59e0b",
+                                fontSize: 13,
+                                fontWeight: "600",
+                                paddingHorizontal: 16,
+                                paddingTop: 12,
+                                paddingBottom: 6,
+                            }}
+                        >
+                            Nhóm đã ẩn
+                        </Text>
+                        {matchedHiddenGroups.map((group) => (
+                            <TouchableOpacity
+                                key={group.id}
+                                activeOpacity={0.8}
+                                onPress={() => openHiddenGroup(group)}
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    paddingHorizontal: 16,
+                                    paddingVertical: 10,
+                                    borderBottomWidth: 0.5,
+                                    borderBottomColor: colors.border,
+                                    backgroundColor: colors.background,
+                                }}
+                            >
+                                <View
+                                    style={{
+                                        width: 40,
+                                        height: 40,
+                                        borderRadius: 20,
+                                        backgroundColor: "#fef3c7",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        marginRight: 12,
+                                        overflow: "hidden",
+                                    }}
+                                >
+                                    {group.avatarUrl ? (
+                                        <Image source={{ uri: group.avatarUrl }} style={{ width: 40, height: 40 }} />
+                                    ) : (
+                                        <Text style={{ color: "#92400e", fontWeight: "600", fontSize: 16 }}>
+                                            {(group.groupName?.charAt(0) || "N").toUpperCase()}
+                                        </Text>
+                                    )}
+                                </View>
+                                <View style={{ flex: 1, minWidth: 0 }}>
+                                    <Text numberOfLines={1} style={{ color: colors.text, fontSize: 15, fontWeight: "500" }}>
+                                        {group.groupName}
+                                    </Text>
+                                    <Text numberOfLines={1} style={{ color: "#f59e0b", fontSize: 12, marginTop: 2 }}>
+                                        Nhóm · Nhấn để mở lại
+                                    </Text>
+                                </View>
+                                <Ionicons name="chatbubble-ellipses-outline" size={20} color="#f59e0b" />
+                            </TouchableOpacity>
+                        ))}
+                    </>
+                )}
                 {results.length > 0 ? (
                     <Text
                         style={{
@@ -535,7 +657,7 @@ export default function SearchUsersMobile({
                 </View>
             ) : null}
 
-            {loading && results.length === 0 && matchedRooms.length === 0 ? (
+            {loading && results.length === 0 && matchedRooms.length === 0 && matchedHiddenGroups.length === 0 ? (
                 <View
                     style={{
                         flex: 1,
@@ -554,7 +676,7 @@ export default function SearchUsersMobile({
                         Đang tìm kiếm người dùng...
                     </Text>
                 </View>
-            ) : results.length === 0 && matchedRooms.length === 0 ? (
+            ) : results.length === 0 && matchedRooms.length === 0 && matchedHiddenGroups.length === 0 ? (
                 <View
                     style={{
                         flex: 1,

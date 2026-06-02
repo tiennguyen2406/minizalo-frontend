@@ -43,30 +43,33 @@ export const getImageUrl = (url: string | null | undefined): string => {
     }
 
     // --- 2. Xử lý host tuyệt đối (localhost/IP fixes cho Mobile) ---
-    if (finalUrl.startsWith("http")) {
-        // Thay thế localhost hoặc 127.0.0.1
-        if ((finalUrl.includes("localhost") || finalUrl.includes("127.0.0.1")) && process.env.EXPO_PUBLIC_API_URL) {
-            const match = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
-            if (match && match[1]) {
-                finalUrl = finalUrl.replace("localhost", match[1]).replace("127.0.0.1", match[1]);
-            }
-        }
-
-        // Xử lý IP address local network (192.168.x.x, 10.0.2.2, vv)
-        if (process.env.EXPO_PUBLIC_API_URL) {
-            const apiMatch = process.env.EXPO_PUBLIC_API_URL.match(/https?:\/\/([^:\/]+)/);
-            if (apiMatch && apiMatch[1]) {
-                const apiHost = apiMatch[1];
+    if (finalUrl.startsWith("http") && process.env.EXPO_PUBLIC_API_URL) {
+        try {
+            const apiUri = new URL(process.env.EXPO_PUBLIC_API_URL);
+            const apiProtocol = apiUri.protocol; // "http:" hoặc "https:"
+            const apiHostname = apiUri.hostname; // ví dụ: "minizalo-api.vercel.app" hoặc "192.168.1.147"
+            
+            const finalUri = new URL(finalUrl);
+            const finalHostname = finalUri.hostname;
+            
+            // Kiểm tra xem URL đích có phải IP cục bộ hoặc localhost không
+            const isLocalHost = /^(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.)/.test(finalHostname);
+            
+            if (isLocalHost && finalHostname !== apiHostname) {
+                // Thay thế host cục bộ bằng host từ EXPO_PUBLIC_API_URL
+                finalUri.hostname = apiHostname;
                 
-                // Đồng bộ host cho tất cả các request đến local network
-                const urlMatch = finalUrl.match(/https?:\/\/([^:\/]+)(?::(\d+))?/);
-                if (urlMatch && urlMatch[1] !== apiHost) {
-                     // Nếu host hiện tại là một IP local hoặc localhost/127.0.0.1
-                     if (/^(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.)/.test(urlMatch[1])) {
-                        finalUrl = finalUrl.replace(urlMatch[1], apiHost);
-                     }
+                // Nếu apiHost là domain ngoài (không phải IP local), đổi sang https và xóa cổng (:9000 / :8080)
+                const isApiLocal = /^(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.)/.test(apiHostname);
+                if (!isApiLocal && apiProtocol === "https:") {
+                    finalUri.protocol = "https:";
+                    finalUri.port = ""; // Bỏ cổng để trỏ qua HTTPS chuẩn
                 }
+                
+                finalUrl = finalUri.toString();
             }
+        } catch (e) {
+            console.error("Lỗi parse URL trong getImageUrl:", e);
         }
     }
 

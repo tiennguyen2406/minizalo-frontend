@@ -9,7 +9,7 @@ export default function Index() {
     const { accessToken, isHydrated } = useAuthStore();
 
     if (!isHydrated) {
-        return <Redirect href="/(auth)/login" />;
+        return null;
     }
     if (accessToken) {
         return <Redirect href="/(tabs)" />;

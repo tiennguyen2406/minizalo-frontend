@@ -462,10 +462,15 @@ export default function ChatScreen() {
 
   const openGroupInfo = () => {
     if (roomType === "CLOUD") return;
+    const normalizedRoomId = Array.isArray(roomId) ? roomId[0] : roomId;
+    if (!normalizedRoomId || normalizedRoomId === "new") {
+      Alert.alert("Lỗi", "Không thể mở thông tin nhóm khi cuộc trò chuyện chưa sẵn sàng.");
+      return;
+    }
     router.push({
       pathname: "/group-info",
       params: {
-        roomId,
+        roomId: normalizedRoomId,
       },
     });
   };
@@ -1363,6 +1368,19 @@ export default function ChatScreen() {
       }
     });
 
+    // Subscribe group settings events
+    const settingsTopic = `/topic/chat/${roomId}/settings`;
+    const onSettingsChanged = (stompMessage: { body: string }) => {
+      try {
+        const settings = JSON.parse(String(stompMessage.body || "{}")) as GroupSettings;
+        setGroupSettings(settings);
+        setGroupDetail((prev) => prev ? { ...prev, settings } : prev);
+      } catch (err) {
+        // Error parsing group settings WS message
+      }
+    };
+    webSocketService.subscribe(settingsTopic, onSettingsChanged);
+
     // Subscribe typing events
     const typingTopic = `/topic/typing/${activeRoomId}`;
     webSocketService.subscribe(typingTopic, (stompMessage) => {
@@ -1451,6 +1469,7 @@ export default function ChatScreen() {
       webSocketService.unsubscribe(recallTopic);
       webSocketService.unsubscribe(reactionTopic);
       webSocketService.unsubscribe(pinTopic);
+      webSocketService.unsubscribe(settingsTopic, onSettingsChanged);
       webSocketService.unsubscribe(typingTopic);
       webSocketService.unsubscribe(readTopic);
       // Clean up all typing timers

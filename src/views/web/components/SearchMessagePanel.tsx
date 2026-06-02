@@ -20,6 +20,7 @@ interface SearchMessagePanelProps {
     roomName: string;
     participants: User[];
     onClose: () => void;
+    onSelectMessage?: (message: MessageDynamo) => void;
 }
 
 const SearchMessagePanel: React.FC<SearchMessagePanelProps> = ({
@@ -27,6 +28,7 @@ const SearchMessagePanel: React.FC<SearchMessagePanelProps> = ({
     roomName,
     participants,
     onClose,
+    onSelectMessage,
 }) => {
     const setHighlightedMessageId = useChatStore((s) => s.setHighlightedMessageId);
 
@@ -131,6 +133,34 @@ const SearchMessagePanel: React.FC<SearchMessagePanelProps> = ({
         return "[Tin nhắn]";
     };
 
+    const renderHighlightedSnippet = (text: string) => {
+        const keyword = query.trim();
+        if (!keyword) return text;
+
+        const lowerText = text.toLowerCase();
+        const lowerKeyword = keyword.toLowerCase();
+        const parts: React.ReactNode[] = [];
+        let cursor = 0;
+        let matchIndex = lowerText.indexOf(lowerKeyword);
+
+        while (matchIndex !== -1) {
+            if (matchIndex > cursor) {
+                parts.push(text.slice(cursor, matchIndex));
+            }
+            const end = matchIndex + keyword.length;
+            parts.push(
+                <mark key={`${matchIndex}-${end}`} className="rounded bg-yellow-200 px-0.5 text-inherit">
+                    {text.slice(matchIndex, end)}
+                </mark>
+            );
+            cursor = end;
+            matchIndex = lowerText.indexOf(lowerKeyword, cursor);
+        }
+
+        if (cursor < text.length) parts.push(text.slice(cursor));
+        return parts.length ? parts : text;
+    };
+
     return (
         <div
             className="flex h-full w-[320px] shrink-0 flex-col border-l border-[color:var(--border-primary)] bg-[color:var(--bg-primary)] shadow-sm"
@@ -226,12 +256,15 @@ const SearchMessagePanel: React.FC<SearchMessagePanelProps> = ({
                                     type="button"
                                     className="w-full rounded-lg border border-transparent px-2 py-2 text-left text-sm hover:border-blue-100 hover:bg-blue-50/80"
                                     onClick={() => {
+                                        onSelectMessage?.(item);
                                         setHighlightedMessageId(item.messageId);
                                         onClose();
                                     }}
                                 >
                                     <div className="font-medium text-blue-700">{item.senderName || "Người dùng"}</div>
-                                    <div className="line-clamp-2 text-[color:var(--text-primary)]">{snippet(item)}</div>
+                                    <div className="line-clamp-2 text-[color:var(--text-primary)]">
+                                        {renderHighlightedSnippet(snippet(item))}
+                                    </div>
                                     <div className="mt-0.5 text-xs text-gray-400">{formatTime(item.createdAt)}</div>
                                 </button>
                             </li>

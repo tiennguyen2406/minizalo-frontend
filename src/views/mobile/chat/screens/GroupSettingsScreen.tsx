@@ -119,6 +119,23 @@ export default function GroupSettingsScreen({
         };
     }, [groupId, highlightKey, notesPermKey]);
 
+    useEffect(() => {
+        if (!groupId) return;
+        const settingsTopic = `/topic/chat/${groupId}/settings`;
+        const onSettingsChanged = (stompMessage: { body: string }) => {
+            try {
+                const next = JSON.parse(String(stompMessage.body || "{}")) as GroupSettings;
+                setSettings((prev) => ({ ...(prev || {}), ...(next || {}) }));
+                onRefreshGroup?.();
+            } catch {
+                /* ignore */
+            }
+        };
+
+        webSocketService.subscribe(settingsTopic, onSettingsChanged);
+        return () => webSocketService.unsubscribe(settingsTopic, onSettingsChanged);
+    }, [groupId, onRefreshGroup]);
+
     const persistNotesPerm = useCallback(
         async (value: boolean) => {
             setNotesPermissionUi(value);
