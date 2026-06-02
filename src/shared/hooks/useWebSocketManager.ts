@@ -22,9 +22,9 @@ import {
 } from '@/shared/utils/chatErrors';
 import { addIncomingChatMessageFromStomp } from '@/shared/utils/chatWebSocketInbound';
 import { getDirectChatPartnerDisplayName } from '@/shared/utils/strangerChatRooms';
-import { useInAppNotifStore } from '@/views/mobile/chat/components/InAppNotification';
 import { showLocalNotification } from '@/services/notificationService';
 import { useNotificationSettingsStore } from '@/shared/store/notificationSettingsStore';
+import { useFriendStore } from '@/shared/store/friendStore';
 
 function mapChatRoomResponsesToStore(
     currentUserId: string | undefined,
@@ -226,9 +226,6 @@ function useGlobalChatTopicSubscriptions() {
                     const notificationsEnabled = useNotificationSettingsStore.getState().enabled;
                     if (notificationsEnabled && senderId && myId && senderId !== myId && !isCurrentlyViewing) {
                         if (!useChatStore.getState().isRoomMuted(roomId)) {
-                            const roomData = useChatStore
-                                .getState()
-                                .rooms.find((r) => r.id === roomId);
                             const senderLabel =
                                 (typeof dynamo.senderName === 'string' && dynamo.senderName) ||
                                 (typeof dynamo.senderUsername === 'string' &&
@@ -249,19 +246,14 @@ function useGlobalChatTopicSubscriptions() {
                                           ? '[Bình chọn]'
                                           : msgContent || 'Đã gửi một tin nhắn';
 
-                            // Background: dùng local push (heads-up). Foreground: dùng in-app banner.
-                            if (AppState.currentState !== 'active') {
+                            // Foreground dùng notification thiết bị, không dùng banner "ảo" trong app.
+                            if (AppState.currentState === 'active') {
                                 void showLocalNotification(senderLabel, bodyText, {
                                     type: 'MESSAGE',
                                     roomId,
                                     senderId,
-                                });
-                            } else {
-                                useInAppNotifStore.getState().show({
-                                    title: senderLabel,
-                                    body: bodyText,
-                                    avatarUrl: roomData?.avatarUrl || undefined,
-                                    roomId: roomId,
+                                    senderName: senderLabel,
+                                    roomType: room.type || 'DIRECT',
                                 });
                             }
                         }
@@ -377,11 +369,57 @@ function useSocialRealtimeSubscriptions() {
     }, [accessToken, currentUserId]);
 }
 
+function useFriendRequestRealtimeSubscription() {
+    const accessToken = useAuthStore((s) => s.accessToken);
+
+    useEffect(() => {
+        if (!accessToken) return;
+
+        webSocketService.activate(accessToken);
+        const destinations = ['/user/queue/friend-requests', '/user/queue/friends'];
+
+        const handler = (stompMsg: IMessage) => {
+            let payload: any = {};
+            try {
+                const raw = String(stompMsg.body || '').trim();
+                payload = raw ? JSON.parse(raw) : {};
+            } catch {
+                payload = {};
+            }
+
+            void useFriendStore.getState().fetchRequests({ silent: true });
+            void useFriendStore.getState().fetchFriends();
+
+            if (Platform.OS !== 'web' && AppState.currentState === 'active') {
+                const type = String(payload?.type || payload?.event || '').toUpperCase();
+                if (!type || type.includes('FRIEND_REQUEST')) {
+                    const senderName =
+                        payload?.senderName ||
+                        payload?.displayName ||
+                        payload?.username ||
+                        'Một người dùng';
+                    void showLocalNotification('Lời mời kết bạn', `${senderName} đã gửi lời mời kết bạn`, {
+                        type: 'FRIEND_REQUEST',
+                        senderName,
+                        requestId: payload?.requestId,
+                    });
+                }
+            }
+        };
+
+        destinations.forEach((dest) => webSocketService.subscribe(dest, handler));
+        return () => {
+            destinations.forEach((dest) => webSocketService.unsubscribe(dest, handler));
+        };
+    }, [accessToken]);
+}
+
 export function useWebSocketManager() {
     useChatErrorsSubscription();
     useRoomUpdatesSubscription();
     useGlobalChatTopicSubscriptions();
     useSocialRealtimeSubscriptions();
+    useFriendRequestRealtimeSubscription();
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
     _useWebSocketManagerBoth();

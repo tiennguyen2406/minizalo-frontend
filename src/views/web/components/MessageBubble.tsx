@@ -1149,7 +1149,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
                 {/* Bubble content */}
                 <div className={clsx(
-                    'max-w-[70%] flex flex-col relative mb-4',
+                    'max-w-[70%] min-w-0 flex flex-col relative mb-4',
                     isMine ? 'items-end' : 'items-start'
                 )}>
                     {/* Tên người gửi (hiện ở đầu nhóm) */}
@@ -1160,7 +1160,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     {/* Nội dung tin nhắn */}
                     <div
                         className={clsx(
-                            'px-3.5 py-2.5 break-words relative flex flex-col group/bubble message-bubble-content',
+                            'px-3.5 py-2.5 max-w-full min-w-0 overflow-hidden break-words [overflow-wrap:anywhere] relative flex flex-col group/bubble message-bubble-content',
                             bubbleRadius,
                             isMine
                                 ? (message.isRecall ? 'italic border border-transparent' : 'border')
@@ -1393,7 +1393,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             <div className="flex flex-col gap-2.5">
                                 {/* 1. Text Content / Link Preview */}
                                 {message.content && !isCallMessage && !isStoryReply && (
-                                    <span className="text-[15px] leading-relaxed pr-8 whitespace-pre-wrap">
+                                    <span className="block max-w-full min-w-0 text-[15px] leading-relaxed pr-8 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word]">
                                         {linkifyText(message.content || '')}
                                         {(() => {
                                             const u = extractFirstHttpUrl(message.content || '');
@@ -1862,7 +1862,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             {message.content && (
                                 <div>
                                     <span className="text-[color:var(--text-secondary)] block mb-1">Nội dung</span>
-                                    <p className="text-[color:var(--text-primary)] bg-[color:var(--bg-hover)] rounded-lg p-2.5 break-words">{message.content}</p>
+                                    <p className="text-[color:var(--text-primary)] bg-[color:var(--bg-hover)] rounded-lg p-2.5 break-words [overflow-wrap:anywhere] [word-break:break-word]">{message.content}</p>
                                 </div>
                             )}
                             {effectiveFileUrl && (

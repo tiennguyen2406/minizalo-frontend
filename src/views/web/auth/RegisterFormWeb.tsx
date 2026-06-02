@@ -14,12 +14,12 @@ const COLORS = {
 };
 
 type Step = "form" | "otp";
-type OtpChannel = "SMS" | "EMAIL";
+type OtpChannel = "EMAIL";
 
 export default function RegisterFormWeb() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("form");
-  const [otpChannel, setOtpChannel] = useState<OtpChannel>("SMS");
+  const [otpChannel] = useState<OtpChannel>("EMAIL");
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -282,9 +282,7 @@ export default function RegisterFormWeb() {
                 paddingRight: 8,
               }}
             >
-              {otpChannel === "EMAIL"
-                ? `Mã xác thực đã được gửi đến email ${email.trim()}`
-                : `Mã xác thực đã được gửi đến số ${phone.trim()}`}
+              {`Mã xác thực đã được gửi đến email ${email.trim()}`}
             </p>
           )}
         </div>
@@ -440,36 +438,21 @@ export default function RegisterFormWeb() {
                 </p>
                 <div
                   style={{
+                    minHeight: 44,
+                    padding: "10px 12px",
+                    borderRadius: 22,
+                    border: `2px solid ${COLORS.primary}`,
+                    backgroundColor: COLORS.primary,
+                    color: COLORS.white,
+                    fontWeight: 600,
+                    fontSize: 14,
                     display: "flex",
-                    flexDirection: "row",
-                    gap: 10,
-                    width: "100%",
-                    alignItems: "stretch",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: loading ? 0.7 : 1,
                   }}
                 >
-                  {(["SMS", "EMAIL"] as const).map((ch) => (
-                    <button
-                      key={ch}
-                      type="button"
-                      onClick={() => setOtpChannel(ch)}
-                      disabled={loading}
-                      style={{
-                        flex: 1,
-                        minHeight: 44,
-                        padding: "10px 12px",
-                        borderRadius: 22,
-                        border: `2px solid ${otpChannel === ch ? COLORS.primary : COLORS.border}`,
-                        backgroundColor: otpChannel === ch ? COLORS.primary : COLORS.white,
-                        color: otpChannel === ch ? COLORS.white : COLORS.text,
-                        fontWeight: 600,
-                        fontSize: 14,
-                        cursor: loading ? "not-allowed" : "pointer",
-                        opacity: loading ? 0.7 : 1,
-                      }}
-                    >
-                      {ch === "SMS" ? "SMS" : "Email"}
-                    </button>
-                  ))}
+                  Email
                 </div>
               </div>
 

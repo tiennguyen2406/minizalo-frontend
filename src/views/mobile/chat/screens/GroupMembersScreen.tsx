@@ -27,11 +27,13 @@ export default function GroupMembersScreen({
 }: GroupMembersScreenProps) {
     const colors = useThemeColors();
     const router = useRouter();
+    const members = Array.isArray(group.members) ? group.members.filter((m) => m?.userId) : [];
 
     const confirmRemove = (member: GroupMember) => {
+        const displayName = member.fullName || member.username || "thành viên này";
         Alert.alert(
             "Xóa thành viên",
-            `Xóa ${member.username} khỏi nhóm?`,
+            `Xóa ${displayName} khỏi nhóm?`,
             [
                 { text: "Hủy", style: "cancel" },
                 {
@@ -44,16 +46,23 @@ export default function GroupMembersScreen({
     };
 
     const renderMember = ({ item: member }: { item: GroupMember }) => {
+        const memberId = String(member.userId);
+        const ownerId = String(group.ownerId || "");
+        const meId = currentUserId ? String(currentUserId) : "";
         const displayName = member.fullName || member.username || "Người dùng";
+        const avatarUri =
+            typeof member.avatarUrl === "string" && /^https?:\/\//i.test(member.avatarUrl)
+                ? member.avatarUrl
+                : "";
         const initials = displayName
             .trim()
             .split(/\s+/)
             .slice(-2)
             .map((part) => part.charAt(0).toUpperCase())
             .join("") || "?";
-        const isOwnerMember = member.userId === group.ownerId;
+        const isOwnerMember = memberId === ownerId;
         const isAdminRole = member.role === "ADMIN";
-        const isCurrentUser = member.userId === currentUserId;
+        const isCurrentUser = !!meId && memberId === meId;
         const canRemove =
             canManage && !isOwnerMember && !isCurrentUser;
         const openProfile = () => {
@@ -64,9 +73,9 @@ export default function GroupMembersScreen({
             router.push({
                 pathname: "/(tabs)/friend-profile",
                 params: {
-                    userId: member.userId,
+                    userId: memberId,
                     displayName,
-                    avatarUrl: member.avatarUrl || "",
+                    avatarUrl: avatarUri,
                 },
             } as any);
         };
@@ -85,9 +94,9 @@ export default function GroupMembersScreen({
                     backgroundColor: colors.card,
                 }}
             >
-                {member.avatarUrl ? (
+                {avatarUri ? (
                     <Image
-                        source={{ uri: member.avatarUrl }}
+                        source={{ uri: avatarUri }}
                         style={{
                             width: 48,
                             height: 48,
@@ -189,7 +198,7 @@ export default function GroupMembersScreen({
                             }}
                             numberOfLines={1}
                         >
-                            {canManage ? "Quản lý thành viên" : "Thành viên"} ({group.members.length})
+                            {canManage ? "Quản lý thành viên" : "Thành viên"} ({members.length})
                         </Text>
                         {canManage ? (
                             <TouchableOpacity
@@ -211,8 +220,8 @@ export default function GroupMembersScreen({
             </View>
 
             <FlatList
-                data={group.members}
-                keyExtractor={(item) => item.userId}
+                data={members}
+                keyExtractor={(item) => String(item.userId)}
                 renderItem={renderMember}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 24 }}

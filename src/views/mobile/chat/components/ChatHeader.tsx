@@ -3,6 +3,7 @@ import {
     View,
     Text,
     TouchableOpacity,
+    Pressable,
     Alert,
     Modal,
     FlatList,
@@ -31,6 +32,7 @@ interface ChatHeaderProps {
     showMenuBadge?: boolean;
     onBack?: () => void;
     onMenuPress?: () => void;
+    onAltMenuPress?: () => void;
     onAiPress?: () => void;
 }
 
@@ -61,6 +63,7 @@ export default function ChatHeader({
     showMenuBadge,
     onBack,
     onMenuPress,
+    onAltMenuPress,
     onAiPress,
 }: ChatHeaderProps) {
     const router = useRouter();
@@ -164,7 +167,7 @@ export default function ChatHeader({
     };
 
     return (
-        <View style={{ backgroundColor: colors.headerBg }}>
+        <View style={{ backgroundColor: colors.headerBg, position: "relative", zIndex: 10000, elevation: 10000 }}>
             {/* Modal chọn thành viên gọi nhóm */}
             <Modal visible={inviteVisible} transparent animationType="slide" onRequestClose={() => setInviteVisible(false)}>
                 <View style={inviteStyles.overlay}>
@@ -261,7 +264,7 @@ export default function ChatHeader({
                             <Ionicons name="chevron-back" size={26} color={colors.headerText} />
                         </TouchableOpacity>
 
-                        <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
                             <View style={{ flexDirection: "row", alignItems: "center" }}>
                                 <Text
                                     style={{ color: colors.headerText, fontSize: 17, fontWeight: "600" }}
@@ -299,28 +302,90 @@ export default function ChatHeader({
                                     {roomType === "GROUP" ? `Nhóm` : "Vừa mới truy cập"}
                                 </Text>
                             )}
+                            {roomType === "GROUP" && onAltMenuPress ? (
+                                <Pressable
+                                    onPress={onAltMenuPress}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    style={({ pressed }) => ({
+                                        alignSelf: "flex-start",
+                                        marginTop: 3,
+                                        paddingHorizontal: 14,
+                                        paddingVertical: 7,
+                                        borderRadius: 999,
+                                        borderWidth: 1,
+                                        borderColor: "rgba(255,255,255,0.36)",
+                                        backgroundColor: pressed ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.18)",
+                                    })}
+                                >
+                                    <Text style={{ color: colors.headerText, fontSize: 12, fontWeight: "900" }}>Menu</Text>
+                                </Pressable>
+                            ) : null}
                         </View>
                     </View>
 
                     {/* Right: Actions */}
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 18, paddingTop: strangerSubtitleRow?.visible ? 2 : 0 }}>
-                        <TouchableOpacity onPress={onAiPress}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingTop: strangerSubtitleRow?.visible ? 2 : 0, flexShrink: 0 }}>
+                        <TouchableOpacity
+                            onPress={onAiPress}
+                            activeOpacity={0.65}
+                            hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                            style={{
+                                width: 40,
+                                height: 44,
+                                alignItems: "center",
+                                justifyContent: "center",
+                            }}
+                        >
                             <Ionicons name="sparkles" size={22} color="#FFD700" />
                         </TouchableOpacity>
 
                         {roomType !== "CLOUD" ? (
                             <>
-                                <TouchableOpacity onPress={() => handleStartCall("VOICE")}>
+                                <TouchableOpacity
+                                    onPress={() => handleStartCall("VOICE")}
+                                    activeOpacity={0.65}
+                                    hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                                    style={{
+                                        width: 40,
+                                        height: 44,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
+                                >
                                     <Ionicons name="call-outline" size={22} color={colors.headerText} />
                                 </TouchableOpacity>
 
-                                <TouchableOpacity onPress={() => handleStartCall("VIDEO")}>
+                                <TouchableOpacity
+                                    onPress={() => handleStartCall("VIDEO")}
+                                    activeOpacity={0.65}
+                                    hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                                    style={{
+                                        width: 40,
+                                        height: 44,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
+                                >
                                     <Ionicons name="videocam-outline" size={24} color={colors.headerText} />
                                 </TouchableOpacity>
                             </>
                         ) : null}
 
-                        <TouchableOpacity onPress={onMenuPress} style={{ position: "relative" }}>
+                        <Pressable
+                            onPress={onMenuPress}
+                            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                            style={({ pressed }) => ({
+                                position: "relative",
+                                width: 52,
+                                height: 44,
+                                borderRadius: 22,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: pressed ? "rgba(255,255,255,0.18)" : "transparent",
+                                zIndex: 20,
+                                elevation: 20,
+                            })}
+                        >
                             <Ionicons name="menu-outline" size={24} color={colors.headerText} />
                             {showMenuBadge ? (
                                 <View
@@ -337,7 +402,7 @@ export default function ChatHeader({
                                     }}
                                 />
                             ) : null}
-                        </TouchableOpacity>
+                        </Pressable>
                     </View>
                 </View>
             </SafeAreaView>

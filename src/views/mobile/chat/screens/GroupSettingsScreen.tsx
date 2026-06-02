@@ -38,6 +38,10 @@ function getScopedKey(suffix: string): string {
     return `minizalo:${uid}:${suffix}`;
 }
 
+function isRemoteImageUri(value?: string | null): value is string {
+    return /^https?:\/\//i.test(String(value || ""));
+}
+
 interface GroupSettingsScreenProps {
     groupId: string;
     groupName: string;
@@ -743,7 +747,8 @@ export default function GroupSettingsScreen({
                         keyExtractor={(item) => item.userId}
                         contentContainerStyle={{ paddingVertical: 12, paddingBottom: 28, flexGrow: 1 }}
                         renderItem={({ item }) => {
-                            const avatar = item.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.fullName || item.username)}&background=0068FF&color=fff`;
+                            const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.fullName || item.username)}&background=0068FF&color=fff`;
+                            const avatar = isRemoteImageUri(item.avatarUrl) ? item.avatarUrl : fallbackAvatar;
                             const isSelf = item.userId === currentUserId;
                             return (
                                 <TouchableOpacity

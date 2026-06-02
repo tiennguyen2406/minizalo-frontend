@@ -74,6 +74,10 @@ const getImageUrl = (url: string) => {
     return url;
 };
 
+function isRemoteMediaUri(value?: string | null): value is string {
+    return /^https?:\/\//i.test(String(value || ""));
+}
+
 // Hàm hỗ trợ format bytes
 function formatBytes(bytes: number, decimals = 2) {
     if (!+bytes) return "0 Bytes";
@@ -203,12 +207,15 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
 
     const mediaPreviewItems = useMemo(
         () =>
-            images.map((item) => ({
-                key: `${item.msg.messageId}-${item.att.url}`,
-                url: getImageUrl(item.att.url),
-                kind: isVideoAttachment(item.att) ? "video" as const : "image" as const,
-                name: item.att.filename || item.att.name || "",
-            })),
+            images.map((item) => {
+                const resolvedUrl = getImageUrl(item.att.url);
+                return {
+                    key: `${item.msg.messageId}-${item.att.url}`,
+                    url: isRemoteMediaUri(resolvedUrl) ? resolvedUrl : "",
+                    kind: isVideoAttachment(item.att) ? "video" as const : "image" as const,
+                    name: item.att.filename || item.att.name || "",
+                };
+            }),
         [images],
     );
 
@@ -346,6 +353,8 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
             renderItem={({ item, index }) => {
                 const key = `${item.msg.messageId}-${item.att.url}`;
                 const checked = selected.has(key);
+                const resolvedUrl = getImageUrl(item.att.url);
+                const safeUrl = isRemoteMediaUri(resolvedUrl) ? resolvedUrl : "";
                 return (
                 <TouchableOpacity
                     onPress={() => selectionMode ? toggleSelected(key) : openPreview(index)}
@@ -355,14 +364,16 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                 >
                     {isVideoAttachment(item.att) ? (
                         <View style={{ width: IMAGE_SIZE - 8, height: IMAGE_SIZE - 8, backgroundColor: "#000" }}>
-                            <Video
-                                source={{ uri: getImageUrl(item.att.url) }}
-                                style={StyleSheet.absoluteFillObject}
-                                resizeMode={ResizeMode.COVER}
-                                shouldPlay={false}
-                                isMuted
-                                useNativeControls={false}
-                            />
+                            {safeUrl ? (
+                                <Video
+                                    source={{ uri: safeUrl }}
+                                    style={StyleSheet.absoluteFillObject}
+                                    resizeMode={ResizeMode.COVER}
+                                    shouldPlay={false}
+                                    isMuted
+                                    useNativeControls={false}
+                                />
+                            ) : null}
                             <View style={[StyleSheet.absoluteFillObject, s.videoOverlay]}>
                                 <View style={s.playBadge}>
                                     <Ionicons name="play" size={18} color="#fff" style={{ marginLeft: 2 }} />
@@ -372,12 +383,16 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                                 </View>
                             </View>
                         </View>
-                    ) : (
+                    ) : safeUrl ? (
                         <Image
-                            source={{ uri: getImageUrl(item.att.url) }}
+                            source={{ uri: safeUrl }}
                             style={{ width: IMAGE_SIZE - 8, height: IMAGE_SIZE - 8 }}
                             resizeMode="cover"
                         />
+                    ) : (
+                        <View style={{ width: IMAGE_SIZE - 8, height: IMAGE_SIZE - 8, alignItems: "center", justifyContent: "center" }}>
+                            <Ionicons name="image-outline" size={28} color={colors.textSecondary} />
+                        </View>
                     )}
                     {selectionMode ? (
                         <TouchableOpacity
@@ -581,7 +596,7 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                             const isActive = previewIndex === index;
                             return (
                                 <View style={s.previewPage}>
-                                    {item.kind === "video" ? (
+                                    {item.kind === "video" && item.url ? (
                                         <Video
                                             source={{ uri: item.url }}
                                             style={s.previewVideo}
@@ -591,12 +606,16 @@ export default function MediaStorageScreen({ roomId, onClose }: MediaStorageScre
                                             isLooping={false}
                                             isMuted={!isActive}
                                         />
-                                    ) : (
+                                    ) : item.url ? (
                                         <Image
                                             source={{ uri: item.url }}
                                             style={s.previewImage}
                                             resizeMode="contain"
                                         />
+                                    ) : (
+                                        <View style={[s.previewImage, { alignItems: "center", justifyContent: "center" }]}>
+                                            <Ionicons name="image-outline" size={44} color={colors.textSecondary} />
+                                        </View>
                                     )}
                                 </View>
                             );

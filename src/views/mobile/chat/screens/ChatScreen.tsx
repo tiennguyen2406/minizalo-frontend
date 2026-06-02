@@ -8,6 +8,7 @@ import React, {
 import {
   View,
   FlatList,
+  ScrollView,
   Text,
   KeyboardAvoidingView,
   Platform,
@@ -22,6 +23,8 @@ import {
   StyleSheet,
   Pressable,
   useColorScheme,
+  PanResponder,
+  BackHandler,
 } from "react-native";
 import { useRoute, useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -91,7 +94,256 @@ import type { GroupDetail, GroupSettings } from "@/shared/types";
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
+class GroupInfoPanelErrorBoundary extends React.Component<
+  { children: React.ReactNode; onClose: () => void },
+  { error: Error | null }
+> {
+  state = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("Group info panel crashed:", error);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+          backgroundColor: "#ffffff",
+        }}
+      >
+        <Ionicons name="alert-circle-outline" size={42} color="#ef4444" />
+        <Text style={{ marginTop: 12, fontSize: 16, fontWeight: "700", color: "#111827", textAlign: "center" }}>
+          Không mở được quản lý nhóm
+        </Text>
+        <Text style={{ marginTop: 8, fontSize: 13, color: "#6b7280", textAlign: "center" }}>
+          Màn quản lý nhóm gặp lỗi khi tải dữ liệu. Đóng lại rồi thử mở lại sau.
+        </Text>
+        <TouchableOpacity
+          onPress={this.props.onClose}
+          style={{ marginTop: 18, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999, backgroundColor: "#0068FF" }}
+        >
+          <Text style={{ color: "#ffffff", fontWeight: "700" }}>Đóng</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+}
+
 // ─── Upload helpers ───────────────────────────────────────────────────────────
+function SafeGroupInfoPanel({
+  roomId,
+  onClose,
+}: {
+  roomId: string;
+  onClose: () => void;
+}) {
+  const colors = useThemeColors();
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const [group, setGroup] = useState<GroupDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadGroup = useCallback(async () => {
+    if (!roomId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const detail = await groupService.getGroupDetails(roomId);
+      setGroup(detail);
+    } catch (err: any) {
+      console.error("Safe group info load failed:", err);
+      setError(err?.response?.data?.message || "Khong tai duoc thong tin nhom.");
+    } finally {
+      setLoading(false);
+    }
+  }, [roomId]);
+
+  useEffect(() => {
+    void loadGroup();
+  }, [loadGroup]);
+
+  const members = Array.isArray(group?.members) ? group.members.filter((m) => m?.userId) : [];
+  const groupName = group?.groupName?.trim() || "Nhom";
+  const isOwner = !!group?.ownerId && !!currentUserId && String(group.ownerId) === String(currentUserId);
+  const myRole = members.find((m) => String(m.userId) === String(currentUserId))?.role;
+  const canManage = isOwner || myRole === "ADMIN";
+  const settings = group?.settings;
+  const avatarUri =
+    group?.avatarUrl
+      ? getImageUrl(group.avatarUrl)
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}&background=0068FF&color=fff&bold=true&size=128`;
+  const settingRows = [
+    {
+      label: "Thành viên đổi tên nhóm",
+      value: settings?.allowMemberChangeName === false ? "Tắt" : "Bật",
+    },
+    {
+      label: "Thành viên tạo bình chọn",
+      value: settings?.allowMemberCreatePoll === false ? "Tắt" : "Bật",
+    },
+    {
+      label: "Link tham gia",
+      value: settings?.joinLink ? "Đã bật" : "Chưa có",
+    },
+  ];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={{ backgroundColor: colors.headerBg }}>
+        <View
+          style={{
+            height: 52,
+            paddingHorizontal: 16,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottomWidth: colors.headerBg === "#0068FF" ? 0 : 0.5,
+            borderBottomColor: colors.border,
+          }}
+        >
+          <TouchableOpacity
+            onPress={onClose}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{ paddingRight: 8, paddingVertical: 4 }}
+          >
+            <Ionicons name="chevron-back" size={26} color={colors.headerText} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.headerText, fontSize: 17, fontWeight: "600" }} numberOfLines={1}>
+              Tuỳ chọn
+            </Text>
+            <Text style={{ color: colors.headerText, opacity: 0.75, fontSize: 12 }} numberOfLines={1}>
+              {loading ? "Đang tải..." : `Cài đặt nhóm · ${members.length} thành viên`}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => void loadGroup()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          >
+            <Ionicons name="refresh-outline" size={22} color={colors.headerText} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ color: colors.textSecondary, marginTop: 10 }}>Dang tai thong tin nhom...</Text>
+        </View>
+      ) : error ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <Ionicons name="alert-circle-outline" size={42} color="#ef4444" />
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700", marginTop: 12, textAlign: "center" }}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            onPress={() => void loadGroup()}
+            style={{ marginTop: 16, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999, backgroundColor: colors.primary }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "700" }}>Thu lai</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+          <View style={{ alignItems: "center", paddingVertical: 26, backgroundColor: colors.card }}>
+            <Image source={{ uri: avatarUri }} style={{ width: 78, height: 78, borderRadius: 39, backgroundColor: colors.separator }} />
+            <Text style={{ color: colors.text, fontSize: 19, fontWeight: "800", marginTop: 12 }} numberOfLines={2}>
+              {groupName}
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 4 }}>
+              {members.length} thanh vien{canManage ? " - Ban co quyen quan ly" : ""}
+            </Text>
+          </View>
+
+          <View style={{ height: 8, backgroundColor: colors.separator }} />
+          <View style={{ backgroundColor: colors.card, paddingHorizontal: 16, paddingVertical: 14 }}>
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Thông tin nhóm</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 8, lineHeight: 19 }}>
+              {group?.description?.trim() || "Chưa có mô tả nhóm."}
+            </Text>
+          </View>
+
+          <View style={{ height: 8, backgroundColor: colors.separator }} />
+          <View style={{ backgroundColor: colors.card }}>
+            <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+              <Ionicons name="settings-outline" size={22} color={colors.textSecondary} style={{ width: 28, marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Cấu hình nhóm</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                  {canManage ? "Bạn có quyền quản lý cấu hình" : "Chỉ trưởng/phó nhóm có thể chỉnh sửa"}
+                </Text>
+              </View>
+            </View>
+            {settingRows.map((row) => (
+              <View
+                key={row.label}
+                style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border }}
+              >
+                <Text style={{ flex: 1, color: colors.text, fontSize: 14 }}>{row.label}</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: "600" }}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={{ height: 8, backgroundColor: colors.separator }} />
+          <View style={{ backgroundColor: colors.card }}>
+            <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+              <Ionicons name="people-outline" size={22} color={colors.textSecondary} style={{ width: 28, marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>Thanh vien</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>{members.length} nguoi trong nhom</Text>
+              </View>
+            </View>
+            {members.slice(0, 8).map((member) => {
+              const memberName = member.fullName || member.username || "Thanh vien";
+              const memberAvatar =
+                member.avatarUrl && /^https?:\/\//i.test(member.avatarUrl)
+                  ? member.avatarUrl
+                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(memberName)}&background=0068FF&color=fff&size=64`;
+              return (
+                <View
+                  key={String(member.userId)}
+                  style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10 }}
+                >
+                  <Image source={{ uri: memberAvatar }} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: colors.separator, marginRight: 12 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+                      {memberName}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                      {String(member.userId) === String(group?.ownerId) ? "Truong nhom" : member.role === "ADMIN" ? "Pho nhom" : "Thanh vien"}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+            {members.length > 8 ? (
+              <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+                <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "700" }}>
+                  Còn {members.length - 8} thành viên khác
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
 function uploadFileWithXHR(
   url: string,
   formData: FormData,
@@ -342,6 +594,8 @@ export default function ChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const galleryRef = useRef<FlatList>(null);
+  const menuSwipeLockRef = useRef(false);
+  const roomMenuOpenLockRef = useRef(false);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const [galleryCurrentIndex, setGalleryCurrentIndex] = useState(0);
 
@@ -373,6 +627,7 @@ export default function ChatScreen() {
   const [showAiPersonaModal, setShowAiPersonaModal] = useState(false);
   const [showAiTaskModal, setShowAiTaskModal] = useState(false);
   const [aiTaskMode, setAiTaskMode] = useState<AiTaskMode>("translate");
+  const [showGroupInfoPanel, setShowGroupInfoPanel] = useState(false);
   const [forwardingMessage, setForwardingMessage] =
     useState<MessageDynamo | null>(null);
   const [forwardLoading, setForwardLoading] = useState(false);
@@ -387,7 +642,7 @@ export default function ChatScreen() {
     content: string;
   } | null>(null);
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
-  const typingTimerRefs = useRef<Record<string, NodeJS.Timeout>>({});
+  const typingTimerRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Dùng Refs cho phân trang và trạng thái
   const loadingMoreRef = useRef(false);
@@ -462,6 +717,10 @@ export default function ChatScreen() {
 
   const openGroupInfo = () => {
     if (roomType === "CLOUD") return;
+    if (roomType !== "GROUP") {
+      openChatOptions();
+      return;
+    }
     const normalizedRoomId = Array.isArray(roomId) ? roomId[0] : roomId;
     if (!normalizedRoomId || normalizedRoomId === "new") {
       Alert.alert("Lỗi", "Không thể mở thông tin nhóm khi cuộc trò chuyện chưa sẵn sàng.");
@@ -476,6 +735,8 @@ export default function ChatScreen() {
   };
 
   const openChatOptions = () => {
+    if (roomMenuOpenLockRef.current) return;
+    roomMenuOpenLockRef.current = true;
     const avatarUrl =
       useChatStore.getState().rooms.find((r) => r.id === roomId)?.avatarUrl ||
       "";
@@ -489,7 +750,24 @@ export default function ChatScreen() {
         type: roomType,
       },
     });
+    setTimeout(() => {
+      roomMenuOpenLockRef.current = false;
+    }, 800);
   };
+
+  const closeGroupInfoPanel = useCallback(() => {
+    setShowGroupInfoPanel(false);
+    roomMenuOpenLockRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "web" || !showGroupInfoPanel) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      closeGroupInfoPanel();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [closeGroupInfoPanel, showGroupInfoPanel]);
 
   const [blockStatus, setBlockStatus] = useState<{
     blockedByYou: boolean;
@@ -504,6 +782,62 @@ export default function ChatScreen() {
     const partner = participants.find((p: any) => p.id !== currentUserId);
     return partner?.id ?? null;
   }, [rooms, roomId, roomType, currentUserId]);
+
+  const openRoomMenu = useCallback(() => {
+    if (roomType === "GROUP") {
+      openGroupInfo();
+      return;
+    }
+    openChatOptions();
+  }, [roomType, openGroupInfo, openChatOptions]);
+
+  const roomMenuSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          if (
+            Platform.OS === "web" ||
+            isVoiceActive ||
+            showActionSheet ||
+            showForwardModal ||
+            galleryIndex !== null
+          ) {
+            return false;
+          }
+          const horizontal = Math.abs(gestureState.dx);
+          const vertical = Math.abs(gestureState.dy);
+          return (
+            gestureState.x0 > SCREEN_WIDTH * 0.35 &&
+            gestureState.dx < -45 &&
+            horizontal > vertical * 1.4
+          );
+        },
+        onPanResponderGrant: () => {
+          footerRef.current?.closeEmojiPicker();
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const horizontal = Math.abs(gestureState.dx);
+          const vertical = Math.abs(gestureState.dy);
+          const shouldOpen =
+            gestureState.dx < -70 &&
+            horizontal > vertical * 1.4 &&
+            vertical < 90;
+          if (!shouldOpen || menuSwipeLockRef.current) return;
+
+          menuSwipeLockRef.current = true;
+          openRoomMenu();
+          setTimeout(() => {
+            menuSwipeLockRef.current = false;
+          }, 450);
+        },
+        onPanResponderTerminate: () => {
+          menuSwipeLockRef.current = false;
+        },
+        onPanResponderTerminationRequest: () => true,
+      }),
+    [galleryIndex, isVoiceActive, openRoomMenu, showActionSheet, showForwardModal],
+  );
 
   const currentChatRoomMeta = useMemo(
     () => rooms.find((r) => r.id === roomId),
@@ -2853,15 +3187,47 @@ export default function ChatScreen() {
             isStrangerEmptyThread ? { visible: true } : undefined
           }
           showMenuBadge={roomType === "GROUP" ? groupJoinPendingBadge : false}
-          onMenuPress={() => {
-            if (roomType === "GROUP") {
-              openGroupInfo();
-            } else {
-              openChatOptions();
-            }
-          }}
+          onMenuPress={openRoomMenu}
           onAiPress={() => setShowAiMenu(true)}
         />
+
+        <View
+          pointerEvents="box-none"
+          style={{
+            height: 46,
+            marginBottom: -46,
+            zIndex: 2500,
+            elevation: 2500,
+            alignItems: "flex-end",
+            paddingRight: 12,
+            paddingTop: 8,
+          }}
+        >
+          <TouchableOpacity
+            onPress={openRoomMenu}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{
+              height: 34,
+              borderRadius: 17,
+              paddingHorizontal: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.22,
+              shadowRadius: 7,
+              elevation: 24,
+              backgroundColor: colors.primary,
+            }}
+          >
+            <Ionicons name="menu-outline" size={17} color="#ffffff" />
+            <Text style={{ color: "#ffffff", fontSize: 13, fontWeight: "800", marginLeft: 5 }}>
+              Menu
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <AiOptionsBottomSheet
           visible={showAiMenu}
@@ -3223,7 +3589,7 @@ export default function ChatScreen() {
           keyboardVerticalOffset={0}
           style={{ flex: 1 }}
         >
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1 }} {...roomMenuSwipeResponder.panHandlers}>
             {initialUnreadCount > 0 && (
               <View
                 style={{
@@ -3384,6 +3750,22 @@ export default function ChatScreen() {
                   (partnerProfileDetail?.avatarUrl ?? partnerAvatar) || null
                 }
                 coverPhotoUrl={partnerProfileDetail?.coverPhotoUrl ?? null}
+              />
+            ) : null}
+            {Platform.OS !== "web" && !isVoiceActive ? (
+              <View
+                {...roomMenuSwipeResponder.panHandlers}
+                pointerEvents="box-only"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: 34,
+                  zIndex: 50,
+                  elevation: 50,
+                  backgroundColor: "transparent",
+                }}
               />
             ) : null}
           </View>

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, KeyboardAvoidingView, Platform, ScrollView, Alert, Text, TouchableOpacity } from "react-native";
+import { View, KeyboardAvoidingView, Platform, ScrollView, Alert, Text } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import authService from "@/shared/services/authService";
@@ -8,7 +8,7 @@ import { AuthHeader, AuthTitle, AuthInput, AuthButton, OtpInputMobile } from "..
 import { useThemeColors } from "@/shared/theme/colors";
 
 type Step = "form" | "otp";
-type OtpChannel = "SMS" | "EMAIL";
+type OtpChannel = "EMAIL";
 
 export default function RegisterFormScreen() {
     const router = useRouter();
@@ -16,7 +16,7 @@ export default function RegisterFormScreen() {
     const authStyles = createAuthStyles(colors);
 
     const [step, setStep] = useState<Step>("form");
-    const [otpChannel, setOtpChannel] = useState<OtpChannel>("SMS");
+    const [otpChannel] = useState<OtpChannel>("EMAIL");
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
@@ -110,7 +110,7 @@ export default function RegisterFormScreen() {
 
         setLoading(true);
         try {
-            console.log(`[RegisterFormScreen] Sending OTP via ${otpChannel} to:`, phone.trim(), email.trim());
+            console.log(`[RegisterFormScreen] Sending OTP via ${otpChannel} to:`, email.trim());
             await authService.sendOtp(phone.trim(), otpChannel, email.trim());
             setStep("otp");
             setOtp("");
@@ -262,33 +262,19 @@ export default function RegisterFormScreen() {
                                     <Text style={{ fontSize: 14, color: colors.text, marginBottom: 12, fontWeight: "500" }}>
                                         Nhận mã OTP qua
                                     </Text>
-                                    <View style={{ flexDirection: "row", gap: 10 }}>
-                                        {(["SMS", "EMAIL"] as const).map((ch) => (
-                                            <TouchableOpacity
-                                                key={ch}
-                                                onPress={() => setOtpChannel(ch)}
-                                                disabled={loading}
-                                                style={{
-                                                    flex: 1,
-                                                    height: 44,
-                                                    borderRadius: 22,
-                                                    borderWidth: 2,
-                                                    borderColor: otpChannel === ch ? colors.primary : colors.border,
-                                                    backgroundColor: otpChannel === ch ? colors.primary : colors.card,
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    opacity: loading ? 0.7 : 1,
-                                                }}
-                                            >
-                                                <Text style={{
-                                                    color: otpChannel === ch ? "#fff" : colors.text,
-                                                    fontWeight: "600",
-                                                    fontSize: 14,
-                                                }}>
-                                                    {ch === "SMS" ? "SMS" : "Email"}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
+                                    <View
+                                        style={{
+                                            height: 44,
+                                            borderRadius: 22,
+                                            borderWidth: 2,
+                                            borderColor: colors.primary,
+                                            backgroundColor: colors.primary,
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            opacity: loading ? 0.7 : 1,
+                                        }}
+                                    >
+                                        <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Email</Text>
                                     </View>
                                 </View>
 
@@ -316,11 +302,9 @@ export default function RegisterFormScreen() {
                                     marginBottom: 24,
                                     lineHeight: 20,
                                 }}>
-                                    {otpChannel === "EMAIL"
-                                        ? `Mã xác thực đã được gửi đến email\n`
-                                        : `Mã xác thực đã được gửi đến số\n`}
+                                    Mã xác thực đã được gửi đến email{"\n"}
                                     <Text style={{ color: colors.primary, fontWeight: "600" }}>
-                                        {otpChannel === "EMAIL" ? email.trim() : phone.trim()}
+                                        {email.trim()}
                                     </Text>
                                 </Text>
 

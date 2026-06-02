@@ -3,25 +3,28 @@ import { GroupDetail, GroupSettings, BlockedMember } from "../types";
 
 /** Map GroupResponse (backend) → GroupDetail (frontend) */
 function mapGroupResponse(data: any): GroupDetail {
+    const rawMembers = Array.isArray(data?.members) ? data.members : [];
     return {
-        id: data.id,
-        groupName: data.groupName,
-        avatarUrl: data.avatarUrl || undefined,
-        wallpaperUrl: data.wallpaperUrl || undefined,
-        description: data.description || undefined,
-        ownerId: data.ownerId,
-        createdAt: data.createdAt || new Date().toISOString(),
-        members: (data.members || []).map((m: any) => ({
-            userId: m.userId,
+        id: data?.id,
+        groupName: data?.groupName || "Nhóm",
+        avatarUrl: data?.avatarUrl || undefined,
+        wallpaperUrl: data?.wallpaperUrl || undefined,
+        description: data?.description || undefined,
+        ownerId: data?.ownerId || "",
+        createdAt: data?.createdAt || new Date().toISOString(),
+        members: rawMembers
+            .filter((m: any) => m?.userId)
+            .map((m: any) => ({
+            userId: String(m.userId),
             username: m.username || "",
             fullName: m.displayName || m.fullName || undefined,
             avatarUrl: m.avatarUrl || undefined,
             role: m.role || "MEMBER",
         })),
-        settings: data.settings,
-        disbanded: !!data.disbanded,
-        pendingJoinRequestCount: typeof data.pendingJoinRequestCount === "number" ? data.pendingJoinRequestCount : 0,
-        pendingJoinRequests: Array.isArray(data.pendingJoinRequests)
+        settings: data?.settings,
+        disbanded: !!data?.disbanded,
+        pendingJoinRequestCount: typeof data?.pendingJoinRequestCount === "number" ? data.pendingJoinRequestCount : 0,
+        pendingJoinRequests: Array.isArray(data?.pendingJoinRequests)
             ? data.pendingJoinRequests.map((p: any) => ({
                   userId: String(p.userId ?? ""),
                   username: p.username || "",

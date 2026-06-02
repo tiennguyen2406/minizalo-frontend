@@ -22,6 +22,12 @@ import { useChatStore } from "@/shared/store/useChatStore";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
+const TEXT_BUBBLE_MAX_WIDTH = SCREEN_WIDTH * 0.75;
+const SOFT_BREAK = String.fromCharCode(8203);
+
+function addSoftBreaks(value: string): string {
+    return value.replace(/(\S{24})(?=\S)/g, `$1${SOFT_BREAK}`);
+}
 
 function isGroupActionSystemText(text?: string | null): boolean {
     const t = String(text || "").trim();
@@ -79,7 +85,7 @@ const LinkableText = ({ text, style, onUrlPress }: { text: string, style: any, o
     const URL_REGEX = /(https?:\/\/[^\s]+)/g;
     const parts = text.split(URL_REGEX);
     return (
-        <Text style={style}>
+        <Text style={[style, { flexShrink: 1, flexWrap: "wrap" }]}>
             {parts.map((part, i) => {
                 if (part.match(URL_REGEX)) {
                     return (
@@ -88,11 +94,11 @@ const LinkableText = ({ text, style, onUrlPress }: { text: string, style: any, o
                             style={[style, { color: (style.color === "#fff" || style.color === "#ffffff") ? "#add8e6" : "#0066cc", textDecorationLine: "underline" }]}
                             onPress={() => onUrlPress ? onUrlPress(part) : Linking.openURL(part)}
                         >
-                            {part}
+                            {addSoftBreaks(part)}
                         </Text>
                     );
                 }
-                return part;
+                return addSoftBreaks(part);
             })}
         </Text>
     );
@@ -871,7 +877,8 @@ export default function MessageBubble({
                     {/* Bubble */}
                     <View
                         style={{
-                            maxWidth: SCREEN_WIDTH * 0.75,
+                            maxWidth: TEXT_BUBBLE_MAX_WIDTH,
+                            minWidth: 0,
                             backgroundColor: bubbleBackground,
                             borderRadius: 16,
                             padding: ((hasImages || hasVideos) && !layoutHasText) ? 0 : 12, // Ensure padding for recalled messages
@@ -1425,7 +1432,7 @@ export default function MessageBubble({
 
                         {/* Text content with Link Detection */}
                         {(hasText && !isCallMessage || isRecalled) && !hideFilenameCaption && (
-                            <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+                            <View style={{ paddingHorizontal: 12, paddingVertical: 8, maxWidth: TEXT_BUBBLE_MAX_WIDTH, minWidth: 0 }}>
                                 {isRecalled ? (
                                     <Text
                                         style={{
@@ -1433,6 +1440,8 @@ export default function MessageBubble({
                                             fontSize: 15,
                                             lineHeight: 20,
                                             fontStyle: "italic",
+                                            flexShrink: 1,
+                                            flexWrap: "wrap",
                                         }}
                                     >
                                         Tin nhắn đã được thu hồi

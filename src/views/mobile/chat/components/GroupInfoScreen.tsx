@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
     View,
     Text,
@@ -18,7 +18,7 @@ import {
     Dimensions,
     StyleSheet,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { groupService } from "@/shared/services/groupService";
@@ -32,7 +32,6 @@ import { GroupDetail } from "@/shared/types";
 import { useThemeColors } from "@/shared/theme/colors";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import * as VideoThumbnails from "expo-video-thumbnails";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { setChatWallpaperUri } from "@/shared/utils/chatWallpaper";
@@ -43,6 +42,10 @@ import GroupMembersScreen from "../screens/GroupMembersScreen";
 import ReportAbuseModal from "@/shared/components/ReportAbuseModal";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
+
+function isRemoteImageUri(value?: string | null): value is string {
+    return /^https?:\/\//i.test(String(value || ""));
+}
 
 function getWebJoinBaseUrl(): string {
     return (
@@ -281,11 +284,13 @@ function AddMemberModal({
                         showsVerticalScrollIndicator={false}
                         renderItem={({ item }) => {
                             const isSelected = selectedIds.includes(item.id);
+                            const rawAvatar = item.avatarUrl ? getImageUrl(item.avatarUrl) : "";
                             const avatar =
-                                item.avatarUrl ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                    item.fullName || item.username
-                                )}&background=0068FF&color=fff&bold=true`;
+                                isRemoteImageUri(rawAvatar)
+                                    ? rawAvatar
+                                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                        item.fullName || item.username
+                                    )}&background=0068FF&color=fff&bold=true`;
                             return (
                                 <TouchableOpacity
                                     activeOpacity={0.7}
@@ -393,6 +398,7 @@ function SectionRow({
 export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProps) {
     const router = useRouter();
     const colors = useThemeColors();
+    const insets = useSafeAreaInsets();
     const mutedRooms = useChatStore((s) => s.mutedRooms);
     const toggleMuteRoom = useChatStore((s) => s.toggleMuteRoom);
     const pinnedRooms = useChatStore((s) => s.pinnedRooms);
@@ -410,13 +416,12 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     const [showMuteDuration, setShowMuteDuration] = useState(false);
     const [selectedMuteDuration, setSelectedMuteDuration] = useState<string>("1h");
     const [showMediaStorage, setShowMediaStorage] = useState(false);
-    const [mediaStorageSlide] = useState(() => new Animated.Value(SCREEN_WIDTH));
+    const mediaStorageSlide = useRef(new Animated.Value(SCREEN_WIDTH)).current;
     const [showGroupSettings, setShowGroupSettings] = useState(false);
-    const [groupSettingsSlide] = useState(() => new Animated.Value(SCREEN_WIDTH));
+    const groupSettingsSlide = useRef(new Animated.Value(SCREEN_WIDTH)).current;
     const [showMembers, setShowMembers] = useState(false);
-    const [membersPanelSlide] = useState(() => new Animated.Value(SCREEN_WIDTH));
+    const membersPanelSlide = useRef(new Animated.Value(SCREEN_WIDTH)).current;
     const [recentMedia, setRecentMedia] = useState<{ type: "image" | "video"; url: string }[]>([]);
-    const [videoThumbByResolvedUrl, setVideoThumbByResolvedUrl] = useState<Record<string, string>>({});
     const [savingVisual, setSavingVisual] = useState<"avatar" | "wallpaper" | null>(null);
     const [showDescriptionModal, setShowDescriptionModal] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
@@ -430,7 +435,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     const canEditCurrentGroupInfo = useCallback(() => {
         if (!group || !currentUserId) return false;
         const owner = String(group.ownerId) === String(currentUserId);
-        const admin = group.members.some(
+        const members = Array.isArray(group.members) ? group.members : [];
+        const admin = members.some(
             (m) => String(m.userId) === String(currentUserId) && m.role === "ADMIN",
         );
         return owner || admin || group.settings?.allowMemberChangeName !== false;
@@ -662,7 +668,6 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     }, [roomId]);
 
     useEffect(() => {
-        setVideoThumbByResolvedUrl({});
         void fetchRecentMedia();
     }, [fetchRecentMedia]);
 
@@ -672,39 +677,10 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
         }, [fetchRecentMedia]),
     );
 
-    useEffect(() => {
-        let cancelled = false;
-        const videos = recentMedia.filter((m) => m.type === "video");
-        if (videos.length === 0) {
-            setVideoThumbByResolvedUrl({});
-            return;
-        }
-        void (async () => {
-            const merged: Record<string, string> = {};
-            await Promise.all(
-                videos.map(async (v) => {
-                    const resolved = getImageUrl(v.url);
-                    try {
-                        const { uri } = await VideoThumbnails.getThumbnailAsync(resolved, {
-                            time: 800,
-                            quality: 0.55,
-                        });
-                        merged[resolved] = uri;
-                    } catch {
-                        /* Ảnh tĩnh từ URL video thường không load — chỉ báo lỗi im lặng */
-                    }
-                }),
-            );
-            if (!cancelled) setVideoThumbByResolvedUrl(merged);
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [recentMedia]);
-
     const isOwner =
         group != null && currentUserId != null && String(group.ownerId) === String(currentUserId);
-    const currentUserRole = group?.members.find(
+    const safeMembers = Array.isArray(group?.members) ? group.members.filter((m) => m?.userId) : [];
+    const currentUserRole = safeMembers.find(
         (m) => currentUserId != null && String(m.userId) === String(currentUserId),
     )?.role;
     const isAdmin = currentUserRole === "ADMIN";
@@ -766,11 +742,11 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     // ─── Loading / Error states ───
     if (loading || !group) {
         return (
-            <SafeAreaView
+            <View
                 style={{
                     flex: 1,
                     backgroundColor: colors.background,
-                    paddingTop: Platform.OS === "android" ? RNStatusBar.currentHeight : 0,
+                    paddingTop: insets.top || (Platform.OS === "android" ? RNStatusBar.currentHeight : 0),
                 }}
             >
                 <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -783,16 +759,17 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         <Text style={{ color: colors.textSecondary }}>Không tải được thông tin nhóm</Text>
                     )}
                 </View>
-            </SafeAreaView>
+            </View>
         );
     }
 
     const fallbackAvatarUri = `https://ui-avatars.com/api/?name=${encodeURIComponent(
         group.groupName
     )}&background=0068FF&color=fff&bold=true&size=120`;
-    const avatarUri = group.avatarUrl ? getImageUrl(group.avatarUrl) : fallbackAvatarUri;
+    const resolvedAvatarUrl = group.avatarUrl ? getImageUrl(group.avatarUrl) : "";
+    const avatarUri = isRemoteImageUri(resolvedAvatarUrl) ? resolvedAvatarUrl : fallbackAvatarUri;
 
-    const existingMemberIds = group.members.map((m) => m.userId);
+    const existingMemberIds = safeMembers.map((m) => m.userId);
     const joinInviteUrl = buildJoinConversationUrl(group?.settings?.joinLink);
     const isRoomPinned = pinnedRooms.has(String(roomId));
     const canOpenGroupSettings = canManageMembers;
@@ -861,7 +838,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
             <StatusBar style={colors.statusBar} />
             {/* ── Header (giống ChatOptionsScreen – màu xanh phủ tận status bar) ── */}
             <View style={{ backgroundColor: colors.headerBg }}>
-                <SafeAreaView edges={["top"]}>
+                <View style={{ paddingTop: insets.top }}>
                     <View
                         style={{
                             flexDirection: "row",
@@ -899,7 +876,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         {/* Right: placeholder */}
                         <View style={{ width: 24 }} />
                     </View>
-                </SafeAreaView>
+                </View>
             </View>
 
             <ScrollView
@@ -1071,8 +1048,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         <>
                             {recentMedia.map((m, i) => {
                                 const resolved = getImageUrl(m.url);
-                                const videoThumb =
-                                    m.type === "video" ? videoThumbByResolvedUrl[resolved] : undefined;
+                                const safeResolved = isRemoteImageUri(resolved) ? resolved : "";
                                 return (
                                     <TouchableOpacity
                                         key={`${m.url}-${i}`}
@@ -1090,40 +1066,21 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                                             borderColor: colors.border,
                                         }}
                                     >
-                                        {m.type === "video" ? (
-                                            videoThumb ? (
-                                                <>
-                                                    <Image
-                                                        source={{ uri: videoThumb }}
-                                                        style={{ width: 82, height: 82 }}
-                                                        resizeMode="cover"
-                                                    />
-                                                    <View
-                                                        style={{
-                                                            ...StyleSheet.absoluteFillObject,
-                                                            backgroundColor: "rgba(0,0,0,0.35)",
-                                                            justifyContent: "center",
-                                                            alignItems: "center",
-                                                        }}
-                                                    >
-                                                        <Ionicons name="play-circle" size={36} color="#fff" />
-                                                    </View>
-                                                </>
-                                            ) : (
-                                                <View
-                                                    style={{
-                                                        width: 82,
-                                                        height: 82,
-                                                        justifyContent: "center",
-                                                        alignItems: "center",
-                                                    }}
-                                                >
-                                                    <ActivityIndicator size="small" color={colors.primary} />
-                                                </View>
-                                            )
+                                        {m.type === "video" || !safeResolved ? (
+                                            <View
+                                                style={{
+                                                    width: 82,
+                                                    height: 82,
+                                                    justifyContent: "center",
+                                                    alignItems: "center",
+                                                    backgroundColor: colors.searchBg,
+                                                }}
+                                            >
+                                                <Ionicons name="play-circle" size={36} color={colors.primary} />
+                                            </View>
                                         ) : (
                                             <Image
-                                                source={{ uri: resolved }}
+                                                source={{ uri: safeResolved }}
                                                 style={{ width: 82, height: 82, borderRadius: 12 }}
                                                 resizeMode="cover"
                                             />
@@ -1198,8 +1155,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     icon="people-outline"
                     label={
                         canManageMembers
-                            ? `Quản lý thành viên (${group.members.length})`
-                            : `Thành viên (${group.members.length})`
+                            ? `Quản lý thành viên (${safeMembers.length})`
+                            : `Thành viên (${safeMembers.length})`
                     }
                     onPress={openMembersPanel}
                 />
@@ -1626,7 +1583,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     <GroupSettingsScreen
                         groupId={roomId}
                         groupName={group.groupName}
-                        members={group.members}
+                        members={safeMembers}
                         ownerId={group.ownerId}
                         onClose={closeGroupSettings}
                         onOpenMembers={() => {
