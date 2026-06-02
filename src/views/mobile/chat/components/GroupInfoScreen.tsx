@@ -24,6 +24,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { groupService } from "@/shared/services/groupService";
 import { chatService } from "@/shared/services/chatService";
 import { friendService } from "@/shared/services/friendService";
+import { webSocketService } from "@/shared/services/WebSocketService";
 import { isImageAttachment, isVideoAttachment } from "@/shared/utils/messageAttachments";
 import { useAuthStore } from "@/shared/store/authStore";
 import { useChatStore } from "@/shared/store/useChatStore";
@@ -426,6 +427,14 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
 
     const currentUserId = useAuthStore.getState().user?.id;
     const isRoomHidden = hiddenRooms.has(String(roomId));
+    const canEditCurrentGroupInfo = useCallback(() => {
+        if (!group || !currentUserId) return false;
+        const owner = String(group.ownerId) === String(currentUserId);
+        const admin = group.members.some(
+            (m) => String(m.userId) === String(currentUserId) && m.role === "ADMIN",
+        );
+        return owner || admin || group.settings?.allowMemberChangeName !== false;
+    }, [group, currentUserId]);
 
     const openMediaStorage = () => {
         setShowMediaStorage(true);
@@ -531,6 +540,10 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
 
     const pickGroupAvatar = useCallback(async () => {
         if (!roomId || savingVisual) return;
+        if (!canEditCurrentGroupInfo()) {
+            Alert.alert("Quyền hạn", "Chỉ trưởng/phó nhóm được sửa thông tin nhóm.");
+            return;
+        }
         const asset = await avatarPicker.pickImage();
         if (!asset) return;
         setSavingVisual("avatar");
@@ -547,10 +560,14 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
         } finally {
             setSavingVisual(null);
         }
-    }, [roomId, savingVisual, avatarPicker, upsertRoom]);
+    }, [roomId, savingVisual, canEditCurrentGroupInfo, avatarPicker, upsertRoom]);
 
     const pickSyncedChatWallpaper = useCallback(async () => {
         if (!roomId || savingVisual) return;
+        if (!canEditCurrentGroupInfo()) {
+            Alert.alert("Quyền hạn", "Chỉ trưởng/phó nhóm được sửa thông tin nhóm.");
+            return;
+        }
         const asset = await wallpaperPicker.pickImage();
         if (!asset) return;
         setSavingVisual("wallpaper");
@@ -568,7 +585,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
         } finally {
             setSavingVisual(null);
         }
-    }, [roomId, savingVisual, wallpaperPicker, upsertRoom]);
+    }, [roomId, savingVisual, canEditCurrentGroupInfo, wallpaperPicker, upsertRoom]);
 
     useEffect(() => {
         if (!roomId) return;
@@ -578,6 +595,22 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
             .then((detail) => setGroup(detail))
             .catch((err) => console.error("Error fetching group:", err))
             .finally(() => setLoading(false));
+    }, [roomId]);
+
+    useEffect(() => {
+        if (!roomId) return;
+        const settingsTopic = `/topic/chat/${roomId}/settings`;
+        const onSettingsChanged = (stompMessage: { body: string }) => {
+            try {
+                const settings = JSON.parse(String(stompMessage.body || "{}"));
+                setGroup((prev) => prev ? { ...prev, settings } : prev);
+            } catch (err) {
+                console.error("Error parsing group settings WS message:", err);
+            }
+        };
+
+        webSocketService.subscribe(settingsTopic, onSettingsChanged);
+        return () => webSocketService.unsubscribe(settingsTopic, onSettingsChanged);
     }, [roomId]);
 
     const fetchRecentMedia = useCallback(async () => {
@@ -763,8 +796,13 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     const joinInviteUrl = buildJoinConversationUrl(group?.settings?.joinLink);
     const isRoomPinned = pinnedRooms.has(String(roomId));
     const canOpenGroupSettings = canManageMembers;
+    const canEditGroupInfo = canEditCurrentGroupInfo();
 
     const handleConfirmRenameGroup = async () => {
+        if (!canEditCurrentGroupInfo()) {
+            Alert.alert("Quyền hạn", "Chỉ trưởng/phó nhóm được sửa thông tin nhóm.");
+            return;
+        }
         const name = renameDraft.trim();
         if (!name) {
             Alert.alert("Tên nhóm", "Vui lòng nhập tên nhóm.");
@@ -789,12 +827,20 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
     };
 
     const openDescriptionEditor = () => {
+        if (!canEditCurrentGroupInfo()) {
+            Alert.alert("Quyền hạn", "Chỉ trưởng/phó nhóm được sửa thông tin nhóm.");
+            return;
+        }
         setDescriptionDraft(group.description || "");
         setShowDescriptionModal(true);
     };
 
     const handleSaveDescription = async () => {
         if (!roomId || savingDescription) return;
+        if (!canEditCurrentGroupInfo()) {
+            Alert.alert("Quyền hạn", "Chỉ trưởng/phó nhóm được sửa thông tin nhóm.");
+            return;
+        }
         setSavingDescription(true);
         try {
             const updated = await groupService.updateGroupDescription(roomId, descriptionDraft.trim());
@@ -866,8 +912,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                     <TouchableOpacity
                         activeOpacity={0.8}
                         onPress={() => void pickGroupAvatar()}
-                        disabled={savingVisual !== null}
-                        style={{ position: "relative", marginBottom: 12 }}
+                        disabled={savingVisual !== null || !canEditGroupInfo}
+                        style={{ position: "relative", marginBottom: 12, opacity: canEditGroupInfo ? 1 : 0.65 }}
                     >
                         <Image
                             source={{ uri: avatarUri }}
@@ -902,9 +948,14 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                         <TouchableOpacity
                             activeOpacity={0.6}
                             onPress={() => {
+                                if (!canEditGroupInfo) {
+                                    Alert.alert("Quyền hạn", "Chỉ trưởng/phó nhóm được sửa thông tin nhóm.");
+                                    return;
+                                }
                                 setRenameDraft(group.groupName);
                                 setShowRenameGroup(true);
                             }}
+                            disabled={!canEditGroupInfo}
                         >
                             <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
                         </TouchableOpacity>
@@ -947,6 +998,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                             icon: "color-palette-outline",
                             label: "Đổi\nhình nền",
                             onPress: () => void pickSyncedChatWallpaper(),
+                            disabled: !canEditGroupInfo,
                         },
                         {
                             icon: mutedRooms.has(String(roomId)) ? "notifications" : "notifications-outline",
@@ -965,7 +1017,8 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                             key={idx}
                             activeOpacity={0.7}
                             onPress={item.onPress ?? (() => {})}
-                            style={{ alignItems: "center", width: 72 }}
+                            disabled={(item as any).disabled}
+                            style={{ alignItems: "center", width: 72, opacity: (item as any).disabled ? 0.45 : 1 }}
                         >
                             <View
                                 style={{
@@ -998,7 +1051,7 @@ export default function GroupInfoScreen({ roomId, onClose }: GroupInfoScreenProp
                 <View style={{ marginTop: 4 }}>
                     <SectionRow
                         icon="information-circle-outline"
-                        onPress={openDescriptionEditor}
+                        onPress={canEditGroupInfo ? openDescriptionEditor : undefined}
                         subtitle={group.description || undefined}
                         label="Thêm mô tả nhóm"
                     />

@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { webSocketService } from "@/shared/services/WebSocketService";
 import IncomingCallModal from "@/views/mobile/chat/components/IncomingCallModal";
 import CallModal from "@/views/mobile/chat/components/CallModal";
+import { InAppNotificationBanner } from "@/views/mobile/chat/components/InAppNotification";
 import UniversalToaster from "@/shared/components/UniversalToaster";
 
 // Quyết liệt chặn tất cả các cảnh báo và lỗi liên quan đến expo-notifications trên Expo Go
@@ -131,6 +132,15 @@ export default function RootLayout() {
                             style={[StyleSheet.absoluteFill, { zIndex: 99999, elevation: 99999 }]}
                             pointerEvents="box-none"
                         >
+                            <InAppNotificationBanner
+                                onPress={(roomId) => {
+                                    if (!roomId) return;
+                                    router.push({
+                                        pathname: "/chat/[id]",
+                                        params: { id: roomId },
+                                    });
+                                }}
+                            />
                             <CallModal />
                         </View>
                     )}

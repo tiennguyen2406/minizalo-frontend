@@ -34,6 +34,33 @@ interface MessageBubbleProps {
     onOpenChatGallery?: (resolvedMediaUrl: string) => void;
 }
 
+/** Tải file về thư mục Tải xuống mặc định của trình duyệt (không chọn đường dẫn). */
+async function downloadFileToDeviceCore(url: string, suggestedName: string): Promise<void> {
+    const safe = suggestedName.replace(/[<>:"/\\|?*]/g, '_') || 'download';
+    try {
+        const res = await fetch(url, { mode: 'cors' });
+        if (!res.ok) throw new Error('fetch failed');
+        const blob = await res.blob();
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = href;
+        a.download = safe;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(href);
+    } catch {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.download = safe;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+}
+
 const VoicePlayer: React.FC<{ url: string }> = ({ url }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -115,6 +142,29 @@ const VoicePlayer: React.FC<{ url: string }> = ({ url }) => {
                 ))}
             </div>
             <span className="text-sm font-medium text-[color:var(--text-secondary)] ml-1 min-w-[40px] tabular-nums">{displayTime}</span>
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    let fileName = 'voice_message.mp3';
+                    try {
+                        const path = new URL(url).pathname;
+                        const last = path.substring(path.lastIndexOf('/') + 1);
+                        if (last && last.includes('.')) {
+                            fileName = last;
+                        }
+                    } catch {}
+                    downloadFileToDeviceCore(url, fileName);
+                }}
+                className="w-7 h-7 rounded-full bg-[color:var(--bg-hover)] text-[color:var(--text-secondary)] flex items-center justify-center shrink-0 hover:bg-gray-200 transition-colors ml-2"
+                title="Tải tin nhắn thoại về máy"
+            >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+            </button>
         </div>
     );
 };
@@ -393,32 +443,7 @@ function formatFileSizeBytes(n?: number): string {
     return `${(n / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-/** Tải file về thư mục Tải xuống mặc định của trình duyệt (không chọn đường dẫn). */
-async function downloadFileToDeviceCore(url: string, suggestedName: string): Promise<void> {
-    const safe = suggestedName.replace(/[<>:"/\\|?*]/g, '_') || 'download';
-    try {
-        const res = await fetch(url, { mode: 'cors' });
-        if (!res.ok) throw new Error('fetch failed');
-        const blob = await res.blob();
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = href;
-        a.download = safe;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(href);
-    } catch {
-        const a = document.createElement('a');
-        a.href = url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.download = safe;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-    }
-}
+
 
 async function downloadFileToDevice(url: string, suggestedName: string, ev: React.MouseEvent) {
     ev.preventDefault();
@@ -864,6 +889,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
     const imageUrls = useMemo(() => getImageAttachmentUrls(message), [message]);
     const videoUrls = useMemo(() => getVideoAttachmentUrls(message), [message]);
+    const audioUrls = useMemo(() => getAudioAttachmentUrls(message), [message]);
 
     const attachment = message.attachments?.[0];
     const effectiveFileUrl = getImageUrl(message.fileUrl || attachment?.url);
@@ -1544,18 +1570,20 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     return null;
                                 })()}
 
-                                {/* 4. Standalone Voice Player */}
-                                {effectiveType === 'VOICE' && effectiveFileUrl && imageUrls.length === 0 && videoUrls.length === 0 && (
-                                    <VoicePlayer url={effectiveFileUrl} />
-                                )}
+
 
                                 {/* 5. File/Document attachments */}
                                 {(() => {
                                     const filesToRender = (message.attachments || []).filter(
-                                        (att: any) => !imageUrls.includes(getImageUrl(att.url)) && !videoUrls.includes(getImageUrl(att.url))
+                                        (att: any) => !imageUrls.includes(getImageUrl(att.url)) && 
+                                                      !videoUrls.includes(getImageUrl(att.url)) &&
+                                                      !audioUrls.includes(getImageUrl(att.url))
                                     );
                                     
-                                    const showFallbackFile = filesToRender.length === 0 && effectiveFileUrl && (effectiveType === 'FILE' || effectiveType === 'DOCUMENT');
+                                    const showFallbackFile = filesToRender.length === 0 && 
+                                                             effectiveFileUrl && 
+                                                             (effectiveType === 'FILE' || effectiveType === 'DOCUMENT') &&
+                                                             effectiveType !== 'VOICE';
 
                                     if (filesToRender.length > 0 || showFallbackFile) {
                                         return (

@@ -47,6 +47,11 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
     const [pendingSentIds, setPendingSentIds] = useState<Set<string>>(new Set());
     const [sendingFriendReq, setSendingFriendReq] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<string | null>(null);
+    const [confirmModal, setConfirmModal] = useState<{
+        type: 'BLOCK' | 'REMOVE' | 'TRANSFER';
+        userId: string;
+        userName: string;
+    } | null>(null);
 
     const sorted = [...members].sort((a, b) => {
         const aIsOwner = a.userId === ownerId;
@@ -379,9 +384,11 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                                 <button
                                                     className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
                                                     onClick={() => {
-                                                        const ok = confirm(`Chặn "${member.fullName || member.username}" khỏi nhóm?`);
-                                                        if (!ok) return;
-                                                        onBlockMember(member.userId);
+                                                        setConfirmModal({
+                                                            type: 'BLOCK',
+                                                            userId: member.userId,
+                                                            userName: member.fullName || member.username,
+                                                        });
                                                         setMenuOpenFor(null);
                                                         setMenuPos(null);
                                                     }}
@@ -398,7 +405,11 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                                     <button
                                                         className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
                                                         onClick={() => {
-                                                            onRemoveMember(member.userId);
+                                                            setConfirmModal({
+                                                                type: 'REMOVE',
+                                                                userId: member.userId,
+                                                                userName: member.fullName || member.username,
+                                                            });
                                                             setMenuOpenFor(null);
                                                             setMenuPos(null);
                                                         }}
@@ -422,9 +433,11 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                             <button
                                                 className="w-full px-4 py-2.5 text-left text-sm text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-hover)] flex items-center gap-2.5 transition-colors"
                                                 onClick={() => {
-                                                    const ok = confirm(`Chuyển quyền trưởng nhóm cho "${member.fullName || member.username}"?`);
-                                                    if (!ok) return;
-                                                    onTransferOwnership(member.userId);
+                                                    setConfirmModal({
+                                                        type: 'TRANSFER',
+                                                        userId: member.userId,
+                                                        userName: member.fullName || member.username,
+                                                    });
                                                     setMenuOpenFor(null);
                                                     setMenuPos(null);
                                                 }}
@@ -467,13 +480,15 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                         {(onBlockMember || onRemoveMember) && (
                                             <>
                                                 <div className="border-t border-[color:var(--border-primary)] my-0.5" />
-                                                {onBlockMember ? (
+                                                {onBlockMember && (
                                                     <button
                                                         className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
                                                         onClick={() => {
-                                                            const ok = confirm(`Chặn "${member.fullName || member.username}" khỏi nhóm?`);
-                                                            if (!ok) return;
-                                                            onBlockMember(member.userId);
+                                                            setConfirmModal({
+                                                                type: 'BLOCK',
+                                                                userId: member.userId,
+                                                                userName: member.fullName || member.username,
+                                                            });
                                                             setMenuOpenFor(null);
                                                             setMenuPos(null);
                                                         }}
@@ -483,11 +498,17 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                                                         </svg>
                                                         Chặn khỏi nhóm
                                                     </button>
-                                                ) : (
+                                                )}
+                                                {onBlockMember && onRemoveMember && <div className="border-t border-[color:var(--border-primary)] my-0.5" />}
+                                                {onRemoveMember && (
                                                     <button
                                                         className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
                                                         onClick={() => {
-                                                            onRemoveMember?.(member.userId);
+                                                            setConfirmModal({
+                                                                type: 'REMOVE',
+                                                                userId: member.userId,
+                                                                userName: member.fullName || member.username,
+                                                            });
                                                             setMenuOpenFor(null);
                                                             setMenuPos(null);
                                                         }}
@@ -507,6 +528,77 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
                     </>
         ) : null;
 
+    const renderConfirmModal = () => {
+        if (!confirmModal) return null;
+
+        let title = '';
+        let message = '';
+        let confirmText = 'Xác nhận';
+        let confirmBg = 'bg-red-600 hover:bg-red-700 focus:ring-red-500';
+
+        if (confirmModal.type === 'BLOCK') {
+            title = 'Chặn khỏi nhóm';
+            message = `Bạn có chắc chắn muốn chặn "${confirmModal.userName}" khỏi nhóm? Người này sẽ bị xóa khỏi nhóm và không thể tự tham gia lại.`;
+            confirmText = 'Chặn thành viên';
+        } else if (confirmModal.type === 'REMOVE') {
+            title = 'Xóa khỏi nhóm';
+            message = `Bạn có chắc chắn muốn xóa "${confirmModal.userName}" khỏi nhóm?`;
+            confirmText = 'Xóa thành viên';
+        } else if (confirmModal.type === 'TRANSFER') {
+            title = 'Chuyển quyền trưởng nhóm';
+            message = `Bạn có chắc chắn muốn chuyển quyền trưởng nhóm cho "${confirmModal.userName}"? Bạn sẽ trở thành thành viên thường.`;
+            confirmText = 'Chuyển quyền';
+            confirmBg = 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500';
+        }
+
+        return (
+            <div
+                className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/55 backdrop-blur-[2px]"
+                onClick={() => setConfirmModal(null)}
+            >
+                <div
+                    className="bg-[color:var(--bg-primary)] rounded-2xl shadow-2xl w-[360px] p-5 flex flex-col gap-4 border border-[color:var(--border-primary)] transform transition-all duration-200 scale-100"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="flex flex-col gap-2">
+                        <h3 className="text-base font-bold text-[color:var(--text-primary)]">
+                            {title}
+                        </h3>
+                        <p className="text-sm text-[color:var(--text-secondary)] leading-relaxed">
+                            {message}
+                        </p>
+                    </div>
+
+                    <div className="flex gap-2.5 justify-end mt-2">
+                        <button
+                            type="button"
+                            onClick={() => setConfirmModal(null)}
+                            className="px-4 py-2 text-sm font-medium text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-secondary)] rounded-xl border border-[color:var(--border-primary)] transition-colors focus:outline-none"
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (confirmModal.type === 'BLOCK') {
+                                    onBlockMember?.(confirmModal.userId);
+                                } else if (confirmModal.type === 'REMOVE') {
+                                    onRemoveMember?.(confirmModal.userId);
+                                } else if (confirmModal.type === 'TRANSFER') {
+                                    onTransferOwnership?.(confirmModal.userId);
+                                }
+                                setConfirmModal(null);
+                            }}
+                            className={`px-4 py-2 text-sm font-medium text-white rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${confirmBg}`}
+                        >
+                            {confirmText}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const inner = (
         <>
             {headerBar}
@@ -514,6 +606,7 @@ const GroupMembersList: React.FC<GroupMembersListProps> = ({
             {membersSectionIntro}
             {memberList}
             {dropdownMenu}
+            {renderConfirmModal()}
         </>
     );
 

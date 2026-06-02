@@ -263,6 +263,12 @@ export const chatService = {
         await api.delete(`/chat/rooms/${roomId}`);
     },
 
+    /** Khôi phục đoạn chat đã bị ẩn (reset chatDeletedAt) — dùng khi mở lại nhóm từ tìm kiếm */
+    restoreRoom: async (roomId: string): Promise<void> => {
+        await api.post(`/chat/rooms/${roomId}/restore`);
+    },
+
+
     /**
      * Lấy context xung quanh tin nhắn chưa đọc cũ nhất.
      * Dùng cho nút "Tin nhắn chưa đọc" để scroll chính xác bất kể số lượng tin chưa đọc.

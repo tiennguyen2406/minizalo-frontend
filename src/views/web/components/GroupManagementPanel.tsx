@@ -64,6 +64,30 @@ const GroupManagementPanel: React.FC<GroupManagementPanelProps> = ({ onClosePane
             .finally(() => setLoading(false));
     }, [currentGroupDetail?.id, currentGroupDetail?.settings]);
 
+    useEffect(() => {
+        if (!currentGroupDetail?.id) return;
+        const groupId = currentGroupDetail.id;
+        const settingsTopic = `/topic/chat/${groupId}/settings`;
+        const onSettingsChanged = (stompMessage: { body: string }) => {
+            try {
+                const nextSettings = JSON.parse(String(stompMessage.body || '{}')) as GroupSettings;
+                setSettings(nextSettings);
+                const current = useGroupStore.getState().currentGroupDetail;
+                if (current?.id === groupId) {
+                    useGroupStore.getState().updateCurrentGroupDetail({
+                        ...current,
+                        settings: nextSettings,
+                    });
+                }
+            } catch (err) {
+                console.error('Error parsing group settings WS message:', err);
+            }
+        };
+
+        webSocketService.subscribe(settingsTopic, onSettingsChanged);
+        return () => webSocketService.unsubscribe(settingsTopic, onSettingsChanged);
+    }, [currentGroupDetail?.id]);
+
     // Load blocked list when entering blocked view
     useEffect(() => {
         if (view !== 'blocked') return;

@@ -5,6 +5,7 @@ import { useAuthStore } from '@/shared/store/authStore';
 import { groupService } from '@/shared/services/groupService';
 import { useChatStore } from '@/shared/store/useChatStore';
 import { MessageService } from '@/shared/services/MessageService';
+import { webSocketService } from '@/shared/services/WebSocketService';
 import GroupMembersList from './GroupMembersList';
 import ConfirmModal from './ConfirmModal';
 import ForwardMessageModal from './ForwardMessageModal';
@@ -346,7 +347,6 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
 
     const handleRemoveMember = useCallback(async (userId: string) => {
         if (!roomId || !currentGroupDetail) return;
-        if (!confirm('Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?')) return;
         try {
             const updatedGroup = await groupService.removeMembersFromGroup(roomId, [userId]);
             setCurrentGroupDetail(updatedGroup);
@@ -387,6 +387,28 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
         groupService.getGroupDetails(roomId)
             .then((detail) => setCurrentGroupDetail(detail))
             .catch(console.error);
+    }, [roomId, setCurrentGroupDetail]);
+
+    useEffect(() => {
+        if (!roomId) return;
+        const settingsTopic = `/topic/chat/${roomId}/settings`;
+        const onSettingsChanged = (stompMessage: { body: string }) => {
+            try {
+                const settings = JSON.parse(String(stompMessage.body || '{}'));
+                const current = useGroupStore.getState().currentGroupDetail;
+                if (current?.id === roomId) {
+                    useGroupStore.getState().updateCurrentGroupDetail({
+                        ...current,
+                        settings,
+                    });
+                }
+            } catch (err) {
+                console.error('Error parsing group settings WS message:', err);
+            }
+        };
+
+        webSocketService.subscribe(settingsTopic, onSettingsChanged);
+        return () => webSocketService.unsubscribe(settingsTopic, onSettingsChanged);
     }, [roomId]);
 
     useEffect(() => {
@@ -431,9 +453,15 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
         group?.members.some((m) => m.userId === user?.id && m.role === 'ADMIN'),
         [group, user, isOwner]);
 
+    const canEditGroupInfo = isOwnerOrAdmin || group?.settings?.allowMemberChangeName !== false;
+
     const handleChangeAvatar = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !roomId || !currentGroupDetail) return;
+        if (!canEditGroupInfo) {
+            showToast('Chỉ trưởng/phó nhóm được sửa thông tin nhóm');
+            return;
+        }
         if (!file.type.startsWith('image/')) {
             showToast('Vui lòng chọn file ảnh');
             return;
@@ -456,11 +484,15 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             setIsUploadingAvatar(false);
             if (avatarInputRef.current) avatarInputRef.current.value = '';
         }
-    }, [roomId, currentGroupDetail, setCurrentGroupDetail, showToast]);
+    }, [roomId, currentGroupDetail, canEditGroupInfo, setCurrentGroupDetail, showToast]);
 
     const handleChangeWallpaper = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !roomId || !currentGroupDetail) return;
+        if (!canEditGroupInfo) {
+            showToast('Chỉ trưởng/phó nhóm được sửa thông tin nhóm');
+            return;
+        }
         if (!file.type.startsWith('image/')) {
             showToast('Vui lòng chọn file ảnh');
             return;
@@ -479,10 +511,14 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
             setIsUploadingWallpaper(false);
             if (wallpaperInputRef.current) wallpaperInputRef.current.value = '';
         }
-    }, [roomId, currentGroupDetail, setCurrentGroupDetail, showToast]);
+    }, [roomId, currentGroupDetail, canEditGroupInfo, setCurrentGroupDetail, showToast]);
 
     const handleSaveDescription = useCallback(async () => {
         if (!roomId || !currentGroupDetail) return;
+        if (!canEditGroupInfo) {
+            showToast('Chỉ trưởng/phó nhóm được sửa thông tin nhóm');
+            return;
+        }
         setIsSavingDescription(true);
         try {
             const updated = await groupService.updateGroupDescription(roomId, descriptionDraft.trim());
@@ -495,7 +531,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
         } finally {
             setIsSavingDescription(false);
         }
-    }, [roomId, currentGroupDetail, descriptionDraft, setCurrentGroupDetail, showToast]);
+    }, [roomId, currentGroupDetail, canEditGroupInfo, descriptionDraft, setCurrentGroupDetail, showToast]);
 
     const joinLink = `${window.location.origin}/join/${group?.settings?.joinLink || ""}`;
 
@@ -640,16 +676,16 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                             accept="image/*"
                             className="hidden"
                             onChange={handleChangeAvatar}
-                            disabled={!isOwnerOrAdmin}
+                            disabled={!canEditGroupInfo}
                         />
                         <button
                             type="button"
                             onClick={() => avatarInputRef.current?.click()}
-                            disabled={isUploadingAvatar || !isOwnerOrAdmin}
+                            disabled={isUploadingAvatar || !canEditGroupInfo}
                             className={`absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center rounded-full bg-[color:var(--bg-primary)] border border-[color:var(--border-primary)] shadow-sm text-[color:var(--text-secondary)] transition-colors disabled:opacity-35 ${
-                                isOwnerOrAdmin ? 'hover:bg-[color:var(--bg-hover)]' : 'cursor-not-allowed opacity-45'
+                                canEditGroupInfo ? 'hover:bg-[color:var(--bg-hover)]' : 'cursor-not-allowed opacity-45'
                             }`}
-                            title={isOwnerOrAdmin ? 'Đổi ảnh nhóm' : 'Chỉ trưởng/phó nhóm đổi ảnh nhóm'}
+                            title={canEditGroupInfo ? 'Đổi ảnh nhóm' : 'Chỉ trưởng/phó nhóm được sửa thông tin nhóm'}
                         >
                                 {isUploadingAvatar ? (
                                     <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -671,12 +707,12 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     {/* Edit pencil — opens rename modal */}
                     <button
                         type="button"
-                        onClick={() => isOwnerOrAdmin && setShowRenameModal(true)}
-                        disabled={!isOwnerOrAdmin}
+                        onClick={() => canEditGroupInfo && setShowRenameModal(true)}
+                        disabled={!canEditGroupInfo}
                         className={`w-6 h-6 flex items-center justify-center rounded-full bg-[color:var(--bg-secondary)] text-[color:var(--text-secondary)] transition-colors ${
-                            isOwnerOrAdmin ? 'hover:bg-[color:var(--bg-tertiary)]' : 'opacity-40 cursor-not-allowed'
+                            canEditGroupInfo ? 'hover:bg-[color:var(--bg-tertiary)]' : 'opacity-40 cursor-not-allowed'
                         }`}
-                        title={isOwnerOrAdmin ? 'Sửa tên nhóm' : 'Chỉ trưởng/phó nhóm đổi tên nhóm'}
+                        title={canEditGroupInfo ? 'Sửa tên nhóm' : 'Chỉ trưởng/phó nhóm được sửa thông tin nhóm'}
                     >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -705,7 +741,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     label={<span>Thêm<br />thành viên</span>}
                     onClick={openAddMembers}
                 />
-                {isOwnerOrAdmin && (
+                {canEditGroupInfo && (
                     <React.Fragment>
                         <input
                             ref={wallpaperInputRef}
@@ -726,7 +762,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                 )}
             </ActionButtonRow>
 
-            {isOwnerOrAdmin && (
+            {canEditGroupInfo && (
                 <div className="border-t border-[color:var(--border-primary)]">
                     <button
                         type="button"
@@ -749,7 +785,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                     <button
                         type="button"
                         onClick={handleSaveDescription}
-                        disabled={isSavingDescription || descriptionDraft.trim() === (group.description || '').trim()}
+                        disabled={!canEditGroupInfo || isSavingDescription || descriptionDraft.trim() === (group.description || '').trim()}
                         className="text-xs font-semibold text-blue-600 disabled:text-gray-300"
                     >
                         {isSavingDescription ? 'Đang Lưu...' : 'Lưu'}
@@ -758,6 +794,7 @@ const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({ roomId, onClose }) => {
                 <textarea
                     value={descriptionDraft}
                     onChange={(e) => setDescriptionDraft(e.target.value.slice(0, 1000))}
+                    disabled={!canEditGroupInfo}
                     placeholder="Thêm mô tả để mọi người hiểu thêm về đoạn chat"
                     className="w-full min-h-[76px] resize-none rounded-xl border border-[color:var(--border-primary)] bg-[color:var(--bg-hover)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-blue-300 focus:bg-[color:var(--bg-primary)]"
                 />

@@ -8,10 +8,13 @@ import React, {
 import { useRouter } from "expo-router";
 import { useDebounce } from "@/shared/hooks/useDebounce";
 import { searchService } from "@/shared/services/searchService";
+import { groupService } from "@/shared/services/groupService";
+import { chatService } from "@/shared/services/chatService";
 import { useThemeStore } from "@/shared/store/themeStore";
 import { useChatStore } from "@/shared/store/useChatStore";
 import { UserProfile } from "@/shared/services/types";
 import { Message, ChatRoom } from "@/shared/types";
+import { GroupDetail } from "@/shared/types";
 import WebSearchInputBar from "@/views/web/components/WebSearchInputBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -20,6 +23,7 @@ type SearchTab = "all" | "contacts" | "messages" | "files";
 
 interface LocalSearchResults {
   rooms: ChatRoom[]; // khớp tên phòng / người dùng
+  hiddenGroups: GroupDetail[]; // nhóm user là thành viên nhưng đã ẩn
   messages: Message[]; // khớp nội dung tin nhắn
   files: Message[]; // tin nhắn chứa file/hình ảnh
 }
@@ -155,14 +159,26 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const debouncedQuery = useDebounce(query, 350);
 
+  // API group list (bao gồm cả nhóm đã bị ẩn khỏi danh sách)
+  const [allApiGroups, setAllApiGroups] = useState<GroupDetail[]>([]);
+  useEffect(() => {
+    groupService.getUsersGroups().then(setAllApiGroups).catch(() => {});
+  }, []);
+
   // ── Tìm kiếm LOCAL ngay lập tức (không cần API) ──────────────────────────
   const localResults = useMemo((): LocalSearchResults => {
     const q = query.trim().toLowerCase();
     if (!q) return { rooms: [], messages: [], files: [] };
 
-    // Tìm phòng/liên hệ theo tên
+    // Tìm phòng/liên hệ theo tên (từ store — những phòng đang hiển thị)
     const matchedRooms = rooms.filter((r) =>
       (r.name ?? "").toLowerCase().includes(q),
+    );
+
+    // Tìm nhóm từ API (bao gồm cả nhóm đã bị ẩn)
+    const roomIds = new Set(rooms.map((r) => r.id));
+    const matchedApiGroups = allApiGroups.filter(
+      (g) => (g.groupName ?? "").toLowerCase().includes(q) && !roomIds.has(g.id)
     );
 
     // Tìm trong tin nhắn đã load
@@ -182,10 +198,11 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
 
     return {
       rooms: matchedRooms,
+      hiddenGroups: matchedApiGroups,
       messages: matchedMessages,
       files: matchedFiles,
     };
-  }, [query, rooms, allMessages]);
+  }, [query, rooms, allMessages, allApiGroups]);
 
   // ── Gọi API backend sau debounce để tìm sâu hơn ─────────────────────────
   useEffect(() => {
@@ -208,11 +225,11 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
       .finally(() => setIsApiLoading(false));
   }, [debouncedQuery]);
 
-  // ── Merge kết quả local + API ─────────────────────────────────────────────
+  // ── Merge kết quả local + API ───────────────────────────────────────
   const mergedContacts = useMemo(() => {
-    // Rooms từ local + API contacts (loại trùng)
-    return { rooms: localResults.rooms, profiles: apiContacts };
-  }, [localResults.rooms, apiContacts]);
+    // Rooms từ local + API contacts (loại trùng) + nhóm ẩn từ API
+    return { rooms: localResults.rooms, profiles: apiContacts, hiddenGroups: localResults.hiddenGroups ?? [] };
+  }, [localResults.rooms, apiContacts, localResults.hiddenGroups]);
 
   const mergedMessages = useMemo(
     () => [...localResults.messages, ...apiMessages],
@@ -223,7 +240,7 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
 
   // Tổng số để hiện nhãn tabs
   const totalContacts =
-    mergedContacts.rooms.length + mergedContacts.profiles.length;
+    mergedContacts.rooms.length + mergedContacts.profiles.length + mergedContacts.hiddenGroups.length;
   const totalMessages = mergedMessages.length;
   const totalFiles = mergedFiles.length;
   const hasAny = totalContacts + totalMessages + totalFiles > 0;
@@ -296,6 +313,37 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
       }
     },
     [rooms, handleSelectRoom, handleClose, router, query, onSelectRoom],
+  );
+
+  /** Mở lại nhóm đã bị ẩn khỏi danh sách: restore rồi navigate */
+  const handleSelectHiddenGroup = useCallback(
+    async (group: GroupDetail) => {
+      try {
+        await chatService.restoreRoom(group.id);
+      } catch (e) {
+        console.error("Restore group failed", e);
+      }
+      // Thêm phòng vào store và navigate
+      useChatStore.getState().upsertRoom({
+        id: group.id,
+        name: group.groupName,
+        type: "GROUP",
+        unreadCount: 0,
+        avatarUrl: group.avatarUrl,
+        participants: (group.members || []).map((m) => ({
+          id: m.userId,
+          username: m.username,
+          fullName: m.fullName || m.username,
+          avatarUrl: m.avatarUrl,
+        })),
+        updatedAt: group.createdAt,
+      });
+      // Refresh all groups from API
+      groupService.getUsersGroups().then(setAllApiGroups).catch(() => {});
+      onSelectRoom(group.id);
+      handleClose();
+    },
+    [onSelectRoom, handleClose],
   );
 
   useEffect(() => {
@@ -621,6 +669,66 @@ const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onSelectRoom }) => {
                       </div>
                     );
                   })}
+
+                  {/* Nhóm đã ẩn (user là thành viên nhưng đã xóa khỏi danh sách) */}
+                  {mergedContacts.hiddenGroups.length > 0 && (
+                    <>
+                      <div
+                        style={{
+                          padding: "6px 12px 2px",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          textTransform: "uppercase" as const,
+                          letterSpacing: "0.05em",
+                          color: "#f59e0b",
+                        }}
+                      >
+                        Nhóm đã ẩn
+                      </div>
+                      {mergedContacts.hiddenGroups.slice(0, 5).map((g) => (
+                        <div
+                          key={g.id}
+                          onClick={() => handleSelectHiddenGroup(g)}
+                          style={rowStyle}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = hoverBg;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                        >
+                          <img
+                            src={
+                              g.avatarUrl ||
+                              `https://ui-avatars.com/api/?name=${encodeURIComponent(g.groupName ?? "?")}&background=f59e0b&color=fff&size=64`
+                            }
+                            alt=""
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: "50%",
+                              objectFit: "cover",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 500,
+                                color: textPrimary,
+                              }}
+                            >
+                              <HighlightText text={g.groupName} query={query} />
+                            </div>
+                            <div style={{ fontSize: 12, color: "#f59e0b" }}>
+                              Nhóm · Nhấn để mở lại
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
 
                   {/* Divider */}
                   {(showMessages && totalMessages > 0) ||

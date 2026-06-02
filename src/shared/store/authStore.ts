@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import authService from "@/shared/services/authService";
 import type { LoginRequest, JwtResponse } from "@/shared/services/types";
 import { getDeviceType, getOrCreateDeviceId } from "@/shared/utils/deviceSession";
@@ -8,9 +9,13 @@ import { getDeviceType, getOrCreateDeviceId } from "@/shared/utils/deviceSession
 const WEB_STORAGE_KEY = "minizalo_auth";
 
 function saveToWebStorage(data: { accessToken: string | null; refreshToken: string | null; impersonatorToken?: string | null; impersonatorRefreshToken?: string | null; user: any }) {
-    if (Platform.OS !== "web") return;
     try {
-        localStorage.setItem(WEB_STORAGE_KEY, JSON.stringify(data));
+        const payload = JSON.stringify(data);
+        if (Platform.OS === "web") {
+            localStorage.setItem(WEB_STORAGE_KEY, payload);
+        } else {
+            AsyncStorage.setItem(WEB_STORAGE_KEY, payload).catch(() => {});
+        }
     } catch { /* ignore */ }
 }
 
@@ -24,9 +29,12 @@ function loadFromWebStorage(): { accessToken: string | null; refreshToken: strin
 }
 
 function clearWebStorage() {
-    if (Platform.OS !== "web") return;
     try {
-        localStorage.removeItem(WEB_STORAGE_KEY);
+        if (Platform.OS === "web") {
+            localStorage.removeItem(WEB_STORAGE_KEY);
+        } else {
+            AsyncStorage.removeItem(WEB_STORAGE_KEY).catch(() => {});
+        }
     } catch { /* ignore */ }
 }
 
@@ -57,7 +65,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     impersonatorToken: persisted?.impersonatorToken || null,
     impersonatorRefreshToken: persisted?.impersonatorRefreshToken || null,
     user: persisted?.user || null,
-    isHydrated: true,
+    isHydrated: Platform.OS === "web",
 
     setHydrated: () => set({ isHydrated: true }),
 
@@ -154,6 +162,35 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         cancelProactiveRefresh();
     },
 }));
+
+if (Platform.OS !== "web") {
+    AsyncStorage.getItem(WEB_STORAGE_KEY)
+        .then((raw) => {
+            if (!raw) {
+                useAuthStore.setState({ isHydrated: true });
+                return;
+            }
+            const data = JSON.parse(raw) as {
+                accessToken?: string | null;
+                refreshToken?: string | null;
+                impersonatorToken?: string | null;
+                impersonatorRefreshToken?: string | null;
+                user?: import('./../types').User | null;
+            };
+            useAuthStore.setState({
+                accessToken: data.accessToken || null,
+                refreshToken: data.refreshToken || null,
+                impersonatorToken: data.impersonatorToken || null,
+                impersonatorRefreshToken: data.impersonatorRefreshToken || null,
+                user: data.user || null,
+                isHydrated: true,
+            });
+            scheduleProactiveRefresh();
+        })
+        .catch(() => {
+            useAuthStore.setState({ isHydrated: true });
+        });
+}
 
 export const isAuthenticated = (): boolean => {
     return !!useAuthStore.getState().accessToken;

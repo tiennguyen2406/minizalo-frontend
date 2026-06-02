@@ -12,6 +12,7 @@ import { chatService } from '@/shared/services/chatService';
 import { ArrowUp, Sparkles } from 'lucide-react';
 import { showToast as toast } from '@/shared/utils/toast';
 import ReadReceiptModal from './ReadReceiptModal';
+import { useChatStore } from '@/shared/store/useChatStore';
 
 interface MessageListProps {
     messages: Message[];
@@ -453,6 +454,47 @@ const MessageList: React.FC<MessageListProps> = ({
 
     const jumpRetryCount = useRef(0);
     const lastJumpTargetId = useRef<string | null>(null);
+    const highlightedMessageId = useChatStore((s) => s.highlightedMessageId);
+    const setHighlightedMessageId = useChatStore((s) => s.setHighlightedMessageId);
+
+    const scrollToMessageById = useCallback((msgId: string) => {
+        const el = document.getElementById(`msg-${msgId}`);
+        const container = scrollRef.current;
+        if (!el || !container) return false;
+
+        const cRect = container.getBoundingClientRect();
+        const eRect = el.getBoundingClientRect();
+        const relTop = eRect.top - cRect.top;
+        const targetTop = container.scrollTop + relTop - (container.clientHeight / 2) + (eRect.height / 2);
+        container.scrollTop = Math.max(0, targetTop);
+        return true;
+    }, []);
+
+    useEffect(() => {
+        if (!highlightedMessageId) return;
+
+        jumpActive.current = true;
+        isNearBottom.current = false;
+        setIsJumping(true);
+
+        const tryScroll = () => {
+            if (!scrollToMessageById(highlightedMessageId)) return false;
+            setHighlightMsgId(highlightedMessageId);
+            setTimeout(() => scrollToMessageById(highlightedMessageId), 120);
+            setTimeout(() => scrollToMessageById(highlightedMessageId), 350);
+            setTimeout(() => {
+                setHighlightMsgId(null);
+                setHighlightedMessageId(null);
+                jumpActive.current = false;
+                setIsJumping(false);
+            }, 3500);
+            return true;
+        };
+
+        if (tryScroll()) return;
+        const timer = setTimeout(tryScroll, 100);
+        return () => clearTimeout(timer);
+    }, [highlightedMessageId, scrollToMessageById, setHighlightedMessageId]);
 
     // ─── Jump to oldest unread (mirrors mobile: find by message ID, scroll by offsetTop) ──
     const handleJumpToUnread = useCallback((isRetry = false) => {
@@ -624,6 +666,7 @@ const MessageList: React.FC<MessageListProps> = ({
         acc[p.id] = p;
         return acc;
     }, {} as Record<string, User>);
+    const activeHighlightMsgId = highlightMsgId || highlightedMessageId;
     return (
         <div
             ref={scrollRef}
@@ -659,7 +702,7 @@ const MessageList: React.FC<MessageListProps> = ({
                                     {group.map(m => (
                                         <div key={`anchor-${m.id}`} id={`msg-${m.id}`} className="absolute top-0 left-0 w-0 h-0 pointer-events-none" />
                                     ))}
-                                    <div className={highlightMsgId && group.some(m => m.id === highlightMsgId) ? 'msg-highlight-wrapper' : ''}>
+                                    <div className={activeHighlightMsgId && group.some(m => m.id === activeHighlightMsgId) ? 'msg-highlight-wrapper' : ''}>
                                         <ImageGroupBubble
                                         messages={group}
                                         isMine={isMine}
@@ -717,7 +760,7 @@ const MessageList: React.FC<MessageListProps> = ({
 
                             return (
                                 <div key={msg.id || `msg-${index}`} id={`msg-${msg.id}`}
-                                    className={highlightMsgId === msg.id ? 'msg-highlight-wrapper' : ''}
+                                    className={activeHighlightMsgId === msg.id ? 'msg-highlight-wrapper' : ''}
                                 >
                                     <MessageBubble
                                         message={msg}

@@ -46,6 +46,8 @@ const inviteStyles = StyleSheet.create({
     checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: "#ccc", justifyContent: "center", alignItems: "center" },
     checkboxChecked: { backgroundColor: "#0068FF", borderColor: "#0068FF" },
     actions: { flexDirection: "row", gap: 12, marginTop: 20 },
+    selectAllRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+    selectAllButton: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "#eef5ff" },
     cancelBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 12, backgroundColor: "#f3f4f6" },
     confirmBtn: { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 12, backgroundColor: "#0068FF" },
     confirmBtnDisabled: { backgroundColor: "#aac4e0" },
@@ -143,6 +145,16 @@ export default function ChatHeader({
         });
     };
 
+    const allMemberIds = React.useMemo(
+        () => groupMembers.map((p: any) => String(p.id)),
+        [groupMembers],
+    );
+    const allMembersSelected = groupMembers.length > 0 && selectedIds.size === groupMembers.length;
+
+    const toggleSelectAllMembers = () => {
+        setSelectedIds(allMembersSelected ? new Set() : new Set(allMemberIds));
+    };
+
     const handleBack = () => {
         if (onBack) {
             onBack();
@@ -165,7 +177,19 @@ export default function ChatHeader({
                                 <Ionicons name="close" size={24} color="#333" />
                             </TouchableOpacity>
                         </View>
-                        <Text style={inviteStyles.subtitle}>Chọn thành viên tham gia ({selectedIds.size}/{groupMembers.length})</Text>
+                        <View style={inviteStyles.selectAllRow}>
+                            <Text style={[inviteStyles.subtitle, { marginBottom: 0 }]}>Chọn thành viên tham gia ({selectedIds.size}/{groupMembers.length})</Text>
+                            <TouchableOpacity style={inviteStyles.selectAllButton} onPress={toggleSelectAllMembers}>
+                                <Ionicons
+                                    name={allMembersSelected ? "remove-circle-outline" : "checkmark-circle-outline"}
+                                    size={16}
+                                    color="#0068FF"
+                                />
+                                <Text style={{ color: "#0068FF", fontSize: 13, fontWeight: "700", marginLeft: 5 }}>
+                                    {allMembersSelected ? "Bỏ chọn" : "Chọn tất cả"}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
                         <FlatList
                             data={groupMembers}
                             keyExtractor={(item: any) => String(item.id)}

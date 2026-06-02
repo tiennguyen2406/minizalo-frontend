@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, Platform, ScrollView } from "react-native";
-import { useGlobalSearchParams } from "expo-router";
+import { useGlobalSearchParams, router } from "expo-router";
 import { useUserStore } from "@/shared/store/userStore";
 import { useFriendStore } from "@/shared/store/friendStore";
 import { useThemeStore } from "@/shared/store/themeStore";
+import { useChatStore } from "@/shared/store/useChatStore";
 import FriendsListScreen from "@/views/web/components/FriendsListScreen";
 import FriendRequestsScreen from "@/views/web/components/FriendRequestsScreen";
 import SearchUsersScreen from "@/views/web/components/SearchUsersScreen";
@@ -29,6 +30,16 @@ export default function ContactsScreen() {
     "friends" | "groups" | "friendRequests" | "groupInvites" | "blocked"
   >("friends");
   const [globalSearch, setGlobalSearch] = useState("");
+
+  const handleOpenChat = async (userId: string) => {
+    try {
+      const room = await useChatStore.getState().createPrivateRoom(userId);
+      useChatStore.getState().setPendingOpenRoomId(room.id);
+      router.push("/(tabs)");
+    } catch (err) {
+      console.error("Mở cuộc trò chuyện thất bại:", err);
+    }
+  };
 
   useEffect(() => {
     if (!isWeb) return;
@@ -180,7 +191,7 @@ export default function ContactsScreen() {
               (globalSearch.trim() === "" ? (
                 <FriendsListScreen
                   currentUserId={currentUserId}
-                  onOpenChat={() => {}}
+                  onOpenChat={handleOpenChat}
                   searchText={globalSearch}
                   onSearchChange={setGlobalSearch}
                   hideSearchField
@@ -189,7 +200,7 @@ export default function ContactsScreen() {
                 <SearchUsersScreen
                   externalQuery={globalSearch}
                   hideSearchInput
-                  onOpenChat={() => {}}
+                  onOpenChat={handleOpenChat}
                 />
               ))}
             {activeNav === "friendRequests" && (
