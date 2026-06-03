@@ -596,6 +596,7 @@ export default function ChatScreen() {
   const galleryRef = useRef<FlatList>(null);
   const menuSwipeLockRef = useRef(false);
   const roomMenuOpenLockRef = useRef(false);
+  const groupInfoOpenLockRef = useRef(false);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const [galleryCurrentIndex, setGalleryCurrentIndex] = useState(0);
 
@@ -721,17 +722,22 @@ export default function ChatScreen() {
       openChatOptions();
       return;
     }
+    if (groupInfoOpenLockRef.current) return;
     const normalizedRoomId = Array.isArray(roomId) ? roomId[0] : roomId;
     if (!normalizedRoomId || normalizedRoomId === "new") {
       Alert.alert("Lỗi", "Không thể mở thông tin nhóm khi cuộc trò chuyện chưa sẵn sàng.");
       return;
     }
+    groupInfoOpenLockRef.current = true;
     router.push({
       pathname: "/group-info",
       params: {
         roomId: normalizedRoomId,
       },
     });
+    setTimeout(() => {
+      groupInfoOpenLockRef.current = false;
+    }, 1200);
   };
 
   const openChatOptions = () => {
@@ -758,7 +764,14 @@ export default function ChatScreen() {
   const closeGroupInfoPanel = useCallback(() => {
     setShowGroupInfoPanel(false);
     roomMenuOpenLockRef.current = false;
+    groupInfoOpenLockRef.current = false;
   }, []);
+
+  useEffect(() => {
+    if (isFocused) {
+      groupInfoOpenLockRef.current = false;
+    }
+  }, [isFocused]);
 
   useEffect(() => {
     if (Platform.OS === "web" || !showGroupInfoPanel) return;

@@ -11,7 +11,7 @@ import {
     FlatList,
     Image,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -722,7 +722,7 @@ export default function GroupSettingsScreen({
             </ScrollView>
 
             <Modal visible={transferVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTransferVisible(false)}>
-                <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
+                <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }}>
                     <View style={{ backgroundColor: colors.headerBg }}>
                         <View
                             style={{
@@ -797,7 +797,7 @@ export default function GroupSettingsScreen({
                             </View>
                         }
                     />
-                </SafeAreaView>
+                </View>
             </Modal>
 
             <RolesManagementSheet

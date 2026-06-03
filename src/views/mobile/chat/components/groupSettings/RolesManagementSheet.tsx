@@ -1,12 +1,13 @@
 import React, { useMemo } from "react";
 import { Modal, View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { GroupMember } from "@/shared/types";
 import { useThemeColors } from "@/shared/theme/colors";
 
 function avatarOf(member: GroupMember) {
-  return member.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.fullName || member.username || "User")}&background=0068FF&color=fff`;
+  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(member.fullName || member.username || "User")}&background=0068FF&color=fff`;
+  return /^https?:\/\//i.test(String(member.avatarUrl || "")) ? member.avatarUrl! : fallback;
 }
 
 function MemberCard({
@@ -68,6 +69,7 @@ export function RolesManagementSheet({
   onRemoveAdmin: (userId: string) => void;
 }) {
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
 
   const ownerMember = useMemo(
     () => members.find((m) => String(m.userId) === String(ownerId)) || null,
@@ -80,7 +82,7 @@ export function RolesManagementSheet({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
+      <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }}>
         <View style={{ backgroundColor: colors.headerBg }}>
           <View
             style={{
@@ -140,7 +142,7 @@ export function RolesManagementSheet({
             ))
           )}
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }

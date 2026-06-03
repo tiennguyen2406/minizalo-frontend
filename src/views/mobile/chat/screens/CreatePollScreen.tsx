@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/shared/theme/colors";
@@ -33,6 +33,7 @@ export interface CreatePollScreenProps {
  */
 export default function CreatePollScreen({ roomId, groupName, onClose }: CreatePollScreenProps) {
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const theme = useThemeStore((s) => s.theme);
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState<string[]>(["", ""]);
@@ -111,7 +112,7 @@ export default function CreatePollScreen({ roomId, groupName, onClose }: CreateP
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar style={colors.statusBar} />
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top"]}>
+      <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
         {/* Header */}
         <View
           style={{
@@ -294,7 +295,7 @@ export default function CreatePollScreen({ roomId, groupName, onClose }: CreateP
             colors={colors}
           />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </KeyboardAvoidingView>
   );
 }

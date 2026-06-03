@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, Image, FlatList, Alert } from "react-native";
-import { SafeAreaView as SafeAreaViewCtx } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,6 +27,7 @@ export default function GroupMembersScreen({
 }: GroupMembersScreenProps) {
     const colors = useThemeColors();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const members = Array.isArray(group.members) ? group.members.filter((m) => m?.userId) : [];
 
     const confirmRemove = (member: GroupMember) => {
@@ -169,8 +170,7 @@ export default function GroupMembersScreen({
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
             <StatusBar style={colors.statusBar} />
-            <View style={{ backgroundColor: colors.headerBg }}>
-                <SafeAreaViewCtx edges={["top"]}>
+            <View style={{ backgroundColor: colors.headerBg, paddingTop: insets.top }}>
                     <View
                         style={{
                             flexDirection: "row",
@@ -216,7 +216,6 @@ export default function GroupMembersScreen({
                             <View style={{ width: 36 }} />
                         )}
                     </View>
-                </SafeAreaViewCtx>
             </View>
 
             <FlatList

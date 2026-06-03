@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Modal, View, Text, TouchableOpacity, FlatList, Image } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { GroupMember } from "@/shared/types";
 import { useThemeColors } from "@/shared/theme/colors";
@@ -25,6 +25,7 @@ export function MemberActionPickerSheet({
   onPick: (userId: string) => void;
 }) {
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
 
   const data = useMemo(() => {
     const list = members.filter((m) => String(m.userId) !== String(ownerId));
@@ -37,7 +38,7 @@ export function MemberActionPickerSheet({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "bottom"]}>
+      <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }}>
         <View style={{ backgroundColor: colors.headerBg }}>
           <View
             style={{
@@ -67,7 +68,8 @@ export function MemberActionPickerSheet({
           keyExtractor={(item) => item.userId}
           contentContainerStyle={{ paddingVertical: 12, paddingBottom: 28, flexGrow: 1 }}
           renderItem={({ item }) => {
-            const avatar = item.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.fullName || item.username)}&background=0068FF&color=fff`;
+            const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.fullName || item.username)}&background=0068FF&color=fff`;
+            const avatar = /^https?:\/\//i.test(String(item.avatarUrl || "")) ? item.avatarUrl! : fallbackAvatar;
             return (
               <TouchableOpacity
                 activeOpacity={0.75}
@@ -111,7 +113,7 @@ export function MemberActionPickerSheet({
             </View>
           }
         />
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
